@@ -4,6 +4,7 @@ typedef unsigned int uint32;
 
 typedef unsigned int uint;
 typedef uint8 boolean;
+typedef uint8 byte;
 
 #define null ((void*)0)
 #define false 0

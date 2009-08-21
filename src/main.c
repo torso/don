@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "builder.h"
 #include "stringpool.h"
+#include "fileindex.h"
 
 int main(int argc, const char** argv)
 {
@@ -68,5 +69,7 @@ int main(int argc, const char** argv)
     printf("input=%s\n", inputFile);
 
     StringPoolInit();
+    FileIndexInit();
+    FileIndexAdd(inputFile);
     return 0;
 }
