@@ -2,12 +2,14 @@
 #include "builder.h"
 #include "stringpool.h"
 #include "fileindex.h"
+#include "parser.h"
 
 int main(int argc, const char** argv)
 {
     int i;
     const char* options;
-    const char* inputFile = null;
+    const char* inputFilename = null;
+    fileref inputFile;
     boolean parseOptions = true;
 
     for (i = 1; i < argc; i++)
@@ -37,7 +39,7 @@ int main(int argc, const char** argv)
                 switch (*options)
                 {
                 case 'i':
-                    if (inputFile)
+                    if (inputFilename)
                     {
                         printf("Input file already specified\n");
                         return 1;
@@ -47,7 +49,7 @@ int main(int argc, const char** argv)
                         printf("Option \"-i\" requires an argument\n");
                         return 1;
                     }
-                    inputFile = argv[i];
+                    inputFilename = argv[i];
                     break;
 
                 default:
@@ -62,14 +64,16 @@ int main(int argc, const char** argv)
             return 1;
         }
     }
-    if (!inputFile)
+    if (!inputFilename)
     {
-        inputFile = "build.don";
+        inputFilename = "build.don";
     }
-    printf("input=%s\n", inputFile);
+    printf("input=%s\n", inputFilename);
 
     StringPoolInit();
     FileIndexInit();
-    FileIndexAdd(inputFile);
+    inputFile = FileIndexAdd(inputFilename);
+    assert(inputFile);
+    ParseFile(inputFile);
     return 0;
 }

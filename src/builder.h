@@ -3,6 +3,7 @@ typedef unsigned short uint16;
 typedef unsigned int uint32;
 
 typedef unsigned int uint;
+typedef unsigned long ulong;
 typedef uint8 boolean;
 typedef uint8 byte;
 

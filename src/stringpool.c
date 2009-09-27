@@ -15,34 +15,52 @@ static uint dataSize = 0;
 static uint* table = null;
 /*static uint stringCount = 0;*/
 
+static void checkTable(const uint* t)
+{
+    assert(t);
+    assert(t[TABLE_SIZE] > TABLE_DATA_BEGIN);
+    assert((t[TABLE_SIZE] - TABLE_DATA_BEGIN) % TABLE_ENTRY_SIZE == 0);
+}
+
 static uint getTableSize(const uint* t)
 {
+    checkTable(t);
     return t[TABLE_SIZE] / TABLE_ENTRY_SIZE;
+}
+
+static void checkSlot(const uint* t, uint slot)
+{
+    assert(getTableSize(t) > slot);
 }
 
 static uint getSlotForHash(const uint* t, uint hash)
 {
-    return (hash % getTableSize(t)) * TABLE_ENTRY_SIZE;
+    checkTable(t);
+    return hash % getTableSize(t);
 }
 
 static uint getSlotHash(const uint* t, uint slot)
 {
+    checkTable(t);
     return t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_HASH];
 }
 
 static uint getSlotValue(const uint* t, uint slot)
 {
+    checkSlot(t, slot);
     return t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE];
 }
 
 static boolean isSlotEmpty(const uint* t, uint slot)
 {
+    checkTable(t);
     return getSlotValue(t, slot) ? false : true;
 }
 
 static boolean slotContainsString(const uint* t, uint slot, uint hash,
                                   const char* string, uint length)
 {
+    checkTable(t);
     return getSlotHash(t, slot) == hash &&
         StringPoolGetStringLength(getSlotValue(t, slot)) == length &&
         memcmp(&stringData[getSlotValue(t, slot)],
@@ -57,6 +75,7 @@ void StringPoolInit()
     assert(stringData); /* TODO: handle oom */
     table = zmalloc(1024 + TABLE_DATA_BEGIN);
     assert(table); /* TODO: handle oom */
+    table[TABLE_SIZE] = 1024;
 }
 
 stringref StringPoolAdd(const char* token)
@@ -91,7 +110,7 @@ stringref StringPoolAdd2(const char* token, uint length)
         {
             return getSlotValue(cachedTable, slot);
         }
-        slot += TABLE_ENTRY_SIZE;
+        slot++;
         if (slot == getTableSize(cachedTable))
         {
             slot = 0;
@@ -99,7 +118,8 @@ stringref StringPoolAdd2(const char* token, uint length)
     }
     stringData[dataSize++] = (char)length;
     ref = dataSize;
-    memcpy(stringData, token, length + 1);
+    memcpy(&stringData[dataSize], token, length);
+    stringData[dataSize + length] = 0;
     table[slot + TABLE_ENTRY_VALUE] = ref;
     table[slot + TABLE_ENTRY_HASH] = hash;
     dataSize += length + 1;

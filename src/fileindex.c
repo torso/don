@@ -7,8 +7,8 @@
 
 typedef struct
 {
-    byte* data;
-    long length;
+    const byte* data;
+    ulong length;
 } FileEntry;
 
 static FileEntry fileIndex[16];
@@ -24,6 +24,7 @@ fileref FileIndexAdd(const char* filename)
     int status;
     long size;
     long read;
+    byte* data;
 
     fileCount++;
     assert(fileCount < INITIAL_FILE_SIZE); /* TODO: grow file index */
@@ -37,11 +38,25 @@ fileref FileIndexAdd(const char* filename)
     assert(size >= 0); /* TODO: handle file error */
     status = fseek(f, 0, SEEK_SET);
     assert(!status); /* TODO: handle file error */
-    fileIndex[fileCount].length = size;
-    fileIndex[fileCount].data = malloc(size);
-    assert(fileIndex[fileCount].data); /* TODO: handle oom */
-    read = fread(fileIndex[fileCount].data, 1, size, f);
+    data = malloc(size + 1);
+    assert(data); /* TODO: handle oom */
+    data[size] = 0;
+    read = fread(data, 1, size, f);
     assert(read == size); /* TODO: handle file error */
     fclose(f);
+    fileIndex[fileCount].length = size;
+    fileIndex[fileCount].data = data;
     return fileCount;
+}
+
+const byte* FileIndexGetContents(fileref file)
+{
+    assert(file >= 1 && file <= fileCount);
+    return fileIndex[file].data;
+}
+
+ulong FileIndexGetSize(fileref file)
+{
+    assert(file >= 1 && file <= fileCount);
+    return fileIndex[file].length;
 }
