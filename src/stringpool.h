@@ -1,3 +1,5 @@
+#define STRINGPOOL_H
+
 typedef uint stringref;
 
 extern void StringPoolInit(void);

@@ -2,6 +2,7 @@
 #include "builder.h"
 #include "stringpool.h"
 #include "fileindex.h"
+#include "targetindex.h"
 #include "parser.h"
 
 int main(int argc, const char** argv)
@@ -72,6 +73,7 @@ int main(int argc, const char** argv)
 
     StringPoolInit();
     FileIndexInit();
+    TargetIndexInit();
     inputFile = FileIndexAdd(inputFilename);
     assert(inputFile);
     ParseFile(inputFile);

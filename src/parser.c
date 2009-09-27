@@ -2,6 +2,7 @@
 #include "builder.h"
 #include "stringpool.h"
 #include "fileindex.h"
+#include "targetindex.h"
 #include "log.h"
 #include "parser.h"
 
@@ -102,7 +103,9 @@ static boolean ParseScript(ParseState* state)
     {
         if (peekIdentifier(state))
         {
-            printf("Target: %s line: %d\n", StringPoolGetString(readIdentifier(state)), state->line);
+            int offset = state->current - state->start;
+            TargetIndexAdd(readIdentifier(state), state->file, state->line,
+                           offset);
             skipEndOfLine(state);
             inFunction = true;
         }
