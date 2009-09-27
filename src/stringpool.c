@@ -104,7 +104,7 @@ stringref StringPoolAdd2(const char* token, uint length)
         hash = 31 * hash + token[i];
     }
     slot = getSlotForHash(cachedTable, hash);
-    while (isSlotEmpty(cachedTable, slot))
+    while (!isSlotEmpty(cachedTable, slot))
     {
         if (slotContainsString(cachedTable, slot, hash, token, length))
         {
