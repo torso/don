@@ -8,7 +8,7 @@
 typedef struct
 {
     const byte* data;
-    ulong length;
+    uint length;
 } FileEntry;
 
 static FileEntry fileIndex[16];
@@ -36,6 +36,7 @@ fileref FileIndexAdd(const char* filename)
     assert(!status); /* TODO: handle file error */
     size = ftell(f);
     assert(size >= 0); /* TODO: handle file error */
+    assert(size <= MAX_UINT); /* TODO: handle large files */
     status = fseek(f, 0, SEEK_SET);
     assert(!status); /* TODO: handle file error */
     data = malloc(size + 1);
@@ -55,7 +56,7 @@ const byte* FileIndexGetContents(fileref file)
     return fileIndex[file].data;
 }
 
-ulong FileIndexGetSize(fileref file)
+uint FileIndexGetSize(fileref file)
 {
     assert(file >= 1 && file <= fileCount);
     return fileIndex[file].length;
