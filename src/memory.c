@@ -8,7 +8,7 @@ void* zmalloc(size_t size)
     assert(data); /* TODO: handle oom */
     if (data)
     {
-        memset(data, size, 0);
+        memset(data, 0, size);
     }
     return data;
 }
