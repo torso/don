@@ -36,7 +36,7 @@ static void checkSlot(const uint* t, uint slot)
 static uint getSlotForHash(const uint* t, uint hash)
 {
     checkTable(t);
-    return hash % getTableSize(t);
+    return hash & (getTableSize(t) - 1);
 }
 
 static uint getSlotHash(const uint* t, uint slot)
