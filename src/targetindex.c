@@ -13,9 +13,14 @@
 
 static intvector table;
 
-void TargetIndexInit(void)
+void TargetIndexInit()
 {
     IntVectorInit(&table);
+}
+
+void TargetIndexFree()
+{
+    IntVectorFree(&table);
 }
 
 targetref TargetIndexAdd(stringref name, fileref file, int line, int offset)

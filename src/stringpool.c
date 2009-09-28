@@ -78,6 +78,12 @@ void StringPoolInit()
     table[TABLE_SIZE] = 1024;
 }
 
+void StringPoolFree()
+{
+    free(stringData);
+    free(table);
+}
+
 stringref StringPoolAdd(const char* token)
 {
     assert(token != null);

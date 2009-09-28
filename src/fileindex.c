@@ -18,6 +18,16 @@ void FileIndexInit()
 {
 }
 
+void FileIndexFree()
+{
+    while (fileCount > 0)
+    {
+        assert(fileIndex[fileCount].data);
+        free((byte*)fileIndex[fileCount].data);
+        fileCount--;
+    }
+}
+
 fileref FileIndexAdd(const char* filename)
 {
     FILE* f;

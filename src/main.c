@@ -77,5 +77,9 @@ int main(int argc, const char** argv)
     inputFile = FileIndexAdd(inputFilename);
     assert(inputFile);
     ParseFile(inputFile);
+
+    TargetIndexFree();
+    FileIndexFree();
+    StringPoolFree();
     return 0;
 }

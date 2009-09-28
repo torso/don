@@ -23,6 +23,11 @@ void IntVectorInit(intvector* v)
     v->size = 0;
 }
 
+void IntVectorFree(intvector* v)
+{
+    free(v->data);
+}
+
 uint IntVectorSize(const intvector* v)
 {
     checkIntVector(v);

@@ -10,6 +10,7 @@
 typedef uint targetref;
 
 extern void TargetIndexInit(void);
+extern void TargetIndexFree(void);
 extern targetref TargetIndexAdd(stringref name, fileref file, int line,
                                 int offset);
 extern pure stringref TargetIndexGetName(targetref target);
