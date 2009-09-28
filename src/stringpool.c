@@ -25,7 +25,7 @@ static void checkTable(const uint* t)
 static uint getTableSize(const uint* t)
 {
     checkTable(t);
-    return t[TABLE_SIZE] / TABLE_ENTRY_SIZE;
+    return (t[TABLE_SIZE] - TABLE_DATA_BEGIN) / TABLE_ENTRY_SIZE;
 }
 
 static void checkSlot(const uint* t, uint slot)
@@ -73,7 +73,7 @@ void StringPoolInit()
     assert(!table);
     stringData = malloc(65536);
     assert(stringData); /* TODO: handle oom */
-    table = zmalloc(1024 + TABLE_DATA_BEGIN);
+    table = zmalloc((1024 + TABLE_DATA_BEGIN) * sizeof(uint));
     assert(table); /* TODO: handle oom */
     table[TABLE_SIZE] = 1024;
 }
