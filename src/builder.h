@@ -10,7 +10,7 @@ typedef uint8 byte;
 #define null ((void*)0)
 #define false 0
 #define true 1
-#define MAX_UINT ((uint)0xffffffff)
+#define MAX_UINT ((uint)-1)
 
 #define nonnull __attribute((nonnull))
 #define pure __attribute((pure))
