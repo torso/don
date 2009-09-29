@@ -126,8 +126,8 @@ stringref StringPoolAdd2(const char* token, uint length)
     ref = dataSize;
     memcpy(&stringData[dataSize], token, length);
     stringData[dataSize + length] = 0;
-    table[slot + TABLE_ENTRY_VALUE] = ref;
-    table[slot + TABLE_ENTRY_HASH] = hash;
+    table[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE] = ref;
+    table[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_HASH] = hash;
     dataSize += length + 1;
     return ref;
 }
