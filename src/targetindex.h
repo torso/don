@@ -17,3 +17,5 @@ extern pure stringref TargetIndexGetName(targetref target);
 extern pure fileref TargetIndexGetFile(targetref target);
 extern pure uint TargetIndexGetLine(targetref target);
 extern pure uint TargetIndexGetOffset(targetref target);
+
+extern void TargetIndexFinish(void);

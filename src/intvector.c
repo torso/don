@@ -56,6 +56,12 @@ int IntVectorGet(const intvector* v, uint index)
     return v->data[index];
 }
 
+const int *IntVectorGetPointer(const intvector* v, uint index)
+{
+    checkIntVectorIndex(v, index);
+    return &v->data[index];
+}
+
 void IntVectorSet(intvector* v, uint index, int value)
 {
     checkIntVectorIndex(v, index);

@@ -14,6 +14,10 @@ typedef uint8 byte;
 
 #define nonnull __attribute((nonnull))
 #define pure __attribute((pure))
+#define restrict __restrict
+
+#define min(a, b) (a > b ? b : a)
+#define max(a, b) (a < b ? b : a)
 
 extern void* zmalloc(size_t size);
 
