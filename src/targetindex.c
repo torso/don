@@ -110,20 +110,24 @@ static void sortIndex()
     for (i = 0; i < targetCount;)
     {
         insertionSort(&data1[i * TABLE_ENTRY_SIZE],
-                      (const uint*)IntVectorGetPointer(&unsortedTable, i * TABLE_ENTRY_SIZE),
+                      (const uint*)IntVectorGetPointer(&unsortedTable,
+                                                       i * TABLE_ENTRY_SIZE),
                       min(targetCount - i, 8));
         i += 8;
         if (i <= targetCount)
         {
-            for (j = 8, odd = true; i - j > 0 && (i & ((j << 1) - 1)) == 0; j <<= 1, odd = !odd)
+            for (j = 8, odd = true; i - j > 0 && (i & ((j << 1) - 1)) == 0;
+                 j <<= 1, odd = !odd)
             {
                 if (odd)
                 {
-                    mergeSort(&data2[(i - 2 * j) * TABLE_ENTRY_SIZE], &data1[(i - 2 * j) * TABLE_ENTRY_SIZE], j, j);
+                    mergeSort(&data2[(i - 2 * j) * TABLE_ENTRY_SIZE],
+                              &data1[(i - 2 * j) * TABLE_ENTRY_SIZE], j, j);
                 }
                 else
                 {
-                    mergeSort(&data1[(i - 2 * j) * TABLE_ENTRY_SIZE], &data2[(i - 2 * j) * TABLE_ENTRY_SIZE], j, j);
+                    mergeSort(&data1[(i - 2 * j) * TABLE_ENTRY_SIZE],
+                              &data2[(i - 2 * j) * TABLE_ENTRY_SIZE], j, j);
                 }
             }
         }
@@ -134,11 +138,19 @@ static void sortIndex()
         {
             if (odd)
             {
-                mergeSort(&data2[((targetCount - i) & ~(i - 1)) * TABLE_ENTRY_SIZE], &data1[((targetCount - i) & ~(i - 1)) * TABLE_ENTRY_SIZE], i, min(i, targetCount - ((targetCount - i) & ~(i - 1)) - i));
+                mergeSort(
+                    &data2[((targetCount - i) & ~(i - 1)) * TABLE_ENTRY_SIZE],
+                    &data1[((targetCount - i) & ~(i - 1)) * TABLE_ENTRY_SIZE],
+                    i,
+                    min(i, targetCount - ((targetCount - i) & ~(i - 1)) - i));
             }
             else
             {
-                mergeSort(&data1[((targetCount - i) & ~(i - 1)) * TABLE_ENTRY_SIZE], &data2[((targetCount - i) & ~(i - 1)) * TABLE_ENTRY_SIZE], i, min(i, targetCount - ((targetCount - i) & ~(i - 1)) - i));
+                mergeSort(
+                    &data1[((targetCount - i) & ~(i - 1)) * TABLE_ENTRY_SIZE],
+                    &data2[((targetCount - i) & ~(i - 1)) * TABLE_ENTRY_SIZE],
+                    i,
+                    min(i, targetCount - ((targetCount - i) & ~(i - 1)) - i));
             }
         }
     }
