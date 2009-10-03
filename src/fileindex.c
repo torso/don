@@ -46,7 +46,7 @@ fileref FileIndexAdd(const char* filename)
     assert(!status); /* TODO: handle file error */
     size = ftell(f);
     assert(size >= 0); /* TODO: handle file error */
-    assert(size <= MAX_UINT); /* TODO: handle large files */
+    assert((ulong)size <= MAX_UINT); /* TODO: handle large files */
     status = fseek(f, 0, SEEK_SET);
     assert(!status); /* TODO: handle file error */
     data = malloc(size + 1);
