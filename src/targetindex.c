@@ -193,28 +193,32 @@ targetref TargetIndexGet(stringref name)
 stringref TargetIndexGetName(targetref target)
 {
     assert(table);
-    assert(target < targetCount);
+    assert(target >= 0);
+    assert((uint)target < targetCount);
     return table[target * TABLE_ENTRY_SIZE + TABLE_ENTRY_NAME];
 }
 
 fileref TargetIndexGetFile(targetref target)
 {
     assert(table);
-    assert(target < targetCount);
+    assert(target >= 0);
+    assert((uint)target < targetCount);
     return table[target * TABLE_ENTRY_SIZE + TABLE_ENTRY_FILE];
 }
 
 uint TargetIndexGetLine(targetref target)
 {
     assert(table);
-    assert(target < targetCount);
+    assert(target >= 0);
+    assert((uint)target < targetCount);
     return table[target * TABLE_ENTRY_SIZE + TABLE_ENTRY_LINE];
 }
 
 uint TargetIndexGetOffset(targetref target)
 {
     assert(table);
-    assert(target < targetCount);
+    assert(target >= 0);
+    assert((uint)target < targetCount);
     return table[target * TABLE_ENTRY_SIZE + TABLE_ENTRY_OFFSET];
 }
 

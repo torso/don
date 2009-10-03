@@ -7,7 +7,7 @@
 
 #define TARGETINDEX_H
 
-typedef uint targetref;
+typedef int targetref;
 
 extern void TargetIndexInit(void);
 extern void TargetIndexFree(void);
