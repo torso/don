@@ -162,6 +162,34 @@ targetref TargetIndexAdd(stringref name, fileref file, int line, int offset)
     return ref;
 }
 
+targetref TargetIndexGet(stringref name)
+{
+    uint low = 0;
+    uint high = targetCount;
+    uint mid;
+    assert(table);
+    assert(name);
+    while (low < high)
+    {
+        mid = low + (high - low) / 2;
+        if (table[mid * TABLE_ENTRY_SIZE + TABLE_ENTRY_NAME] < name)
+        {
+            low = mid + 1;
+        }
+        else
+        {
+            high = mid;
+        }
+    }
+    assert(low == high);
+    if (low < targetCount &&
+        table[low * TABLE_ENTRY_SIZE + TABLE_ENTRY_NAME] == name)
+    {
+        return low;
+    }
+    return -1;
+}
+
 stringref TargetIndexGetName(targetref target)
 {
     assert(table);

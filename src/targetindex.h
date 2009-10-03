@@ -13,6 +13,7 @@ extern void TargetIndexInit(void);
 extern void TargetIndexFree(void);
 extern targetref TargetIndexAdd(stringref name, fileref file, int line,
                                 int offset);
+extern pure targetref TargetIndexGet(stringref name);
 extern pure stringref TargetIndexGetName(targetref target);
 extern pure fileref TargetIndexGetFile(targetref target);
 extern pure uint TargetIndexGetLine(targetref target);
