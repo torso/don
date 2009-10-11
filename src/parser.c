@@ -114,10 +114,7 @@ static boolean ParseScript(ParseState* state)
         {
             skipEndOfLine(state);
         }
-        else if (readNewline(state))
-        {
-        }
-        else
+        else if (!readNewline(state))
         {
             sprintf(errorBuffer, "Unsupported character: %d",
                     state->current[0]);
