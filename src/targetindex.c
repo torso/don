@@ -97,7 +97,7 @@ static void sortIndex()
     boolean odd;
     scratch = malloc(targetCount * TABLE_ENTRY_SIZE * sizeof(uint));
     assert(scratch); /* TODO: handle oom */
-    if ((targetCount / 8) & 1)
+    if ((targetCount / 8) & 1 || targetCount < 8)
     {
         data1 = table;
         data2 = scratch;
