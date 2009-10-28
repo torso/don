@@ -1,18 +1,14 @@
 #include <stdio.h>
 #include "builder.h"
+#include "bytevector.h"
+#include "intvector.h"
 #include "stringpool.h"
 #include "fileindex.h"
 #include "targetindex.h"
 #include "log.h"
+#include "native.h"
 #include "parser.h"
-
-typedef struct
-{
-    const byte* start;
-    const byte* current;
-    fileref file;
-    uint line;
-} ParseState;
+#include "parsestate.h"
 
 static char errorBuffer[256];
 
@@ -29,34 +25,62 @@ static boolean isIdentifierCharacter(char c)
         (c >= '0' && c <= '9');
 }
 
-static void error(const char* message)
+static void error(const ParseState* state, const char* message)
 {
-    LogParseError(message);
+    LogParseError(state->file, state->line, message);
 }
 
-static void checkState(const ParseState* state)
+static void errorOnLine(const ParseState* state, uint line, const char* message)
 {
-    assert(state->start != null);
-    assert(state->current >= state->start);
-    assert(state->current <= state->start + FileIndexGetSize(state->file));
+    LogParseError(state->file, line, message);
+}
+
+static void statementError(const ParseState* state, const char* message)
+{
+    LogParseError(state->file, state->statementLine, message);
+}
+
+
+static int unwindBlocks(ParseState* state, int indent)
+{
+    if (indent == 0)
+    {
+        return 0;
+    }
+    statementError(state, "Mismatched indentation level.");
+    return -1;
 }
 
 static boolean eof(const ParseState* state)
 {
-    checkState(state);
+    ParseStateCheck(state);
     return state->current == state->start + FileIndexGetSize(state->file);
+}
+
+static void skipWhitespace(ParseState* state)
+{
+    ParseStateCheck(state);
+    while (state->current[0] == ' ')
+    {
+        state->current++;
+    }
 }
 
 static void skipEndOfLine(ParseState* state)
 {
-    checkState(state);
+    ParseStateCheck(state);
     while (!eof(state) && *state->current++ != '\n');
     state->line++;
 }
 
+static boolean peekNewline(ParseState* state)
+{
+    return state->current[0] == '\n';
+}
+
 static boolean readNewline(ParseState* state)
 {
-    checkState(state);
+    ParseStateCheck(state);
     if (state->current[0] == '\n')
     {
         state->current++;
@@ -68,37 +92,249 @@ static boolean readNewline(ParseState* state)
 
 static boolean peekIndent(const ParseState* state)
 {
-    checkState(state);
+    ParseStateCheck(state);
     return state->current[0] == ' ';
+}
+
+static int readIndent(ParseState* state)
+{
+    const byte* begin = state->current;
+
+    ParseStateCheck(state);
+    skipWhitespace(state);
+    return state->current - begin;
 }
 
 static boolean peekComment(const ParseState* state)
 {
-    checkState(state);
+    ParseStateCheck(state);
     return state->current[0] == ';';
 }
 
 static boolean peekIdentifier(const ParseState* state)
 {
-    checkState(state);
+    ParseStateCheck(state);
     return isInitialIdentifierCharacter(state->current[0]);
 }
 
-static int readIdentifier(ParseState* state)
+static stringref readIdentifier(ParseState* state)
 {
     const byte* begin = state->current;
 
-    checkState(state);
+    ParseStateCheck(state);
     assert(peekIdentifier(state));
     while (isIdentifierCharacter(*++state->current));
     return StringPoolAdd2((const char*)begin, state->current - begin);
 }
 
-static boolean ParseScript(ParseState* state)
+static boolean peekString(const ParseState* state)
+{
+    ParseStateCheck(state);
+    return state->current[0] == '"';
+}
+
+static stringref readString(ParseState* state)
+{
+    const byte* begin;
+    ParseStateCheck(state);
+    assert(peekString(state));
+    begin = ++state->current;
+    while (state->current[0] != '"')
+    {
+        assert(!eof(state)); /* TODO: error handling */
+        assert(!peekNewline(state)); /* TODO: error handling */
+        state->current++;
+    }
+    return StringPoolAdd2((const char*)begin, state->current++ - begin);
+}
+
+static boolean readOperator(ParseState* state, byte operator)
+{
+    if (state->current[0] == operator)
+    {
+        state->current++;
+        return true;
+    }
+    return false;
+}
+
+static boolean readExpectedOperator(ParseState* state, byte operator)
+{
+    if (!readOperator(state, operator))
+    {
+        sprintf(errorBuffer, "Expected operator %c. Got %c", operator,
+                state->current[0]);
+        error(state, errorBuffer);
+        return false;
+    }
+    return true;
+}
+
+
+static int parseExpression(ParseState* state)
+{
+    ParseStateCheck(state);
+    assert(peekString(state));
+    return ParseStateWriteStringLiteral(state, readString(state));
+}
+
+static boolean parseInvocationRest(ParseState* state, stringref name)
+{
+    nativefunctionref nativeFunction = NativeFindFunction(name);
+    uint parameterCount = NativeGetParameterCount(nativeFunction);
+    uint* parameterNames = NativeGetParameterNames(nativeFunction);
+    uint argumentOutputOffset = ParseStateWriteArguments(state, parameterCount);
+    uint argumentCount = 0;
+    uint line = state->line;
+    int value;
+
+    ParseStateCheck(state);
+    assert(nativeFunction >= 0);
+    assert(parameterNames);
+
+    if (argumentOutputOffset == 0)
+    {
+        return false;
+    }
+
+    if (!readOperator(state, ')'))
+    {
+        for (;;)
+        {
+            value = parseExpression(state);
+            if (value < 0)
+            {
+                return false;
+            }
+            ParseStateSetArgument(
+                state, argumentOutputOffset + argumentCount++ * sizeof(int),
+                value);
+            if (readOperator(state, ')'))
+            {
+                break;
+            }
+            if (!readExpectedOperator(state, ','))
+            {
+                return false;
+            }
+        }
+    }
+    if (argumentCount > parameterCount)
+    {
+        sprintf(errorBuffer,
+                "Too many arguments. Got %d arguments, but at most %d were expected.",
+                argumentCount, parameterCount);
+        errorOnLine(state, line, errorBuffer);
+        return false;
+    }
+    if (argumentCount < NativeGetMinimumArgumentCount(nativeFunction))
+    {
+        sprintf(errorBuffer,
+                "Too few arguments. Got %d arguments, but at least %d were expected.",
+                argumentCount, parameterCount);
+        errorOnLine(state, line, errorBuffer);
+        return false;
+    }
+    return ParseStateWriteNativeInvocation(state, nativeFunction,
+                                           argumentOutputOffset);
+}
+
+static boolean parseFunctionBody(ParseState* state)
+{
+    int indent;
+    int currentIndent = -1;
+    int prevIndent = 0;
+    stringref identifier;
+
+    for (;;)
+    {
+        state->statementLine = state->line;
+        if (eof(state))
+        {
+            unwindBlocks(state, 0);
+            if (!ParseStateWriteReturn(state))
+            {
+                return false;
+            }
+            break;
+        }
+
+        indent = readIndent(state);
+        if (readNewline(state))
+        {
+        }
+        else if (peekComment(state))
+        {
+            skipEndOfLine(state);
+        }
+        else
+        {
+            if (indent != currentIndent)
+            {
+                if (currentIndent < 0)
+                {
+                    if (indent <= prevIndent)
+                    {
+                        statementError(state, "Expected increased indentation level.");
+                        return false;
+                    }
+                    currentIndent = indent;
+                }
+                else if (indent < currentIndent)
+                {
+                    currentIndent = unwindBlocks(state, indent);
+                    if (indent == 0)
+                    {
+                        if (!ParseStateWriteReturn(state))
+                        {
+                            return false;
+                        }
+                        break;
+                    }
+                }
+                else
+                {
+                    statementError(state, "Mismatched indentation level.");
+                    return false;
+                }
+            }
+            if (peekIdentifier(state))
+            {
+                identifier = readIdentifier(state);
+                if (readOperator(state, '('))
+                {
+                    if (!parseInvocationRest(state, identifier))
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    statementError(state, "Not a statement1.");
+                    return false;
+                }
+                assert(peekNewline(state));
+                skipEndOfLine(state);
+            }
+            else if (peekNewline(state) || peekComment(state))
+            {
+                skipEndOfLine(state);
+            }
+            else
+            {
+                statementError(state, "Not a statement2.");
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static boolean parseScript(ParseState* state)
 {
     boolean inFunction = false;
 
-    checkState(state);
+    ParseStateCheck(state);
     while (!eof(state))
     {
         if (peekIdentifier(state))
@@ -118,7 +354,7 @@ static boolean ParseScript(ParseState* state)
         {
             sprintf(errorBuffer, "Unsupported character: %d",
                     state->current[0]);
-            error(errorBuffer);
+            error(state, errorBuffer);
             return false;
         }
     }
@@ -128,9 +364,36 @@ static boolean ParseScript(ParseState* state)
 boolean ParseFile(fileref file)
 {
     ParseState state;
-    state.start = FileIndexGetContents(file);
-    state.current = state.start;
-    state.file = file;
-    state.line = 1;
-    return ParseScript(&state);
+    boolean result;
+    ParseStateInit(&state, file, 1, 0);
+    result = parseScript(&state);
+    ParseStateDispose(&state);
+    return result;
+}
+
+boolean ParseTarget(targetref target)
+{
+    ParseState state;
+    stringref name;
+    boolean result;
+    assert(target >= 0);
+    ParseStateInit(&state,
+                   TargetIndexGetFile(target),
+                   TargetIndexGetLine(target),
+                   TargetIndexGetOffset(target));
+    name = readIdentifier(&state);
+    assert(name == TargetIndexGetName(target));
+    if (readOperator(&state, ':'))
+    {
+        assert(peekNewline(&state)); /* TODO: Error handling */
+        skipEndOfLine(&state);
+        result = parseFunctionBody(&state);
+    }
+    else
+    {
+        error(&state, "Expected ':' after target name.");
+        result = false;
+    }
+    ParseStateDispose(&state);
+    return result;
 }

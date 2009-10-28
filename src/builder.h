@@ -1,3 +1,4 @@
+typedef signed char int8;
 typedef unsigned char uint8;
 typedef unsigned short uint16;
 typedef unsigned int uint32;
@@ -24,6 +25,14 @@ extern void* zmalloc(size_t size);
 #ifdef DEBUG
 extern void _assert(const char* expression, const char* file, int line);
 #define assert(e) if (e) {} else { _assert(#e, __FILE__, __LINE__); }
+
+#ifndef _STDIO_H
+extern int printf(__const char *__restrict __format, ...);
+#endif
+
+#define log(v) printf(#v"=%d\n", v);
+#define logs(s) printf("%s\n", s);
+#define logp(p) printf(#p"=%p\n", (void*)p);
 #else
 #define assert(e)
 #endif

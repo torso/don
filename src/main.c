@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "builder.h"
 #include "stringpool.h"
+#include "native.h"
 #include "fileindex.h"
 #include "targetindex.h"
 #include "parser.h"
@@ -11,6 +12,7 @@ int main(int argc, const char** argv)
     const char* options;
     const char* inputFilename = null;
     fileref inputFile;
+    targetref target;
     boolean parseOptions = true;
 
     for (i = 1; i < argc; i++)
@@ -72,12 +74,23 @@ int main(int argc, const char** argv)
     printf("input=%s\n", inputFilename);
 
     StringPoolInit();
+    NativeInit();
     FileIndexInit();
     TargetIndexInit();
     inputFile = FileIndexAdd(inputFilename);
     assert(inputFile);
-    ParseFile(inputFile);
+    if (!ParseFile(inputFile))
+    {
+        assert(false); /* TODO: Error handling */
+    }
     TargetIndexFinish();
+
+    target = TargetIndexGet(StringPoolAdd("default"));
+    assert(target >= 0); /* TODO: Error handling for non-existing target */
+    if (!ParseTarget(target))
+    {
+        assert(false); /* TODO: Error handling */
+    }
 
     TargetIndexFree();
     FileIndexFree();

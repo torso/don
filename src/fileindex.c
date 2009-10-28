@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "builder.h"
+#include "stringpool.h"
 #include "fileindex.h"
 
 #define INITIAL_FILE_SIZE 16
@@ -8,6 +9,7 @@
 typedef struct
 {
     const byte* data;
+    stringref name;
     uint length;
 } FileEntry;
 
@@ -57,7 +59,14 @@ fileref FileIndexAdd(const char* filename)
     fclose(f);
     fileIndex[fileCount].length = size;
     fileIndex[fileCount].data = data;
+    fileIndex[fileCount].name = StringPoolAdd(filename);
     return fileCount;
+}
+
+stringref FileIndexGetName(fileref file)
+{
+    assert(file >= 1 && file <= fileCount);
+    return fileIndex[file].name;
 }
 
 const byte* FileIndexGetContents(fileref file)
