@@ -74,6 +74,7 @@ int main(int argc, const char** argv)
     printf("input=%s\n", inputFilename);
 
     StringPoolInit();
+    ParserAddKeywords();
     NativeInit();
     FileIndexInit();
     TargetIndexInit();

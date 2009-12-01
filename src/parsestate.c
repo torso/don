@@ -56,6 +56,10 @@ static void dump(const ParseState* state)
                    ByteVectorGetPackUint(&state->control, i + 1));
             size = 1 + ByteVectorGetPackUintSize(&state->control, i + 1);
             break;
+        case OP_WHILE:
+            printf("%d: while %d\n", ip, ByteVectorGetPackUint(&state->control, i));
+            size = ByteVectorGetPackUintSize(&state->control, i);
+            break;
         default:
             assert(false);
             break;
@@ -80,6 +84,7 @@ void ParseStateInit(ParseState* state, fileref file, uint line, uint offset)
     state->current = state->start + offset;
     state->file = file;
     state->line = line;
+    IntVectorInit(&state->blocks);
     IntVectorInit(&state->locals);
     ByteVectorInit(&state->data);
     ByteVectorInit(&state->control);
@@ -88,10 +93,38 @@ void ParseStateInit(ParseState* state, fileref file, uint line, uint offset)
 void ParseStateDispose(ParseState* state)
 {
     dump(state);
+    IntVectorFree(&state->blocks);
     IntVectorFree(&state->locals);
     ByteVectorFree(&state->data);
     ByteVectorFree(&state->control);
 }
+
+
+boolean ParseStateBlockBegin(ParseState* state, int indent)
+{
+    ParseStateCheck(state);
+    IntVectorAdd(&state->blocks, indent);
+    return true;
+}
+
+void ParseStateBlockEnd(ParseState* state)
+{
+    assert(!ParseStateBlockEmpty(state));
+    IntVectorPop(&state->blocks);
+}
+
+boolean ParseStateBlockEmpty(ParseState* state)
+{
+    ParseStateCheck(state);
+    return IntVectorSize(&state->blocks) == 0;
+}
+
+int ParseStateBlockIndent(ParseState* state)
+{
+    assert(!ParseStateBlockEmpty(state));
+    return IntVectorGet(&state->blocks, IntVectorSize(&state->blocks) - 1);
+}
+
 
 uint ParseStateWriteArguments(ParseState* state, uint size)
 {
@@ -124,6 +157,13 @@ int ParseStateWriteStringLiteral(ParseState* state, stringref value)
         ByteVectorAddPackUint(&state->data, value) ? size : -1;
 }
 
+
+boolean ParseStateWriteWhile(ParseState* state, int value)
+{
+    ParseStateCheck(state);
+    return ByteVectorAdd(&state->control, OP_WHILE) &&
+        ByteVectorAddPackUint(&state->control, value) ? true : false;
+}
 
 boolean ParseStateWriteReturn(ParseState* state)
 {

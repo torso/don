@@ -62,6 +62,13 @@ const int* IntVectorGetPointer(const intvector* v, uint index)
     return &v->data[index];
 }
 
+void IntVectorPop(intvector* v)
+{
+    checkIntVector(v);
+    assert(v->size > 0);
+    v->size--;
+}
+
 void IntVectorSet(intvector* v, uint index, int value)
 {
     checkIntVectorIndex(v, index);

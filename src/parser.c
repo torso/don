@@ -12,6 +12,11 @@
 
 static char errorBuffer[256];
 
+static stringref keywordWhile;
+
+static stringref maxStatementKeyword;
+static stringref maxKeyword;
+
 static boolean isInitialIdentifierCharacter(char c)
 {
     return (c >= 'a' && c <= 'z') ||
@@ -43,6 +48,20 @@ static void statementError(const ParseState* state, const char* message)
 
 static int unwindBlocks(ParseState* state, int indent)
 {
+    while (!ParseStateBlockEmpty(state))
+    {
+        int oldIndent = ParseStateBlockIndent(state);
+        ParseStateBlockEnd(state);
+        if (oldIndent == indent)
+        {
+            return indent;
+        }
+        if (oldIndent < indent)
+        {
+            statementError(state, "Mismatched indentation level.");
+            return -1;
+        }
+    }
     if (indent == 0)
     {
         return 0;
@@ -245,6 +264,7 @@ static boolean parseFunctionBody(ParseState* state)
     int currentIndent = -1;
     int prevIndent = 0;
     stringref identifier;
+    int value;
 
     for (;;)
     {
@@ -283,6 +303,10 @@ static boolean parseFunctionBody(ParseState* state)
                 else if (indent < currentIndent)
                 {
                     currentIndent = unwindBlocks(state, indent);
+                    if (currentIndent < 0)
+                    {
+                        return false;
+                    }
                     if (indent == 0)
                     {
                         if (!ParseStateWriteReturn(state))
@@ -301,20 +325,57 @@ static boolean parseFunctionBody(ParseState* state)
             if (peekIdentifier(state))
             {
                 identifier = readIdentifier(state);
-                if (readOperator(state, '('))
+                skipWhitespace(state);
+                if (identifier <= maxKeyword)
                 {
-                    if (!parseInvocationRest(state, identifier))
+                    if (identifier > maxStatementKeyword)
                     {
+                        statementError(state, "Not a statement.");
+                        return false;
+                    }
+                    if (identifier == keywordWhile)
+                    {
+                        if (!ParseStateBlockBegin(state, currentIndent))
+                        {
+                            return false;
+                        }
+                        prevIndent = currentIndent;
+                        currentIndent = -1;
+                        value = parseExpression(state);
+                        if (value < 0 || !ParseStateWriteWhile(state, value))
+                        {
+                            return false;
+                        }
+                        if (!peekNewline(state))
+                        {
+                            error(state, "Garbage after while statement.");
+                            return false;
+                        }
+                        skipEndOfLine(state);
+                    }
+                    else
+                    {
+                        assert(false);
                         return false;
                     }
                 }
                 else
                 {
-                    statementError(state, "Not a statement1.");
-                    return false;
+                    if (readOperator(state, '('))
+                    {
+                        if (!parseInvocationRest(state, identifier))
+                        {
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        statementError(state, "Not a statement1.");
+                        return false;
+                    }
+                    assert(peekNewline(state));
+                    skipEndOfLine(state);
                 }
-                assert(peekNewline(state));
-                skipEndOfLine(state);
             }
             else if (peekNewline(state) || peekComment(state))
             {
@@ -327,6 +388,7 @@ static boolean parseFunctionBody(ParseState* state)
             }
         }
     }
+    assert(ParseStateBlockEmpty(state));
     return true;
 }
 
@@ -359,6 +421,13 @@ static boolean parseScript(ParseState* state)
         }
     }
     return true;
+}
+
+void ParserAddKeywords()
+{
+    keywordWhile = StringPoolAdd("while");
+    maxStatementKeyword = keywordWhile;
+    maxKeyword = keywordWhile;
 }
 
 boolean ParseFile(fileref file)
