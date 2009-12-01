@@ -335,7 +335,7 @@ static boolean parseFunctionBody(ParseState* state)
                     }
                     if (identifier == keywordWhile)
                     {
-                        if (!ParseStateBlockBegin(state, currentIndent))
+                        if (!ParseStateBlockBegin(state, currentIndent, true))
                         {
                             return false;
                         }

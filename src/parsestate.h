@@ -32,7 +32,7 @@ extern nonnull void ParseStateInit(ParseState* state, fileref file, uint line,
                                    uint offset);
 extern nonnull void ParseStateDispose(ParseState* state);
 
-extern nonnull boolean ParseStateBlockBegin(ParseState* state, int indent);
+extern nonnull boolean ParseStateBlockBegin(ParseState* state, int indent, boolean loop);
 extern nonnull void ParseStateBlockEnd(ParseState* state);
 extern nonnull pure boolean ParseStateBlockEmpty(ParseState* state);
 extern nonnull int ParseStateBlockIndent(ParseState* state);

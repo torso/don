@@ -15,5 +15,5 @@ extern nonnull void IntVectorAdd4(intvector* v, int value1, int value2,
 extern nonnull pure int IntVectorGet(const intvector* v, uint index);
 extern nonnull pure const int* IntVectorGetPointer(const intvector* v,
                                                    uint index);
-extern nonnull void IntVectorPop(intvector* v);
+extern nonnull int IntVectorPop(intvector* v);
 extern nonnull void IntVectorSet(intvector* v, uint index, int value);

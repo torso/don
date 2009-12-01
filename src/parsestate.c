@@ -56,8 +56,15 @@ static void dump(const ParseState* state)
                    ByteVectorGetPackUint(&state->control, i + 1));
             size = 1 + ByteVectorGetPackUintSize(&state->control, i + 1);
             break;
-        case OP_WHILE:
-            printf("%d: while %d\n", ip, ByteVectorGetPackUint(&state->control, i));
+        case OP_BRANCH:
+            size = ByteVectorGetPackUintSize(&state->control, i);
+            printf("%d: branch %d %d\n", ip,
+                   ByteVectorGetPackUint(&state->control, i),
+                   ByteVectorGetUint(&state->control, i + size));
+            size += 4;
+            break;
+        case OP_LOOP:
+            printf("%d: loop %d\n", ip, ByteVectorGetPackUint(&state->control, i));
             size = ByteVectorGetPackUintSize(&state->control, i);
             break;
         default:
@@ -100,16 +107,37 @@ void ParseStateDispose(ParseState* state)
 }
 
 
-boolean ParseStateBlockBegin(ParseState* state, int indent)
+boolean ParseStateBlockBegin(ParseState* state, int indent, boolean loop)
 {
     ParseStateCheck(state);
     IntVectorAdd(&state->blocks, indent);
+    IntVectorAdd(&state->blocks, loop);
+    IntVectorAdd(&state->blocks, ByteVectorSize(&state->control));
     return true;
+}
+
+static void ParseStateBlockSetConditionOffset(ParseState* state)
+{
+    assert(!ParseStateBlockEmpty(state));
+    IntVectorAdd(&state->blocks, ByteVectorSize(&state->control));
 }
 
 void ParseStateBlockEnd(ParseState* state)
 {
+    int conditionInstruction;
+    int loopBegin;
     assert(!ParseStateBlockEmpty(state));
+    conditionInstruction = IntVectorPop(&state->blocks);
+    loopBegin = IntVectorPop(&state->blocks);
+    if (IntVectorPop(&state->blocks))
+    {
+        ByteVectorAdd(&state->control, OP_LOOP);
+        ByteVectorAddPackUint(&state->control, loopBegin);
+    }
+    ByteVectorSetInt(&state->control, conditionInstruction +
+                     ByteVectorGetPackUintSize(&state->control,
+                                               conditionInstruction + 1) + 1,
+                     ByteVectorSize(&state->control));
     IntVectorPop(&state->blocks);
 }
 
@@ -122,7 +150,7 @@ boolean ParseStateBlockEmpty(ParseState* state)
 int ParseStateBlockIndent(ParseState* state)
 {
     assert(!ParseStateBlockEmpty(state));
-    return IntVectorGet(&state->blocks, IntVectorSize(&state->blocks) - 1);
+    return IntVectorGet(&state->blocks, IntVectorSize(&state->blocks) - 4);
 }
 
 
@@ -161,8 +189,10 @@ int ParseStateWriteStringLiteral(ParseState* state, stringref value)
 boolean ParseStateWriteWhile(ParseState* state, int value)
 {
     ParseStateCheck(state);
-    return ByteVectorAdd(&state->control, OP_WHILE) &&
-        ByteVectorAddPackUint(&state->control, value) ? true : false;
+    ParseStateBlockSetConditionOffset(state);
+    return ByteVectorAdd(&state->control, OP_BRANCH) &&
+        ByteVectorAddPackUint(&state->control, value) &&
+        ByteVectorAddInt(&state->control, 0) ? true : false;
 }
 
 boolean ParseStateWriteReturn(ParseState* state)

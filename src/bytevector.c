@@ -78,6 +78,13 @@ byte ByteVectorGet(const bytevector* v, uint index)
     return v->data[index];
 }
 
+uint ByteVectorGetUint(const bytevector* v, uint index)
+{
+    checkByteVectorIndex(v, index);
+    checkByteVectorIndex(v, index + 3);
+    return *(uint*)&v->data[index];
+}
+
 int ByteVectorGetPackUint(const bytevector* v, uint index)
 {
     int i;

@@ -14,6 +14,7 @@ extern nonnull boolean ByteVectorAdd(bytevector* v, byte value);
 extern nonnull boolean ByteVectorAddInt(bytevector* v, int value);
 extern nonnull boolean ByteVectorAddPackUint(bytevector* v, uint value);
 extern nonnull pure byte ByteVectorGet(const bytevector* v, uint index);
+extern nonnull pure uint ByteVectorGetUint(const bytevector* v, uint index);
 extern nonnull pure int ByteVectorGetPackUint(const bytevector* v, uint index);
 extern nonnull pure uint ByteVectorGetPackUintSize(const bytevector* v,
                                                    uint index);
