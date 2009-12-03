@@ -28,6 +28,10 @@ static void dump(const ParseState* state)
         ip = i;
         switch (ByteVectorGet(&state->data, i++))
         {
+        case DATAOP_NULL:
+            printf("%d: null\n", ip);
+            size = 0;
+            break;
         case DATAOP_STRING:
             data = ByteVectorGetPackUint(&state->data, i);
             printf("%d: string %d:\"%s\"\n", ip, data, StringPoolGetString(data));
@@ -108,6 +112,7 @@ void ParseStateInit(ParseState* state, fileref file, uint line, uint offset)
     state->line = line;
     state->loopLevel = 0;
     ByteVectorInit(&state->data);
+    ByteVectorAdd(&state->data, 0);
     ByteVectorInit(&state->control);
     state->currentBlock = &state->firstBlock;
     IntVectorInit(&state->firstBlock.locals);
@@ -192,7 +197,7 @@ boolean ParseStateBlockEnd(ParseState* state)
             {
                 IntVectorAdd4(oldLocals,
                               IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER),
-                              -1, 0, 0);
+                              0, 0, 0);
             }
             assert(IntVectorSize(oldLocals) == i + LOCAL_ENTRY_SIZE);
         }
@@ -276,7 +281,7 @@ int ParseStateGetVariable(ParseState* state, stringref identifier)
     }
     if (state->loopLevel == 0)
     {
-        return -1; /* TODO: Disambiguate from error code */
+        return 0;
     }
     size = ByteVectorSize(&state->data);
     IntVectorAdd4(locals, identifier, size, LOCAL_FLAG_ACCESSED, size);

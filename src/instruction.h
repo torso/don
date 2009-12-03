@@ -4,5 +4,6 @@
 #define OP_BRANCH 3
 #define OP_LOOP 4
 
+#define DATAOP_NULL 0
 #define DATAOP_STRING 1
 #define DATAOP_PHI_VARIABLE 2
