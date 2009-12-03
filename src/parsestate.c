@@ -191,7 +191,10 @@ boolean ParseStateBlockEnd(ParseState* state)
         {
             if (state->loopLevel > 0)
             {
-                ParseStateGetVariable(state, IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER));
+                if (ParseStateGetVariable(state, IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER)) < 0)
+                {
+                    return false;
+                }
             }
             else
             {
