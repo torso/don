@@ -51,7 +51,11 @@ static int unwindBlocks(ParseState* state, int indent)
     while (!ParseStateBlockEmpty(state))
     {
         int oldIndent = ParseStateBlockIndent(state);
-        ParseStateBlockEnd(state);
+        if (!ParseStateBlockEnd(state))
+        {
+            assert(false); /* TODO: Error handling */
+            return -1;
+        }
         if (oldIndent == indent)
         {
             return indent;
@@ -146,6 +150,11 @@ static stringref readIdentifier(ParseState* state)
     return StringPoolAdd2((const char*)begin, state->current - begin);
 }
 
+static boolean isKeyword(stringref identifier)
+{
+    return identifier <= maxKeyword;
+}
+
 static boolean peekString(const ParseState* state)
 {
     ParseStateCheck(state);
@@ -192,9 +201,20 @@ static boolean readExpectedOperator(ParseState* state, byte operator)
 
 static int parseExpression(ParseState* state)
 {
+    stringref identifier;
     ParseStateCheck(state);
-    assert(peekString(state));
-    return ParseStateWriteStringLiteral(state, readString(state));
+    if (peekIdentifier(state))
+    {
+        identifier = readIdentifier(state);
+        assert(!isKeyword(identifier));
+        return ParseStateGetVariable(state, identifier);
+    }
+    else if (peekString(state))
+    {
+        return ParseStateWriteStringLiteral(state, readString(state));
+    }
+    statementError(state, "Invalid expression.");
+    return -1;
 }
 
 static boolean parseInvocationRest(ParseState* state, stringref name)
@@ -326,7 +346,7 @@ static boolean parseFunctionBody(ParseState* state)
             {
                 identifier = readIdentifier(state);
                 skipWhitespace(state);
-                if (identifier <= maxKeyword)
+                if (isKeyword(identifier))
                 {
                     if (identifier > maxStatementKeyword)
                     {
@@ -367,6 +387,16 @@ static boolean parseFunctionBody(ParseState* state)
                         {
                             return false;
                         }
+                    }
+                    else if (readOperator(state, '='))
+                    {
+                        skipWhitespace(state);
+                        value = parseExpression(state);
+                        if (value < 0)
+                        {
+                            return false;
+                        }
+                        ParseStateSetVariable(state, identifier, value);
                     }
                     else
                     {

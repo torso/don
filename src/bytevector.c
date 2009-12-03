@@ -67,7 +67,7 @@ boolean ByteVectorAddPackUint(bytevector* v, uint value)
         return ByteVectorAdd(v, value);
     }
     v->data[v->size++] = 128;
-    *((int*)&v->data[v->size]) = value;
+    *((uint*)&v->data[v->size]) = value;
     v->size += 4;
     return true;
 }
@@ -78,6 +78,11 @@ byte ByteVectorGet(const bytevector* v, uint index)
     return v->data[index];
 }
 
+int ByteVectorGetInt(const bytevector* v, uint index)
+{
+    return ByteVectorGetUint(v, index);
+}
+
 uint ByteVectorGetUint(const bytevector* v, uint index)
 {
     checkByteVectorIndex(v, index);
@@ -85,14 +90,26 @@ uint ByteVectorGetUint(const bytevector* v, uint index)
     return *(uint*)&v->data[index];
 }
 
-int ByteVectorGetPackUint(const bytevector* v, uint index)
+int ByteVectorGetPackInt(const bytevector* v, uint index)
 {
     int i;
     checkByteVectorIndex(v, index);
-    i = v->data[index];
+    i = (int8)v->data[index];
     if (i < 0)
     {
-        i = *((int*)&v->data[index]);
+        return *((int*)&v->data[index + 1]);
+    }
+    return i;
+}
+
+uint ByteVectorGetPackUint(const bytevector* v, uint index)
+{
+    int i;
+    checkByteVectorIndex(v, index);
+    i = (int8)v->data[index];
+    if (i < 0)
+    {
+        return *((uint*)&v->data[index + 1]);
     }
     return i;
 }

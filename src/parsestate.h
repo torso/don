@@ -13,6 +13,18 @@
 
 #define PARSESTATE_H
 
+struct _Block;
+typedef struct _Block Block;
+struct _Block
+{
+    Block* parent;
+    uint indent;
+    uint loopBegin;
+    uint conditionInstruction;
+    boolean loop;
+    intvector locals;
+};
+
 typedef struct
 {
     const byte* start;
@@ -20,11 +32,13 @@ typedef struct
     fileref file;
     uint line;
     uint statementLine;
+    uint loopLevel;
 
-    intvector blocks;
-    intvector locals;
     bytevector data;
     bytevector control;
+
+    Block* currentBlock;
+    Block firstBlock;
 } ParseState;
 
 extern nonnull pure void ParseStateCheck(const ParseState* state);
@@ -32,10 +46,16 @@ extern nonnull void ParseStateInit(ParseState* state, fileref file, uint line,
                                    uint offset);
 extern nonnull void ParseStateDispose(ParseState* state);
 
-extern nonnull boolean ParseStateBlockBegin(ParseState* state, int indent, boolean loop);
-extern nonnull void ParseStateBlockEnd(ParseState* state);
+extern nonnull boolean ParseStateBlockBegin(ParseState* state, int indent,
+                                            boolean loop);
+extern nonnull boolean ParseStateBlockEnd(ParseState* state);
 extern nonnull pure boolean ParseStateBlockEmpty(ParseState* state);
 extern nonnull int ParseStateBlockIndent(ParseState* state);
+
+extern nonnull int ParseStateGetVariable(ParseState* state,
+                                         stringref identifier);
+extern nonnull boolean ParseStateSetVariable(ParseState* state,
+                                             stringref identifier, int value);
 
 extern nonnull uint ParseStateWriteArguments(ParseState* state, uint size);
 extern nonnull void ParseStateSetArgument(ParseState* state, uint offset,

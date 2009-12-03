@@ -5,3 +5,4 @@
 #define OP_LOOP 4
 
 #define DATAOP_STRING 1
+#define DATAOP_PHI_VARIABLE 2
