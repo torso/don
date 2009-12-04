@@ -8,7 +8,7 @@ typedef unsigned long ulong;
 typedef uint8 boolean;
 typedef uint8 byte;
 
-#define null ((void*)0)
+#define null (0)
 #define false 0
 #define true 1
 #define MAX_UINT ((uint)-1)
