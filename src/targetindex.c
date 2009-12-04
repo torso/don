@@ -38,10 +38,10 @@ static void insertionSort(uint* restrict target, const uint* restrict source,
     }
 }
 
-static int copySmallerEntries(uint* restrict target,
-                              const uint* restrict source,
-                              uint value,
-                              uint maxEntries)
+static uint copySmallerEntries(uint* restrict target,
+                               const uint* restrict source,
+                               uint value,
+                               uint maxEntries)
 {
     uint copyCount;
     for (copyCount = 0;
@@ -87,7 +87,7 @@ static void mergeSort(uint* restrict target, const uint* restrict source,
     }
 }
 
-static void sortIndex()
+static void sortIndex(void)
 {
     uint* scratch;
     uint* data1;
@@ -95,7 +95,7 @@ static void sortIndex()
     uint i;
     uint j;
     boolean odd;
-    scratch = malloc(targetCount * TABLE_ENTRY_SIZE * sizeof(uint));
+    scratch = (uint*)malloc(targetCount * TABLE_ENTRY_SIZE * sizeof(uint));
     assert(scratch); /* TODO: handle oom */
     if ((targetCount / 8) & 1 || targetCount < 8)
     {
@@ -157,12 +157,12 @@ static void sortIndex()
     free(scratch);
 }
 
-void TargetIndexInit()
+void TargetIndexInit(void)
 {
     IntVectorInit(&unsortedTable);
 }
 
-void TargetIndexFree()
+void TargetIndexFree(void)
 {
     free(table);
 }
@@ -170,8 +170,8 @@ void TargetIndexFree()
 targetref TargetIndexAdd(stringref name, fileref file, int line, int offset)
 {
     uint ref = IntVectorSize(&unsortedTable);
-    IntVectorAdd4(&unsortedTable, name, file, line, offset);
-    return ref;
+    IntVectorAdd4(&unsortedTable, (int)name, (int)file, line, offset);
+    return (targetref)ref;
 }
 
 targetref TargetIndexGet(stringref name)
@@ -184,7 +184,7 @@ targetref TargetIndexGet(stringref name)
     while (low < high)
     {
         mid = low + (high - low) / 2;
-        if (table[mid * TABLE_ENTRY_SIZE + TABLE_ENTRY_NAME] < name)
+        if (table[mid * TABLE_ENTRY_SIZE + TABLE_ENTRY_NAME] < (uint)name)
         {
             low = mid + 1;
         }
@@ -195,9 +195,9 @@ targetref TargetIndexGet(stringref name)
     }
     assert(low == high);
     if (low < targetCount &&
-        table[low * TABLE_ENTRY_SIZE + TABLE_ENTRY_NAME] == name)
+        (stringref)table[low * TABLE_ENTRY_SIZE + TABLE_ENTRY_NAME] == name)
     {
-        return low;
+        return (targetref)low;
     }
     return -1;
 }
@@ -207,7 +207,7 @@ stringref TargetIndexGetName(targetref target)
     assert(table);
     assert(target >= 0);
     assert((uint)target < targetCount);
-    return table[target * TABLE_ENTRY_SIZE + TABLE_ENTRY_NAME];
+    return (stringref)table[target * TABLE_ENTRY_SIZE + TABLE_ENTRY_NAME];
 }
 
 fileref TargetIndexGetFile(targetref target)
@@ -234,11 +234,11 @@ uint TargetIndexGetOffset(targetref target)
     return table[target * TABLE_ENTRY_SIZE + TABLE_ENTRY_OFFSET];
 }
 
-void TargetIndexFinish()
+void TargetIndexFinish(void)
 {
     assert(!table);
     targetCount = IntVectorSize(&unsortedTable) / TABLE_ENTRY_SIZE;
-    table = malloc(targetCount * TABLE_ENTRY_SIZE * sizeof(uint));
+    table = (uint*)malloc(targetCount * TABLE_ENTRY_SIZE * sizeof(uint));
     assert(table); /* TODO: handle oom */
     sortIndex();
     IntVectorFree(&unsortedTable);

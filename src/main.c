@@ -75,8 +75,6 @@ int main(int argc, const char** argv)
 
     StringPoolInit();
     ParserAddKeywords();
-    NativeInit();
-    FileIndexInit();
     TargetIndexInit();
     inputFile = FileIndexAdd(inputFilename);
     assert(inputFile);

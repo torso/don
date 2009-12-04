@@ -17,13 +17,13 @@ static stringref keywordWhile;
 static stringref maxStatementKeyword;
 static stringref maxKeyword;
 
-static boolean isInitialIdentifierCharacter(char c)
+static boolean isInitialIdentifierCharacter(byte c)
 {
     return (c >= 'a' && c <= 'z') ||
         (c >= 'A' && c <= 'Z');
 }
 
-static boolean isIdentifierCharacter(char c)
+static boolean isIdentifierCharacter(byte c)
 {
     return (c >= 'a' && c <= 'z') ||
         (c >= 'A' && c <= 'Z') ||
@@ -45,12 +45,18 @@ static void statementError(const ParseState* state, const char* message)
     LogParseError(state->file, state->statementLine, message);
 }
 
+static uint getOffset(const ParseState* state, const byte* begin)
+{
+    ParseStateCheck(state);
+    return (uint)(state->current - begin);
+}
 
-static int unwindBlocks(ParseState* state, int indent)
+
+static int unwindBlocks(ParseState* state, uint indent)
 {
     while (!ParseStateBlockEmpty(state))
     {
-        int oldIndent = ParseStateBlockIndent(state);
+        uint oldIndent = ParseStateBlockIndent(state);
         if (!ParseStateBlockEnd(state))
         {
             assert(false); /* TODO: Error handling */
@@ -58,7 +64,7 @@ static int unwindBlocks(ParseState* state, int indent)
         }
         if (oldIndent == indent)
         {
-            return indent;
+            return (int)indent;
         }
         if (oldIndent < indent)
         {
@@ -119,13 +125,13 @@ static boolean peekIndent(const ParseState* state)
     return state->current[0] == ' ';
 }
 
-static int readIndent(ParseState* state)
+static uint readIndent(ParseState* state)
 {
     const byte* begin = state->current;
 
     ParseStateCheck(state);
     skipWhitespace(state);
-    return state->current - begin;
+    return getOffset(state, begin);
 }
 
 static boolean peekComment(const ParseState* state)
@@ -147,7 +153,7 @@ static stringref readIdentifier(ParseState* state)
     ParseStateCheck(state);
     assert(peekIdentifier(state));
     while (isIdentifierCharacter(*++state->current));
-    return StringPoolAdd2((const char*)begin, state->current - begin);
+    return StringPoolAdd2((const char*)begin, getOffset(state, begin));
 }
 
 static boolean isKeyword(stringref identifier)
@@ -164,6 +170,7 @@ static boolean peekString(const ParseState* state)
 static stringref readString(ParseState* state)
 {
     const byte* begin;
+    stringref s;
     ParseStateCheck(state);
     assert(peekString(state));
     begin = ++state->current;
@@ -173,12 +180,14 @@ static stringref readString(ParseState* state)
         assert(!peekNewline(state)); /* TODO: error handling */
         state->current++;
     }
-    return StringPoolAdd2((const char*)begin, state->current++ - begin);
+    s = StringPoolAdd2((const char*)begin, getOffset(state, begin));
+    state->current++;
+    return s;
 }
 
-static boolean readOperator(ParseState* state, byte operator)
+static boolean readOperator(ParseState* state, byte op)
 {
-    if (state->current[0] == operator)
+    if (state->current[0] == op)
     {
         state->current++;
         return true;
@@ -186,11 +195,11 @@ static boolean readOperator(ParseState* state, byte operator)
     return false;
 }
 
-static boolean readExpectedOperator(ParseState* state, byte operator)
+static boolean readExpectedOperator(ParseState* state, byte op)
 {
-    if (!readOperator(state, operator))
+    if (!readOperator(state, op))
     {
-        sprintf(errorBuffer, "Expected operator %c. Got %c", operator,
+        sprintf(errorBuffer, "Expected operator %c. Got %c", op,
                 state->current[0]);
         error(state, errorBuffer);
         return false;
@@ -221,7 +230,7 @@ static boolean parseInvocationRest(ParseState* state, stringref name)
 {
     nativefunctionref nativeFunction = NativeFindFunction(name);
     uint parameterCount = NativeGetParameterCount(nativeFunction);
-    uint* parameterNames = NativeGetParameterNames(nativeFunction);
+    stringref* parameterNames = NativeGetParameterNames(nativeFunction);
     uint argumentOutputOffset = ParseStateWriteArguments(state, parameterCount);
     uint argumentCount = 0;
     uint line = state->line;
@@ -246,7 +255,8 @@ static boolean parseInvocationRest(ParseState* state, stringref name)
                 return false;
             }
             ParseStateSetArgument(
-                state, argumentOutputOffset + argumentCount++ * sizeof(int),
+                state,
+                argumentOutputOffset + argumentCount++ * (uint)sizeof(int),
                 value);
             if (readOperator(state, ')'))
             {
@@ -299,7 +309,7 @@ static boolean parseFunctionBody(ParseState* state)
             break;
         }
 
-        indent = readIndent(state);
+        indent = (int)readIndent(state);
         if (readNewline(state))
         {
         }
@@ -322,7 +332,7 @@ static boolean parseFunctionBody(ParseState* state)
                 }
                 else if (indent < currentIndent)
                 {
-                    currentIndent = unwindBlocks(state, indent);
+                    currentIndent = unwindBlocks(state, (uint)indent);
                     if (currentIndent < 0)
                     {
                         return false;
@@ -355,14 +365,14 @@ static boolean parseFunctionBody(ParseState* state)
                     }
                     if (identifier == keywordWhile)
                     {
-                        if (!ParseStateBlockBegin(state, currentIndent, true))
+                        if (!ParseStateBlockBegin(state, (uint)currentIndent, true))
                         {
                             return false;
                         }
                         prevIndent = currentIndent;
                         currentIndent = -1;
                         value = parseExpression(state);
-                        if (value < 0 || !ParseStateWriteWhile(state, value))
+                        if (value < 0 || !ParseStateWriteWhile(state, (uint)value))
                         {
                             return false;
                         }
@@ -431,9 +441,8 @@ static boolean parseScript(ParseState* state)
     {
         if (peekIdentifier(state))
         {
-            int offset = state->current - state->start;
-            TargetIndexAdd(readIdentifier(state), state->file, state->line,
-                           offset);
+            TargetIndexAdd(readIdentifier(state), state->file, (int)state->line,
+                           (int)getOffset(state, state->start));
             skipEndOfLine(state);
             inFunction = true;
         }
@@ -453,7 +462,7 @@ static boolean parseScript(ParseState* state)
     return true;
 }
 
-void ParserAddKeywords()
+void ParserAddKeywords(void)
 {
     keywordWhile = StringPoolAdd("while");
     maxStatementKeyword = keywordWhile;

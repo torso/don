@@ -18,7 +18,7 @@ static void checkIntVectorIndex(const intvector* v, uint index)
 
 void IntVectorInit(intvector* v)
 {
-    v->data = malloc(SEGMENT_SIZE * sizeof(int));
+    v->data = (int*)malloc(SEGMENT_SIZE * sizeof(int));
     assert(v->data); /* TODO: handle oom */
     v->size = 0;
 }

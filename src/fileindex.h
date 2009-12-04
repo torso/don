@@ -5,7 +5,6 @@
 
 typedef uint fileref;
 
-extern void FileIndexInit(void);
 extern void FileIndexFree(void);
 extern nonnull fileref FileIndexAdd(const char* filename);
 extern pure stringref FileIndexGetName(fileref file);

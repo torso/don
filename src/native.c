@@ -5,10 +5,6 @@
 
 static stringref echoParameterNames[1];
 
-void NativeInit()
-{
-}
-
 nativefunctionref NativeFindFunction(stringref name)
 {
     if (name == StringPoolAdd("echo"))

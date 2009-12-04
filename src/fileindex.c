@@ -16,11 +16,7 @@ typedef struct
 static FileEntry fileIndex[16];
 static uint fileCount = 0;
 
-void FileIndexInit()
-{
-}
-
-void FileIndexFree()
+void FileIndexFree(void)
 {
     while (fileCount > 0)
     {
@@ -34,8 +30,9 @@ fileref FileIndexAdd(const char* filename)
 {
     FILE* f;
     int status;
-    long size;
-    long read;
+    long l;
+    uint size;
+    size_t read;
     byte* data;
 
     fileCount++;
@@ -46,12 +43,13 @@ fileref FileIndexAdd(const char* filename)
     setvbuf(f, null, _IONBF, 0);
     status = fseek(f, 0, SEEK_END);
     assert(!status); /* TODO: handle file error */
-    size = ftell(f);
-    assert(size >= 0); /* TODO: handle file error */
-    assert((ulong)size <= MAX_UINT); /* TODO: handle large files */
+    l = ftell(f);
+    assert(l >= 0); /* TODO: handle file error */
+    assert(l <= MAX_UINT); /* TODO: handle large files */
+    size = (uint)l;
     status = fseek(f, 0, SEEK_SET);
     assert(!status); /* TODO: handle file error */
-    data = malloc(size + 1);
+    data = (byte*)malloc(size + 1);
     assert(data); /* TODO: handle oom */
     data[size] = 0;
     read = fread(data, 1, size, f);

@@ -3,7 +3,7 @@
 #include "builder.h"
 #include "bytevector.h"
 
-#define SEGMENT_SIZE 1024
+#define SEGMENT_SIZE (uint)1024
 
 static void checkByteVector(const bytevector* v)
 {
@@ -19,7 +19,7 @@ static void checkByteVectorIndex(const bytevector* v, uint index)
 
 void ByteVectorInit(bytevector* v)
 {
-    v->data = malloc(SEGMENT_SIZE);
+    v->data = (byte*)malloc(SEGMENT_SIZE);
     assert(v->data); /* TODO: handle oom */
     v->size = 0;
 }
@@ -64,7 +64,7 @@ boolean ByteVectorAddPackUint(bytevector* v, uint value)
     checkByteVector(v);
     if (value <= 127)
     {
-        return ByteVectorAdd(v, value);
+        return ByteVectorAdd(v, (byte)value);
     }
     v->data[v->size++] = 128;
     *((uint*)&v->data[v->size]) = value;
@@ -80,7 +80,7 @@ byte ByteVectorGet(const bytevector* v, uint index)
 
 int ByteVectorGetInt(const bytevector* v, uint index)
 {
-    return ByteVectorGetUint(v, index);
+    return (int)ByteVectorGetUint(v, index);
 }
 
 uint ByteVectorGetUint(const bytevector* v, uint index)
@@ -111,7 +111,7 @@ uint ByteVectorGetPackUint(const bytevector* v, uint index)
     {
         return *((uint*)&v->data[index + 1]);
     }
-    return i;
+    return (uint)i;
 }
 
 uint ByteVectorGetPackUintSize(const bytevector* v, uint index)

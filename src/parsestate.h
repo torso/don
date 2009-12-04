@@ -46,11 +46,11 @@ extern nonnull void ParseStateInit(ParseState* state, fileref file, uint line,
                                    uint offset);
 extern nonnull void ParseStateDispose(ParseState* state);
 
-extern nonnull boolean ParseStateBlockBegin(ParseState* state, int indent,
+extern nonnull boolean ParseStateBlockBegin(ParseState* state, uint indent,
                                             boolean loop);
 extern nonnull boolean ParseStateBlockEnd(ParseState* state);
 extern nonnull pure boolean ParseStateBlockEmpty(ParseState* state);
-extern nonnull int ParseStateBlockIndent(ParseState* state);
+extern nonnull uint ParseStateBlockIndent(ParseState* state);
 
 extern nonnull int ParseStateGetVariable(ParseState* state,
                                          stringref identifier);
@@ -64,7 +64,7 @@ extern nonnull void ParseStateSetArgument(ParseState* state, uint offset,
 extern nonnull int ParseStateWriteStringLiteral(ParseState* state,
                                                 stringref value);
 
-extern nonnull boolean ParseStateWriteWhile(ParseState* state, int value);
+extern nonnull boolean ParseStateWriteWhile(ParseState* state, uint value);
 extern nonnull boolean ParseStateWriteReturn(ParseState* state);
 extern nonnull boolean ParseStateWriteNativeInvocation(
     ParseState* state, nativefunctionref nativeFunction, uint argumentOffset);
