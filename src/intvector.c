@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <memory.h>
 #include "builder.h"
 #include "intvector.h"
 
@@ -21,6 +22,14 @@ void IntVectorInit(intvector* v)
     v->data = (int*)malloc(SEGMENT_SIZE * sizeof(int));
     assert(v->data); /* TODO: handle oom */
     v->size = 0;
+}
+
+void IntVectorInitCopy(intvector* restrict v, const intvector* restrict data)
+{
+    v->data = (int*)malloc(SEGMENT_SIZE * sizeof(int));
+    assert(v->data); /* TODO: handle oom */
+    memcpy(v->data, data->data, data->size * sizeof(int));
+    v->size = data->size;
 }
 
 void IntVectorFree(intvector* v)

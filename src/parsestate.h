@@ -18,11 +18,16 @@ typedef struct _Block Block;
 struct _Block
 {
     Block* parent;
+
+    /* Holds the then-block of an if statement while parsing the else-block. */
+    Block* unfinished;
+
     uint indent;
     uint loopBegin;
-    uint conditionInstruction;
+    uint conditionOffset;
     uint condition;
     boolean loop;
+    boolean allowTrailingElse;
     intvector locals;
 };
 
@@ -34,6 +39,7 @@ typedef struct
     uint line;
     uint statementLine;
     uint loopLevel;
+    boolean allowElse;
 
     bytevector data;
     bytevector control;
@@ -48,8 +54,9 @@ extern nonnull void ParseStateInit(ParseState* state, fileref file, uint line,
 extern nonnull void ParseStateDispose(ParseState* state);
 
 extern nonnull boolean ParseStateBlockBegin(ParseState* state, uint indent,
-                                            boolean loop);
-extern nonnull boolean ParseStateBlockEnd(ParseState* state);
+                                            boolean loop,
+                                            boolean allowTrailingElse);
+extern nonnull boolean ParseStateBlockEnd(ParseState* state, boolean isElse);
 extern nonnull boolean ParseStateBlockEmpty(ParseState* state);
 extern nonnull uint ParseStateBlockIndent(ParseState* state);
 
@@ -65,6 +72,7 @@ extern nonnull void ParseStateSetArgument(ParseState* state, uint offset,
 extern nonnull int ParseStateWriteStringLiteral(ParseState* state,
                                                 stringref value);
 
+extern nonnull boolean ParseStateWriteIf(ParseState* state, uint value);
 extern nonnull boolean ParseStateWriteWhile(ParseState* state, uint value);
 extern nonnull boolean ParseStateWriteReturn(ParseState* state);
 extern nonnull boolean ParseStateWriteNativeInvocation(

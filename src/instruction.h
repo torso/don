@@ -3,6 +3,7 @@
 #define OP_INVOKE_NATIVE 2
 #define OP_BRANCH 3
 #define OP_LOOP 4
+#define OP_JUMP 5
 
 #define DATAOP_NULL 0
 #define DATAOP_STRING 1

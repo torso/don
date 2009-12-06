@@ -7,6 +7,8 @@ typedef struct
 } intvector;
 
 extern nonnull void IntVectorInit(intvector* v);
+extern nonnull void IntVectorInitCopy(intvector* restrict v,
+                                      const intvector* restrict data);
 extern nonnull void IntVectorFree(intvector* v);
 extern nonnull uint IntVectorSize(const intvector* v);
 extern nonnull void IntVectorAdd(intvector* v, int value);

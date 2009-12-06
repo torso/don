@@ -77,15 +77,19 @@ static void dump(const ParseState* state)
             size = 1 + ByteVectorGetPackUintSize(&state->control, i + 1);
             break;
         case OP_BRANCH:
-            size = ByteVectorGetPackUintSize(&state->control, i);
+            size = ByteVectorGetPackUintSize(&state->control, i + 4);
             printf("%d: branch %d %d\n", ip,
-                   ByteVectorGetPackUint(&state->control, i),
-                   ByteVectorGetUint(&state->control, i + size));
+                   ByteVectorGetPackUint(&state->control, i + 4),
+                   ByteVectorGetUint(&state->control, i));
             size += 4;
             break;
         case OP_LOOP:
             printf("%d: loop %d\n", ip, ByteVectorGetPackUint(&state->control, i));
             size = ByteVectorGetPackUintSize(&state->control, i);
+            break;
+        case OP_JUMP:
+            printf("%d: jump %d\n", ip, ByteVectorGetInt(&state->control, i));
+            size = 4;
             break;
         default:
             assert(false);
@@ -94,6 +98,12 @@ static void dump(const ParseState* state)
         i += size;
         assert(i <= ByteVectorSize(&state->control));
     }
+}
+
+static void freeBlock(Block* block)
+{
+    IntVectorFree(&block->locals);
+    free(block);
 }
 
 void ParseStateCheck(const ParseState* state)
@@ -130,16 +140,19 @@ void ParseStateDispose(ParseState* state)
     for (block = state->currentBlock; block != &state->firstBlock;)
     {
         nextBlock = block->parent;
-        IntVectorFree(&block->locals);
-        free(block);
+        freeBlock(block);
         block = nextBlock;
     }
 }
 
 
-boolean ParseStateBlockBegin(ParseState* state, uint indent, boolean loop)
+boolean ParseStateBlockBegin(ParseState* state, uint indent, boolean loop,
+                             boolean allowTrailingElse)
 {
     Block* block;
+    intvector* locals;
+    intvector* oldLocals = &state->currentBlock->locals;
+    uint i;
     ParseStateCheck(state);
     block = (Block*)malloc(sizeof(Block));
     if (block == null)
@@ -147,14 +160,28 @@ boolean ParseStateBlockBegin(ParseState* state, uint indent, boolean loop)
         return false;
     }
     block->parent = state->currentBlock;
+    block->unfinished = null;
     block->indent = indent;
     block->loopBegin = ByteVectorSize(&state->control);
     block->loop = loop;
-    IntVectorInit(&block->locals);
+    block->allowTrailingElse = allowTrailingElse;
     state->currentBlock = block;
     if (loop)
     {
+        locals = &block->locals;
+        IntVectorInit(locals);
+        for (i = 0; i < IntVectorSize(oldLocals); i += LOCAL_ENTRY_SIZE)
+        {
+            IntVectorAdd4(locals,
+                          IntVectorGet(oldLocals, i + LOCAL_OFFSET_IDENTIFIER),
+                          IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE),
+                          0, 0);
+        }
         state->loopLevel++;
+    }
+    else
+    {
+        IntVectorInitCopy(&block->locals, &block->parent->locals);
     }
     return true;
 }
@@ -162,84 +189,226 @@ boolean ParseStateBlockBegin(ParseState* state, uint indent, boolean loop)
 static void ParseStateBlockSetCondition(ParseState* state, uint value)
 {
     assert(!ParseStateBlockEmpty(state));
-    assert(state->currentBlock->loop);
-    state->currentBlock->conditionInstruction = ByteVectorSize(&state->control);
+    state->currentBlock->conditionOffset = ByteVectorSize(&state->control) + 1;
     state->currentBlock->condition = value;
 }
 
-boolean ParseStateBlockEnd(ParseState* state)
+boolean ParseStateBlockEnd(ParseState* state, boolean isElse)
 {
     Block* block = state->currentBlock;
     intvector* locals = &block->locals;
     intvector* oldLocals = &block->parent->locals;
+    intvector* unfinishedLocals;
     uint i;
     int flags;
+    int oldFlags;
+    int unfinishedFlags;
     uint size;
+    boolean keepBlock = false;
     assert(!ParseStateBlockEmpty(state));
     state->currentBlock = block->parent;
-    if (block->loop)
+    if (isElse)
+    {
+        if (!block->allowTrailingElse)
+        {
+            return false;
+        }
+        assert(!block->unfinished);
+        if (!ParseStateBlockBegin(state, block->indent, false, false))
+        {
+            return false;
+        }
+        state->currentBlock->unfinished = block;
+        state->currentBlock->conditionOffset = ByteVectorSize(&state->control) + 1;
+        if (!ByteVectorAdd(&state->control, OP_JUMP) ||
+            !ByteVectorAddInt(&state->control, 0))
+        {
+            return false;
+        }
+
+        unfinishedLocals = locals;
+        locals = &state->currentBlock->locals;
+        assert(IntVectorSize(locals) == IntVectorSize(oldLocals));
+        for (i = 0; i < IntVectorSize(locals); i += LOCAL_ENTRY_SIZE)
+        {
+            unfinishedFlags = IntVectorGet(unfinishedLocals, i + LOCAL_OFFSET_FLAGS);
+            if (unfinishedFlags & LOCAL_FLAG_ACCESSED)
+            {
+                IntVectorSet(locals, i + LOCAL_OFFSET_VALUE,
+                             IntVectorGet(unfinishedLocals,
+                                          i + LOCAL_OFFSET_ACCESSOFFSET));
+                IntVectorSet(locals, i + LOCAL_OFFSET_FLAGS, IntVectorGet(locals, i + LOCAL_OFFSET_FLAGS) | LOCAL_FLAG_ACCESSED);
+                IntVectorSet(locals, i + LOCAL_OFFSET_ACCESSOFFSET,
+                             IntVectorGet(unfinishedLocals,
+                                          i + LOCAL_OFFSET_ACCESSOFFSET));
+            }
+        }
+        for (i = IntVectorSize(locals); i < IntVectorSize(unfinishedLocals); i += LOCAL_ENTRY_SIZE)
+        {
+            unfinishedFlags = IntVectorGet(unfinishedLocals, i + LOCAL_OFFSET_FLAGS);
+            IntVectorAdd4(
+                locals,
+                IntVectorGet(unfinishedLocals, i + LOCAL_OFFSET_IDENTIFIER),
+                unfinishedFlags & LOCAL_FLAG_ACCESSED ?
+                IntVectorGet(unfinishedLocals, i + LOCAL_OFFSET_ACCESSOFFSET) : 0,
+                unfinishedFlags & LOCAL_FLAG_ACCESSED,
+                IntVectorGet(unfinishedLocals, i + LOCAL_OFFSET_ACCESSOFFSET));
+        }
+        assert(IntVectorSize(locals) == IntVectorSize(unfinishedLocals));
+        keepBlock = true;
+    }
+    else if (block->loop)
     {
         assert(state->loopLevel > 0);
+        assert(!block->unfinished);
         state->loopLevel--;
         if (!ByteVectorAdd(&state->control, OP_LOOP) ||
             !ByteVectorAddPackUint(&state->control, block->loopBegin))
         {
             return false;
         }
-    }
-    for (i = 0; i < IntVectorSize(locals); i += LOCAL_ENTRY_SIZE)
-    {
-        if (i >= IntVectorSize(oldLocals))
+        for (i = 0; i < IntVectorSize(locals); i += LOCAL_ENTRY_SIZE)
         {
-            if (state->loopLevel > 0)
+            if (i >= IntVectorSize(oldLocals))
             {
-                if (ParseStateGetVariable(state, (stringref)IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER)) < 0)
+                if (state->loopLevel > 0)
+                {
+                    if (ParseStateGetVariable(state, (stringref)IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER)) < 0)
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    IntVectorAdd4(oldLocals,
+                                  IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER),
+                                  0, 0, 0);
+                }
+                assert(IntVectorSize(oldLocals) == i + LOCAL_ENTRY_SIZE);
+            }
+            flags = IntVectorGet(locals, i + LOCAL_OFFSET_FLAGS);
+            if (flags & LOCAL_FLAG_ACCESSED)
+            {
+                ByteVectorSetInt(&state->data,
+                                 (uint)IntVectorGet(locals, i + LOCAL_OFFSET_ACCESSOFFSET) + 1,
+                                 IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE));
+                ByteVectorSetInt(&state->data,
+                                 (uint)IntVectorGet(locals, i + LOCAL_OFFSET_ACCESSOFFSET) + 5,
+                                 IntVectorGet(flags & LOCAL_FLAG_MODIFIED ? locals : oldLocals, i + LOCAL_OFFSET_VALUE));
+                ByteVectorSetInt(&state->data,
+                                 (uint)IntVectorGet(locals, i + LOCAL_OFFSET_ACCESSOFFSET) + 9,
+                                 (int)block->condition);
+            }
+            if (flags & LOCAL_FLAG_MODIFIED)
+            {
+                size = ByteVectorSize(&state->data);
+                if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
+                    !ByteVectorAddInt(&state->data, IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE)) ||
+                    !ByteVectorAddInt(&state->data, IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
+                    !ByteVectorAddInt(&state->data, (int)block->condition))
                 {
                     return false;
                 }
+                IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE, (int)size);
+                IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS,
+                             IntVectorGet(oldLocals, i + LOCAL_OFFSET_FLAGS) | LOCAL_FLAG_MODIFIED);
             }
-            else
+        }
+    }
+    else if (block->unfinished)
+    {
+        assert(!block->unfinished->unfinished);
+        unfinishedLocals = &block->unfinished->locals;
+        assert(IntVectorSize(locals) >= IntVectorSize(oldLocals));
+        assert(IntVectorSize(locals) >= IntVectorSize(unfinishedLocals));
+        for (i = 0; i < IntVectorSize(locals); i += LOCAL_ENTRY_SIZE)
+        {
+            flags = IntVectorGet(locals, i + LOCAL_OFFSET_FLAGS);
+            unfinishedFlags = i < IntVectorSize(unfinishedLocals) ? IntVectorGet(unfinishedLocals, i + LOCAL_OFFSET_FLAGS) : 0;
+            if (i >= IntVectorSize(oldLocals))
             {
                 IntVectorAdd4(oldLocals,
                               IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER),
                               0, 0, 0);
             }
-            assert(IntVectorSize(oldLocals) == i + LOCAL_ENTRY_SIZE);
-        }
-        flags = IntVectorGet(locals, i + LOCAL_OFFSET_FLAGS);
-        if (flags & LOCAL_FLAG_ACCESSED)
-        {
-            ByteVectorSetInt(&state->data,
-                             (uint)IntVectorGet(locals, i + LOCAL_OFFSET_ACCESSOFFSET) + 1,
-                             IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE));
-            ByteVectorSetInt(&state->data,
-                             (uint)IntVectorGet(locals, i + LOCAL_OFFSET_ACCESSOFFSET) + 5,
-                             IntVectorGet(flags & LOCAL_FLAG_MODIFIED ? locals : oldLocals, i + LOCAL_OFFSET_VALUE));
-            ByteVectorSetInt(&state->data,
-                             (uint)IntVectorGet(locals, i + LOCAL_OFFSET_ACCESSOFFSET) + 9,
-                             (int)block->condition);
-        }
-        if (flags & LOCAL_FLAG_MODIFIED)
-        {
-            size = ByteVectorSize(&state->data);
-            if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
-                !ByteVectorAddInt(&state->data, IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE)) ||
-                !ByteVectorAddInt(&state->data, IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
-                !ByteVectorAddInt(&state->data, (int)block->condition))
+            oldFlags = IntVectorGet(oldLocals, i + LOCAL_OFFSET_FLAGS);
+            if (!(oldFlags & LOCAL_FLAG_ACCESSED))
             {
-                return false;
+                if (flags & LOCAL_FLAG_ACCESSED)
+                {
+                    oldFlags |= LOCAL_FLAG_ACCESSED;
+                    IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS, oldFlags);
+                    IntVectorSet(oldLocals, i + LOCAL_OFFSET_ACCESSOFFSET,
+                                 IntVectorGet(locals,
+                                              i + LOCAL_OFFSET_ACCESSOFFSET));
+                }
+                else
+                {
+                    assert(!(unfinishedFlags & LOCAL_FLAG_ACCESSED)); /* TODO */
+                }
             }
-            IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE, (int)size);
-            IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS,
-                         IntVectorGet(locals, i + LOCAL_OFFSET_FLAGS) | LOCAL_FLAG_MODIFIED);
+            if ((flags | unfinishedFlags) & LOCAL_FLAG_MODIFIED)
+            {
+                size = ByteVectorSize(&state->data);
+                if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
+                    !ByteVectorAddInt(&state->data, i < IntVectorSize(unfinishedLocals) ? IntVectorGet(unfinishedLocals, i + LOCAL_OFFSET_VALUE) : 0) ||
+                    !ByteVectorAddInt(&state->data, IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
+                    !ByteVectorAddInt(&state->data, (int)block->unfinished->condition))
+                {
+                    return false;
+                }
+                IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE, (int)size);
+                IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS,
+                             oldFlags | LOCAL_FLAG_MODIFIED);
+            }
+        }
+        freeBlock(block->unfinished);
+    }
+    else
+    {
+        assert(IntVectorSize(locals) >= IntVectorSize(oldLocals));
+        for (i = 0; i < IntVectorSize(locals); i += LOCAL_ENTRY_SIZE)
+        {
+            flags = IntVectorGet(locals, i + LOCAL_OFFSET_FLAGS);
+            if (i >= IntVectorSize(oldLocals))
+            {
+                IntVectorAdd4(oldLocals,
+                              IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER),
+                              0, 0, 0);
+            }
+            oldFlags = IntVectorGet(oldLocals, i + LOCAL_OFFSET_FLAGS);
+            if (flags & LOCAL_FLAG_ACCESSED &&
+                !(oldFlags & LOCAL_FLAG_ACCESSED))
+            {
+                oldFlags |= LOCAL_FLAG_ACCESSED;
+                IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS, oldFlags);
+                IntVectorSet(oldLocals, i + LOCAL_OFFSET_ACCESSOFFSET,
+                             IntVectorGet(locals,
+                                          i + LOCAL_OFFSET_ACCESSOFFSET));
+            }
+            if (flags & LOCAL_FLAG_MODIFIED)
+            {
+                size = ByteVectorSize(&state->data);
+                if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
+                    !ByteVectorAddInt(&state->data, IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE)) ||
+                    !ByteVectorAddInt(&state->data, IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
+                    !ByteVectorAddInt(&state->data, (int)block->condition))
+                {
+                    return false;
+                }
+                IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE, (int)size);
+                IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS,
+                             oldFlags | LOCAL_FLAG_MODIFIED);
+            }
         }
     }
-    ByteVectorSetInt(&state->control, block->conditionInstruction +
-                     ByteVectorGetPackUintSize(
-                         &state->control, block->conditionInstruction + 1) + 1,
+
+    ByteVectorSetInt(&state->control, block->conditionOffset,
                      (int)ByteVectorSize(&state->control));
-    IntVectorFree(&block->locals);
-    free(block);
+    if (!keepBlock)
+    {
+        freeBlock(block);
+    }
     return true;
 }
 
@@ -282,7 +451,7 @@ int ParseStateGetVariable(ParseState* state, stringref identifier)
                 IntVectorSet(locals, i + LOCAL_OFFSET_FLAGS,
                              LOCAL_FLAG_ACCESSED);
                 IntVectorSet(locals, i + LOCAL_OFFSET_ACCESSOFFSET,
-                             (int)ByteVectorSize(&state->data));
+                             (int)size);
                 IntVectorSet(locals, i + LOCAL_OFFSET_VALUE, (int)size);
                 return (int)size;
             }
@@ -358,13 +527,22 @@ int ParseStateWriteStringLiteral(ParseState* state, stringref value)
 }
 
 
+boolean ParseStateWriteIf(ParseState* state, uint value)
+{
+    ParseStateCheck(state);
+    ParseStateBlockSetCondition(state, value);
+    return ByteVectorAdd(&state->control, OP_BRANCH) &&
+        ByteVectorAddInt(&state->control, 0) &&
+        ByteVectorAddPackUint(&state->control, value) ? true : false;
+}
+
 boolean ParseStateWriteWhile(ParseState* state, uint value)
 {
     ParseStateCheck(state);
     ParseStateBlockSetCondition(state, value);
     return ByteVectorAdd(&state->control, OP_BRANCH) &&
-        ByteVectorAddPackUint(&state->control, value) &&
-        ByteVectorAddInt(&state->control, 0) ? true : false;
+        ByteVectorAddInt(&state->control, 0) &&
+        ByteVectorAddPackUint(&state->control, value) ? true : false;
 }
 
 boolean ParseStateWriteReturn(ParseState* state)

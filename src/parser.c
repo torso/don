@@ -12,6 +12,8 @@
 
 static char errorBuffer[256];
 
+static stringref keywordElse;
+static stringref keywordIf;
 static stringref keywordWhile;
 
 static stringref maxStatementKeyword;
@@ -52,12 +54,13 @@ static uint getOffset(const ParseState* state, const byte* begin)
 }
 
 
-static int unwindBlocks(ParseState* state, uint indent)
+static int unwindBlocks(ParseState* state, uint indent, stringref identifier)
 {
     while (!ParseStateBlockEmpty(state))
     {
         uint oldIndent = ParseStateBlockIndent(state);
-        if (!ParseStateBlockEnd(state))
+        if (!ParseStateBlockEnd(
+                state, oldIndent == indent && identifier == keywordElse))
         {
             assert(false); /* TODO: Error handling */
             return -1;
@@ -154,6 +157,11 @@ static stringref readIdentifier(ParseState* state)
     assert(peekIdentifier(state));
     while (isIdentifierCharacter(*++state->current));
     return StringPoolAdd2((const char*)begin, getOffset(state, begin));
+}
+
+static stringref peekReadIdentifier(ParseState* state)
+{
+    return peekIdentifier(state) ? readIdentifier(state) : 0;
 }
 
 static boolean isKeyword(stringref identifier)
@@ -301,7 +309,7 @@ static boolean parseFunctionBody(ParseState* state)
         state->statementLine = state->line;
         if (eof(state))
         {
-            unwindBlocks(state, 0);
+            unwindBlocks(state, 0, 0);
             if (!ParseStateWriteReturn(state))
             {
                 return false;
@@ -319,6 +327,7 @@ static boolean parseFunctionBody(ParseState* state)
         }
         else
         {
+            identifier = peekReadIdentifier(state);
             if (indent != currentIndent)
             {
                 if (currentIndent < 0)
@@ -332,7 +341,7 @@ static boolean parseFunctionBody(ParseState* state)
                 }
                 else if (indent < currentIndent)
                 {
-                    currentIndent = unwindBlocks(state, (uint)indent);
+                    currentIndent = unwindBlocks(state, (uint)indent, identifier);
                     if (currentIndent < 0)
                     {
                         return false;
@@ -345,6 +354,18 @@ static boolean parseFunctionBody(ParseState* state)
                         }
                         break;
                     }
+                    if (identifier == keywordElse)
+                    {
+                        prevIndent = currentIndent;
+                        currentIndent = -1;
+                        if (!peekNewline(state))
+                        {
+                            error(state, "Garbage after else statement.");
+                            return false;
+                        }
+                        skipEndOfLine(state);
+                        continue;
+                    }
                 }
                 else
                 {
@@ -352,9 +373,8 @@ static boolean parseFunctionBody(ParseState* state)
                     return false;
                 }
             }
-            if (peekIdentifier(state))
+            if (identifier)
             {
-                identifier = readIdentifier(state);
                 skipWhitespace(state);
                 if (isKeyword(identifier))
                 {
@@ -363,9 +383,36 @@ static boolean parseFunctionBody(ParseState* state)
                         statementError(state, "Not a statement.");
                         return false;
                     }
-                    if (identifier == keywordWhile)
+                    if (identifier == keywordIf)
                     {
-                        if (!ParseStateBlockBegin(state, (uint)currentIndent, true))
+                        if (!ParseStateBlockBegin(state, (uint)currentIndent,
+                                                  false, true))
+                        {
+                            return false;
+                        }
+                        prevIndent = currentIndent;
+                        currentIndent = -1;
+                        value = parseExpression(state);
+                        if (value < 0 || !ParseStateWriteIf(state, (uint)value))
+                        {
+                            return false;
+                        }
+                        if (!peekNewline(state))
+                        {
+                            error(state, "Garbage after if statement.");
+                            return false;
+                        }
+                        skipEndOfLine(state);
+                    }
+                    else if (identifier == keywordElse)
+                    {
+                        statementError(state, "else without matching if.");
+                        return false;
+                    }
+                    else if (identifier == keywordWhile)
+                    {
+                        if (!ParseStateBlockBegin(state, (uint)currentIndent,
+                                                  true, false))
                         {
                             return false;
                         }
@@ -464,6 +511,8 @@ static boolean parseScript(ParseState* state)
 
 void ParserAddKeywords(void)
 {
+    keywordElse = StringPoolAdd("else");
+    keywordIf = StringPoolAdd("if");
     keywordWhile = StringPoolAdd("while");
     maxStatementKeyword = keywordWhile;
     maxKeyword = keywordWhile;
