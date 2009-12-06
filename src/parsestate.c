@@ -38,10 +38,11 @@ static void dump(const ParseState* state)
             size = ByteVectorGetPackUintSize(&state->data, i);
             break;
         case DATAOP_PHI_VARIABLE:
-            printf("%d: phi variable %d %d\n", ip,
+            printf("%d: phi variable %d %d %d\n", ip,
+                   ByteVectorGetInt(&state->data, i + 8),
                    ByteVectorGetInt(&state->data, i),
                    ByteVectorGetInt(&state->data, i + 4));
-            size = 8;
+            size = 12;
             break;
         default:
             assert(false);
@@ -158,11 +159,12 @@ boolean ParseStateBlockBegin(ParseState* state, uint indent, boolean loop)
     return true;
 }
 
-static void ParseStateBlockSetConditionOffset(ParseState* state)
+static void ParseStateBlockSetCondition(ParseState* state, uint value)
 {
     assert(!ParseStateBlockEmpty(state));
     assert(state->currentBlock->loop);
     state->currentBlock->conditionInstruction = ByteVectorSize(&state->control);
+    state->currentBlock->condition = value;
 }
 
 boolean ParseStateBlockEnd(ParseState* state)
@@ -213,13 +215,17 @@ boolean ParseStateBlockEnd(ParseState* state)
             ByteVectorSetInt(&state->data,
                              (uint)IntVectorGet(locals, i + LOCAL_OFFSET_ACCESSOFFSET) + 5,
                              IntVectorGet(flags & LOCAL_FLAG_MODIFIED ? locals : oldLocals, i + LOCAL_OFFSET_VALUE));
+            ByteVectorSetInt(&state->data,
+                             (uint)IntVectorGet(locals, i + LOCAL_OFFSET_ACCESSOFFSET) + 9,
+                             (int)block->condition);
         }
         if (flags & LOCAL_FLAG_MODIFIED)
         {
             size = ByteVectorSize(&state->data);
             if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
                 !ByteVectorAddInt(&state->data, IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE)) ||
-                !ByteVectorAddInt(&state->data, IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
+                !ByteVectorAddInt(&state->data, IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
+                !ByteVectorAddInt(&state->data, (int)block->condition))
             {
                 return false;
             }
@@ -268,6 +274,7 @@ int ParseStateGetVariable(ParseState* state, stringref identifier)
                 size = ByteVectorSize(&state->data);
                 if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
                     !ByteVectorAddInt(&state->data, 0) ||
+                    !ByteVectorAddInt(&state->data, 0) ||
                     !ByteVectorAddInt(&state->data, 0))
                 {
                     return -1;
@@ -289,6 +296,7 @@ int ParseStateGetVariable(ParseState* state, stringref identifier)
     size = ByteVectorSize(&state->data);
     IntVectorAdd4(locals, (int)identifier, (int)size, LOCAL_FLAG_ACCESSED, (int)size);
     if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
+        !ByteVectorAddInt(&state->data, 0) ||
         !ByteVectorAddInt(&state->data, 0) ||
         !ByteVectorAddInt(&state->data, 0))
     {
@@ -353,7 +361,7 @@ int ParseStateWriteStringLiteral(ParseState* state, stringref value)
 boolean ParseStateWriteWhile(ParseState* state, uint value)
 {
     ParseStateCheck(state);
-    ParseStateBlockSetConditionOffset(state);
+    ParseStateBlockSetCondition(state, value);
     return ByteVectorAdd(&state->control, OP_BRANCH) &&
         ByteVectorAddPackUint(&state->control, value) &&
         ByteVectorAddInt(&state->control, 0) ? true : false;

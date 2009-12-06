@@ -21,6 +21,7 @@ struct _Block
     uint indent;
     uint loopBegin;
     uint conditionInstruction;
+    uint condition;
     boolean loop;
     intvector locals;
 };
