@@ -42,7 +42,7 @@ typedef struct
     Block firstBlock;
 } ParseState;
 
-extern nonnull pure void ParseStateCheck(const ParseState* state);
+extern nonnull void ParseStateCheck(const ParseState* state);
 extern nonnull void ParseStateInit(ParseState* state, fileref file, uint line,
                                    uint offset);
 extern nonnull void ParseStateDispose(ParseState* state);
@@ -50,7 +50,7 @@ extern nonnull void ParseStateDispose(ParseState* state);
 extern nonnull boolean ParseStateBlockBegin(ParseState* state, uint indent,
                                             boolean loop);
 extern nonnull boolean ParseStateBlockEnd(ParseState* state);
-extern nonnull pure boolean ParseStateBlockEmpty(ParseState* state);
+extern nonnull boolean ParseStateBlockEmpty(ParseState* state);
 extern nonnull uint ParseStateBlockIndent(ParseState* state);
 
 extern nonnull int ParseStateGetVariable(ParseState* state,
