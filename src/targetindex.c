@@ -14,10 +14,10 @@
 #define TABLE_ENTRY_BYTE_SIZE (TABLE_ENTRY_SIZE * sizeof(uint))
 
 static intvector unsortedTable;
-static uint* table;
+static uint *table;
 static uint targetCount;
 
-static void insertionSort(uint* restrict target, const uint* restrict source,
+static void insertionSort(uint *restrict target, const uint *restrict source,
                           uint size)
 {
     uint i;
@@ -38,8 +38,8 @@ static void insertionSort(uint* restrict target, const uint* restrict source,
     }
 }
 
-static uint copySmallerEntries(uint* restrict target,
-                               const uint* restrict source,
+static uint copySmallerEntries(uint *restrict target,
+                               const uint *restrict source,
                                uint value,
                                uint maxEntries)
 {
@@ -52,11 +52,11 @@ static uint copySmallerEntries(uint* restrict target,
     return copyCount;
 }
 
-static void mergeSort(uint* restrict target, const uint* restrict source,
+static void mergeSort(uint *restrict target, const uint *restrict source,
                       uint size1, uint size2)
 {
     uint copied;
-    const uint* restrict source2 = source + size1 * TABLE_ENTRY_SIZE;
+    const uint *restrict source2 = source + size1 * TABLE_ENTRY_SIZE;
     assert(size1 > 0);
     assert(size2 > 0);
     for (;;)
@@ -89,9 +89,9 @@ static void mergeSort(uint* restrict target, const uint* restrict source,
 
 static void sortIndex(void)
 {
-    uint* scratch;
-    uint* data1;
-    uint* data2;
+    uint *scratch;
+    uint *data1;
+    uint *data2;
     uint i;
     uint j;
     boolean odd;

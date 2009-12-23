@@ -10,55 +10,55 @@
 #define TABLE_ENTRY_VALUE 1
 #define TABLE_ENTRY_SIZE 2
 
-static char* stringData = null;
+static char *stringData = null;
 static size_t dataSize = 0;
-static uint* table = null;
+static uint *table = null;
 /*static uint stringCount = 0;*/
 
-static void checkTable(const uint* t)
+static void checkTable(const uint *t)
 {
     assert(t);
     assert(t[TABLE_SIZE] > TABLE_DATA_BEGIN);
     assert((t[TABLE_SIZE] - TABLE_DATA_BEGIN) % TABLE_ENTRY_SIZE == 0);
 }
 
-static uint getTableSize(const uint* t)
+static uint getTableSize(const uint *t)
 {
     checkTable(t);
     return (t[TABLE_SIZE] - TABLE_DATA_BEGIN) / TABLE_ENTRY_SIZE;
 }
 
-static void checkSlot(const uint* t, uint slot)
+static void checkSlot(const uint *t, uint slot)
 {
     assert(getTableSize(t) > slot);
 }
 
-static uint getSlotForHash(const uint* t, uint hash)
+static uint getSlotForHash(const uint *t, uint hash)
 {
     checkTable(t);
     return hash & (getTableSize(t) - 1);
 }
 
-static uint getSlotHash(const uint* t, uint slot)
+static uint getSlotHash(const uint *t, uint slot)
 {
     checkTable(t);
     return t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_HASH];
 }
 
-static uint getSlotValue(const uint* t, uint slot)
+static uint getSlotValue(const uint *t, uint slot)
 {
     checkSlot(t, slot);
     return t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE];
 }
 
-static boolean isSlotEmpty(const uint* t, uint slot)
+static boolean isSlotEmpty(const uint *t, uint slot)
 {
     checkTable(t);
     return getSlotValue(t, slot) ? false : true;
 }
 
-static boolean slotContainsString(const uint* t, uint slot, uint hash,
-                                  const char* string, size_t length)
+static boolean slotContainsString(const uint *t, uint slot, uint hash,
+                                  const char *string, size_t length)
 {
     checkTable(t);
     return getSlotHash(t, slot) == hash &&
@@ -84,19 +84,19 @@ void StringPoolFree(void)
     free(table);
 }
 
-stringref StringPoolAdd(const char* token)
+stringref StringPoolAdd(const char *token)
 {
     assert(token != null);
     return StringPoolAdd2(token, strlen(token));
 }
 
-stringref StringPoolAdd2(const char* token, size_t length)
+stringref StringPoolAdd2(const char *token, size_t length)
 {
     uint i;
     uint hash;
     uint slot;
     stringref ref;
-    uint* cachedTable = table;
+    uint *cachedTable = table;
 
     assert(token);
     assert(stringData);
@@ -132,7 +132,7 @@ stringref StringPoolAdd2(const char* token, size_t length)
     return ref;
 }
 
-const char* StringPoolGetString(stringref ref)
+const char *StringPoolGetString(stringref ref)
 {
     assert(stringData);
     assert(ref > 0);

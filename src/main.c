@@ -6,11 +6,11 @@
 #include "targetindex.h"
 #include "parser.h"
 
-int main(int argc, const char** argv)
+int main(int argc, const char **argv)
 {
     int i;
-    const char* options;
-    const char* inputFilename = null;
+    const char *options;
+    const char *inputFilename = null;
     fileref inputFile;
     targetref target;
     boolean parseOptions = true;

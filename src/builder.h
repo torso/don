@@ -20,10 +20,10 @@ typedef uint8 byte;
 #define min(a, b) (a > b ? b : a)
 #define max(a, b) (a < b ? b : a)
 
-extern void* zmalloc(size_t size);
+extern void *zmalloc(size_t size);
 
 #ifdef DEBUG
-extern void _assert(const char* expression, const char* file, int line);
+extern void _assert(const char *expression, const char *file, int line);
 #define assert(e) if (e) {} else { _assert(#e, __FILE__, __LINE__); }
 
 #ifndef _STDIO_H

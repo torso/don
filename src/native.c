@@ -26,7 +26,7 @@ uint NativeGetMinimumArgumentCount(nativefunctionref function)
     return 1;
 }
 
-stringref* NativeGetParameterNames(nativefunctionref function)
+stringref *NativeGetParameterNames(nativefunctionref function)
 {
     assert(function == 0);
     return echoParameterNames;

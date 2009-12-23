@@ -32,29 +32,29 @@ static boolean isIdentifierCharacter(byte c)
         (c >= '0' && c <= '9');
 }
 
-static void error(const ParseState* state, const char* message)
+static void error(const ParseState *state, const char *message)
 {
     LogParseError(state->file, state->line, message);
 }
 
-static void errorOnLine(const ParseState* state, uint line, const char* message)
+static void errorOnLine(const ParseState *state, uint line, const char *message)
 {
     LogParseError(state->file, line, message);
 }
 
-static void statementError(const ParseState* state, const char* message)
+static void statementError(const ParseState *state, const char *message)
 {
     LogParseError(state->file, state->statementLine, message);
 }
 
-static uint getOffset(const ParseState* state, const byte* begin)
+static uint getOffset(const ParseState *state, const byte *begin)
 {
     ParseStateCheck(state);
     return (uint)(state->current - begin);
 }
 
 
-static int unwindBlocks(ParseState* state, uint indent, stringref identifier)
+static int unwindBlocks(ParseState *state, uint indent, stringref identifier)
 {
     while (!ParseStateBlockEmpty(state))
     {
@@ -83,13 +83,13 @@ static int unwindBlocks(ParseState* state, uint indent, stringref identifier)
     return -1;
 }
 
-static boolean eof(const ParseState* state)
+static boolean eof(const ParseState *state)
 {
     ParseStateCheck(state);
     return state->current == state->start + FileIndexGetSize(state->file);
 }
 
-static void skipWhitespace(ParseState* state)
+static void skipWhitespace(ParseState *state)
 {
     ParseStateCheck(state);
     while (state->current[0] == ' ')
@@ -98,19 +98,19 @@ static void skipWhitespace(ParseState* state)
     }
 }
 
-static void skipEndOfLine(ParseState* state)
+static void skipEndOfLine(ParseState *state)
 {
     ParseStateCheck(state);
     while (!eof(state) && *state->current++ != '\n');
     state->line++;
 }
 
-static boolean peekNewline(ParseState* state)
+static boolean peekNewline(ParseState *state)
 {
     return state->current[0] == '\n';
 }
 
-static boolean readNewline(ParseState* state)
+static boolean readNewline(ParseState *state)
 {
     ParseStateCheck(state);
     if (state->current[0] == '\n')
@@ -122,36 +122,36 @@ static boolean readNewline(ParseState* state)
     return false;
 }
 
-static boolean peekIndent(const ParseState* state)
+static boolean peekIndent(const ParseState *state)
 {
     ParseStateCheck(state);
     return state->current[0] == ' ';
 }
 
-static uint readIndent(ParseState* state)
+static uint readIndent(ParseState *state)
 {
-    const byte* begin = state->current;
+    const byte *begin = state->current;
 
     ParseStateCheck(state);
     skipWhitespace(state);
     return getOffset(state, begin);
 }
 
-static boolean peekComment(const ParseState* state)
+static boolean peekComment(const ParseState *state)
 {
     ParseStateCheck(state);
     return state->current[0] == ';';
 }
 
-static boolean peekIdentifier(const ParseState* state)
+static boolean peekIdentifier(const ParseState *state)
 {
     ParseStateCheck(state);
     return isInitialIdentifierCharacter(state->current[0]);
 }
 
-static stringref readIdentifier(ParseState* state)
+static stringref readIdentifier(ParseState *state)
 {
-    const byte* begin = state->current;
+    const byte *begin = state->current;
 
     ParseStateCheck(state);
     assert(peekIdentifier(state));
@@ -159,7 +159,7 @@ static stringref readIdentifier(ParseState* state)
     return StringPoolAdd2((const char*)begin, getOffset(state, begin));
 }
 
-static stringref peekReadIdentifier(ParseState* state)
+static stringref peekReadIdentifier(ParseState *state)
 {
     return peekIdentifier(state) ? readIdentifier(state) : 0;
 }
@@ -169,15 +169,15 @@ static boolean isKeyword(stringref identifier)
     return identifier <= maxKeyword;
 }
 
-static boolean peekString(const ParseState* state)
+static boolean peekString(const ParseState *state)
 {
     ParseStateCheck(state);
     return state->current[0] == '"';
 }
 
-static stringref readString(ParseState* state)
+static stringref readString(ParseState *state)
 {
-    const byte* begin;
+    const byte *begin;
     stringref s;
     ParseStateCheck(state);
     assert(peekString(state));
@@ -193,7 +193,7 @@ static stringref readString(ParseState* state)
     return s;
 }
 
-static boolean readOperator(ParseState* state, byte op)
+static boolean readOperator(ParseState *state, byte op)
 {
     if (state->current[0] == op)
     {
@@ -203,7 +203,7 @@ static boolean readOperator(ParseState* state, byte op)
     return false;
 }
 
-static boolean readExpectedOperator(ParseState* state, byte op)
+static boolean readExpectedOperator(ParseState *state, byte op)
 {
     if (!readOperator(state, op))
     {
@@ -216,7 +216,7 @@ static boolean readExpectedOperator(ParseState* state, byte op)
 }
 
 
-static int parseExpression(ParseState* state)
+static int parseExpression(ParseState *state)
 {
     stringref identifier;
     ParseStateCheck(state);
@@ -234,11 +234,11 @@ static int parseExpression(ParseState* state)
     return -1;
 }
 
-static boolean parseInvocationRest(ParseState* state, stringref name)
+static boolean parseInvocationRest(ParseState *state, stringref name)
 {
     nativefunctionref nativeFunction = NativeFindFunction(name);
     uint parameterCount = NativeGetParameterCount(nativeFunction);
-    stringref* parameterNames = NativeGetParameterNames(nativeFunction);
+    stringref *parameterNames = NativeGetParameterNames(nativeFunction);
     uint argumentOutputOffset = ParseStateWriteArguments(state, parameterCount);
     uint argumentCount = 0;
     uint line = state->line;
@@ -296,7 +296,7 @@ static boolean parseInvocationRest(ParseState* state, stringref name)
                                            argumentOutputOffset);
 }
 
-static boolean parseFunctionBody(ParseState* state)
+static boolean parseFunctionBody(ParseState *state)
 {
     int indent;
     int currentIndent = -1;
@@ -479,7 +479,7 @@ static boolean parseFunctionBody(ParseState* state)
     return true;
 }
 
-static boolean parseScript(ParseState* state)
+static boolean parseScript(ParseState *state)
 {
     boolean inFunction = false;
 

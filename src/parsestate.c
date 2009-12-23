@@ -17,7 +17,7 @@
 #define LOCAL_FLAG_MODIFIED 1
 #define LOCAL_FLAG_ACCESSED 2
 
-static void dump(const ParseState* state)
+static void dump(const ParseState *state)
 {
     uint i, j, ip;
     uint size;
@@ -100,20 +100,20 @@ static void dump(const ParseState* state)
     }
 }
 
-static void freeBlock(Block* block)
+static void freeBlock(Block *block)
 {
     IntVectorFree(&block->locals);
     free(block);
 }
 
-void ParseStateCheck(const ParseState* state)
+void ParseStateCheck(const ParseState *state)
 {
     assert(state->start != null);
     assert(state->current >= state->start);
     assert(state->current <= state->start + FileIndexGetSize(state->file));
 }
 
-void ParseStateInit(ParseState* state, fileref file, uint line, uint offset)
+void ParseStateInit(ParseState *state, fileref file, uint line, uint offset)
 {
     assert(file);
     assert(line == 1 || line <= offset);
@@ -129,10 +129,10 @@ void ParseStateInit(ParseState* state, fileref file, uint line, uint offset)
     IntVectorInit(&state->firstBlock.locals);
 }
 
-void ParseStateDispose(ParseState* state)
+void ParseStateDispose(ParseState *state)
 {
-    Block* block;
-    Block* nextBlock;
+    Block *block;
+    Block *nextBlock;
     dump(state);
     IntVectorFree(&state->firstBlock.locals);
     ByteVectorFree(&state->data);
@@ -146,12 +146,12 @@ void ParseStateDispose(ParseState* state)
 }
 
 
-boolean ParseStateBlockBegin(ParseState* state, uint indent, boolean loop,
+boolean ParseStateBlockBegin(ParseState *state, uint indent, boolean loop,
                              boolean allowTrailingElse)
 {
-    Block* block;
-    intvector* locals;
-    intvector* oldLocals = &state->currentBlock->locals;
+    Block *block;
+    intvector *locals;
+    intvector *oldLocals = &state->currentBlock->locals;
     uint i;
     ParseStateCheck(state);
     block = (Block*)malloc(sizeof(Block));
@@ -186,19 +186,19 @@ boolean ParseStateBlockBegin(ParseState* state, uint indent, boolean loop,
     return true;
 }
 
-static void ParseStateBlockSetCondition(ParseState* state, uint value)
+static void ParseStateBlockSetCondition(ParseState *state, uint value)
 {
     assert(!ParseStateBlockEmpty(state));
     state->currentBlock->conditionOffset = ByteVectorSize(&state->control) + 1;
     state->currentBlock->condition = value;
 }
 
-boolean ParseStateBlockEnd(ParseState* state, boolean isElse)
+boolean ParseStateBlockEnd(ParseState *state, boolean isElse)
 {
-    Block* block = state->currentBlock;
-    intvector* locals = &block->locals;
-    intvector* oldLocals = &block->parent->locals;
-    intvector* unfinishedLocals;
+    Block *block = state->currentBlock;
+    intvector *locals = &block->locals;
+    intvector *oldLocals = &block->parent->locals;
+    intvector *unfinishedLocals;
     uint i;
     int flags;
     int oldFlags;
@@ -419,25 +419,25 @@ boolean ParseStateBlockEnd(ParseState* state, boolean isElse)
     return true;
 }
 
-boolean ParseStateBlockEmpty(ParseState* state)
+boolean ParseStateBlockEmpty(ParseState *state)
 {
     ParseStateCheck(state);
     return state->currentBlock == &state->firstBlock;
 }
 
-uint ParseStateBlockIndent(ParseState* state)
+uint ParseStateBlockIndent(ParseState *state)
 {
     assert(!ParseStateBlockEmpty(state));
     return state->currentBlock->indent;
 }
 
 
-int ParseStateGetVariable(ParseState* state, stringref identifier)
+int ParseStateGetVariable(ParseState *state, stringref identifier)
 {
     uint i;
     int flags;
     uint size;
-    intvector* locals = &state->currentBlock->locals;
+    intvector *locals = &state->currentBlock->locals;
     ParseStateCheck(state);
     for (i = 0; i < IntVectorSize(locals); i += LOCAL_ENTRY_SIZE)
     {
@@ -481,10 +481,10 @@ int ParseStateGetVariable(ParseState* state, stringref identifier)
     return (int)size;
 }
 
-boolean ParseStateSetVariable(ParseState* state, stringref identifier, int value)
+boolean ParseStateSetVariable(ParseState *state, stringref identifier, int value)
 {
     uint i;
-    intvector* locals = &state->currentBlock->locals;
+    intvector *locals = &state->currentBlock->locals;
     ParseStateCheck(state);
     for (i = 0; i < IntVectorSize(locals); i += LOCAL_ENTRY_SIZE)
     {
@@ -502,7 +502,7 @@ boolean ParseStateSetVariable(ParseState* state, stringref identifier, int value
 }
 
 
-uint ParseStateWriteArguments(ParseState* state, uint size)
+uint ParseStateWriteArguments(ParseState *state, uint size)
 {
     uint offset;
     ParseStateCheck(state);
@@ -518,14 +518,14 @@ uint ParseStateWriteArguments(ParseState* state, uint size)
     return offset;
 }
 
-void ParseStateSetArgument(ParseState* state, uint offset, int value)
+void ParseStateSetArgument(ParseState *state, uint offset, int value)
 {
     ParseStateCheck(state);
     ByteVectorSetInt(&state->control, offset, value);
 }
 
 
-int ParseStateWriteStringLiteral(ParseState* state, stringref value)
+int ParseStateWriteStringLiteral(ParseState *state, stringref value)
 {
     uint size = ByteVectorSize(&state->data);
     ParseStateCheck(state);
@@ -534,7 +534,7 @@ int ParseStateWriteStringLiteral(ParseState* state, stringref value)
 }
 
 
-boolean ParseStateWriteIf(ParseState* state, uint value)
+boolean ParseStateWriteIf(ParseState *state, uint value)
 {
     ParseStateCheck(state);
     ParseStateBlockSetCondition(state, value);
@@ -543,7 +543,7 @@ boolean ParseStateWriteIf(ParseState* state, uint value)
         ByteVectorAddPackUint(&state->control, value) ? true : false;
 }
 
-boolean ParseStateWriteWhile(ParseState* state, uint value)
+boolean ParseStateWriteWhile(ParseState *state, uint value)
 {
     ParseStateCheck(state);
     ParseStateBlockSetCondition(state, value);
@@ -552,13 +552,13 @@ boolean ParseStateWriteWhile(ParseState* state, uint value)
         ByteVectorAddPackUint(&state->control, value) ? true : false;
 }
 
-boolean ParseStateWriteReturn(ParseState* state)
+boolean ParseStateWriteReturn(ParseState *state)
 {
     ParseStateCheck(state);
     return ByteVectorAdd(&state->control, OP_RETURN);
 }
 
-boolean ParseStateWriteNativeInvocation(ParseState* state,
+boolean ParseStateWriteNativeInvocation(ParseState *state,
                                         nativefunctionref nativeFunction,
                                         uint argumentOffset)
 {

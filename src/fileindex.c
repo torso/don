@@ -8,7 +8,7 @@
 
 typedef struct
 {
-    const byte* data;
+    const byte *data;
     stringref name;
     uint length;
 } FileEntry;
@@ -26,14 +26,14 @@ void FileIndexFree(void)
     }
 }
 
-fileref FileIndexAdd(const char* filename)
+fileref FileIndexAdd(const char *filename)
 {
-    FILE* f;
+    FILE *f;
     int status;
     long l;
     uint size;
     size_t read;
-    byte* data;
+    byte *data;
 
     fileCount++;
     assert(fileCount < INITIAL_FILE_SIZE); /* TODO: grow file index */
@@ -67,7 +67,7 @@ stringref FileIndexGetName(fileref file)
     return fileIndex[file].name;
 }
 
-const byte* FileIndexGetContents(fileref file)
+const byte *FileIndexGetContents(fileref file)
 {
     assert(file >= 1 && file <= fileCount);
     return fileIndex[file].data;
