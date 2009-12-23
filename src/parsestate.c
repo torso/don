@@ -337,6 +337,8 @@ boolean ParseStateBlockEnd(ParseState* state, boolean isElse)
                 if (flags & LOCAL_FLAG_ACCESSED)
                 {
                     oldFlags |= LOCAL_FLAG_ACCESSED;
+                    IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE,
+                                 IntVectorGet(locals, i + LOCAL_OFFSET_VALUE));
                     IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS, oldFlags);
                     IntVectorSet(oldLocals, i + LOCAL_OFFSET_ACCESSOFFSET,
                                  IntVectorGet(locals,
@@ -385,6 +387,11 @@ boolean ParseStateBlockEnd(ParseState* state, boolean isElse)
                 IntVectorSet(oldLocals, i + LOCAL_OFFSET_ACCESSOFFSET,
                              IntVectorGet(locals,
                                           i + LOCAL_OFFSET_ACCESSOFFSET));
+                if (!(flags & LOCAL_FLAG_MODIFIED))
+                {
+                    IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE,
+                                 IntVectorGet(locals, i + LOCAL_OFFSET_VALUE));
+                }
             }
             if (flags & LOCAL_FLAG_MODIFIED)
             {
