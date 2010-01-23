@@ -239,7 +239,7 @@ static boolean parseInvocationRest(ParseState *state, stringref name)
     nativefunctionref nativeFunction = NativeFindFunction(name);
     uint parameterCount = NativeGetParameterCount(nativeFunction);
     stringref *parameterNames = NativeGetParameterNames(nativeFunction);
-    uint argumentOutputOffset = ParseStateWriteArguments(state, parameterCount);
+    uint argumentOutputOffset;
     uint argumentCount = 0;
     uint line = state->line;
     int value;
@@ -248,6 +248,8 @@ static boolean parseInvocationRest(ParseState *state, stringref name)
     assert(nativeFunction >= 0);
     assert(parameterNames);
 
+    argumentOutputOffset = ParseStateWriteNativeInvocation(
+        state, nativeFunction, parameterCount);
     if (argumentOutputOffset == 0)
     {
         return false;
@@ -264,7 +266,8 @@ static boolean parseInvocationRest(ParseState *state, stringref name)
             }
             ParseStateSetArgument(
                 state,
-                argumentOutputOffset + argumentCount++ * (uint)sizeof(int),
+                argumentOutputOffset,
+                argumentCount++,
                 value);
             if (readOperator(state, ')'))
             {
@@ -292,8 +295,7 @@ static boolean parseInvocationRest(ParseState *state, stringref name)
         errorOnLine(state, line, errorBuffer);
         return false;
     }
-    return ParseStateWriteNativeInvocation(state, nativeFunction,
-                                           argumentOutputOffset);
+    return true;
 }
 
 static boolean parseFunctionBody(ParseState *state)
@@ -393,7 +395,7 @@ static boolean parseFunctionBody(ParseState *state)
                         prevIndent = currentIndent;
                         currentIndent = -1;
                         value = parseExpression(state);
-                        if (value < 0 || !ParseStateWriteIf(state, (uint)value))
+                        if (value < 0 || !ParseStateWriteIf(state, value))
                         {
                             return false;
                         }
@@ -419,7 +421,7 @@ static boolean parseFunctionBody(ParseState *state)
                         prevIndent = currentIndent;
                         currentIndent = -1;
                         value = parseExpression(state);
-                        if (value < 0 || !ParseStateWriteWhile(state, (uint)value))
+                        if (value < 0 || !ParseStateWriteWhile(state, value))
                         {
                             return false;
                         }
@@ -551,6 +553,7 @@ boolean ParseTarget(targetref target)
         error(&state, "Expected ':' after target name.");
         result = false;
     }
+    ParseStateFinish(&state);
     ParseStateDispose(&state);
     return result;
 }

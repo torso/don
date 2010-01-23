@@ -25,7 +25,7 @@ struct _Block
     uint indent;
     uint loopBegin;
     uint conditionOffset;
-    uint condition;
+    int condition;
     boolean loop;
     boolean allowTrailingElse;
     intvector locals;
@@ -43,6 +43,7 @@ typedef struct
 
     bytevector data;
     bytevector control;
+    intvector branchTargets;
 
     Block *currentBlock;
     Block firstBlock;
@@ -52,6 +53,7 @@ extern nonnull void ParseStateCheck(const ParseState *state);
 extern nonnull void ParseStateInit(ParseState *state, fileref file, uint line,
                                    uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
+extern nonnull void ParseStateFinish(ParseState *state);
 
 extern nonnull boolean ParseStateBlockBegin(ParseState *state, uint indent,
                                             boolean loop,
@@ -65,15 +67,14 @@ extern nonnull int ParseStateGetVariable(ParseState *state,
 extern nonnull boolean ParseStateSetVariable(ParseState *state,
                                              stringref identifier, int value);
 
-extern nonnull uint ParseStateWriteArguments(ParseState *state, uint size);
-extern nonnull void ParseStateSetArgument(ParseState *state, uint offset,
-                                          int value);
+extern nonnull void ParseStateSetArgument(
+    ParseState *state, uint argumentOffset, uint parameterIndex, int value);
 
 extern nonnull int ParseStateWriteStringLiteral(ParseState *state,
                                                 stringref value);
 
-extern nonnull boolean ParseStateWriteIf(ParseState *state, uint value);
-extern nonnull boolean ParseStateWriteWhile(ParseState *state, uint value);
+extern nonnull boolean ParseStateWriteIf(ParseState *state, int value);
+extern nonnull boolean ParseStateWriteWhile(ParseState *state, int value);
 extern nonnull boolean ParseStateWriteReturn(ParseState *state);
-extern nonnull boolean ParseStateWriteNativeInvocation(
-    ParseState *state, nativefunctionref nativeFunction, uint argumentOffset);
+extern nonnull uint ParseStateWriteNativeInvocation(
+    ParseState *state, nativefunctionref nativeFunction, uint parameterCount);
