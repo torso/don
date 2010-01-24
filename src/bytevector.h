@@ -26,8 +26,7 @@ extern nonnull uint ByteVectorGetPackUint(const bytevector *v, uint index);
 #define ByteVectorReadPackInt(v, index) ((int)ByteVectorReadPackUint(v, index))
 extern nonnull uint ByteVectorReadPackUint(const bytevector *v, uint *index);
 #define ByteVectorGetPackIntSize ByteVectorGetPackUintSize
-extern nonnull uint ByteVectorGetPackUintSize(const bytevector *v,
-                                                   uint index);
+extern nonnull uint ByteVectorGetPackUintSize(const bytevector *v, uint index);
 extern nonnull const byte *ByteVectorGetPointer(const bytevector *v,
                                                 uint index);
 extern nonnull void ByteVectorSet(bytevector *v, uint index, byte value);
@@ -37,7 +36,9 @@ extern nonnull void ByteVectorSetUint(bytevector *v, uint index, uint value);
 extern nonnull void ByteVectorSetPackUint(bytevector *v, uint index, uint value);
 extern nonnull void ByteVectorWriteInt(bytevector *v, uint *index, int value);
 extern nonnull void ByteVectorWriteUint(bytevector *v, uint *index, uint value);
-extern nonnull void ByteVectorWritePackInt(bytevector *v, uint *index, int value);
-extern nonnull void ByteVectorWritePackUint(bytevector *v, uint *index, uint value);
+extern nonnull void ByteVectorWritePackInt(bytevector *v, uint *index,
+                                           int value);
+extern nonnull void ByteVectorWritePackUint(bytevector *v, uint *index,
+                                            uint value);
 extern nonnull void ByteVectorFill(bytevector *v, uint index, uint size,
                                    byte value);
