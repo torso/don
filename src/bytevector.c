@@ -42,6 +42,15 @@ void ByteVectorSetSize(bytevector *v, uint size)
     v->size = size;
 }
 
+void ByteVectorMove(bytevector *v, uint src, uint dst, uint length)
+{
+    checkByteVectorIndex(v, src);
+    checkByteVectorIndex(v, dst);
+    assert(ByteVectorSize(v) >= src + length);
+    assert(ByteVectorSize(v) >= dst + length);
+    memmove(&v->data[dst], &v->data[src], length);
+}
+
 boolean ByteVectorAdd(bytevector *v, byte value)
 {
     checkByteVector(v);

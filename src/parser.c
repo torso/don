@@ -268,7 +268,7 @@ static boolean parseInvocationRest(ParseState *state, stringref name)
                 state,
                 argumentOutputOffset,
                 argumentCount++,
-                value);
+                (uint)value);
             if (readOperator(state, ')'))
             {
                 break;
@@ -395,7 +395,7 @@ static boolean parseFunctionBody(ParseState *state)
                         prevIndent = currentIndent;
                         currentIndent = -1;
                         value = parseExpression(state);
-                        if (value < 0 || !ParseStateWriteIf(state, value))
+                        if (value < 0 || !ParseStateWriteIf(state, (uint)value))
                         {
                             return false;
                         }
@@ -421,7 +421,8 @@ static boolean parseFunctionBody(ParseState *state)
                         prevIndent = currentIndent;
                         currentIndent = -1;
                         value = parseExpression(state);
-                        if (value < 0 || !ParseStateWriteWhile(state, value))
+                        if (value < 0 ||
+                            !ParseStateWriteWhile(state, (uint)value))
                         {
                             return false;
                         }
@@ -455,7 +456,7 @@ static boolean parseFunctionBody(ParseState *state)
                         {
                             return false;
                         }
-                        ParseStateSetVariable(state, identifier, value);
+                        ParseStateSetVariable(state, identifier, (uint)value);
                     }
                     else
                     {

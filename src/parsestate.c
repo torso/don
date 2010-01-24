@@ -25,7 +25,7 @@ static void dump(const ParseState *state)
     uint i;
     uint function;
     uint argumentCount;
-    int condition;
+    uint condition;
     uint target;
 
     printf("Dump pass 1\n");
@@ -43,9 +43,9 @@ static void dump(const ParseState *state)
             printf("%d: string %d:\"%s\"\n", ip, data, StringPoolGetString((stringref)data));
             break;
         case DATAOP_PHI_VARIABLE:
-            printf("%d: phi variable condition=%d %d %d\n", ip,
-                   ByteVectorReadInt(&state->data, &readIndex),
-                   ByteVectorReadInt(&state->data, &readIndex),
+            condition = ByteVectorReadUint(&state->data, &readIndex);
+            data = ByteVectorReadUint(&state->data, &readIndex);
+            printf("%d: phi variable condition=%d %d %d\n", ip, condition, data,
                    ByteVectorReadInt(&state->data, &readIndex));
             break;
         default:
@@ -73,7 +73,7 @@ static void dump(const ParseState *state)
             break;
         case OP_BRANCH:
             target = ByteVectorReadUint(&state->control, &readIndex);
-            condition = ByteVectorReadPackInt(&state->control, &readIndex);
+            condition = ByteVectorReadPackUint(&state->control, &readIndex);
             printf("%d: branch condition=%d target=%d\n", ip, condition, target);
             break;
         case OP_LOOP:
@@ -94,14 +94,39 @@ static void dump(const ParseState *state)
 static void dump2(const ParseState *state)
 {
     uint ip;
+    uint data;
     uint readIndex;
     uint i;
     uint function;
     uint argumentCount;
-    int condition;
+    uint condition;
     uint target;
 
     printf("\nDump pass 2\n");
+    printf("data, size=%d\n", ByteVectorSize(&state->data));
+    for (readIndex = 0; readIndex < ByteVectorSize(&state->data);)
+    {
+        ip = readIndex;
+        switch (ByteVectorRead(&state->data, &readIndex))
+        {
+        case DATAOP_NULL:
+            printf("%d: null\n", ip);
+            break;
+        case DATAOP_STRING:
+            data = ByteVectorReadPackUint(&state->data, &readIndex);
+            printf("%d: string %d:\"%s\"\n", ip, data, StringPoolGetString((stringref)data));
+            break;
+        case DATAOP_PHI_VARIABLE:
+            condition = ByteVectorReadPackUint(&state->data, &readIndex);
+            data = ByteVectorReadPackUint(&state->data, &readIndex);
+            printf("%d: phi variable condition=%d %d %d\n", ip, condition, data,
+                   ByteVectorReadPackUint(&state->data, &readIndex));
+            break;
+        default:
+            assert(false);
+            break;
+        }
+    }
     printf("control, size=%d\n", ByteVectorSize(&state->control));
     for (readIndex = 0; readIndex < ByteVectorSize(&state->control);)
     {
@@ -122,7 +147,7 @@ static void dump2(const ParseState *state)
             break;
         case OP_BRANCH:
             target = ByteVectorReadPackUint(&state->control, &readIndex);
-            condition = ByteVectorReadPackInt(&state->control, &readIndex);
+            condition = ByteVectorReadPackUint(&state->control, &readIndex);
             printf("%d: branch condition=%d target=%d\n", ip, condition, target);
             break;
         case OP_LOOP:
@@ -203,6 +228,30 @@ static uint fixBranchTarget(const ParseState *state, intvector *forwardBranches,
 }
 
 
+static uint getNewDataIndex(const intvector *dataIndex, uint index)
+{
+    uint i;
+    for (i = 0;; i += 2)
+    {
+        assert(i < IntVectorSize(dataIndex));
+        if ((uint)IntVectorGet(dataIndex, i) == index)
+        {
+            return (uint)IntVectorGet(dataIndex, i + 1);
+        }
+    }
+}
+
+static void fixDataReference(bytevector *data, const intvector *dataIndex,
+                             uint *readIndex, uint constantSize)
+{
+    uint writeIndex = *readIndex;
+    ByteVectorSetPackUint(
+        data, writeIndex,
+        getNewDataIndex(
+            dataIndex, ByteVectorReadPackUint(data, readIndex) - constantSize));
+}
+
+
 void ParseStateInit(ParseState *state, fileref file, uint line, uint offset)
 {
     assert(file);
@@ -213,7 +262,7 @@ void ParseStateInit(ParseState *state, fileref file, uint line, uint offset)
     state->line = line;
     state->loopLevel = 0;
     ByteVectorInit(&state->data);
-    ByteVectorAdd(&state->data, 0);
+    ByteVectorAdd(&state->data, DATAOP_NULL);
     ByteVectorInit(&state->control);
     IntVectorInit(&state->branchTargets);
     state->currentBlock = &state->firstBlock;
@@ -243,14 +292,113 @@ void ParseStateFinish(ParseState *state)
     uint readIndex;
     uint writeIndex;
     uint targetIndex;
+    uint newIndex;
     uint i;
+    uint condition;
+    uint data1;
+    uint data2;
     byte function;
     uint argumentCount;
-    uint condition;
     uint target;
+    uint dataSize;
+    uint constantSize;
     intvector forwardBranches;
+    intvector dataIndex;
 
     dump(state);
+
+    IntVectorInit(&dataIndex);
+    IntVectorAdd(&dataIndex, 0);
+    IntVectorAdd(&dataIndex, 0);
+    dataSize = ByteVectorSize(&state->data);
+
+    /* Move constants to the beginning. */
+    for (readIndex = 1; readIndex < dataSize;)
+    {
+        IntVectorAdd(&dataIndex, (int)readIndex);
+        newIndex = ByteVectorSize(&state->data) - dataSize + 1;
+        op = ByteVectorRead(&state->data, &readIndex);
+        switch (op)
+        {
+        case DATAOP_STRING:
+            ByteVectorAdd(&state->data, op);
+            ByteVectorAddPackUint(
+                &state->data, ByteVectorReadPackUint(&state->data, &readIndex));
+            break;
+        case DATAOP_PHI_VARIABLE:
+            readIndex += 12;
+            newIndex = 0;
+            break;
+        default:
+            assert(false);
+            break;
+        }
+        IntVectorAdd(&dataIndex, (int)newIndex);
+    }
+
+    constantSize = ByteVectorSize(&state->data) - dataSize + 1;
+
+    /* Append the rest of the data to the constants. */
+    for (i = 2; i < IntVectorSize(&dataIndex); i += 2)
+    {
+        if (!IntVectorGet(&dataIndex, i + 1))
+        {
+            readIndex = (uint)IntVectorGet(&dataIndex, i);
+            IntVectorSet(&dataIndex, i + 1,
+                         (int)(ByteVectorSize(&state->data) - dataSize + 1));
+            op = ByteVectorRead(&state->data, &readIndex);
+            switch (op)
+            {
+            case DATAOP_PHI_VARIABLE:
+                condition = ByteVectorReadUint(&state->data, &readIndex);
+                data1 = ByteVectorReadUint(&state->data, &readIndex);
+                data2 = ByteVectorReadUint(&state->data, &readIndex);
+                if (data1 == data2)
+                {
+                    assert(data1 < readIndex);
+                    IntVectorSet(&dataIndex, i + 1,
+                                 (int)getNewDataIndex(&dataIndex, data1));
+                }
+                else
+                {
+                    ByteVectorAdd(&state->data, op);
+                    ByteVectorAddPackUint(&state->data,
+                                          condition + constantSize);
+                    ByteVectorAddPackUint(&state->data, data1 + constantSize);
+                    ByteVectorAddPackUint(&state->data, data2 + constantSize);
+                }
+                break;
+            default:
+                assert(false);
+                break;
+            }
+        }
+    }
+    ByteVectorMove(&state->data, dataSize, 1,
+                   ByteVectorSize(&state->data) - dataSize);
+    ByteVectorSetSize(&state->data,
+                      ByteVectorSize(&state->data) - dataSize + 1);
+
+    for (readIndex = 1; readIndex < ByteVectorSize(&state->data);)
+    {
+        switch (ByteVectorRead(&state->data, &readIndex))
+        {
+        case DATAOP_STRING:
+            ByteVectorReadPackUint(&state->data, &readIndex);
+            break;
+        case DATAOP_PHI_VARIABLE:
+            fixDataReference(
+                &state->data, &dataIndex, &readIndex, constantSize);
+            fixDataReference(
+                &state->data, &dataIndex, &readIndex, constantSize);
+            fixDataReference(
+                &state->data, &dataIndex, &readIndex, constantSize);
+            break;
+        default:
+            assert(false);
+            break;
+        }
+    }
 
     IntVectorInit(&forwardBranches);
     for (readIndex = 0, writeIndex = 0;
@@ -273,15 +421,19 @@ void ParseStateFinish(ParseState *state)
                                     argumentCount);
             for (i = 0; i < argumentCount; i++)
             {
-                ByteVectorWritePackInt(
+                ByteVectorWritePackUint(
                     &state->control, &writeIndex,
-                    ByteVectorReadInt(&state->control, &readIndex));
+                    getNewDataIndex(
+                        &dataIndex,
+                        ByteVectorReadUint(&state->control, &readIndex)));
             }
             break;
         case OP_BRANCH:
             targetIndex = readIndex;
             target = ByteVectorReadUint(&state->control, &readIndex);
-            condition = ByteVectorReadPackUint(&state->control, &readIndex);
+            condition = getNewDataIndex(
+                &dataIndex,
+                ByteVectorReadPackUint(&state->control, &readIndex));
             ByteVectorWrite(&state->control, &writeIndex, op);
             ByteVectorWritePackUint(
                 &state->control, &writeIndex,
@@ -313,6 +465,7 @@ void ParseStateFinish(ParseState *state)
         }
         assert(writeIndex <= readIndex);
     }
+    IntVectorFree(&dataIndex);
     ByteVectorSetSize(&state->control, writeIndex);
 
     for (i = 0; i < IntVectorSize(&forwardBranches); i += 2)
@@ -369,7 +522,7 @@ boolean ParseStateBlockBegin(ParseState *state, uint indent, boolean loop,
     return true;
 }
 
-static void ParseStateBlockSetCondition(ParseState *state, int value)
+static void ParseStateBlockSetCondition(ParseState *state, uint value)
 {
     assert(!ParseStateBlockEmpty(state));
     state->currentBlock->conditionOffset = ByteVectorSize(&state->control) + 1;
@@ -485,35 +638,36 @@ boolean ParseStateBlockEnd(ParseState *state, boolean isElse)
             flags = IntVectorGet(locals, i + LOCAL_OFFSET_FLAGS);
             if (flags & LOCAL_FLAG_ACCESSED)
             {
-                ByteVectorSetInt(
+                ByteVectorSetUint(
                     &state->data,
                     (uint)IntVectorGet(locals,
                                        i + LOCAL_OFFSET_ACCESSOFFSET) + 1,
-                    IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE));
-                ByteVectorSetInt(
+                    block->condition);
+                ByteVectorSetUint(
                     &state->data,
                     (uint)IntVectorGet(locals,
                                        i + LOCAL_OFFSET_ACCESSOFFSET) + 5,
-                    IntVectorGet(
-                        flags & LOCAL_FLAG_MODIFIED ? locals : oldLocals,
-                        i + LOCAL_OFFSET_VALUE));
-                ByteVectorSetInt(
+                    (uint)IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE));
+                ByteVectorSetUint(
                     &state->data,
                     (uint)IntVectorGet(locals,
                                        i + LOCAL_OFFSET_ACCESSOFFSET) + 9,
-                    (int)block->condition);
+                    (uint)IntVectorGet(
+                        flags & LOCAL_FLAG_MODIFIED ? locals : oldLocals,
+                        i + LOCAL_OFFSET_VALUE));
             }
             if (flags & LOCAL_FLAG_MODIFIED)
             {
                 size = ByteVectorSize(&state->data);
                 if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
-                    !ByteVectorAddInt(
+                    !ByteVectorAddUint(&state->data, block->condition) ||
+                    !ByteVectorAddUint(
                         &state->data,
-                        IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE)) ||
-                    !ByteVectorAddInt(
+                        (uint)IntVectorGet(oldLocals,
+                                           i + LOCAL_OFFSET_VALUE)) ||
+                    !ByteVectorAddUint(
                         &state->data,
-                        IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
-                    !ByteVectorAddInt(&state->data, (int)block->condition))
+                        (uint)IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
                 {
                     return false;
                 }
@@ -564,16 +718,16 @@ boolean ParseStateBlockEnd(ParseState *state, boolean isElse)
             {
                 size = ByteVectorSize(&state->data);
                 if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
-                    !ByteVectorAddInt(
+                    !ByteVectorAddUint(&state->data,
+                                       block->unfinished->condition) ||
+                    !ByteVectorAddUint(
                         &state->data,
                         i < IntVectorSize(unfinishedLocals) ?
-                        IntVectorGet(unfinishedLocals,
-                                     i + LOCAL_OFFSET_VALUE) : 0) ||
-                    !ByteVectorAddInt(
+                        (uint)IntVectorGet(unfinishedLocals,
+                                           i + LOCAL_OFFSET_VALUE) : 0) ||
+                    !ByteVectorAddUint(
                         &state->data,
-                        IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
-                    !ByteVectorAddInt(&state->data,
-                                      (int)block->unfinished->condition))
+                        (uint)IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
                 {
                     return false;
                 }
@@ -615,13 +769,14 @@ boolean ParseStateBlockEnd(ParseState *state, boolean isElse)
             {
                 size = ByteVectorSize(&state->data);
                 if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
-                    !ByteVectorAddInt(
+                    !ByteVectorAddUint(&state->data, block->condition) ||
+                    !ByteVectorAddUint(
                         &state->data,
-                        IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE)) ||
-                    !ByteVectorAddInt(
+                        (uint)IntVectorGet(oldLocals,
+                                           i + LOCAL_OFFSET_VALUE)) ||
+                    !ByteVectorAddUint(
                         &state->data,
-                        IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
-                    !ByteVectorAddInt(&state->data, (int)block->condition))
+                        (uint)IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
                 {
                     return false;
                 }
@@ -672,9 +827,9 @@ int ParseStateGetVariable(ParseState *state, stringref identifier)
             {
                 size = ByteVectorSize(&state->data);
                 if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
-                    !ByteVectorAddInt(&state->data, 0) ||
-                    !ByteVectorAddInt(&state->data, 0) ||
-                    !ByteVectorAddInt(&state->data, 0))
+                    !ByteVectorAddUint(&state->data, 0) ||
+                    !ByteVectorAddUint(&state->data, 0) ||
+                    !ByteVectorAddUint(&state->data, 0))
                 {
                     return -1;
                 }
@@ -696,9 +851,9 @@ int ParseStateGetVariable(ParseState *state, stringref identifier)
     IntVectorAdd4(locals, (int)identifier, (int)size, LOCAL_FLAG_ACCESSED,
                   (int)size);
     if (!ByteVectorAdd(&state->data, DATAOP_PHI_VARIABLE) ||
-        !ByteVectorAddInt(&state->data, 0) ||
-        !ByteVectorAddInt(&state->data, 0) ||
-        !ByteVectorAddInt(&state->data, 0))
+        !ByteVectorAddUint(&state->data, 0) ||
+        !ByteVectorAddUint(&state->data, 0) ||
+        !ByteVectorAddUint(&state->data, 0))
     {
         return -1;
     }
@@ -706,7 +861,7 @@ int ParseStateGetVariable(ParseState *state, stringref identifier)
 }
 
 boolean ParseStateSetVariable(ParseState *state, stringref identifier,
-                              int value)
+                              uint value)
 {
     uint i;
     intvector *locals = &state->currentBlock->locals;
@@ -715,25 +870,25 @@ boolean ParseStateSetVariable(ParseState *state, stringref identifier,
     {
         if ((stringref)IntVectorGet(locals, i) == identifier)
         {
-            IntVectorSet(locals, i + LOCAL_OFFSET_VALUE, value);
+            IntVectorSet(locals, i + LOCAL_OFFSET_VALUE, (int)value);
             IntVectorSet(locals, i + LOCAL_OFFSET_FLAGS,
                          IntVectorGet(locals, i + LOCAL_OFFSET_FLAGS)
                          | LOCAL_FLAG_MODIFIED);
             return true;
         }
     }
-    IntVectorAdd4(locals, (int)identifier, value, LOCAL_FLAG_MODIFIED, 0);
+    IntVectorAdd4(locals, (int)identifier, (int)value, LOCAL_FLAG_MODIFIED, 0);
     return true;
 }
 
 
 void ParseStateSetArgument(ParseState *state, uint argumentOffset,
-                           uint parameterIndex, int value)
+                           uint parameterIndex, uint value)
 {
     ParseStateCheck(state);
-    ByteVectorSetInt(&state->control,
-                     argumentOffset + parameterIndex * (uint)sizeof(int),
-                     value);
+    ByteVectorSetUint(&state->control,
+                      argumentOffset + parameterIndex * (uint)sizeof(int),
+                      value);
 }
 
 
@@ -746,22 +901,22 @@ int ParseStateWriteStringLiteral(ParseState *state, stringref value)
 }
 
 
-boolean ParseStateWriteIf(ParseState *state, int value)
+boolean ParseStateWriteIf(ParseState *state, uint value)
 {
     ParseStateCheck(state);
     ParseStateBlockSetCondition(state, value);
     return ByteVectorAdd(&state->control, OP_BRANCH) &&
         ByteVectorAddInt(&state->control, 0) &&
-        ByteVectorAddPackInt(&state->control, value) ? true : false;
+        ByteVectorAddPackUint(&state->control, value) ? true : false;
 }
 
-boolean ParseStateWriteWhile(ParseState *state, int value)
+boolean ParseStateWriteWhile(ParseState *state, uint value)
 {
     ParseStateCheck(state);
     ParseStateBlockSetCondition(state, value);
     return ByteVectorAdd(&state->control, OP_BRANCH) &&
         ByteVectorAddInt(&state->control, 0) &&
-        ByteVectorAddPackInt(&state->control, value) ? true : false;
+        ByteVectorAddPackUint(&state->control, value) ? true : false;
 }
 
 boolean ParseStateWriteReturn(ParseState *state)

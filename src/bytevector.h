@@ -10,6 +10,8 @@ extern nonnull void ByteVectorInit(bytevector *v);
 extern nonnull void ByteVectorFree(bytevector *v);
 extern nonnull uint ByteVectorSize(const bytevector *v);
 extern nonnull void ByteVectorSetSize(bytevector *v, uint size);
+extern nonnull void ByteVectorMove(bytevector *v, uint src, uint dst,
+                                   uint length);
 extern nonnull boolean ByteVectorAdd(bytevector *v, byte value);
 extern nonnull boolean ByteVectorAddInt(bytevector *v, int value);
 extern nonnull boolean ByteVectorAddUint(bytevector *v, uint value);

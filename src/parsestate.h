@@ -25,7 +25,7 @@ struct _Block
     uint indent;
     uint loopBegin;
     uint conditionOffset;
-    int condition;
+    uint condition;
     boolean loop;
     boolean allowTrailingElse;
     intvector locals;
@@ -65,16 +65,16 @@ extern nonnull uint ParseStateBlockIndent(ParseState *state);
 extern nonnull int ParseStateGetVariable(ParseState *state,
                                          stringref identifier);
 extern nonnull boolean ParseStateSetVariable(ParseState *state,
-                                             stringref identifier, int value);
+                                             stringref identifier, uint value);
 
 extern nonnull void ParseStateSetArgument(
-    ParseState *state, uint argumentOffset, uint parameterIndex, int value);
+    ParseState *state, uint argumentOffset, uint parameterIndex, uint value);
 
 extern nonnull int ParseStateWriteStringLiteral(ParseState *state,
                                                 stringref value);
 
-extern nonnull boolean ParseStateWriteIf(ParseState *state, int value);
-extern nonnull boolean ParseStateWriteWhile(ParseState *state, int value);
+extern nonnull boolean ParseStateWriteIf(ParseState *state, uint value);
+extern nonnull boolean ParseStateWriteWhile(ParseState *state, uint value);
 extern nonnull boolean ParseStateWriteReturn(ParseState *state);
 extern nonnull uint ParseStateWriteNativeInvocation(
     ParseState *state, nativefunctionref nativeFunction, uint parameterCount);
