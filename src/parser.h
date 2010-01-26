@@ -1,3 +1,6 @@
+#ifndef BYTEVECTOR_H
+#error bytevector.h not included
+#endif
 #ifndef FILEINDEX_H
 #error fileindex.h not included
 #endif
@@ -7,4 +10,4 @@
 
 extern void ParserAddKeywords(void);
 extern boolean ParseFile(fileref file);
-extern boolean ParseTarget(targetref target);
+extern boolean ParseTarget(targetref target, bytevector *bytecode);

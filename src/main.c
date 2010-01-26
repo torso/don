@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "builder.h"
+#include "bytevector.h"
 #include "stringpool.h"
 #include "native.h"
 #include "fileindex.h"
@@ -14,6 +15,7 @@ int main(int argc, const char **argv)
     fileref inputFile;
     targetref target;
     boolean parseOptions = true;
+    bytevector bytecode;
 
     for (i = 1; i < argc; i++)
     {
@@ -84,13 +86,15 @@ int main(int argc, const char **argv)
     }
     TargetIndexFinish();
 
+    ByteVectorInit(&bytecode);
     target = TargetIndexGet(StringPoolAdd("default"));
     assert(target >= 0); /* TODO: Error handling for non-existing target */
-    if (!ParseTarget(target))
+    if (!ParseTarget(target, &bytecode))
     {
         assert(false); /* TODO: Error handling */
     }
 
+    ByteVectorFree(&bytecode);
     TargetIndexFree();
     FileIndexFree();
     StringPoolFree();

@@ -53,7 +53,8 @@ extern nonnull void ParseStateCheck(const ParseState *state);
 extern nonnull void ParseStateInit(ParseState *state, fileref file, uint line,
                                    uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
-extern nonnull void ParseStateFinish(ParseState *state);
+extern nonnull boolean ParseStateFinish(ParseState *restrict state,
+                                        bytevector *restrict bytecode);
 
 extern nonnull boolean ParseStateBlockBegin(ParseState *state, uint indent,
                                             boolean loop,

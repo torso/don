@@ -17,6 +17,13 @@ static void checkByteVectorIndex(const bytevector *v, uint index)
     assert(index < v->size);
 }
 
+static void checkByteVectorRange(const bytevector *v, uint index, uint length)
+{
+    checkByteVector(v);
+    assert(index < v->size);
+    assert(ByteVectorSize(v) >= index + length);
+}
+
 void ByteVectorInit(bytevector *v)
 {
     v->data = (byte*)malloc(SEGMENT_SIZE);
@@ -42,12 +49,32 @@ void ByteVectorSetSize(bytevector *v, uint size)
     v->size = size;
 }
 
+void ByteVectorCopy(const bytevector *restrict src, uint srcOffset,
+                    bytevector *restrict dst, uint dstOffset, uint length)
+{
+    checkByteVectorRange(src, srcOffset, length);
+    checkByteVectorRange(dst, dstOffset, length);
+    memcpy(&dst->data[dstOffset], &src->data[srcOffset], length);
+}
+
+void ByteVectorAppend(const bytevector *restrict src, uint srcOffset,
+                      bytevector *restrict dst, uint length)
+{
+    uint size = ByteVectorSize(dst);
+    ByteVectorSetSize(dst, size + length);
+    ByteVectorCopy(src, srcOffset, dst, size, length);
+}
+
+void ByteVectorAppendAll(const bytevector *restrict src,
+                         bytevector *restrict dst)
+{
+    ByteVectorAppend(src, 0, dst, ByteVectorSize(src));
+}
+
 void ByteVectorMove(bytevector *v, uint src, uint dst, uint length)
 {
-    checkByteVectorIndex(v, src);
-    checkByteVectorIndex(v, dst);
-    assert(ByteVectorSize(v) >= src + length);
-    assert(ByteVectorSize(v) >= dst + length);
+    checkByteVectorRange(v, src, length);
+    checkByteVectorRange(v, dst, length);
     memmove(&v->data[dst], &v->data[src], length);
 }
 
@@ -105,16 +132,14 @@ byte ByteVectorRead(const bytevector *v, uint *index)
 
 uint ByteVectorGetUint(const bytevector *v, uint index)
 {
-    checkByteVectorIndex(v, index);
-    checkByteVectorIndex(v, index + (uint)sizeof(int) - 1);
+    checkByteVectorRange(v, index, (uint)sizeof(int));
     return *(uint*)&v->data[index];
 }
 
 uint ByteVectorReadUint(const bytevector *v, uint *index)
 {
     uint value;
-    checkByteVectorIndex(v, *index);
-    checkByteVectorIndex(v, *index + (uint)sizeof(int) - 1);
+    checkByteVectorRange(v, *index, (uint)sizeof(int));
     value = *(uint*)&v->data[*index];
     *index += (uint)sizeof(int);
     return value;
@@ -127,6 +152,7 @@ int ByteVectorGetPackInt(const bytevector *v, uint index)
     i = (int8)v->data[index];
     if (i < 0)
     {
+        checkByteVectorRange(v, index, (uint)sizeof(int) + 1);
         return *((int*)&v->data[index + 1]);
     }
     return i;
@@ -145,7 +171,7 @@ uint ByteVectorReadPackUint(const bytevector *v, uint *index)
     i = (int8)v->data[*index];
     if (i < 0)
     {
-        checkByteVectorIndex(v, *index + (uint)sizeof(int));
+        checkByteVectorRange(v, *index, (uint)sizeof(int) + 1);
         value = *((uint*)&v->data[*index + 1]);
         *index += 1 + (uint)sizeof(int);
         return value;
@@ -180,15 +206,13 @@ void ByteVectorWrite(bytevector *v, uint *index, byte value)
 
 void ByteVectorSetInt(bytevector *v, uint index, int value)
 {
-    checkByteVectorIndex(v, index);
-    checkByteVectorIndex(v, index + 3);
+    checkByteVectorRange(v, index, (uint)sizeof(int));
     *((int*)&v->data[index]) = value;
 }
 
 void ByteVectorSetUint(bytevector *v, uint index, uint value)
 {
-    checkByteVectorIndex(v, index);
-    checkByteVectorIndex(v, index + 3);
+    checkByteVectorRange(v, index, (uint)sizeof(uint));
     *((uint*)&v->data[index]) = value;
 }
 
@@ -235,14 +259,9 @@ void ByteVectorWritePackUint(bytevector *v, uint *index, uint value)
     }
 }
 
-void ByteVectorFill(bytevector *v, uint index, uint size, byte value)
+void ByteVectorFill(bytevector *v, uint index, uint length, byte value)
 {
-    if (size == 0)
-    {
-        return;
-    }
-    checkByteVectorIndex(v, index);
-    checkByteVectorIndex(v, index + size - 1);
-    assert((index & ~(SEGMENT_SIZE - 1)) == ((index + size) & ~(SEGMENT_SIZE - 1))); /* TODO: big byte vector support */
-    memset(&v->data[index], value, size);
+    checkByteVectorRange(v, index, length);
+    assert((index & ~(SEGMENT_SIZE - 1)) == ((index + length) & ~(SEGMENT_SIZE - 1))); /* TODO: big byte vector support */
+    memset(&v->data[index], value, length);
 }

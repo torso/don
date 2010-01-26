@@ -10,6 +10,14 @@ extern nonnull void ByteVectorInit(bytevector *v);
 extern nonnull void ByteVectorFree(bytevector *v);
 extern nonnull uint ByteVectorSize(const bytevector *v);
 extern nonnull void ByteVectorSetSize(bytevector *v, uint size);
+extern nonnull void ByteVectorCopy(
+    const bytevector *restrict src, uint srcOffset,
+    bytevector *restrict dst, uint dstOffset, uint length);
+extern nonnull void ByteVectorAppend(
+    const bytevector *restrict src, uint srcOffset,
+    bytevector *restrict dst, uint length);
+extern nonnull void ByteVectorAppendAll(const bytevector *restrict src,
+                                        bytevector *restrict dst);
 extern nonnull void ByteVectorMove(bytevector *v, uint src, uint dst,
                                    uint length);
 extern nonnull boolean ByteVectorAdd(bytevector *v, byte value);
@@ -42,5 +50,5 @@ extern nonnull void ByteVectorWritePackInt(bytevector *v, uint *index,
                                            int value);
 extern nonnull void ByteVectorWritePackUint(bytevector *v, uint *index,
                                             uint value);
-extern nonnull void ByteVectorFill(bytevector *v, uint index, uint size,
+extern nonnull void ByteVectorFill(bytevector *v, uint index, uint length,
                                    byte value);

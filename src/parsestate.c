@@ -285,7 +285,7 @@ void ParseStateDispose(ParseState *state)
     }
 }
 
-void ParseStateFinish(ParseState *state)
+boolean ParseStateFinish(ParseState *restrict state, bytevector *restrict bytecode)
 {
     byte op;
     uint ip;
@@ -477,8 +477,11 @@ void ParseStateFinish(ParseState *state)
     }
 
     IntVectorFree(&forwardBranches);
-
     dump2(state);
+
+    ByteVectorAppendAll(&state->data, bytecode);
+    ByteVectorAppendAll(&state->control, bytecode);
+    return true;
 }
 
 

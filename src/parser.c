@@ -531,7 +531,7 @@ boolean ParseFile(fileref file)
     return result;
 }
 
-boolean ParseTarget(targetref target)
+boolean ParseTarget(targetref target, bytevector *bytecode)
 {
     ParseState state;
     stringref name;
@@ -543,18 +543,16 @@ boolean ParseTarget(targetref target)
                    TargetIndexGetOffset(target));
     name = readIdentifier(&state);
     assert(name == TargetIndexGetName(target));
-    if (readOperator(&state, ':'))
-    {
-        assert(peekNewline(&state)); /* TODO: Error handling */
-        skipEndOfLine(&state);
-        result = parseFunctionBody(&state);
-    }
-    else
+    if (!readOperator(&state, ':'))
     {
         error(&state, "Expected ':' after target name.");
-        result = false;
+        ParseStateDispose(&state);
+        return false;
     }
-    ParseStateFinish(&state);
+    assert(peekNewline(&state)); /* TODO: Error handling */
+    skipEndOfLine(&state);
+    result = parseFunctionBody(&state) &&
+        ParseStateFinish(&state, bytecode);
     ParseStateDispose(&state);
     return result;
 }
