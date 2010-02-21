@@ -32,18 +32,21 @@ static boolean isIdentifierCharacter(byte c)
         (c >= '0' && c <= '9');
 }
 
-static void error(const ParseState *state, const char *message)
+static void error(ParseState *state, const char *message)
 {
+    ParseStateSetFailed(state);
     LogParseError(state->file, state->line, message);
 }
 
-static void errorOnLine(const ParseState *state, uint line, const char *message)
+static void errorOnLine(ParseState *state, uint line, const char *message)
 {
+    ParseStateSetFailed(state);
     LogParseError(state->file, line, message);
 }
 
-static void statementError(const ParseState *state, const char *message)
+static void statementError(ParseState *state, const char *message)
 {
+    ParseStateSetFailed(state);
     LogParseError(state->file, state->statementLine, message);
 }
 
@@ -54,33 +57,18 @@ static uint getOffset(const ParseState *state, const byte *begin)
 }
 
 
-static int unwindBlocks(ParseState *state, uint indent, stringref identifier)
+static boolean unwindBlocks(ParseState *restrict state,
+                            bytevector *restrict bytecode,
+                            uint indent, boolean trailingElse)
 {
-    while (!ParseStateBlockEmpty(state))
+    while (ParseStateBlockIndent(state) > indent)
     {
-        uint oldIndent = ParseStateBlockIndent(state);
-        if (!ParseStateBlockEnd(
-                state, oldIndent == indent && identifier == keywordElse))
+        if (!ParseStateFinishBlock(state, bytecode, indent, trailingElse))
         {
-            assert(false); /* TODO: Error handling */
-            return -1;
-        }
-        if (oldIndent == indent)
-        {
-            return (int)indent;
-        }
-        if (oldIndent < indent)
-        {
-            statementError(state, "Mismatched indentation level.");
-            return -1;
+            return false;
         }
     }
-    if (indent == 0)
-    {
-        return 0;
-    }
-    statementError(state, "Mismatched indentation level.");
-    return -1;
+    return true;
 }
 
 static boolean eof(const ParseState *state)
@@ -216,7 +204,7 @@ static boolean readExpectedOperator(ParseState *state, byte op)
 }
 
 
-static int parseExpression(ParseState *state)
+static uint parseExpression(ParseState *state)
 {
     stringref identifier;
     ParseStateCheck(state);
@@ -231,7 +219,7 @@ static int parseExpression(ParseState *state)
         return ParseStateWriteStringLiteral(state, readString(state));
     }
     statementError(state, "Invalid expression.");
-    return -1;
+    return 0;
 }
 
 static boolean parseInvocationRest(ParseState *state, stringref name)
@@ -242,7 +230,7 @@ static boolean parseInvocationRest(ParseState *state, stringref name)
     uint argumentOutputOffset;
     uint argumentCount = 0;
     uint line = state->line;
-    int value;
+    uint value;
 
     ParseStateCheck(state);
     assert(nativeFunction >= 0);
@@ -260,7 +248,7 @@ static boolean parseInvocationRest(ParseState *state, stringref name)
         for (;;)
         {
             value = parseExpression(state);
-            if (value < 0)
+            if (state->failed)
             {
                 return false;
             }
@@ -298,28 +286,23 @@ static boolean parseInvocationRest(ParseState *state, stringref name)
     return true;
 }
 
-static boolean parseFunctionBody(ParseState *state)
+static boolean parseFunctionBody(ParseState *state,
+                                 bytevector *restrict bytecode)
 {
-    int indent;
-    int currentIndent = -1;
-    int prevIndent = 0;
+    uint indent;
+    uint currentIndent = 0;
+    uint prevIndent = 0;
     stringref identifier;
-    int value;
+    uint value;
 
     for (;;)
     {
-        state->statementLine = state->line;
         if (eof(state))
         {
-            unwindBlocks(state, 0, 0);
-            if (!ParseStateWriteReturn(state))
-            {
-                return false;
-            }
-            break;
+            return unwindBlocks(state, bytecode, 0, false);
         }
 
-        indent = (int)readIndent(state);
+        indent = readIndent(state);
         if (readNewline(state))
         {
         }
@@ -332,34 +315,37 @@ static boolean parseFunctionBody(ParseState *state)
             identifier = peekReadIdentifier(state);
             if (indent != currentIndent)
             {
-                if (currentIndent < 0)
+                if (!currentIndent)
                 {
                     if (indent <= prevIndent)
                     {
-                        statementError(state, "Expected increased indentation level.");
+                        error(state, "Expected increased indentation level.");
                         return false;
                     }
+                    ParseStateSetIndent(state, indent);
                     currentIndent = indent;
                 }
                 else if (indent < currentIndent)
                 {
-                    currentIndent = unwindBlocks(state, (uint)indent, identifier);
-                    if (currentIndent < 0)
+                    if (!unwindBlocks(state, bytecode, indent,
+                                      identifier == keywordElse))
                     {
                         return false;
                     }
                     if (indent == 0)
                     {
-                        if (!ParseStateWriteReturn(state))
-                        {
-                            return false;
-                        }
-                        break;
+                        return true;
                     }
+                    currentIndent = indent;
                     if (identifier == keywordElse)
                     {
-                        prevIndent = currentIndent;
-                        currentIndent = -1;
+                        if (state->failed)
+                        {
+                            statementError(state, "else without matching if.");
+                            return false;
+                        }
+                        prevIndent = indent;
+                        currentIndent = 0;
                         if (!peekNewline(state))
                         {
                             error(state, "Garbage after else statement.");
@@ -371,10 +357,11 @@ static boolean parseFunctionBody(ParseState *state)
                 }
                 else
                 {
-                    statementError(state, "Mismatched indentation level.");
+                    error(state, "Mismatched indentation level.");
                     return false;
                 }
             }
+            state->statementLine = state->line;
             if (identifier)
             {
                 skipWhitespace(state);
@@ -387,15 +374,10 @@ static boolean parseFunctionBody(ParseState *state)
                     }
                     if (identifier == keywordIf)
                     {
-                        if (!ParseStateBlockBegin(state, (uint)currentIndent,
-                                                  false, true))
-                        {
-                            return false;
-                        }
                         prevIndent = currentIndent;
-                        currentIndent = -1;
+                        currentIndent = 0;
                         value = parseExpression(state);
-                        if (value < 0 || !ParseStateWriteIf(state, (uint)value))
+                        if (state->failed)
                         {
                             return false;
                         }
@@ -405,6 +387,10 @@ static boolean parseFunctionBody(ParseState *state)
                             return false;
                         }
                         skipEndOfLine(state);
+                        if (!ParseStateWriteIf(state, value))
+                        {
+                            return false;
+                        }
                     }
                     else if (identifier == keywordElse)
                     {
@@ -413,16 +399,10 @@ static boolean parseFunctionBody(ParseState *state)
                     }
                     else if (identifier == keywordWhile)
                     {
-                        if (!ParseStateBlockBegin(state, (uint)currentIndent,
-                                                  true, false))
-                        {
-                            return false;
-                        }
                         prevIndent = currentIndent;
-                        currentIndent = -1;
+                        currentIndent = 0;
                         value = parseExpression(state);
-                        if (value < 0 ||
-                            !ParseStateWriteWhile(state, (uint)value))
+                        if (state->failed)
                         {
                             return false;
                         }
@@ -432,6 +412,10 @@ static boolean parseFunctionBody(ParseState *state)
                             return false;
                         }
                         skipEndOfLine(state);
+                        if (!ParseStateWriteWhile(state, value))
+                        {
+                            return false;
+                        }
                     }
                     else
                     {
@@ -452,11 +436,11 @@ static boolean parseFunctionBody(ParseState *state)
                     {
                         skipWhitespace(state);
                         value = parseExpression(state);
-                        if (value < 0)
+                        if (state->failed ||
+                            !ParseStateSetVariable(state, identifier, value))
                         {
                             return false;
                         }
-                        ParseStateSetVariable(state, identifier, (uint)value);
                     }
                     else
                     {
@@ -478,8 +462,6 @@ static boolean parseFunctionBody(ParseState *state)
             }
         }
     }
-    assert(ParseStateBlockEmpty(state));
-    return true;
 }
 
 static boolean parseScript(ParseState *state)
@@ -551,8 +533,8 @@ boolean ParseTarget(targetref target, bytevector *bytecode)
     }
     assert(peekNewline(&state)); /* TODO: Error handling */
     skipEndOfLine(&state);
-    result = parseFunctionBody(&state) &&
-        ParseStateFinish(&state, bytecode);
+    result = parseFunctionBody(&state, bytecode) &&
+        !state.failed;
     ParseStateDispose(&state);
     return result;
 }

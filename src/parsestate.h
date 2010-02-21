@@ -22,13 +22,28 @@ struct _Block
     /* Holds the then-block of an if statement while parsing the else-block. */
     Block *unfinished;
 
-    uint indent;
-    uint loopBegin;
-    uint conditionOffset;
+    uint branchOffset;
     uint condition;
-    boolean loop;
-    boolean allowTrailingElse;
     intvector locals;
+    uint indent;
+};
+
+struct _Function;
+typedef struct _Function Function;
+struct _Function
+{
+    Function *parent;
+
+    Block *currentBlock;
+    Block firstBlock;
+
+    bytevector data;
+    bytevector control;
+    uint parameterCount;
+
+    /* Index of the stackframe value in the caller function.
+       Only used for loops. */
+    uint stackframe;
 };
 
 typedef struct
@@ -38,41 +53,33 @@ typedef struct
     fileref file;
     uint line;
     uint statementLine;
-    uint loopLevel;
-    boolean allowElse;
+    boolean failed;
 
-    bytevector data;
-    bytevector control;
-    intvector branchTargets;
-
-    Block *currentBlock;
-    Block firstBlock;
+    Function *currentFunction;
+    Function firstFunction;
 } ParseState;
 
 extern nonnull void ParseStateCheck(const ParseState *state);
 extern nonnull void ParseStateInit(ParseState *state, fileref file, uint line,
                                    uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
-extern nonnull boolean ParseStateFinish(ParseState *restrict state,
-                                        bytevector *restrict bytecode);
+extern nonnull boolean ParseStateFinishBlock(ParseState *restrict state,
+                                             bytevector *restrict bytecode,
+                                             uint indent, boolean trailingElse);
+extern nonnull void ParseStateSetFailed(ParseState *state);
 
-extern nonnull boolean ParseStateBlockBegin(ParseState *state, uint indent,
-                                            boolean loop,
-                                            boolean allowTrailingElse);
-extern nonnull boolean ParseStateBlockEnd(ParseState *state, boolean isElse);
-extern nonnull boolean ParseStateBlockEmpty(ParseState *state);
+extern nonnull void ParseStateSetIndent(ParseState *state, uint indent);
 extern nonnull uint ParseStateBlockIndent(ParseState *state);
 
-extern nonnull int ParseStateGetVariable(ParseState *state,
-                                         stringref identifier);
+extern nonnull uint ParseStateGetVariable(ParseState *state, stringref name);
 extern nonnull boolean ParseStateSetVariable(ParseState *state,
-                                             stringref identifier, uint value);
+                                             stringref name, uint value);
 
 extern nonnull void ParseStateSetArgument(
     ParseState *state, uint argumentOffset, uint parameterIndex, uint value);
 
-extern nonnull int ParseStateWriteStringLiteral(ParseState *state,
-                                                stringref value);
+extern nonnull uint ParseStateWriteStringLiteral(ParseState *state,
+                                                 stringref value);
 
 extern nonnull boolean ParseStateWriteIf(ParseState *state, uint value);
 extern nonnull boolean ParseStateWriteWhile(ParseState *state, uint value);

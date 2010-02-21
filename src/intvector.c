@@ -17,6 +17,13 @@ static void checkIntVectorIndex(const intvector *v, uint index)
     assert(index < v->size);
 }
 
+static void checkIntVectorRange(const intvector *v, uint index, uint length)
+{
+    checkIntVector(v);
+    assert(index < v->size);
+    assert(IntVectorSize(v) >= index + length);
+}
+
 void IntVectorInit(intvector *v)
 {
     v->data = (int*)malloc(SEGMENT_SIZE * sizeof(int));
@@ -41,6 +48,42 @@ uint IntVectorSize(const intvector *v)
 {
     checkIntVector(v);
     return v->size;
+}
+
+void IntVectorSetSize(intvector *v, uint size)
+{
+    checkIntVector(v);
+    assert(size <= SEGMENT_SIZE); /* TODO: grow int vector */
+    v->size = size;
+}
+
+void IntVectorCopy(const intvector *restrict src, uint srcOffset,
+                   intvector *restrict dst, uint dstOffset, uint length)
+{
+    checkIntVectorRange(src, srcOffset, length);
+    checkIntVectorRange(dst, dstOffset, length);
+    memcpy(&dst->data[dstOffset], &src->data[srcOffset], length * sizeof(int));
+}
+
+void IntVectorAppend(const intvector *restrict src, uint srcOffset,
+                     intvector *restrict dst, uint length)
+{
+    uint size = IntVectorSize(dst);
+    IntVectorSetSize(dst, size + length);
+    IntVectorCopy(src, srcOffset, dst, size, length);
+}
+
+void IntVectorAppendAll(const intvector *restrict src,
+                        intvector *restrict dst)
+{
+    IntVectorAppend(src, 0, dst, IntVectorSize(src));
+}
+
+void IntVectorMove(intvector *v, uint src, uint dst, uint length)
+{
+    checkIntVectorRange(v, src, length);
+    checkIntVectorRange(v, dst, length);
+    memmove(&v->data[dst], &v->data[src], length * sizeof(int));
 }
 
 void IntVectorAdd(intvector *v, int value)
