@@ -256,7 +256,7 @@ static boolean parseInvocationRest(ParseState *state, stringref name)
                 state,
                 argumentOutputOffset,
                 argumentCount++,
-                (uint)value);
+                value);
             if (readOperator(state, ')'))
             {
                 break;
