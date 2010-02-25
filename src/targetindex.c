@@ -15,6 +15,7 @@
 
 static intvector unsortedTable;
 static uint *table;
+static uint *bytecodeTable;
 static uint targetCount;
 
 static void insertionSort(uint *restrict target, const uint *restrict source,
@@ -234,12 +235,34 @@ uint TargetIndexGetOffset(targetref target)
     return table[target * TABLE_ENTRY_SIZE + TABLE_ENTRY_OFFSET];
 }
 
+uint TargetIndexGetBytecodeOffset(targetref target)
+{
+    assert(bytecodeTable);
+    assert(target >= 0);
+    assert((uint)target < targetCount);
+    return bytecodeTable[target];
+}
+
+void TargetIndexSetBytecodeOffset(targetref target, uint offset)
+{
+    assert(bytecodeTable);
+    assert(target >= 0);
+    assert((uint)target < targetCount);
+    bytecodeTable[target] = offset;
+}
+
 void TargetIndexFinish(void)
 {
+    uint tableSize;
+    uint bytecodeTableSize;
+
     assert(!table);
     targetCount = IntVectorSize(&unsortedTable) / TABLE_ENTRY_SIZE;
-    table = (uint*)malloc(targetCount * TABLE_ENTRY_SIZE * sizeof(uint));
+    tableSize = targetCount * TABLE_ENTRY_SIZE;
+    bytecodeTableSize = targetCount;
+    table = (uint*)malloc((tableSize + bytecodeTableSize) * sizeof(uint));
     assert(table); /* TODO: handle oom */
     sortIndex();
     IntVectorFree(&unsortedTable);
+    bytecodeTable = &table[tableSize];
 }

@@ -57,6 +57,8 @@ typedef struct
 
     Function *currentFunction;
     Function firstFunction;
+
+    uint bytecodeOffset;
 } ParseState;
 
 extern nonnull void ParseStateCheck(const ParseState *state);

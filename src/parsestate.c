@@ -633,6 +633,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
     }
     dump(state);
     disposeCurrentBlock(state);
+    state->bytecodeOffset = ByteVectorSize(bytecode);
     ByteVectorAppendAll(getData(state), bytecode);
     ByteVectorAppendAll(getControl(state), bytecode);
     return true;

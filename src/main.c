@@ -93,6 +93,7 @@ int main(int argc, const char **argv)
     {
         assert(false); /* TODO: Error handling */
     }
+    printf("Bytecode offset=%d\n", TargetIndexGetBytecodeOffset(target));
 
     ByteVectorFree(&bytecode);
     TargetIndexFree();

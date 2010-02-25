@@ -517,7 +517,6 @@ boolean ParseTarget(targetref target, bytevector *bytecode)
 {
     ParseState state;
     stringref name;
-    boolean result;
     assert(target >= 0);
     ParseStateInit(&state,
                    TargetIndexGetFile(target),
@@ -533,8 +532,13 @@ boolean ParseTarget(targetref target, bytevector *bytecode)
     }
     assert(peekNewline(&state)); /* TODO: Error handling */
     skipEndOfLine(&state);
-    result = parseFunctionBody(&state, bytecode) &&
-        !state.failed;
+    if (!parseFunctionBody(&state, bytecode) ||
+        state.failed)
+    {
+        ParseStateDispose(&state);
+        return false;
+    }
+    TargetIndexSetBytecodeOffset(target, state.bytecodeOffset);
     ParseStateDispose(&state);
-    return result;
+    return true;
 }
