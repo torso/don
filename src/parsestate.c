@@ -19,7 +19,7 @@
 
 void ParseStateCheck(const ParseState *state)
 {
-    assert(state->start != null);
+    assert(state->start);
     assert(state->current >= state->start);
     assert(state->current <= state->start + FileIndexGetSize(state->file));
 }
@@ -615,7 +615,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         return finishLoopBlock(state, bytecode);
     }
 
-    if (indent != 0)
+    if (indent)
     {
         error(state, "Mismatched indentation level.");
         return false;
