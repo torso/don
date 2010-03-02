@@ -10,4 +10,4 @@
 
 extern void ParserAddKeywords(void);
 extern boolean ParseFile(fileref file);
-extern boolean ParseTarget(targetref target, bytevector *bytecode);
+extern nonnull boolean ParseTarget(targetref target, bytevector *parsed);

@@ -58,12 +58,12 @@ static uint getOffset(const ParseState *state, const byte *begin)
 
 
 static boolean unwindBlocks(ParseState *restrict state,
-                            bytevector *restrict bytecode,
+                            bytevector *restrict parsed,
                             uint indent, boolean trailingElse)
 {
     while (ParseStateBlockIndent(state) > indent)
     {
-        if (!ParseStateFinishBlock(state, bytecode, indent, trailingElse))
+        if (!ParseStateFinishBlock(state, parsed, indent, trailingElse))
         {
             return false;
         }
@@ -287,7 +287,7 @@ static boolean parseInvocationRest(ParseState *state, stringref name)
 }
 
 static boolean parseFunctionBody(ParseState *state,
-                                 bytevector *restrict bytecode)
+                                 bytevector *restrict parsed)
 {
     uint indent;
     uint currentIndent = 0;
@@ -299,7 +299,7 @@ static boolean parseFunctionBody(ParseState *state,
     {
         if (eof(state))
         {
-            return unwindBlocks(state, bytecode, 0, false);
+            return unwindBlocks(state, parsed, 0, false);
         }
 
         indent = readIndent(state);
@@ -327,7 +327,7 @@ static boolean parseFunctionBody(ParseState *state,
                 }
                 else if (indent < currentIndent)
                 {
-                    if (!unwindBlocks(state, bytecode, indent,
+                    if (!unwindBlocks(state, parsed, indent,
                                       identifier == keywordElse))
                     {
                         return false;
@@ -513,7 +513,7 @@ boolean ParseFile(fileref file)
     return result;
 }
 
-boolean ParseTarget(targetref target, bytevector *bytecode)
+boolean ParseTarget(targetref target, bytevector *parsed)
 {
     ParseState state;
     stringref name;
@@ -532,13 +532,13 @@ boolean ParseTarget(targetref target, bytevector *bytecode)
     }
     assert(peekNewline(&state)); /* TODO: Error handling */
     skipEndOfLine(&state);
-    if (!parseFunctionBody(&state, bytecode) ||
+    if (!parseFunctionBody(&state, parsed) ||
         state.failed)
     {
         ParseStateDispose(&state);
         return false;
     }
-    TargetIndexSetBytecodeOffset(target, state.bytecodeOffset);
+    TargetIndexSetParsedOffset(target, state.parsedOffset);
     ParseStateDispose(&state);
     return true;
 }

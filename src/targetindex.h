@@ -19,7 +19,11 @@ extern pure fileref TargetIndexGetFile(targetref target);
 extern pure uint TargetIndexGetLine(targetref target);
 extern pure uint TargetIndexGetOffset(targetref target);
 
+extern pure uint TargetIndexGetParsedOffset(targetref target);
+extern void TargetIndexSetParsedOffset(targetref target, uint offset);
+
 extern pure uint TargetIndexGetBytecodeOffset(targetref target);
 extern void TargetIndexSetBytecodeOffset(targetref target, uint offset);
 
 extern void TargetIndexFinish(void);
+extern void TargetIndexDisposeParsed(void);

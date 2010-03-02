@@ -58,7 +58,7 @@ typedef struct
     Function *currentFunction;
     Function firstFunction;
 
-    uint bytecodeOffset;
+    uint parsedOffset;
 } ParseState;
 
 extern nonnull void ParseStateCheck(const ParseState *state);
@@ -66,7 +66,7 @@ extern nonnull void ParseStateInit(ParseState *state, fileref file, uint line,
                                    uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
 extern nonnull boolean ParseStateFinishBlock(ParseState *restrict state,
-                                             bytevector *restrict bytecode,
+                                             bytevector *restrict parsed,
                                              uint indent, boolean trailingElse);
 extern nonnull void ParseStateSetFailed(ParseState *state);
 

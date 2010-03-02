@@ -15,6 +15,7 @@
 
 static intvector unsortedTable;
 static uint *table;
+static uint *parsedTable;
 static uint *bytecodeTable;
 static uint targetCount;
 
@@ -235,6 +236,22 @@ uint TargetIndexGetOffset(targetref target)
     return table[target * TABLE_ENTRY_SIZE + TABLE_ENTRY_OFFSET];
 }
 
+uint TargetIndexGetParsedOffset(targetref target)
+{
+    assert(parsedTable);
+    assert(target >= 0);
+    assert((uint)target < targetCount);
+    return parsedTable[target];
+}
+
+void TargetIndexSetParsedOffset(targetref target, uint offset)
+{
+    assert(parsedTable);
+    assert(target >= 0);
+    assert((uint)target < targetCount);
+    parsedTable[target] = offset;
+}
+
 uint TargetIndexGetBytecodeOffset(targetref target)
 {
     assert(bytecodeTable);
@@ -254,15 +271,21 @@ void TargetIndexSetBytecodeOffset(targetref target, uint offset)
 void TargetIndexFinish(void)
 {
     uint tableSize;
-    uint bytecodeTableSize;
 
     assert(!table);
     targetCount = IntVectorSize(&unsortedTable) / TABLE_ENTRY_SIZE;
     tableSize = targetCount * TABLE_ENTRY_SIZE;
-    bytecodeTableSize = targetCount;
-    table = (uint*)malloc((tableSize + bytecodeTableSize) * sizeof(uint));
+    table = (uint*)malloc((tableSize + targetCount) * sizeof(uint));
     assert(table); /* TODO: handle oom */
     sortIndex();
     IntVectorFree(&unsortedTable);
     bytecodeTable = &table[tableSize];
+    memset(bytecodeTable, 0, tableSize * targetCount);
+    parsedTable = (uint*)malloc(targetCount * sizeof(uint));
+    assert(parsedTable); /* TODO: handle oom */
+}
+
+void TargetIndexDisposeParsed(void)
+{
+    free(parsedTable);
 }

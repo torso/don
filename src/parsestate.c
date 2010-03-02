@@ -56,22 +56,22 @@ static bytevector *getControl(const ParseState *state)
 }
 
 
-static boolean writeBytecode(const ParseState *restrict state,
-                             bytevector *restrict bytecode)
+static boolean writeParsed(const ParseState *restrict state,
+                           bytevector *restrict parsed)
 {
     bytevector *data = getData(state);
     bytevector *control = getControl(state);
-    if (!ByteVectorAddPackUint(bytecode, ByteVectorSize(data)))
+    if (!ByteVectorAddPackUint(parsed, ByteVectorSize(data)))
     {
         return false;
     }
-    ByteVectorAppendAll(data, bytecode);
-    if (!ByteVectorAddPackUint(bytecode, ByteVectorSize(control) + 1))
+    ByteVectorAppendAll(data, parsed);
+    if (!ByteVectorAddPackUint(parsed, ByteVectorSize(control) + 1))
     {
         return false;
     }
-    ByteVectorAppendAll(control, bytecode);
-    return ByteVectorAdd(bytecode, OP_RETURN);
+    ByteVectorAppendAll(control, parsed);
+    return ByteVectorAdd(parsed, OP_RETURN);
 }
 
 
@@ -381,7 +381,7 @@ static boolean finishIfBlockWithElse(ParseState *state)
 }
 
 static boolean finishLoopBlock(ParseState *restrict state,
-                               bytevector *restrict bytecode)
+                               bytevector *restrict parsed)
 {
     Function *function = getFunction(state);
     intvector *locals;
@@ -404,9 +404,9 @@ static boolean finishLoopBlock(ParseState *restrict state,
     parentData = &function->parent->data;
     parentControl = &function->parent->control;
 
-    if (!ByteVectorAddPackUint(parentControl, ByteVectorSize(bytecode)) ||
+    if (!ByteVectorAddPackUint(parentControl, ByteVectorSize(parsed)) ||
         !ByteVectorAddPackUint(parentControl, function->parameterCount) ||
-        !writeBytecode(state, bytecode))
+        !writeParsed(state, parsed))
     {
         return false;
     }
@@ -456,7 +456,7 @@ static boolean finishLoopBlock(ParseState *restrict state,
 }
 
 boolean ParseStateFinishBlock(ParseState *restrict state,
-                              bytevector *restrict bytecode,
+                              bytevector *restrict parsed,
                               uint indent, boolean trailingElse)
 {
     Function *function = getFunction(state);
@@ -514,7 +514,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
             error(state, "Else without matching if.");
             return false;
         }
-        return finishLoopBlock(state, bytecode);
+        return finishLoopBlock(state, parsed);
     }
 
     if (indent)
@@ -524,8 +524,8 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
     }
 
     disposeCurrentBlock(state);
-    state->bytecodeOffset = ByteVectorSize(bytecode);
-    return writeBytecode(state, bytecode);
+    state->parsedOffset = ByteVectorSize(parsed);
+    return writeParsed(state, parsed);
 }
 
 

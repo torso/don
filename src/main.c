@@ -6,124 +6,7 @@
 #include "fileindex.h"
 #include "targetindex.h"
 #include "parser.h"
-
-#include "instruction.h"
-static void dump(const bytevector *bytecode)
-{
-    uint ip;
-    uint readIndex;
-    uint dataSize;
-    uint controlSize;
-    uint stop;
-    uint i;
-    uint function;
-    uint argumentCount;
-    uint condition;
-    uint value;
-    uint target;
-    uint stackframe;
-    stringref name;
-
-    printf("Dump pass 1\n");
-    for (readIndex = 0; readIndex < ByteVectorSize(bytecode);)
-    {
-        dataSize = ByteVectorReadPackUint(bytecode, &readIndex);
-        printf("data, size=%d\n", dataSize);
-        for (stop = readIndex + dataSize; readIndex < stop;)
-        {
-            ip = readIndex;
-            switch (ByteVectorRead(bytecode, &readIndex))
-            {
-            case DATAOP_NULL:
-                printf("%d: null\n", ip);
-                break;
-            case DATAOP_STRING:
-                value = ByteVectorReadPackUint(bytecode, &readIndex);
-                printf("%d: string %d:\"%s\"\n", ip, value,
-                       StringPoolGetString((stringref)value));
-                break;
-            case DATAOP_PHI_VARIABLE:
-                condition = ByteVectorReadUint(bytecode, &readIndex);
-                value = ByteVectorReadUint(bytecode, &readIndex);
-                printf("%d: phi variable condition=%d %d %d\n", ip, condition,
-                       value, ByteVectorReadInt(bytecode, &readIndex));
-                break;
-            case DATAOP_PARAMETER:
-                name = (stringref)ByteVectorReadPackUint(bytecode, &readIndex);
-                printf("%d: parameter name=%s\n", ip, StringPoolGetString(name));
-                break;
-            case DATAOP_RETURN:
-                stackframe = ByteVectorReadPackUint(bytecode, &readIndex);
-                value = ByteVectorReadPackUint(bytecode, &readIndex);
-                printf("%d: return %d from %d\n", ip, value, stackframe);
-                break;
-            case DATAOP_STACKFRAME:
-                printf("%d: stackframe\n", ip);
-                break;
-            default:
-                assert(false);
-                break;
-            }
-        }
-        controlSize = ByteVectorReadPackUint(bytecode, &readIndex);
-        printf("control, size=%d\n", controlSize);
-        for (stop = readIndex + controlSize; readIndex < stop;)
-        {
-            ip = readIndex;
-            switch (ByteVectorRead(bytecode, &readIndex))
-            {
-            case OP_NOOP:
-                printf("%d: noop\n", ip);
-                break;
-            case OP_RETURN:
-                printf("%d: return\n", ip);
-                break;
-            case OP_BRANCH:
-                target = ByteVectorReadUint(bytecode, &readIndex);
-                condition = ByteVectorReadPackUint(bytecode, &readIndex);
-                printf("%d: branch condition=%d target=%d\n", ip, condition,
-                       target);
-                break;
-            case OP_LOOP:
-                target = ByteVectorReadPackUint(bytecode, &readIndex);
-                printf("%d: loop %d\n", ip, target);
-                break;
-            case OP_JUMP:
-                target = ByteVectorReadUint(bytecode, &readIndex);
-                printf("%d: jump %d\n", ip, target);
-                break;
-            case OP_INVOKE_NATIVE:
-                function = ByteVectorRead(bytecode, &readIndex);
-                value = ByteVectorReadPackUint(bytecode, &readIndex);
-                argumentCount = ByteVectorReadPackUint(bytecode, &readIndex);
-                printf("%d: invoke native function=%d, arguments=%d, stackframe=%d\n",
-                       ip, function, argumentCount, value);
-                for (i = 0; i < argumentCount; i++)
-                {
-                    printf("  %d: argument %d\n", i,
-                           ByteVectorReadUint(bytecode, &readIndex));
-                }
-                break;
-            case OP_COND_INVOKE:
-                condition = ByteVectorReadPackUint(bytecode, &readIndex);
-                value = ByteVectorReadPackUint(bytecode, &readIndex);
-                function = ByteVectorReadPackUint(bytecode, &readIndex);
-                argumentCount = ByteVectorReadPackUint(bytecode, &readIndex);
-                printf("%d: cond_invoke function=%d, condition=%d, arguments=%d, stackframe=%d\n",
-                       ip, function, condition, argumentCount, value);
-                for (i = 0; i < argumentCount; i++)
-                {
-                    printf("  %d: argument %d\n", i,
-                           ByteVectorReadPackUint(bytecode, &readIndex));
-                }
-                break;
-            default:
-                assert(false);
-                break;
-            }
-        }
-    }
-}
+#include "bytecodegenerator.h"
 
 int main(int argc, const char **argv)
 {
@@ -133,7 +16,7 @@ int main(int argc, const char **argv)
     fileref inputFile;
     targetref target;
     boolean parseOptions = true;
-    bytevector bytecode;
+    bytevector parsed;
 
     for (i = 1; i < argc; i++)
     {
@@ -204,17 +87,20 @@ int main(int argc, const char **argv)
     }
     TargetIndexFinish();
 
-    ByteVectorInit(&bytecode);
+    ByteVectorInit(&parsed);
     target = TargetIndexGet(StringPoolAdd("default"));
     assert(target >= 0); /* TODO: Error handling for non-existing target */
-    if (!ParseTarget(target, &bytecode))
+    if (!ParseTarget(target, &parsed))
     {
         assert(false); /* TODO: Error handling */
     }
-    dump(&bytecode);
+    printf("Parsed offset=%d\n", TargetIndexGetParsedOffset(target));
+
+    BytecodeGeneratorExecute(&parsed);
+    TargetIndexDisposeParsed();
+    ByteVectorFree(&parsed);
     printf("Bytecode offset=%d\n", TargetIndexGetBytecodeOffset(target));
 
-    ByteVectorFree(&bytecode);
     TargetIndexFree();
     FileIndexFree();
     StringPoolFree();
