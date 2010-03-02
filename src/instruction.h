@@ -1,14 +1,20 @@
-#define OP_NOOP 0
-#define OP_RETURN 1
-#define OP_BRANCH 2
-#define OP_LOOP 3
-#define OP_JUMP 4
-#define OP_INVOKE_NATIVE 5
-#define OP_COND_INVOKE 6
+enum ControlInstruction
+{
+    OP_NOOP,
+    OP_RETURN,
+    OP_BRANCH,
+    OP_LOOP,
+    OP_JUMP,
+    OP_INVOKE_NATIVE,
+    OP_COND_INVOKE
+};
 
-#define DATAOP_NULL 0
-#define DATAOP_STRING 1
-#define DATAOP_PHI_VARIABLE 2
-#define DATAOP_PARAMETER 3
-#define DATAOP_RETURN 4
-#define DATAOP_STACKFRAME 5
+enum DataInstruction
+{
+    DATAOP_NULL,
+    DATAOP_STRING,
+    DATAOP_PHI_VARIABLE,
+    DATAOP_PARAMETER,
+    DATAOP_RETURN,
+    DATAOP_STACKFRAME
+};
