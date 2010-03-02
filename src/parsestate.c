@@ -30,140 +30,48 @@ static void error(ParseState *state, const char *message)
     LogParseError(state->file, state->line, message);
 }
 
-static Function *getFunction(ParseState *state)
+static Function *getFunction(const ParseState *state)
 {
     return state->currentFunction;
 }
 
-static Block *getBlock(ParseState *state)
+static Block *getBlock(const ParseState *state)
 {
     return getFunction(state)->currentBlock;
 }
 
-static intvector *getLocals(ParseState *state)
+static intvector *getLocals(const ParseState *state)
 {
     return &getBlock(state)->locals;
 }
 
-static bytevector *getData(ParseState *state)
+static bytevector *getData(const ParseState *state)
 {
     return &getFunction(state)->data;
 }
 
-static bytevector *getControl(ParseState *state)
+static bytevector *getControl(const ParseState *state)
 {
     return &getFunction(state)->control;
 }
 
-static void dump(ParseState *state)
-{
-    uint ip;
-    uint readIndex;
-    uint i;
-    uint function;
-    uint argumentCount;
-    uint condition;
-    uint value;
-    uint target;
-    uint stackframe;
-    stringref name;
-    const bytevector *data = getData(state);
-    const bytevector *control = getControl(state);
 
-    printf("Dump pass 1\n");
-    printf("data, size=%d\n", ByteVectorSize(data));
-    for (readIndex = 0; readIndex < ByteVectorSize(data);)
+static boolean writeBytecode(const ParseState *restrict state,
+                             bytevector *restrict bytecode)
+{
+    bytevector *data = getData(state);
+    bytevector *control = getControl(state);
+    if (!ByteVectorAddPackUint(bytecode, ByteVectorSize(data)))
     {
-        ip = readIndex;
-        switch (ByteVectorRead(data, &readIndex))
-        {
-        case DATAOP_NULL:
-            printf("%d: null\n", ip);
-            break;
-        case DATAOP_STRING:
-            value = ByteVectorReadPackUint(data, &readIndex);
-            printf("%d: string %d:\"%s\"\n", ip, value,
-                   StringPoolGetString((stringref)value));
-            break;
-        case DATAOP_PHI_VARIABLE:
-            condition = ByteVectorReadUint(data, &readIndex);
-            value = ByteVectorReadUint(data, &readIndex);
-            printf("%d: phi variable condition=%d %d %d\n", ip, condition,
-                   value, ByteVectorReadInt(data, &readIndex));
-            break;
-        case DATAOP_PARAMETER:
-            name = (stringref)ByteVectorReadPackUint(data, &readIndex);
-            printf("%d: parameter name=%s\n", ip, StringPoolGetString(name));
-            break;
-        case DATAOP_RETURN:
-            stackframe = ByteVectorReadPackUint(data, &readIndex);
-            value = ByteVectorReadPackUint(data, &readIndex);
-            printf("%d: return %d from %d\n", ip, value, stackframe);
-            break;
-        case DATAOP_STACKFRAME:
-            printf("%d: stackframe\n", ip);
-            break;
-        default:
-            assert(false);
-            break;
-        }
+        return false;
     }
-    printf("control, size=%d\n", ByteVectorSize(control));
-    for (readIndex = 0; readIndex < ByteVectorSize(control);)
+    ByteVectorAppendAll(data, bytecode);
+    if (!ByteVectorAddPackUint(bytecode, ByteVectorSize(control) + 1))
     {
-        ip = readIndex;
-        switch (ByteVectorRead(control, &readIndex))
-        {
-        case OP_NOOP:
-            printf("%d: noop\n", ip);
-            break;
-        case OP_RETURN:
-            printf("%d: return\n", ip);
-            break;
-        case OP_BRANCH:
-            target = ByteVectorReadUint(control, &readIndex);
-            condition = ByteVectorReadPackUint(control, &readIndex);
-            printf("%d: branch condition=%d target=%d\n", ip, condition,
-                   target);
-            break;
-        case OP_LOOP:
-            target = ByteVectorReadPackUint(control, &readIndex);
-            printf("%d: loop %d\n", ip, target);
-            break;
-        case OP_JUMP:
-            target = ByteVectorReadUint(control, &readIndex);
-            printf("%d: jump %d\n", ip, target);
-            break;
-        case OP_INVOKE_NATIVE:
-            function = ByteVectorRead(control, &readIndex);
-            value = ByteVectorReadPackUint(control, &readIndex);
-            argumentCount = ByteVectorReadPackUint(control, &readIndex);
-            printf("%d: invoke native function=%d, arguments=%d, stackframe=%d\n",
-                   ip, function, argumentCount, value);
-            for (i = 0; i < argumentCount; i++)
-            {
-                printf("  %d: argument %d\n", i,
-                       ByteVectorReadUint(control, &readIndex));
-            }
-            break;
-        case OP_COND_INVOKE:
-            condition = ByteVectorReadPackUint(control, &readIndex);
-            value = ByteVectorReadPackUint(control, &readIndex);
-            function = ByteVectorReadPackUint(control, &readIndex);
-            argumentCount = ByteVectorReadPackUint(control, &readIndex);
-            printf("%d: cond_invoke function=%d, condition=%d, arguments=%d, stackframe=%d\n",
-                   ip, function, condition, argumentCount, value);
-            for (i = 0; i < argumentCount; i++)
-            {
-                printf("  %d: argument %d\n", i,
-                       ByteVectorReadPackUint(control, &readIndex));
-            }
-            break;
-        default:
-            assert(false);
-            break;
-        }
+        return false;
     }
+    ByteVectorAppendAll(control, bytecode);
+    return ByteVectorAdd(bytecode, OP_RETURN);
 }
 
 
@@ -496,18 +404,13 @@ static boolean finishLoopBlock(ParseState *restrict state,
     parentData = &function->parent->data;
     parentControl = &function->parent->control;
 
-    ByteVectorAppendAll(&function->data, bytecode);
     if (!ByteVectorAddPackUint(parentControl, ByteVectorSize(bytecode)) ||
-        !ByteVectorAddPackUint(parentControl, function->parameterCount))
+        !ByteVectorAddPackUint(parentControl, function->parameterCount) ||
+        !writeBytecode(state, bytecode))
     {
         return false;
     }
 
-    ByteVectorAppendAll(&function->control, bytecode);
-    if (!ByteVectorAdd(bytecode, OP_RETURN))
-    {
-        return false;
-    }
     for (i = 0; i < IntVectorSize(locals); i += LOCAL_ENTRY_SIZE)
     {
         name = (stringref)IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER);
@@ -548,7 +451,6 @@ static boolean finishLoopBlock(ParseState *restrict state,
             }
         }
     }
-    dump(state);
     disposeCurrentFunction(state);
     return true;
 }
@@ -621,16 +523,9 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         return false;
     }
 
-    if (!ByteVectorAdd(getControl(state), OP_RETURN))
-    {
-        return false;
-    }
-    dump(state);
     disposeCurrentBlock(state);
     state->bytecodeOffset = ByteVectorSize(bytecode);
-    ByteVectorAppendAll(getData(state), bytecode);
-    ByteVectorAppendAll(getControl(state), bytecode);
-    return true;
+    return writeBytecode(state, bytecode);
 }
 
 
