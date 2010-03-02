@@ -592,13 +592,11 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
             {
                 return false;
             }
+            return true;
         }
-        else if (block->unfinished ?
-                 !finishIfBlockWithElse(state) : !finishIfBlockNoElse(state))
-        {
-            return false;
-        }
-        return true;
+        return (boolean)(block->unfinished ?
+                         finishIfBlockWithElse(state) :
+                         finishIfBlockNoElse(state));
     }
 
     parentFunction = getFunction(state)->parent;
