@@ -614,11 +614,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
             error(state, "Else without matching if.");
             return false;
         }
-        if (!finishLoopBlock(state, bytecode))
-        {
-            return false;
-        }
-        return true;
+        return finishLoopBlock(state, bytecode);
     }
 
     if (indent != 0)
