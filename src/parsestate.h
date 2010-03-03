@@ -39,6 +39,7 @@ struct _Function
 
     bytevector data;
     bytevector control;
+    uint valueCount;
     uint parameterCount;
 
     /* Index of the stackframe value in the caller function.

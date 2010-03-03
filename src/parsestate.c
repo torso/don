@@ -120,7 +120,7 @@ static Block *createBlock(ParseState *state, Block *unfinished)
                 IntVectorAdd4(
                     locals,
                     IntVectorGet(unfinishedLocals, i + LOCAL_OFFSET_IDENTIFIER),
-                    (int)ByteVectorSize(getData(state)), 0, 0);
+                    (int)getFunction(state)->valueCount++, 0, 0);
                 ByteVectorAdd(getData(state), DATAOP_NULL);
             }
         }
@@ -153,6 +153,7 @@ static void initFunction(ParseState *state, Function *function)
     function->parent = state->currentFunction;
     ByteVectorInit(&function->data);
     ByteVectorInit(&function->control);
+    function->valueCount = 0;
     function->parameterCount = 0;
     state->currentFunction = function;
     function->currentBlock = &function->firstBlock;
@@ -192,7 +193,7 @@ static uint getLocalIndex(const intvector *locals, stringref name)
 
 static uint getLocal(ParseState *state, Function *function, stringref name)
 {
-    uint size;
+    uint value;
     uint index;
     intvector *locals;
     boolean success;
@@ -203,18 +204,17 @@ static uint getLocal(ParseState *state, Function *function, stringref name)
 
     locals = &function->currentBlock->locals;
     index = getLocalIndex(locals, name);
-    size = IntVectorSize(locals);
-    if (index < size)
+    if (index < IntVectorSize(locals))
     {
         return (uint)IntVectorGet(locals, index + LOCAL_OFFSET_VALUE);
     }
-    size = ByteVectorSize(&function->data);
-    IntVectorAdd4(locals, (int)name, (int)size, LOCAL_FLAG_ACCESSED, (int)size);
+    value = function->valueCount++;
+    IntVectorAdd4(locals, (int)name, (int)value, LOCAL_FLAG_ACCESSED, 0);
     if (!function->parent)
     {
         success = ByteVectorAdd(&function->data, DATAOP_NULL);
         assert(success); /* TODO: Error handling */
-        return size;
+        return value;
     }
     function->parameterCount++;
     if (!ByteVectorAdd(&function->data, DATAOP_PARAMETER) ||
@@ -222,7 +222,7 @@ static uint getLocal(ParseState *state, Function *function, stringref name)
     {
         ParseStateSetFailed(state);
     }
-    return size;
+    return value;
 }
 
 
@@ -262,7 +262,6 @@ static boolean finishIfBlockNoElse(ParseState *state)
     uint i;
     int flags;
     int oldFlags;
-    uint size;
 
     ParseStateCheck(state);
     assert(getBlock(state));
@@ -279,7 +278,7 @@ static boolean finishIfBlockNoElse(ParseState *state)
         {
             IntVectorAdd4(oldLocals,
                           IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER),
-                          (int)ByteVectorSize(getData(state)), 0, 0);
+                          (int)getFunction(state)->valueCount++, 0, 0);
             if (!ByteVectorAdd(getData(state), DATAOP_NULL))
             {
                 return false;
@@ -288,7 +287,6 @@ static boolean finishIfBlockNoElse(ParseState *state)
         oldFlags = IntVectorGet(oldLocals, i + LOCAL_OFFSET_FLAGS);
         if (flags & LOCAL_FLAG_MODIFIED)
         {
-            size = ByteVectorSize(getData(state));
             if (!ByteVectorAdd(getData(state), DATAOP_PHI_VARIABLE) ||
                 !ByteVectorAddUint(getData(state), block->condition) ||
                 !ByteVectorAddUint(
@@ -301,7 +299,8 @@ static boolean finishIfBlockNoElse(ParseState *state)
             {
                 return false;
             }
-            IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE, (int)size);
+            IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE,
+                         (int)getFunction(state)->valueCount++);
             IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS,
                          oldFlags | LOCAL_FLAG_MODIFIED);
         }
@@ -321,7 +320,6 @@ static boolean finishIfBlockWithElse(ParseState *state)
     uint i;
     int flags;
     int oldFlags;
-    uint size;
 
     ParseStateCheck(state);
     assert(getBlock(state));
@@ -340,7 +338,7 @@ static boolean finishIfBlockWithElse(ParseState *state)
         {
             IntVectorAdd4(oldLocals,
                           IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER),
-                          (int)ByteVectorSize(getData(state)), 0, 0);
+                          (int)getFunction(state)->valueCount++, 0, 0);
             if (!ByteVectorAdd(getData(state), DATAOP_NULL))
             {
                 return false;
@@ -353,7 +351,6 @@ static boolean finishIfBlockWithElse(ParseState *state)
         }
         if (flags & LOCAL_FLAG_MODIFIED)
         {
-            size = ByteVectorSize(getData(state));
             if (!ByteVectorAdd(getData(state), DATAOP_PHI_VARIABLE) ||
                 !ByteVectorAddUint(getData(state),
                                    block->unfinished->condition) ||
@@ -368,7 +365,8 @@ static boolean finishIfBlockWithElse(ParseState *state)
             {
                 return false;
             }
-            IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE, (int)size);
+            IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE,
+                         (int)getFunction(state)->valueCount++);
             IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS,
                          oldFlags | LOCAL_FLAG_MODIFIED);
         }
@@ -430,9 +428,10 @@ static boolean finishLoopBlock(ParseState *restrict state,
         }
         if (flags & LOCAL_FLAG_MODIFIED)
         {
-            value = ByteVectorSize(&function->parent->data);
+            value = function->parent->valueCount++;
             if (!ByteVectorAdd(&function->parent->data, DATAOP_RETURN) ||
-                !ByteVectorAddPackUint(&function->parent->data, function->stackframe) ||
+                !ByteVectorAddPackUint(&function->parent->data,
+                                       function->stackframe) ||
                 !ByteVectorAddPackUint(
                     &function->parent->data,
                     (uint)IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
@@ -440,7 +439,7 @@ static boolean finishLoopBlock(ParseState *restrict state,
                 return false;
             }
             IntVectorSet(oldLocals, index + LOCAL_OFFSET_VALUE,
-                         (int)ByteVectorSize(&function->parent->data));
+                         (int)function->parent->valueCount++);
             if (!ByteVectorAdd(&function->parent->data, DATAOP_PHI_VARIABLE) ||
                 !ByteVectorAddUint(&function->parent->data,
                                    function->firstBlock.condition) ||
@@ -582,14 +581,13 @@ void ParseStateSetArgument(ParseState *state, uint argumentOffset,
 
 uint ParseStateWriteStringLiteral(ParseState *state, stringref value)
 {
-    uint size = ByteVectorSize(getData(state));
     ParseStateCheck(state);
     if (!ByteVectorAdd(getData(state), DATAOP_STRING) ||
         !ByteVectorAddPackUint(getData(state), (uint)value))
     {
         ParseStateSetFailed(state);
     }
-    return size;
+    return getFunction(state)->valueCount++;
 }
 
 
@@ -619,12 +617,12 @@ boolean ParseStateWriteWhile(ParseState *state, uint value)
     ParseStateCheck(state);
 
     function = (Function*)malloc(sizeof(Function));
-    function->stackframe = ByteVectorSize(getData(state));
+    function->stackframe = getFunction(state)->valueCount;
     if (!function ||
         !ByteVectorAdd(getControl(state), OP_COND_INVOKE) ||
         !ByteVectorAddPackUint(getControl(state), value) ||
         !ByteVectorAddPackUint(getControl(state),
-                               ByteVectorSize(getData(state))) ||
+                               getFunction(state)->valueCount++) ||
         !ByteVectorAdd(getData(state), DATAOP_STACKFRAME))
     {
         return false;
@@ -649,7 +647,7 @@ uint ParseStateWriteNativeInvocation(ParseState *state,
     if (!ByteVectorAdd(getControl(state), OP_INVOKE_NATIVE) ||
         !ByteVectorAdd(getControl(state), (byte)nativeFunction) ||
         !ByteVectorAddPackUint(getControl(state),
-                               ByteVectorSize(getData(state))) ||
+                               getFunction(state)->valueCount++) ||
         !ByteVectorAdd(getData(state), DATAOP_STACKFRAME) ||
         !ByteVectorAddPackUint(getControl(state), parameterCount))
     {

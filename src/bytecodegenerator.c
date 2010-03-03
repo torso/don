@@ -26,9 +26,8 @@ static void dump(const bytevector *parsed)
     {
         dataSize = ByteVectorReadPackUint(parsed, &readIndex);
         printf("data, size=%d\n", dataSize);
-        for (stop = readIndex + dataSize; readIndex < stop;)
+        for (stop = readIndex + dataSize, ip = 0; readIndex < stop; ip++)
         {
-            ip = readIndex;
             switch (ByteVectorRead(parsed, &readIndex))
             {
             case DATAOP_NULL:
