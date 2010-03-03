@@ -81,10 +81,6 @@ static void dump(const bytevector *parsed)
                 printf("%d: branch condition=%d target=%d\n", ip, condition,
                        target);
                 break;
-            case OP_LOOP:
-                target = ByteVectorReadPackUint(parsed, &readIndex);
-                printf("%d: loop %d\n", ip, target);
-                break;
             case OP_JUMP:
                 target = ByteVectorReadUint(parsed, &readIndex);
                 printf("%d: jump %d\n", ip, target);

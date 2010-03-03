@@ -3,7 +3,6 @@ enum ControlInstruction
     OP_NOOP,
     OP_RETURN,
     OP_BRANCH,
-    OP_LOOP,
     OP_JUMP,
     OP_INVOKE_NATIVE,
     OP_COND_INVOKE
