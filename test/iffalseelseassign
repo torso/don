@@ -1,0 +1,6 @@
+default:
+    if false
+        a = "FAIL"
+    else
+        a = "PASS"
+    echo(a)

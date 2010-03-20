@@ -1,0 +1,4 @@
+default:
+    a = "FAIL"
+    a = "PASS"
+    echo(a)
