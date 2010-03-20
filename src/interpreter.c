@@ -274,6 +274,11 @@ static void execute(State *state)
             }
             break;
 
+        case OP_JUMP:
+            offset = ByteVectorReadPackUint(state->bytecode, &state->ip);
+            state->ip += offset;
+            break;
+
         case OP_INVOKE_NATIVE:
             function = (nativefunctionref)ByteVectorRead(state->bytecode,
                                                          &state->ip);
