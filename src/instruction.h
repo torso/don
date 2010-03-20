@@ -1,13 +1,15 @@
-enum ControlInstruction
+#define INSTRUCTION_H
+
+typedef enum
 {
     OP_RETURN,
     OP_BRANCH,
     OP_JUMP,
     OP_INVOKE_NATIVE,
     OP_COND_INVOKE
-};
+} ControlInstruction;
 
-enum DataInstruction
+typedef enum
 {
     DATAOP_NULL,
     DATAOP_TRUE,
@@ -17,5 +19,6 @@ enum DataInstruction
     DATAOP_PARAMETER,
     DATAOP_RETURN,
     DATAOP_STACKFRAME_ABSOLUTE,
-    DATAOP_STACKFRAME_NATIVE
-};
+    DATAOP_STACKFRAME_NATIVE,
+    DATAOP_EQUALS
+} DataInstruction;

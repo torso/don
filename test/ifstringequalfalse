@@ -1,0 +1,5 @@
+default:
+    if "A" == "B"
+        echo("FALSE")
+    else
+        echo("PASS")

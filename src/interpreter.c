@@ -80,16 +80,24 @@ static uint getValueOffset(uint bp, uint value)
     return bp + value * VALUE_ENTRY_SIZE;
 }
 
-static uint getValueType(const State *state, uint bp, uint value)
+static uint getValueType(const State *state, uint valueOffset)
 {
-    return IntVectorGet(&state->values,
-                        getValueOffset(bp, value) + VALUE_OFFSET_TYPE);
+    return IntVectorGet(&state->values, valueOffset + VALUE_OFFSET_TYPE);
 }
 
-static uint getValue(const State *state, uint bp, uint value)
+static uint getLocalValueType(const State *state, uint bp, uint value)
 {
-    return IntVectorGet(&state->values,
-                        getValueOffset(bp, value) + VALUE_OFFSET_VALUE);
+    return getValueType(state, getValueOffset(bp, value));
+}
+
+static uint getValue(const State *state, uint valueOffset)
+{
+    return IntVectorGet(&state->values, valueOffset + VALUE_OFFSET_VALUE);
+}
+
+static uint getLocalValue(const State *state, uint bp, uint value)
+{
+    return getValue(state, getValueOffset(bp, value));
 }
 
 static void setValue(State *state, uint bp, uint valueIndex,
@@ -98,6 +106,14 @@ static void setValue(State *state, uint bp, uint valueIndex,
     uint offset = getValueOffset(bp, valueIndex);
     IntVectorSet(&state->values, offset + VALUE_OFFSET_TYPE, type);
     IntVectorSet(&state->values, offset + VALUE_OFFSET_VALUE, value);
+}
+
+static uint readRelativeValueOffset(State *state, uint valueOffset,
+                                    uint *bytecodeOffset)
+{
+    return valueOffset -
+        ByteVectorReadPackUint(state->valueBytecode,
+                               bytecodeOffset) * VALUE_ENTRY_SIZE;
 }
 
 static void evaluateValue(State *state, uint valueOffset)
@@ -129,24 +145,26 @@ static void evaluateValue(State *state, uint valueOffset)
             break;
 
         case DATAOP_PHI_VARIABLE:
-            condition = ByteVectorReadPackUint(state->valueBytecode, &value);
-            value1 = ByteVectorReadPackUint(state->valueBytecode, &value);
-            value2 = ByteVectorGetPackUint(state->valueBytecode, value);
-            evaluateValue(state, valueOffset - condition * VALUE_ENTRY_SIZE);
-            assert(IntVectorGet(&state->values,
-                                valueOffset - condition * VALUE_ENTRY_SIZE +
-                                VALUE_OFFSET_TYPE) ==
-                   VALUE_BOOLEAN);
-            value = IntVectorGet(&state->values,
-                                 valueOffset - condition * VALUE_ENTRY_SIZE +
-                                 VALUE_OFFSET_VALUE) ? value2 : value1;
-            evaluateValue(state, valueOffset - value * VALUE_ENTRY_SIZE);
-            type = IntVectorGet(
-                &state->values,
-                valueOffset - value * VALUE_ENTRY_SIZE + VALUE_OFFSET_TYPE);
-            value = IntVectorGet(
-                &state->values,
-                valueOffset - value * VALUE_ENTRY_SIZE + VALUE_OFFSET_VALUE);
+            condition = readRelativeValueOffset(state, valueOffset, &value);
+            value1 = readRelativeValueOffset(state, valueOffset, &value);
+            value2 = readRelativeValueOffset(state, valueOffset, &value);
+            evaluateValue(state, condition);
+            assert(getValueType(state, condition) == VALUE_BOOLEAN);
+            value = getValue(state, condition) ? value2 : value1;
+            evaluateValue(state, value);
+            type = getValueType(state, value);
+            value = getValue(state, value);
+            break;
+
+        case DATAOP_EQUALS:
+            value1 = readRelativeValueOffset(state, valueOffset, &value);
+            value2 = readRelativeValueOffset(state, valueOffset, &value);
+            evaluateValue(state, value1);
+            evaluateValue(state, value2);
+            type = VALUE_BOOLEAN;
+            value =
+                getValueType(state, value1) == getValueType(state, value2) &&
+                getValue(state, value1) == getValue(state, value2);
             break;
 
         default:
@@ -171,13 +189,13 @@ static void evaluateValue(State *state, uint valueOffset)
 static void copyValue(State *state, uint sourceBP, uint sourceValue,
                       uint destBP, uint destValue)
 {
-    uint type = getValueType(state, sourceBP, sourceValue);
+    uint type = getLocalValueType(state, sourceBP, sourceValue);
 
     if (type != VALUE_UNEVALUATED)
     {
         setValue(state, destBP, destValue,
-                 getValueType(state, sourceBP, sourceValue),
-                 getValue(state, sourceBP, sourceValue));
+                 getLocalValueType(state, sourceBP, sourceValue),
+                 getLocalValue(state, sourceBP, sourceValue));
     }
     else
     {
@@ -189,8 +207,8 @@ static void copyValue(State *state, uint sourceBP, uint sourceValue,
 static boolean getBooleanValue(State *state, uint bp, uint valueIndex)
 {
     evaluateValue(state, getValueOffset(bp, valueIndex));
-    assert(getValueType(state, bp, valueIndex) == VALUE_BOOLEAN);
-    return (boolean)getValue(state, bp, valueIndex);
+    assert(getLocalValueType(state, bp, valueIndex) == VALUE_BOOLEAN);
+    return (boolean)getLocalValue(state, bp, valueIndex);
 }
 
 static void createStackframe(State *state, uint ip, uint argumentCount)
@@ -233,8 +251,9 @@ static void invokeNative(State* state, nativefunctionref function)
     if (function == 0)
     {
         evaluateValue(state, getValueOffset(state->bp, 0));
-        assert(getValueType(state, state->bp, 0) == VALUE_STRING);
-        printf("%s\n", StringPoolGetString((stringref)getValue(state, state->bp, 0)));
+        assert(getLocalValueType(state, state->bp, 0) == VALUE_STRING);
+        printf("%s\n", StringPoolGetString(
+                   (stringref)getLocalValue(state, state->bp, 0)));
     }
 }
 

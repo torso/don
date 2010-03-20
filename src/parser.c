@@ -7,6 +7,7 @@
 #include "targetindex.h"
 #include "log.h"
 #include "native.h"
+#include "instruction.h"
 #include "parser.h"
 #include "parsestate.h"
 
@@ -206,7 +207,7 @@ static boolean readExpectedOperator(ParseState *state, byte op)
 }
 
 
-static uint parseExpression(ParseState *state)
+static uint parseExpression2(ParseState *state)
 {
     stringref identifier;
     ParseStateCheck(state);
@@ -236,6 +237,30 @@ static uint parseExpression(ParseState *state)
     }
     statementError(state, "Invalid expression.");
     return 0;
+}
+
+static uint parseExpression(ParseState *state)
+{
+    uint value = parseExpression2(state);
+    uint value2;
+
+    if (state->failed)
+    {
+        return 0;
+    }
+    skipWhitespace(state);
+    if (readOperator(state, '='))
+    {
+        if (!readOperator(state, '='))
+        {
+            statementError(state, "Assignment not allowed here.");
+            return 0;
+        }
+        skipWhitespace(state);
+        value2 = parseExpression2(state);
+        value = ParseStateWriteBinaryOperation(state, DATAOP_EQUALS, value, value2);
+    }
+    return value;
 }
 
 static boolean parseInvocationRest(ParseState *state, stringref name)

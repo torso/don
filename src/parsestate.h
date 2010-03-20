@@ -10,6 +10,9 @@
 #ifndef NATIVE_H
 #error native.h not included
 #endif
+#ifndef INSTRUCTION_H
+#error instruction.h not included
+#endif
 
 #define PARSESTATE_H
 
@@ -85,6 +88,9 @@ extern nonnull uint ParseStateWriteTrueLiteral(ParseState *state);
 extern nonnull uint ParseStateWriteFalseLiteral(ParseState *state);
 extern nonnull uint ParseStateWriteStringLiteral(ParseState *state,
                                                  stringref value);
+extern nonnull uint ParseStateWriteBinaryOperation(ParseState *state,
+                                                   DataInstruction operation,
+                                                   uint value1, uint value2);
 
 extern nonnull boolean ParseStateWriteIf(ParseState *state, uint value);
 extern nonnull boolean ParseStateWriteWhile(ParseState *state, uint value);

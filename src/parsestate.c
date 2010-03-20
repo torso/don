@@ -5,8 +5,8 @@
 #include "stringpool.h"
 #include "fileindex.h"
 #include "native.h"
-#include "parsestate.h"
 #include "instruction.h"
+#include "parsestate.h"
 #include "log.h"
 
 #define LOCAL_OFFSET_IDENTIFIER 0
@@ -609,6 +609,20 @@ uint ParseStateWriteStringLiteral(ParseState *state, stringref value)
     ParseStateCheck(state);
     if (!ByteVectorAdd(getData(state), DATAOP_STRING) ||
         !ByteVectorAddPackUint(getData(state), (uint)value))
+    {
+        ParseStateSetFailed(state);
+    }
+    return getFunction(state)->valueCount++;
+}
+
+uint ParseStateWriteBinaryOperation(ParseState *state,
+                                    DataInstruction operation,
+                                    uint value1, uint value2)
+{
+    ParseStateCheck(state);
+    if (!ByteVectorAdd(getData(state), operation) ||
+        !ByteVectorAddPackUint(getData(state), value1) ||
+        !ByteVectorAddPackUint(getData(state), value2))
     {
         ParseStateSetFailed(state);
     }
