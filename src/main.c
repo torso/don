@@ -9,6 +9,16 @@
 #include "bytecodegenerator.h"
 #include "interpreter.h"
 
+#ifdef DEBUG
+#include <signal.h>
+
+void _assert(const char *expression, const char *file, int line)
+{
+    printf("Assertion failed: %s:%d: %s\n", file, line, expression);
+    raise(SIGABRT);
+}
+#endif
+
 int main(int argc, const char **argv)
 {
     int i;
