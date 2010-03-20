@@ -16,7 +16,7 @@ typedef struct
 static FileEntry fileIndex[16];
 static uint fileCount = 0;
 
-void FileIndexFree(void)
+void FileIndexDispose(void)
 {
     while (fileCount > 0)
     {

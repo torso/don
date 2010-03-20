@@ -31,7 +31,7 @@ void ByteVectorInit(bytevector *v)
     v->size = 0;
 }
 
-void ByteVectorFree(bytevector *v)
+void ByteVectorDispose(bytevector *v)
 {
     free(v->data);
     v->data = null;

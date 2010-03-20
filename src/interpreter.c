@@ -307,6 +307,6 @@ void InterpreterExecute(const bytevector *restrict bytecode,
         dumpState(&state);
     }
 
-    IntVectorFree(&state.values);
-    IntVectorFree(&state.stack);
+    IntVectorDispose(&state.values);
+    IntVectorDispose(&state.stack);
 }

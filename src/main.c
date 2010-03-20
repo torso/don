@@ -25,13 +25,13 @@ static bytevector valueBytecode;
 
 static void cleanup(void)
 {
-    ByteVectorFree(&parsed);
-    ByteVectorFree(&bytecode);
-    ByteVectorFree(&valueBytecode);
+    ByteVectorDispose(&parsed);
+    ByteVectorDispose(&bytecode);
+    ByteVectorDispose(&valueBytecode);
 
-    TargetIndexFree();
-    FileIndexFree();
-    StringPoolFree();
+    TargetIndexDispose();
+    FileIndexDispose();
+    StringPoolDispose();
 }
 
 int main(int argc, const char **argv)
@@ -127,7 +127,7 @@ int main(int argc, const char **argv)
     NativeWriteBytecode(&bytecode, &valueBytecode);
     BytecodeGeneratorExecute(&parsed, &bytecode, &valueBytecode);
     TargetIndexDisposeParsed();
-    ByteVectorFree(&parsed);
+    ByteVectorDispose(&parsed);
 
     InterpreterExecute(&bytecode, &valueBytecode, target);
 

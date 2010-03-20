@@ -9,7 +9,7 @@ typedef struct
 extern nonnull void IntVectorInit(intvector *v);
 extern nonnull void IntVectorInitCopy(intvector *restrict v,
                                       const intvector *restrict data);
-extern nonnull void IntVectorFree(intvector *v);
+extern nonnull void IntVectorDispose(intvector *v);
 extern nonnull uint IntVectorSize(const intvector *v);
 extern nonnull void IntVectorSetSize(intvector *v, uint size);
 extern nonnull void IntVectorCopy(

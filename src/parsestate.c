@@ -137,7 +137,7 @@ static Block *createBlock(ParseState *state, Block *unfinished)
 
 static void disposeBlock(Block *block)
 {
-    IntVectorFree(&block->locals);
+    IntVectorDispose(&block->locals);
     if (block->parent)
     {
         free(block);
@@ -170,8 +170,8 @@ static void disposeCurrentFunction(ParseState *state)
     {
         disposeCurrentBlock(state);
     }
-    ByteVectorFree(&function->data);
-    ByteVectorFree(&function->control);
+    ByteVectorDispose(&function->data);
+    ByteVectorDispose(&function->control);
     state->currentFunction = function->parent;
     if (function->parent)
     {

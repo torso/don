@@ -78,7 +78,7 @@ void StringPoolInit(void)
     table[TABLE_SIZE] = 1024;
 }
 
-void StringPoolFree(void)
+void StringPoolDispose(void)
 {
     free(stringData);
     free(table);

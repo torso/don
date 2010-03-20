@@ -7,7 +7,7 @@ typedef struct
 } bytevector;
 
 extern nonnull void ByteVectorInit(bytevector *v);
-extern nonnull void ByteVectorFree(bytevector *v);
+extern nonnull void ByteVectorDispose(bytevector *v);
 extern nonnull uint ByteVectorSize(const bytevector *v);
 extern nonnull void ByteVectorSetSize(bytevector *v, uint size);
 extern nonnull void ByteVectorCopy(

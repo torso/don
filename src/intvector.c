@@ -39,7 +39,7 @@ void IntVectorInitCopy(intvector *restrict v, const intvector *restrict data)
     v->size = data->size;
 }
 
-void IntVectorFree(intvector *v)
+void IntVectorDispose(intvector *v)
 {
     free(v->data);
     v->data = null;

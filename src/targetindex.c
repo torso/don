@@ -164,7 +164,7 @@ void TargetIndexInit(void)
     IntVectorInit(&unsortedTable);
 }
 
-void TargetIndexFree(void)
+void TargetIndexDispose(void)
 {
     TargetIndexDisposeParsed();
     free(table);
@@ -285,7 +285,7 @@ void TargetIndexFinish(void)
     table = (uint*)malloc((tableSize + targetCount) * sizeof(uint));
     assert(table); /* TODO: handle oom */
     sortIndex();
-    IntVectorFree(&unsortedTable);
+    IntVectorDispose(&unsortedTable);
     bytecodeTable = &table[tableSize];
     memset(bytecodeTable, 0, tableSize * targetCount);
     parsedTable = (uint*)malloc(targetCount * sizeof(uint));

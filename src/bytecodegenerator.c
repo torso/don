@@ -785,8 +785,8 @@ static void writeBytecode(State *restrict state,
 
         dataOffset += OFFSET_ENTRY_SIZE + valueCount * VALUE_ENTRY_SIZE;
     }
-    IntVectorFree(&branchOffsets);
-    IntVectorFree(&branches);
+    IntVectorDispose(&branchOffsets);
+    IntVectorDispose(&branches);
 }
 
 void BytecodeGeneratorExecute(bytevector *restrict parsed,
@@ -827,5 +827,5 @@ void BytecodeGeneratorExecute(bytevector *restrict parsed,
         dumpBytecode(bytecode);
     }
 
-    IntVectorFree(&state.data);
+    IntVectorDispose(&state.data);
 }
