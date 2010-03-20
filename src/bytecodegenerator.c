@@ -1,4 +1,4 @@
-#include <stdlib.h>
+#include <stdio.h>
 #include "builder.h"
 #include "bytevector.h"
 #include "intvector.h"
@@ -7,6 +7,10 @@
 #include "targetindex.h"
 #include "instruction.h"
 #include "bytecodegenerator.h"
+
+static const uint DUMP_PARSED = 0;
+static const uint DUMP_BYTECODE = 0;
+static const uint DUMP_STATE = 0;
 
 typedef struct
 {
@@ -29,7 +33,6 @@ static const uint VALUE_USED_UNALLOCATED = (uint)-1;
 
 static void dumpParsed(const bytevector *parsed)
 {
-#ifdef DEBUG
     uint ip;
     uint readIndex;
     uint dataStart;
@@ -158,12 +161,10 @@ static void dumpParsed(const bytevector *parsed)
             }
         }
     }
-#endif
 }
 
 static void dumpValueBytecode(const bytevector *bytecode)
 {
-#ifdef DEBUG
     uint readIndex;
     uint valueOffset;
     uint condition;
@@ -222,12 +223,10 @@ static void dumpValueBytecode(const bytevector *bytecode)
             break;
         }
     }
-#endif
 }
 
 static void dumpBytecode(const bytevector *bytecode)
 {
-#ifdef DEBUG
     uint ip;
     uint readIndex;
     byte op;
@@ -305,7 +304,6 @@ static void dumpBytecode(const bytevector *bytecode)
             }
         }
     }
-#endif
 }
 
 static uint getParsedOffset(const State *state, uint dataOffset)
@@ -415,7 +413,6 @@ static void useValue(State *state, uint dataOffset, uint value)
 
 static void dumpState(const State *state)
 {
-#ifdef DEBUG
     uint dataOffset = 0;
     uint valueCount;
     uint value;
@@ -433,7 +430,6 @@ static void dumpState(const State *state)
         }
         dataOffset += OFFSET_ENTRY_SIZE + valueCount * VALUE_ENTRY_SIZE;
     }
-#endif
 }
 
 static void markUsedValues(State *state)
@@ -800,7 +796,10 @@ void BytecodeGeneratorExecute(bytevector *restrict parsed,
     State state;
     uint target;
 
-    dumpParsed(parsed);
+    if (DUMP_PARSED)
+    {
+        dumpParsed(parsed);
+    }
 
     state.parsed = parsed;
     IntVectorInit(&state.data);
@@ -818,9 +817,15 @@ void BytecodeGeneratorExecute(bytevector *restrict parsed,
                               TargetIndexGetParsedOffset((targetref)target))));
     }
 
-    dumpState(&state);
-    dumpValueBytecode(valueBytecode);
-    dumpBytecode(bytecode);
+    if (DUMP_STATE)
+    {
+        dumpState(&state);
+    }
+    if (DUMP_BYTECODE)
+    {
+        dumpValueBytecode(valueBytecode);
+        dumpBytecode(bytecode);
+    }
 
     IntVectorFree(&state.data);
 }

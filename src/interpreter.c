@@ -1,4 +1,4 @@
-#include <stdlib.h>
+#include <stdio.h>
 #include "builder.h"
 #include "bytevector.h"
 #include "intvector.h"
@@ -8,6 +8,8 @@
 #include "interpreter.h"
 #include "instruction.h"
 #include "native.h"
+
+static const uint DUMP_STATE = 0;
 
 #define VALUE_ENTRY_SIZE 2
 #define VALUE_OFFSET_TYPE 0
@@ -33,7 +35,6 @@ typedef struct
 
 static void dumpState(const State *state)
 {
-#ifdef DEBUG
     uint valueIndex;
     uint type;
     uint value;
@@ -72,7 +73,6 @@ static void dumpState(const State *state)
             break;
         }
     }
-#endif
 }
 
 static uint getValueOffset(uint bp, uint value)
@@ -108,11 +108,9 @@ static void evaluateValue(State *state, uint valueOffset)
     uint value1;
     uint value2;
 
-    printf("Evaluate %d\n", valueOffset);
     switch (IntVectorGet(&state->values, valueOffset + VALUE_OFFSET_TYPE))
     {
     case VALUE_UNEVALUATED:
-        printf(" Evaluate ip=%d op=%d\n", value, ByteVectorGet(state->valueBytecode, value));
         switch (ByteVectorRead(state->valueBytecode, &value))
         {
         case DATAOP_TRUE:
@@ -135,7 +133,6 @@ static void evaluateValue(State *state, uint valueOffset)
             value1 = ByteVectorReadPackUint(state->valueBytecode, &value);
             value2 = ByteVectorGetPackUint(state->valueBytecode, value);
             evaluateValue(state, valueOffset - condition * VALUE_ENTRY_SIZE);
-            printf("condition: %d %d %d %d\n", valueOffset, condition, valueOffset - condition * VALUE_ENTRY_SIZE, IntVectorGet(&state->values, valueOffset - condition * VALUE_ENTRY_SIZE));
             assert(IntVectorGet(&state->values,
                                 valueOffset - condition * VALUE_ENTRY_SIZE +
                                 VALUE_OFFSET_TYPE) ==
@@ -154,7 +151,7 @@ static void evaluateValue(State *state, uint valueOffset)
 
         default:
             assert(false);
-            break;
+            return;
         }
         break;
 
@@ -167,7 +164,6 @@ static void evaluateValue(State *state, uint valueOffset)
     default:
         return;
     }
-    printf("evaluate %d, result: %d:%d\n", valueOffset, type, value);
     IntVectorSet(&state->values, valueOffset + VALUE_OFFSET_TYPE, type);
     IntVectorSet(&state->values, valueOffset + VALUE_OFFSET_VALUE, value);
 }
@@ -177,9 +173,6 @@ static void copyValue(State *state, uint sourceBP, uint sourceValue,
 {
     uint type = getValueType(state, sourceBP, sourceValue);
 
-    printf("Copying value %d:%d to %d:%d value: %d:%d\n", sourceBP, sourceValue,
-           destBP, destValue, getValueType(state, sourceBP, sourceValue),
-           getValue(state, sourceBP, sourceValue));
     if (type != VALUE_UNEVALUATED)
     {
         setValue(state, destBP, destValue,
@@ -208,7 +201,6 @@ static void createStackframe(State *state, uint ip, uint argumentCount)
     uint parentBP = state->bp;
 
     state->bp = IntVectorSize(&state->values);
-    printf("Creating stackframe for function ip=%d bp=%d values=%d arguments=%d\n", ip, state->bp, ByteVectorGetPackUint(state->bytecode, ip), argumentCount);
     valueCount = ByteVectorReadPackUint(state->bytecode, &ip);
     for (value = 0; value < valueCount; value++)
     {
@@ -238,14 +230,12 @@ static void destroyStackframe(State *state)
 
 static void invokeNative(State* state, nativefunctionref function)
 {
-    dumpState(state);
     if (function == 0)
     {
         evaluateValue(state, getValueOffset(state->bp, 0));
         assert(getValueType(state, state->bp, 0) == VALUE_STRING);
         printf("%s\n", StringPoolGetString((stringref)getValue(state, state->bp, 0)));
     }
-    dumpState(state);
 }
 
 static void execute(State *state)
@@ -258,7 +248,6 @@ static void execute(State *state)
 
     for (;;)
     {
-        printf("execute, ip=%d bp=%d\n", state->ip, state->bp);
         switch (ByteVectorRead(state->bytecode, &state->ip))
         {
         case OP_RETURN:
@@ -311,9 +300,12 @@ void InterpreterExecute(const bytevector *restrict bytecode,
     state.valueBytecode = valueBytecode;
     IntVectorInit(&state.values);
     IntVectorInit(&state.stack);
-    printf("Execute target=%d offset=%d\n", target, state.ip);
 
     execute(&state);
+    if (DUMP_STATE)
+    {
+        dumpState(&state);
+    }
 
     IntVectorFree(&state.values);
     IntVectorFree(&state.stack);

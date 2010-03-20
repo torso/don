@@ -77,7 +77,6 @@ int main(int argc, const char **argv)
     {
         inputFilename = "build.don";
     }
-    printf("input=%s\n", inputFilename);
 
     StringPoolInit();
     ParserAddKeywords();
@@ -97,7 +96,6 @@ int main(int argc, const char **argv)
     {
         assert(false); /* TODO: Error handling */
     }
-    printf("Parsed offset=%d\n", TargetIndexGetParsedOffset(target));
 
     ByteVectorInit(&bytecode);
     ByteVectorInit(&valueBytecode);
