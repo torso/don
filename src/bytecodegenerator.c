@@ -23,8 +23,8 @@ static const uint VALUE_ENTRY_SIZE = 2;
 static const uint OFFSET_VALUE_OFFSET = 0;
 static const uint OFFSET_VALUE_NEWINDEX = 1;
 
-static const int VALUE_UNUSED = -2;
-static const int VALUE_USED_UNALLOCATED = -1;
+static const uint VALUE_UNUSED = (uint)-2;
+static const uint VALUE_USED_UNALLOCATED = (uint)-1;
 
 
 static void dumpParsed(const bytevector *parsed)
@@ -298,19 +298,19 @@ static void dumpBytecode(const bytevector *bytecode)
 
 static uint getParsedOffset(const State *state, uint dataOffset)
 {
-    return (uint)IntVectorGet(&state->data, dataOffset + OFFSET_PARSED_OFFSET);
+    return IntVectorGet(&state->data, dataOffset + OFFSET_PARSED_OFFSET);
 }
 
 static uint getBytecodeOffset(const State *state, uint dataOffset)
 {
-    return (uint)IntVectorGet(&state->data, dataOffset + OFFSET_BYTECODE_OFFSET);
+    return IntVectorGet(&state->data, dataOffset + OFFSET_BYTECODE_OFFSET);
 }
 
 static void setBytecodeOffset(State *state, uint dataOffset,
                               uint bytecodeOffset)
 {
     IntVectorSet(&state->data, dataOffset + OFFSET_BYTECODE_OFFSET,
-                 (int)bytecodeOffset);
+                 bytecodeOffset);
 }
 
 static uint getDataOffset(const State *state, uint parsedOffset)
@@ -332,9 +332,9 @@ static void checkValueIndex(const State *state, uint dataOffset, uint value)
 static uint getValueOffset(const State *state, uint dataOffset, uint value)
 {
     checkValueIndex(state, dataOffset, value);
-    return (uint)IntVectorGet(&state->data,
-                              dataOffset + value * VALUE_ENTRY_SIZE +
-                              OFFSET_VALUES + OFFSET_VALUE_OFFSET);
+    return IntVectorGet(&state->data,
+                        dataOffset + value * VALUE_ENTRY_SIZE +
+                        OFFSET_VALUES + OFFSET_VALUE_OFFSET);
 }
 
 static uint getValueInstruction(const State *state, uint dataOffset, uint value)
@@ -343,7 +343,7 @@ static uint getValueInstruction(const State *state, uint dataOffset, uint value)
                          getValueOffset(state, dataOffset, value));
 }
 
-static int getNewIndex(const State *state, uint dataOffset, uint value)
+static uint getNewIndex(const State *state, uint dataOffset, uint value)
 {
     checkValueIndex(state, dataOffset, value);
     return IntVectorGet(&state->data,
@@ -351,7 +351,7 @@ static int getNewIndex(const State *state, uint dataOffset, uint value)
                         OFFSET_VALUES + OFFSET_VALUE_NEWINDEX);
 }
 
-static void setNewIndex(State *state, uint dataOffset, uint value, int newIndex)
+static void setNewIndex(State *state, uint dataOffset, uint value, uint newIndex)
 {
     checkValueIndex(state, dataOffset, value);
     IntVectorSet(&state->data,
@@ -438,7 +438,7 @@ static void markUsedValues(State *state)
     for (readIndex = 0; readIndex < ByteVectorSize(state->parsed);)
     {
         dataOffset = IntVectorSize(&state->data);
-        IntVectorAdd(&state->data, (int)readIndex); /* PARSED_OFFSET */
+        IntVectorAdd(&state->data, readIndex); /* PARSED_OFFSET */
         IntVectorAdd(&state->data, 0); /* BYTECODE_OFFSET */
 
         ByteVectorWriteUint(state->parsed, &readIndex, dataOffset);
@@ -448,7 +448,7 @@ static void markUsedValues(State *state)
 
         for (stop = readIndex + dataSize, value = 0; readIndex < stop;)
         {
-            IntVectorAdd(&state->data, (int)readIndex); /* VALUE_OFFSET */
+            IntVectorAdd(&state->data, readIndex); /* VALUE_OFFSET */
             IntVectorAdd(&state->data, VALUE_UNUSED); /* VALUE_NEWINDEX */
             switch (ByteVectorRead(state->parsed, &readIndex))
             {
@@ -537,14 +537,14 @@ static void allocateValues(State *restrict state)
                 getValueInstruction(state, dataOffset, value) ==
                 DATAOP_PARAMETER)
             {
-                setNewIndex(state, dataOffset, value, (int)newValue++);
+                setNewIndex(state, dataOffset, value, newValue++);
             }
         }
         for (value = 0; value < valueCount; value++)
         {
             if (getNewIndex(state, dataOffset, value) == VALUE_USED_UNALLOCATED)
             {
-                setNewIndex(state, dataOffset, value, (int)newValue++);
+                setNewIndex(state, dataOffset, value, newValue++);
             }
         }
 
@@ -577,16 +577,16 @@ static void writeValue(State *restrict state,
         ByteVectorAdd(valueBytecode, DATAOP_PHI_VARIABLE);
         ByteVectorAddPackUint(
             valueBytecode,
-            (uint)getNewIndex(state, dataOffset,
-                              ByteVectorReadUint(state->parsed, &offset)));
+            getNewIndex(state, dataOffset,
+                        ByteVectorReadUint(state->parsed, &offset)));
         ByteVectorAddPackUint(
             valueBytecode,
-            (uint)getNewIndex(state, dataOffset,
-                              ByteVectorReadUint(state->parsed, &offset)));
+            getNewIndex(state, dataOffset,
+                        ByteVectorReadUint(state->parsed, &offset)));
         ByteVectorAddPackUint(
             valueBytecode,
-            (uint)getNewIndex(state, dataOffset,
-                              ByteVectorReadUint(state->parsed, &offset)));
+            getNewIndex(state, dataOffset,
+                        ByteVectorReadUint(state->parsed, &offset)));
         break;
     case DATAOP_PARAMETER:
         ByteVectorAdd(valueBytecode, DATAOP_PARAMETER);
@@ -599,10 +599,10 @@ static void writeValue(State *restrict state,
         returnIndex = ByteVectorReadPackUint(state->parsed, &offset);
         ByteVectorAddPackUint(
             valueBytecode,
-            (uint)getNewIndex(state, dataOffset, stackframe));
+            getNewIndex(state, dataOffset, stackframe));
         ByteVectorAddPackUint(
             valueBytecode,
-            (uint)getNewIndex(
+            getNewIndex(
                 state,
                 ByteVectorGetPackUint(state->parsed,
                                       getValueOffset(state, dataOffset,
@@ -675,7 +675,7 @@ static void writeBytecode(State *restrict state,
         {
             for (value = 0; value < valueCount; value++)
             {
-                if ((uint)getNewIndex(state, dataOffset, value) == newValue)
+                if (getNewIndex(state, dataOffset, value) == newValue)
                 {
                     if (isUsed(state, dataOffset, value))
                     {
@@ -694,7 +694,7 @@ static void writeBytecode(State *restrict state,
         for (stop = readIndex + controlSize; readIndex < stop;)
         {
             IntVectorSet(&branchOffsets, readIndex - parsedControlBase,
-                         (int)(ByteVectorSize(bytecode) - bytecodeControlBase));
+                         ByteVectorSize(bytecode) - bytecodeControlBase);
             op = ByteVectorRead(state->parsed, &readIndex);
             ByteVectorAdd(bytecode, op);
             switch (op)
@@ -704,12 +704,12 @@ static void writeBytecode(State *restrict state,
             case OP_BRANCH:
                 ByteVectorAddPackUint(
                     bytecode,
-                    (uint)getNewIndex(state, dataOffset,
-                                      ByteVectorReadPackUint(state->parsed,
-                                                             &readIndex)));
+                    getNewIndex(state, dataOffset,
+                                ByteVectorReadPackUint(state->parsed,
+                                                       &readIndex)));
                 /* fallthrough */
             case OP_JUMP:
-                IntVectorAdd(&branches, (int)ByteVectorSize(bytecode));
+                IntVectorAdd(&branches, ByteVectorSize(bytecode));
                 target = ByteVectorReadUint(state->parsed, &readIndex);
                 ByteVectorAddPackUint(bytecode,
                                       readIndex - parsedControlBase + target);
@@ -719,9 +719,9 @@ static void writeBytecode(State *restrict state,
                     bytecode, ByteVectorRead(state->parsed, &readIndex));
                 ByteVectorAddPackUint(
                     bytecode,
-                    (uint)getNewIndex(state, dataOffset,
-                                      ByteVectorReadPackUint(state->parsed,
-                                                             &readIndex)));
+                    getNewIndex(state, dataOffset,
+                                ByteVectorReadPackUint(state->parsed,
+                                                       &readIndex)));
                 argumentCount = ByteVectorReadPackUint(state->parsed,
                                                        &readIndex);
                 ByteVectorAddPackUint(bytecode, argumentCount);
@@ -729,9 +729,9 @@ static void writeBytecode(State *restrict state,
                 {
                     ByteVectorAddPackUint(
                         bytecode,
-                        (uint)getNewIndex(state, dataOffset,
-                                          ByteVectorReadUint(state->parsed,
-                                                             &readIndex)));
+                        getNewIndex(state, dataOffset,
+                                    ByteVectorReadUint(state->parsed,
+                                                       &readIndex)));
                 }
                 break;
             case OP_COND_INVOKE:
@@ -740,9 +740,9 @@ static void writeBytecode(State *restrict state,
                     ByteVectorReadPackUint(state->parsed, &readIndex));
                 ByteVectorAddPackUint(
                     bytecode,
-                    (uint)getNewIndex(state, dataOffset,
-                                      ByteVectorReadPackUint(state->parsed,
-                                                             &readIndex)));
+                    getNewIndex(state, dataOffset,
+                                ByteVectorReadPackUint(state->parsed,
+                                                       &readIndex)));
                 argumentCount = ByteVectorReadPackUint(state->parsed,
                                                        &readIndex);
                 ByteVectorAddPackUint(bytecode, argumentCount);
@@ -750,9 +750,9 @@ static void writeBytecode(State *restrict state,
                 {
                     ByteVectorAddPackUint(
                         bytecode,
-                        (uint)getNewIndex(state, dataOffset,
-                                          ByteVectorReadPackUint(state->parsed,
-                                                                 &readIndex)));
+                        getNewIndex(state, dataOffset,
+                                    ByteVectorReadPackUint(state->parsed,
+                                                           &readIndex)));
                 }
                 break;
             default:
@@ -764,10 +764,10 @@ static void writeBytecode(State *restrict state,
 
         for (i = IntVectorSize(&branches); i-- > 0;)
         {
-            branchOffset = (uint)IntVectorGet(&branches, i);
+            branchOffset = IntVectorGet(&branches, i);
             ByteVectorSetPackUint(
                 bytecode, branchOffset,
-                (uint)IntVectorGet(
+                IntVectorGet(
                     &branchOffsets,
                     ByteVectorGetPackUint(bytecode, branchOffset)) -
                 branchOffset + bytecodeControlBase -

@@ -11,8 +11,8 @@ typedef int targetref;
 
 extern void TargetIndexInit(void);
 extern void TargetIndexFree(void);
-extern targetref TargetIndexAdd(stringref name, fileref file, int line,
-                                int offset);
+extern targetref TargetIndexAdd(stringref name, fileref file, uint line,
+                                uint offset);
 extern pure uint TargetIndexGetTargetCount(void);
 extern pure targetref TargetIndexGet(stringref name);
 extern pure stringref TargetIndexGetName(targetref target);

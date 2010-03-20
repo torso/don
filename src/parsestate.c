@@ -123,7 +123,7 @@ static Block *createBlock(ParseState *state, Block *unfinished)
                 IntVectorAdd4(
                     locals,
                     IntVectorGet(unfinishedLocals, i + LOCAL_OFFSET_IDENTIFIER),
-                    (int)getFunction(state)->valueCount++, 0, 0);
+                    getFunction(state)->valueCount++, 0, 0);
                 ByteVectorAdd(getData(state), DATAOP_NULL);
             }
         }
@@ -209,10 +209,10 @@ static uint getLocal(ParseState *state, Function *function, stringref name)
     index = getLocalIndex(locals, name);
     if (index < IntVectorSize(locals))
     {
-        return (uint)IntVectorGet(locals, index + LOCAL_OFFSET_VALUE);
+        return IntVectorGet(locals, index + LOCAL_OFFSET_VALUE);
     }
     value = function->valueCount++;
-    IntVectorAdd4(locals, (int)name, (int)value, LOCAL_FLAG_ACCESSED, 0);
+    IntVectorAdd4(locals, (uint)name, value, LOCAL_FLAG_ACCESSED, 0);
     if (!function->parent)
     {
         success = ByteVectorAdd(&function->data, DATAOP_NULL);
@@ -221,7 +221,7 @@ static uint getLocal(ParseState *state, Function *function, stringref name)
     }
     function->parameterCount++;
     if (!ByteVectorAdd(&function->data, DATAOP_PARAMETER) ||
-        !ByteVectorAddPackInt(&function->data, (int)name))
+        !ByteVectorAddPackUint(&function->data, (uint)name))
     {
         ParseStateSetFailed(state);
     }
@@ -263,8 +263,8 @@ static boolean finishIfBlockNoElse(ParseState *state)
     intvector *locals;
     intvector *oldLocals;
     uint i;
-    int flags;
-    int oldFlags;
+    uint flags;
+    uint oldFlags;
 
     ParseStateCheck(state);
     assert(getBlock(state));
@@ -281,7 +281,7 @@ static boolean finishIfBlockNoElse(ParseState *state)
         {
             IntVectorAdd4(oldLocals,
                           IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER),
-                          (int)getFunction(state)->valueCount++, 0, 0);
+                          getFunction(state)->valueCount++, 0, 0);
             if (!ByteVectorAdd(getData(state), DATAOP_NULL))
             {
                 return false;
@@ -294,16 +294,16 @@ static boolean finishIfBlockNoElse(ParseState *state)
                 !ByteVectorAddUint(getData(state), block->condition) ||
                 !ByteVectorAddUint(
                     getData(state),
-                    (uint)IntVectorGet(oldLocals,
-                                       i + LOCAL_OFFSET_VALUE)) ||
+                    IntVectorGet(oldLocals,
+                                 i + LOCAL_OFFSET_VALUE)) ||
                 !ByteVectorAddUint(
                     getData(state),
-                    (uint)IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
+                    IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
             {
                 return false;
             }
             IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE,
-                         (int)getFunction(state)->valueCount++);
+                         getFunction(state)->valueCount++);
             IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS,
                          oldFlags | LOCAL_FLAG_MODIFIED);
         }
@@ -322,8 +322,8 @@ static boolean finishIfBlockWithElse(ParseState *state)
     intvector *oldLocals;
     intvector *unfinishedLocals;
     uint i;
-    int flags;
-    int oldFlags;
+    uint flags;
+    uint oldFlags;
 
     ParseStateCheck(state);
     assert(getBlock(state));
@@ -342,7 +342,7 @@ static boolean finishIfBlockWithElse(ParseState *state)
         {
             IntVectorAdd4(oldLocals,
                           IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER),
-                          (int)getFunction(state)->valueCount++, 0, 0);
+                          getFunction(state)->valueCount++, 0, 0);
             if (!ByteVectorAdd(getData(state), DATAOP_NULL))
             {
                 return false;
@@ -360,17 +360,17 @@ static boolean finishIfBlockWithElse(ParseState *state)
                                    block->unfinished->condition) ||
                 !ByteVectorAddUint(
                     getData(state),
-                    (uint)IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
+                    IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
                 !ByteVectorAddUint(
                     getData(state),
-                    (uint)IntVectorGet(IntVectorSize(unfinishedLocals) > i ?
-                                       unfinishedLocals : oldLocals,
-                                       i + LOCAL_OFFSET_VALUE)))
+                    IntVectorGet(IntVectorSize(unfinishedLocals) > i ?
+                                 unfinishedLocals : oldLocals,
+                                 i + LOCAL_OFFSET_VALUE)))
             {
                 return false;
             }
             IntVectorSet(oldLocals, i + LOCAL_OFFSET_VALUE,
-                         (int)getFunction(state)->valueCount++);
+                         getFunction(state)->valueCount++);
             IntVectorSet(oldLocals, i + LOCAL_OFFSET_FLAGS,
                          oldFlags | LOCAL_FLAG_MODIFIED);
         }
@@ -394,7 +394,7 @@ static boolean finishLoopBlock(ParseState *restrict state,
     stringref name;
     uint i;
     uint index;
-    int flags;
+    uint flags;
     uint value;
     uint oldValue;
 
@@ -423,7 +423,7 @@ static boolean finishLoopBlock(ParseState *restrict state,
         {
             getLocal(state, function->parent, name);
         }
-        oldValue = (uint)IntVectorGet(oldLocals, index + LOCAL_OFFSET_VALUE);
+        oldValue = IntVectorGet(oldLocals, index + LOCAL_OFFSET_VALUE);
         if (flags & LOCAL_FLAG_ACCESSED)
         {
             if (!ByteVectorAddPackUint(parentControl, oldValue))
@@ -439,12 +439,12 @@ static boolean finishLoopBlock(ParseState *restrict state,
                                        function->stackframe) ||
                 !ByteVectorAddPackUint(
                     &function->parent->data,
-                    (uint)IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
+                    IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
             {
                 return false;
             }
             IntVectorSet(oldLocals, index + LOCAL_OFFSET_VALUE,
-                         (int)function->parent->valueCount++);
+                         function->parent->valueCount++);
             if (!ByteVectorAdd(&function->parent->data, DATAOP_PHI_VARIABLE) ||
                 !ByteVectorAddUint(&function->parent->data,
                                    function->firstBlock.condition) ||
@@ -553,8 +553,7 @@ uint ParseStateGetVariable(ParseState *state, stringref name)
     return getLocal(state, getFunction(state), name);
 }
 
-boolean ParseStateSetVariable(ParseState *state, stringref name,
-                              uint value)
+boolean ParseStateSetVariable(ParseState *state, stringref name, uint value)
 {
     uint i;
     intvector *locals = getLocals(state);
@@ -563,14 +562,14 @@ boolean ParseStateSetVariable(ParseState *state, stringref name,
     {
         if ((stringref)IntVectorGet(locals, i) == name)
         {
-            IntVectorSet(locals, i + LOCAL_OFFSET_VALUE, (int)value);
+            IntVectorSet(locals, i + LOCAL_OFFSET_VALUE, value);
             IntVectorSet(locals, i + LOCAL_OFFSET_FLAGS,
                          IntVectorGet(locals, i + LOCAL_OFFSET_FLAGS) |
                          LOCAL_FLAG_MODIFIED);
             return true;
         }
     }
-    IntVectorAdd4(locals, (int)name, (int)value, LOCAL_FLAG_MODIFIED, 0);
+    IntVectorAdd4(locals, (uint)name, value, LOCAL_FLAG_MODIFIED, 0);
     return true;
 }
 

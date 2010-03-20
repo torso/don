@@ -473,8 +473,8 @@ static boolean parseScript(ParseState *state)
     {
         if (peekIdentifier(state))
         {
-            TargetIndexAdd(readIdentifier(state), state->file, (int)state->line,
-                           (int)getOffset(state, state->start));
+            TargetIndexAdd(readIdentifier(state), state->file, state->line,
+                           getOffset(state, state->start));
             skipEndOfLine(state);
             inFunction = true;
         }
