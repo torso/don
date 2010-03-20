@@ -19,6 +19,21 @@ void _assert(const char *expression, const char *file, int line)
 }
 #endif
 
+static bytevector parsed;
+static bytevector bytecode;
+static bytevector valueBytecode;
+
+static void cleanup(void)
+{
+    ByteVectorFree(&parsed);
+    ByteVectorFree(&bytecode);
+    ByteVectorFree(&valueBytecode);
+
+    TargetIndexFree();
+    FileIndexFree();
+    StringPoolFree();
+}
+
 int main(int argc, const char **argv)
 {
     int i;
@@ -27,9 +42,6 @@ int main(int argc, const char **argv)
     fileref inputFile;
     targetref target;
     boolean parseOptions = true;
-    bytevector parsed;
-    bytevector bytecode;
-    bytevector valueBytecode;
 
     for (i = 1; i < argc; i++)
     {
@@ -91,24 +103,27 @@ int main(int argc, const char **argv)
     StringPoolInit();
     ParserAddKeywords();
     TargetIndexInit();
+    ByteVectorInit(&parsed);
+    ByteVectorInit(&bytecode);
+    ByteVectorInit(&valueBytecode);
+
     inputFile = FileIndexAdd(inputFilename);
     assert(inputFile);
     if (!ParseFile(inputFile))
     {
+        cleanup();
         assert(false); /* TODO: Error handling */
     }
     TargetIndexFinish();
 
-    ByteVectorInit(&parsed);
     target = TargetIndexGet(StringPoolAdd("default"));
     assert(target >= 0); /* TODO: Error handling for non-existing target */
     if (!ParseTarget(target, &parsed))
     {
+        cleanup();
         assert(false); /* TODO: Error handling */
     }
 
-    ByteVectorInit(&bytecode);
-    ByteVectorInit(&valueBytecode);
     NativeWriteBytecode(&bytecode, &valueBytecode);
     BytecodeGeneratorExecute(&parsed, &bytecode, &valueBytecode);
     TargetIndexDisposeParsed();
@@ -116,10 +131,6 @@ int main(int argc, const char **argv)
 
     InterpreterExecute(&bytecode, &valueBytecode, target);
 
-    ByteVectorFree(&bytecode);
-    ByteVectorFree(&valueBytecode);
-    TargetIndexFree();
-    FileIndexFree();
-    StringPoolFree();
+    cleanup();
     return 0;
 }

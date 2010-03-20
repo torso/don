@@ -166,6 +166,7 @@ void TargetIndexInit(void)
 
 void TargetIndexFree(void)
 {
+    TargetIndexDisposeParsed();
     free(table);
 }
 
@@ -294,4 +295,5 @@ void TargetIndexFinish(void)
 void TargetIndexDisposeParsed(void)
 {
     free(parsedTable);
+    parsedTable = null;
 }

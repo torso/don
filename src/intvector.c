@@ -42,6 +42,7 @@ void IntVectorInitCopy(intvector *restrict v, const intvector *restrict data)
 void IntVectorFree(intvector *v)
 {
     free(v->data);
+    v->data = null;
 }
 
 uint IntVectorSize(const intvector *v)

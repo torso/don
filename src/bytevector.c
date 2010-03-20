@@ -34,6 +34,7 @@ void ByteVectorInit(bytevector *v)
 void ByteVectorFree(bytevector *v)
 {
     free(v->data);
+    v->data = null;
 }
 
 uint ByteVectorSize(const bytevector *v)
