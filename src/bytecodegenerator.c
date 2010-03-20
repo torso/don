@@ -569,7 +569,7 @@ static void allocateValues(State *restrict state)
 static void writeValue(State *restrict state,
                        bytevector *restrict bytecode,
                        bytevector *restrict valueBytecode,
-                       uint dataOffset, uint value)
+                       uint dataOffset, uint value, uint newValue)
 {
     uint offset = getValueOffset(state, dataOffset, value);
     uint stackframe;
@@ -593,16 +593,16 @@ static void writeValue(State *restrict state,
     case DATAOP_PHI_VARIABLE:
         ByteVectorAddPackUint(
             valueBytecode,
-            value - getNewIndex(state, dataOffset,
-                                ByteVectorReadUint(state->parsed, &offset)));
+            newValue - getNewIndex(state, dataOffset,
+                                   ByteVectorReadUint(state->parsed, &offset)));
         ByteVectorAddPackUint(
             valueBytecode,
-            value - getNewIndex(state, dataOffset,
-                                ByteVectorReadUint(state->parsed, &offset)));
+            newValue - getNewIndex(state, dataOffset,
+                                   ByteVectorReadUint(state->parsed, &offset)));
         ByteVectorAddPackUint(
             valueBytecode,
-            value - getNewIndex(state, dataOffset,
-                                ByteVectorReadUint(state->parsed, &offset)));
+            newValue - getNewIndex(state, dataOffset,
+                                   ByteVectorReadUint(state->parsed, &offset)));
         break;
     case DATAOP_PARAMETER:
         ByteVectorAddPackUint(valueBytecode,
@@ -691,7 +691,8 @@ static void writeBytecode(State *restrict state,
                 {
                     if (isUsed(state, dataOffset, value))
                     {
-                        writeValue(state, bytecode, valueBytecode, dataOffset, value);
+                        writeValue(state, bytecode, valueBytecode, dataOffset,
+                                   value, newValue);
                     }
                     newValue++;
                 }
