@@ -112,7 +112,7 @@ int main(int argc, const char **argv)
     if (!ParseFile(inputFile))
     {
         cleanup();
-        assert(false); /* TODO: Error handling */
+        return 1;
     }
     TargetIndexFinish();
 
@@ -121,7 +121,7 @@ int main(int argc, const char **argv)
     if (!ParseTarget(target, &parsed))
     {
         cleanup();
-        assert(false); /* TODO: Error handling */
+        return 1;
     }
 
     NativeWriteBytecode(&bytecode, &valueBytecode);
