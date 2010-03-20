@@ -1,6 +1,5 @@
 enum ControlInstruction
 {
-    OP_NOOP,
     OP_RETURN,
     OP_BRANCH,
     OP_JUMP,
@@ -15,5 +14,6 @@ enum DataInstruction
     DATAOP_PHI_VARIABLE,
     DATAOP_PARAMETER,
     DATAOP_RETURN,
-    DATAOP_STACKFRAME
+    DATAOP_STACKFRAME_ABSOLUTE,
+    DATAOP_STACKFRAME_NATIVE
 };

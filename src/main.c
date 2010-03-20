@@ -17,6 +17,8 @@ int main(int argc, const char **argv)
     targetref target;
     boolean parseOptions = true;
     bytevector parsed;
+    bytevector bytecode;
+    bytevector valueBytecode;
 
     for (i = 1; i < argc; i++)
     {
@@ -96,9 +98,13 @@ int main(int argc, const char **argv)
     }
     printf("Parsed offset=%d\n", TargetIndexGetParsedOffset(target));
 
-    BytecodeGeneratorExecute(&parsed);
+    ByteVectorInit(&bytecode);
+    ByteVectorInit(&valueBytecode);
+    BytecodeGeneratorExecute(&parsed, &bytecode, &valueBytecode);
     TargetIndexDisposeParsed();
     ByteVectorFree(&parsed);
+    ByteVectorFree(&bytecode);
+    ByteVectorFree(&valueBytecode);
     printf("Bytecode offset=%d\n", TargetIndexGetBytecodeOffset(target));
 
     TargetIndexFree();

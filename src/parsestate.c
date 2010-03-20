@@ -61,17 +61,20 @@ static boolean writeParsed(const ParseState *restrict state,
 {
     bytevector *data = getData(state);
     bytevector *control = getControl(state);
-    if (!ByteVectorAddPackUint(parsed, ByteVectorSize(data)))
+    if (!ByteVectorAddUint(parsed, 0) ||
+        !ByteVectorAddPackUint(parsed, getFunction(state)->valueCount) ||
+        !ByteVectorAddPackUint(parsed, ByteVectorSize(data)) ||
+        !ByteVectorAddPackUint(parsed, ByteVectorSize(control) + 1))
     {
         return false;
     }
     ByteVectorAppendAll(data, parsed);
-    if (!ByteVectorAddPackUint(parsed, ByteVectorSize(control) + 1))
+    ByteVectorAppendAll(control, parsed);
+    if (!ByteVectorAdd(parsed, OP_RETURN))
     {
         return false;
     }
-    ByteVectorAppendAll(control, parsed);
-    return ByteVectorAdd(parsed, OP_RETURN);
+    return true;
 }
 
 
@@ -306,7 +309,8 @@ static boolean finishIfBlockNoElse(ParseState *state)
         }
     }
     ByteVectorSetUint(getControl(state), block->branchOffset,
-                      ByteVectorSize(getControl(state)));
+                      ByteVectorSize(getControl(state)) -
+                      block->branchOffset - 4);
     disposeCurrentBlock(state);
     return true;
 }
@@ -372,7 +376,8 @@ static boolean finishIfBlockWithElse(ParseState *state)
         }
     }
     ByteVectorSetUint(getControl(state), block->unfinished->branchOffset,
-                      ByteVectorSize(getControl(state)));
+                      ByteVectorSize(getControl(state)) -
+                      block->unfinished->branchOffset - 4);
     disposeBlock(block->unfinished);
     disposeCurrentBlock(state);
     return true;
@@ -402,7 +407,7 @@ static boolean finishLoopBlock(ParseState *restrict state,
     parentData = &function->parent->data;
     parentControl = &function->parent->control;
 
-    if (!ByteVectorAddPackUint(parentControl, ByteVectorSize(parsed)) ||
+    if (!ByteVectorAddPackUint(parentData, ByteVectorSize(parsed)) ||
         !ByteVectorAddPackUint(parentControl, function->parameterCount) ||
         !writeParsed(state, parsed))
     {
@@ -485,7 +490,8 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
                 return false;
             }
             ByteVectorSetUint(getControl(state), conditionBranchOffset,
-                              ByteVectorSize(getControl(state)));
+                              ByteVectorSize(getControl(state)) -
+                              conditionBranchOffset - 4);
 
             function->currentBlock = parentBlock;
             newBlock = createBlock(state, block);
@@ -599,16 +605,15 @@ boolean ParseStateWriteIf(ParseState *state, uint value)
     assert(getBlock(state));
 
     block = createBlock(state, null);
-    if (!block)
+    if (!block ||
+        !ByteVectorAdd(getControl(state), OP_BRANCH) ||
+        !ByteVectorAddPackUint(getControl(state), value))
     {
         return false;
     }
     block->condition = value;
-    block->branchOffset = ByteVectorSize(getControl(state)) + 1;
-    return ByteVectorAdd(getControl(state), OP_BRANCH) &&
-        ByteVectorAddInt(getControl(state), 0) &&
-        ByteVectorAddPackUint(getControl(state), value) ?
-        true : false;
+    block->branchOffset = ByteVectorSize(getControl(state));
+    return ByteVectorAddInt(getControl(state), 0);
 }
 
 boolean ParseStateWriteWhile(ParseState *state, uint value)
@@ -623,7 +628,7 @@ boolean ParseStateWriteWhile(ParseState *state, uint value)
         !ByteVectorAddPackUint(getControl(state), value) ||
         !ByteVectorAddPackUint(getControl(state),
                                getFunction(state)->valueCount++) ||
-        !ByteVectorAdd(getData(state), DATAOP_STACKFRAME))
+        !ByteVectorAdd(getData(state), DATAOP_STACKFRAME_ABSOLUTE))
     {
         return false;
     }
@@ -648,7 +653,7 @@ uint ParseStateWriteNativeInvocation(ParseState *state,
         !ByteVectorAdd(getControl(state), (byte)nativeFunction) ||
         !ByteVectorAddPackUint(getControl(state),
                                getFunction(state)->valueCount++) ||
-        !ByteVectorAdd(getData(state), DATAOP_STACKFRAME) ||
+        !ByteVectorAdd(getData(state), DATAOP_STACKFRAME_NATIVE) ||
         !ByteVectorAddPackUint(getControl(state), parameterCount))
     {
         return 0;

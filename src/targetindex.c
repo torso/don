@@ -171,9 +171,15 @@ void TargetIndexFree(void)
 
 targetref TargetIndexAdd(stringref name, fileref file, int line, int offset)
 {
-    uint ref = IntVectorSize(&unsortedTable);
+    uint ref = IntVectorSize(&unsortedTable) / TABLE_ENTRY_SIZE;
     IntVectorAdd4(&unsortedTable, (int)name, (int)file, line, offset);
     return (targetref)ref;
+}
+
+uint TargetIndexGetTargetCount(void)
+{
+    assert(table);
+    return targetCount;
 }
 
 targetref TargetIndexGet(stringref name)
