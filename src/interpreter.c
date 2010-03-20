@@ -15,8 +15,9 @@
 
 #define VALUE_UNEVALUATED 0
 #define VALUE_COPY 1
-#define VALUE_STACKFRAME 2
+#define VALUE_BOOLEAN 2
 #define VALUE_STRING 3
+#define VALUE_STACKFRAME 4
 
 typedef struct
 {
@@ -52,13 +53,17 @@ static void dumpState(const State *state)
             printf(" %d: copy value=%d\n", valueIndex, value);
             break;
 
-        case VALUE_STACKFRAME:
-            printf(" %d: stackframe bp=%d\n", valueIndex, value);
+        case VALUE_BOOLEAN:
+            printf(" %d: boolean value=%d\n", valueIndex, value);
             break;
 
         case VALUE_STRING:
             printf(" %d: string %d: %s\n", valueIndex, value,
                    StringPoolGetString((stringref)value));
+            break;
+
+        case VALUE_STACKFRAME:
+            printf(" %d: stackframe bp=%d\n", valueIndex, value);
             break;
 
         default:
@@ -99,6 +104,10 @@ static void evaluateValue(State *state, uint valueOffset)
 {
     uint type;
     uint value = IntVectorGet(&state->values, valueOffset + VALUE_OFFSET_VALUE);
+    uint condition;
+    uint value1;
+    uint value2;
+
     printf("Evaluate %d\n", valueOffset);
     switch (IntVectorGet(&state->values, valueOffset + VALUE_OFFSET_TYPE))
     {
@@ -106,9 +115,41 @@ static void evaluateValue(State *state, uint valueOffset)
         printf(" Evaluate ip=%d op=%d\n", value, ByteVectorGet(state->valueBytecode, value));
         switch (ByteVectorRead(state->valueBytecode, &value))
         {
+        case DATAOP_TRUE:
+            type = VALUE_BOOLEAN;
+            value = true;
+            break;
+
+        case DATAOP_FALSE:
+            type = VALUE_BOOLEAN;
+            value = false;
+            break;
+
         case DATAOP_STRING:
             type = VALUE_STRING;
             value = ByteVectorGetPackUint(state->valueBytecode, value);
+            break;
+
+        case DATAOP_PHI_VARIABLE:
+            condition = ByteVectorReadPackUint(state->valueBytecode, &value);
+            value1 = ByteVectorReadPackUint(state->valueBytecode, &value);
+            value2 = ByteVectorGetPackUint(state->valueBytecode, value);
+            evaluateValue(state, valueOffset - condition * VALUE_ENTRY_SIZE);
+            printf("condition: %d %d %d %d\n", valueOffset, condition, valueOffset - condition * VALUE_ENTRY_SIZE, IntVectorGet(&state->values, valueOffset - condition * VALUE_ENTRY_SIZE));
+            assert(IntVectorGet(&state->values,
+                                valueOffset - condition * VALUE_ENTRY_SIZE +
+                                VALUE_OFFSET_TYPE) ==
+                   VALUE_BOOLEAN);
+            value = IntVectorGet(&state->values,
+                                 valueOffset - condition * VALUE_ENTRY_SIZE +
+                                 VALUE_OFFSET_VALUE) ? value2 : value1;
+            evaluateValue(state, valueOffset - value * VALUE_ENTRY_SIZE);
+            type = IntVectorGet(
+                &state->values,
+                valueOffset - value * VALUE_ENTRY_SIZE + VALUE_OFFSET_TYPE);
+            value = IntVectorGet(
+                &state->values,
+                valueOffset - value * VALUE_ENTRY_SIZE + VALUE_OFFSET_VALUE);
             break;
 
         default:
@@ -122,7 +163,11 @@ static void evaluateValue(State *state, uint valueOffset)
         type = IntVectorGet(&state->values, value + VALUE_OFFSET_TYPE);
         value = IntVectorGet(&state->values, value + VALUE_OFFSET_VALUE);
         break;
+
+    default:
+        return;
     }
+    printf("evaluate %d, result: %d:%d\n", valueOffset, type, value);
     IntVectorSet(&state->values, valueOffset + VALUE_OFFSET_TYPE, type);
     IntVectorSet(&state->values, valueOffset + VALUE_OFFSET_VALUE, value);
 }
@@ -146,6 +191,13 @@ static void copyValue(State *state, uint sourceBP, uint sourceValue,
         setValue(state, destBP, destValue,
                  VALUE_COPY, getValueOffset(sourceBP, sourceValue));
     }
+}
+
+static boolean getBooleanValue(State *state, uint bp, uint valueIndex)
+{
+    evaluateValue(state, getValueOffset(bp, valueIndex));
+    assert(getValueType(state, bp, valueIndex) == VALUE_BOOLEAN);
+    return (boolean)getValue(state, bp, valueIndex);
 }
 
 static void createStackframe(State *state, uint ip, uint argumentCount)
@@ -198,6 +250,8 @@ static void invokeNative(State* state, nativefunctionref function)
 
 static void execute(State *state)
 {
+    uint condition;
+    uint offset;
     nativefunctionref function;
 
     createStackframe(state, state->ip, 0);
@@ -210,6 +264,15 @@ static void execute(State *state)
         case OP_RETURN:
             destroyStackframe(state);
             return;
+
+        case OP_BRANCH:
+            condition = ByteVectorReadPackUint(state->bytecode, &state->ip);
+            offset = ByteVectorReadPackUint(state->bytecode, &state->ip);
+            if (!getBooleanValue(state, state->bp, condition))
+            {
+                state->ip += offset;
+            }
+            break;
 
         case OP_INVOKE_NATIVE:
             function = (nativefunctionref)ByteVectorRead(state->bytecode,

@@ -10,6 +10,8 @@ enum ControlInstruction
 enum DataInstruction
 {
     DATAOP_NULL,
+    DATAOP_TRUE,
+    DATAOP_FALSE,
     DATAOP_STRING,
     DATAOP_PHI_VARIABLE,
     DATAOP_PARAMETER,

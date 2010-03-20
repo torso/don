@@ -584,6 +584,26 @@ void ParseStateSetArgument(ParseState *state, uint argumentOffset,
 }
 
 
+uint ParseStateWriteTrueLiteral(ParseState *state)
+{
+    ParseStateCheck(state);
+    if (!ByteVectorAdd(getData(state), DATAOP_TRUE))
+    {
+        ParseStateSetFailed(state);
+    }
+    return getFunction(state)->valueCount++;
+}
+
+uint ParseStateWriteFalseLiteral(ParseState *state)
+{
+    ParseStateCheck(state);
+    if (!ByteVectorAdd(getData(state), DATAOP_FALSE))
+    {
+        ParseStateSetFailed(state);
+    }
+    return getFunction(state)->valueCount++;
+}
+
 uint ParseStateWriteStringLiteral(ParseState *state, stringref value)
 {
     ParseStateCheck(state);

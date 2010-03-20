@@ -14,6 +14,8 @@ static char errorBuffer[256];
 
 static stringref keywordElse;
 static stringref keywordIf;
+static stringref keywordFalse;
+static stringref keywordTrue;
 static stringref keywordWhile;
 
 static stringref maxStatementKeyword;
@@ -211,7 +213,18 @@ static uint parseExpression(ParseState *state)
     if (peekIdentifier(state))
     {
         identifier = readIdentifier(state);
-        assert(!isKeyword(identifier));
+        if (isKeyword(identifier))
+        {
+            if (identifier == keywordTrue)
+            {
+                return ParseStateWriteTrueLiteral(state);
+            }
+            else if (identifier == keywordFalse)
+            {
+                return ParseStateWriteFalseLiteral(state);
+            }
+            assert(false);
+        }
         return ParseStateGetVariable(state, identifier);
     }
     else if (peekString(state))
@@ -498,6 +511,8 @@ void ParserAddKeywords(void)
 {
     keywordElse = StringPoolAdd("else");
     keywordIf = StringPoolAdd("if");
+    keywordFalse = StringPoolAdd("false");
+    keywordTrue = StringPoolAdd("true");
     keywordWhile = StringPoolAdd("while");
     maxStatementKeyword = keywordWhile;
     maxKeyword = keywordWhile;

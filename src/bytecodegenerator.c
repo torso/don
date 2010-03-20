@@ -69,6 +69,12 @@ static void dumpParsed(const bytevector *parsed)
             case DATAOP_NULL:
                 printf("%d: null\n", ip);
                 break;
+            case DATAOP_TRUE:
+                printf("%d: true\n", ip);
+                break;
+            case DATAOP_FALSE:
+                printf("%d: false\n", ip);
+                break;
             case DATAOP_STRING:
                 value = ByteVectorReadPackUint(parsed, &readIndex);
                 printf("%d: string %d:\"%s\"\n", ip, value,
@@ -173,6 +179,12 @@ static void dumpValueBytecode(const bytevector *bytecode)
         case DATAOP_NULL:
             printf("%d: null\n", valueOffset);
             break;
+        case DATAOP_TRUE:
+            printf("%d: true\n", valueOffset);
+            break;
+        case DATAOP_FALSE:
+            printf("%d: false\n", valueOffset);
+            break;
         case DATAOP_STRING:
             value = ByteVectorReadPackUint(bytecode, &readIndex);
             printf("%d: string %d: \"%s\"\n", valueOffset,
@@ -181,7 +193,7 @@ static void dumpValueBytecode(const bytevector *bytecode)
         case DATAOP_PHI_VARIABLE:
             condition = ByteVectorReadPackUint(bytecode, &readIndex);
             value = ByteVectorReadPackUint(bytecode, &readIndex);
-            printf("%d: phi variable condition=%d %d %d\n",
+            printf("%d: phi variable condition=-%d -%d -%d\n",
                    valueOffset, condition, value,
                    ByteVectorReadPackUint(bytecode, &readIndex));
             break;
@@ -453,6 +465,8 @@ static void markUsedValues(State *state)
             switch (ByteVectorRead(state->parsed, &readIndex))
             {
             case DATAOP_NULL:
+            case DATAOP_TRUE:
+            case DATAOP_FALSE:
                 break;
             case DATAOP_STRING:
                 readIndex += ByteVectorGetPackUintSize(state->parsed, readIndex);
@@ -560,41 +574,41 @@ static void writeValue(State *restrict state,
     uint offset = getValueOffset(state, dataOffset, value);
     uint stackframe;
     uint returnIndex;
+    byte op;
 
     ByteVectorAddPackUint(bytecode, ByteVectorSize(valueBytecode));
 
-    switch (ByteVectorRead(state->parsed, &offset))
+    op = ByteVectorRead(state->parsed, &offset);
+    ByteVectorAdd(valueBytecode, op);
+    switch (op)
     {
     case DATAOP_NULL:
-        ByteVectorAdd(valueBytecode, DATAOP_NULL);
+    case DATAOP_TRUE:
+    case DATAOP_FALSE:
         break;
     case DATAOP_STRING:
-        ByteVectorAdd(valueBytecode, DATAOP_STRING);
         ByteVectorAddPackUint(valueBytecode,
                               ByteVectorGetPackUint(state->parsed, offset));
         break;
     case DATAOP_PHI_VARIABLE:
-        ByteVectorAdd(valueBytecode, DATAOP_PHI_VARIABLE);
         ByteVectorAddPackUint(
             valueBytecode,
-            getNewIndex(state, dataOffset,
-                        ByteVectorReadUint(state->parsed, &offset)));
+            value - getNewIndex(state, dataOffset,
+                                ByteVectorReadUint(state->parsed, &offset)));
         ByteVectorAddPackUint(
             valueBytecode,
-            getNewIndex(state, dataOffset,
-                        ByteVectorReadUint(state->parsed, &offset)));
+            value - getNewIndex(state, dataOffset,
+                                ByteVectorReadUint(state->parsed, &offset)));
         ByteVectorAddPackUint(
             valueBytecode,
-            getNewIndex(state, dataOffset,
-                        ByteVectorReadUint(state->parsed, &offset)));
+            value - getNewIndex(state, dataOffset,
+                                ByteVectorReadUint(state->parsed, &offset)));
         break;
     case DATAOP_PARAMETER:
-        ByteVectorAdd(valueBytecode, DATAOP_PARAMETER);
         ByteVectorAddPackUint(valueBytecode,
                               ByteVectorGetPackUint(state->parsed, offset));
         break;
     case DATAOP_RETURN:
-        ByteVectorAdd(valueBytecode, DATAOP_RETURN);
         stackframe = ByteVectorReadPackUint(state->parsed, &offset);
         returnIndex = ByteVectorReadPackUint(state->parsed, &offset);
         ByteVectorAddPackUint(
@@ -610,7 +624,6 @@ static void writeValue(State *restrict state,
                 returnIndex));
         break;
     case DATAOP_STACKFRAME_ABSOLUTE:
-        ByteVectorAdd(valueBytecode, DATAOP_STACKFRAME_ABSOLUTE);
         ByteVectorAddPackUint(
             valueBytecode,
             getBytecodeOffset(
@@ -619,7 +632,6 @@ static void writeValue(State *restrict state,
                               ByteVectorReadPackUint(state->parsed, &offset))));
         break;
     case DATAOP_STACKFRAME_NATIVE:
-        ByteVectorAdd(valueBytecode, DATAOP_STACKFRAME_NATIVE);
         break;
     default:
         assert(false);
