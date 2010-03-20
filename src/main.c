@@ -7,6 +7,7 @@
 #include "targetindex.h"
 #include "parser.h"
 #include "bytecodegenerator.h"
+#include "interpreter.h"
 
 int main(int argc, const char **argv)
 {
@@ -100,13 +101,15 @@ int main(int argc, const char **argv)
 
     ByteVectorInit(&bytecode);
     ByteVectorInit(&valueBytecode);
+    NativeWriteBytecode(&bytecode, &valueBytecode);
     BytecodeGeneratorExecute(&parsed, &bytecode, &valueBytecode);
     TargetIndexDisposeParsed();
     ByteVectorFree(&parsed);
+
+    InterpreterExecute(&bytecode, &valueBytecode, target);
+
     ByteVectorFree(&bytecode);
     ByteVectorFree(&valueBytecode);
-    printf("Bytecode offset=%d\n", TargetIndexGetBytecodeOffset(target));
-
     TargetIndexFree();
     FileIndexFree();
     StringPoolFree();
