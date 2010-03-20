@@ -223,7 +223,10 @@ static uint parseExpression(ParseState *state)
             {
                 return ParseStateWriteFalseLiteral(state);
             }
-            assert(false);
+            sprintf(errorBuffer, "Unexpected keyword '%s'.",
+                    StringPoolGetString(identifier));
+            statementError(state, errorBuffer);
+            return 0;
         }
         return ParseStateGetVariable(state, identifier);
     }
