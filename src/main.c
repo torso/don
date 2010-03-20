@@ -10,11 +10,17 @@
 #include "interpreter.h"
 
 #ifdef DEBUG
+#include <execinfo.h>
 #include <signal.h>
 
 void _assert(const char *expression, const char *file, int line)
 {
+    void *backtraceData[128];
+    uint frames;
+
     printf("Assertion failed: %s:%d: %s\n", file, line, expression);
+    frames = (uint)backtrace(backtraceData, sizeof(backtraceData) / sizeof(void*));
+    backtrace_symbols_fd(&backtraceData[1], (int)frames - 1, 1);
     raise(SIGABRT);
 }
 #endif
