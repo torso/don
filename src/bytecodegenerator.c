@@ -580,11 +580,12 @@ static void markUsedValues(State *state)
             case OP_COND_INVOKE:
                 useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
                 useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
-                argumentCount = ByteVectorReadPackUint(state->parsed, &readIndex);
-                while (argumentCount > 0)
+                for (argumentCount = ByteVectorReadPackUint(state->parsed, &readIndex);
+                     argumentCount > 0;
+                     argumentCount--)
                 {
-                    readIndex += ByteVectorGetPackUintSize(state->parsed, readIndex);
-                    argumentCount--;
+                    useValue(state, dataOffset,
+                             ByteVectorReadPackUint(state->parsed, &readIndex));
                 }
                 break;
 
