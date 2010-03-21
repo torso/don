@@ -9,7 +9,7 @@
 #include "instruction.h"
 #include "native.h"
 
-static const uint DUMP_STATE = 0;
+static const boolean DUMP_STATE = false;
 
 #define VALUE_ENTRY_SIZE 2
 #define VALUE_OFFSET_TYPE 0
