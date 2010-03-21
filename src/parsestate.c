@@ -686,7 +686,7 @@ uint ParseStateWriteNativeInvocation(ParseState *state,
         !ByteVectorAdd(getControl(state), (byte)nativeFunction) ||
         !ByteVectorAddPackUint(getControl(state),
                                getFunction(state)->valueCount++) ||
-        !ByteVectorAdd(getData(state), DATAOP_STACKFRAME_NATIVE) ||
+        !ByteVectorAdd(getData(state), DATAOP_STACKFRAME) ||
         !ByteVectorAddPackUint(getControl(state), parameterCount))
     {
         return 0;

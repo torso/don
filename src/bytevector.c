@@ -181,6 +181,12 @@ uint ByteVectorReadPackUint(const bytevector *v, uint *index)
     return (uint)i;
 }
 
+void ByteVectorSkipPackUint(const bytevector *v, uint *index)
+{
+    uint size = ByteVectorGetPackUintSize(v, *index);
+    *index += size;
+}
+
 uint ByteVectorGetPackUintSize(const bytevector *v, uint index)
 {
     checkByteVectorIndex(v, index);

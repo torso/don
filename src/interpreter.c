@@ -10,6 +10,7 @@
 #include "native.h"
 
 static const boolean DUMP_STATE = false;
+static const boolean TRACE = false;
 
 #define VALUE_ENTRY_SIZE 2
 #define VALUE_OFFSET_TYPE 0
@@ -165,6 +166,17 @@ static void evaluateValue(State *state, uint valueOffset)
             value = getValue(state, value);
             break;
 
+        case DATAOP_RETURN:
+            value1 = readRelativeValueOffset(state, valueOffset, &value);
+            assert(getValueType(state, value1) == VALUE_STACKFRAME);
+            value2 = getValueOffset(
+                getValue(state, value1),
+                ByteVectorGetPackUint(state->valueBytecode, value));
+            evaluateValue(state, value2);
+            type = getValueType(state, value2);
+            value = getValue(state, value2);
+            break;
+
         case DATAOP_EQUALS:
             value1 = readRelativeValueOffset(state, valueOffset, &value);
             value2 = readRelativeValueOffset(state, valueOffset, &value);
@@ -270,17 +282,31 @@ static void execute(State *state)
 {
     uint condition;
     uint offset;
-    nativefunctionref function;
+    nativefunctionref nativeFunction;
+    uint function;
+    uint argumentCount;
 
     createStackframe(state, state->ip, 0);
 
+    /* Remove old (non-existing) stackframe pushed onto the stack by
+     * createStackframe. */
+    IntVectorSetSize(&state->stack, 0);
+
     for (;;)
     {
+        if (TRACE)
+        {
+            printf("execute ip=%d bp=%d stacksize=%d\n", state->ip, state->bp, IntVectorSize(&state->stack));
+        }
         switch (ByteVectorRead(state->bytecode, &state->ip))
         {
         case OP_RETURN:
+            if (!IntVectorSize(&state->stack))
+            {
+                return;
+            }
             destroyStackframe(state);
-            return;
+            break;
 
         case OP_BRANCH:
             condition = ByteVectorReadPackUint(state->bytecode, &state->ip);
@@ -297,16 +323,40 @@ static void execute(State *state)
             break;
 
         case OP_INVOKE_NATIVE:
-            function = (nativefunctionref)ByteVectorRead(state->bytecode,
-                                                         &state->ip);
+            nativeFunction = (nativefunctionref)ByteVectorRead(state->bytecode,
+                                                               &state->ip);
             setValue(state, state->bp,
                      ByteVectorReadPackUint(state->bytecode, &state->ip),
                      VALUE_STACKFRAME, IntVectorSize(&state->values));
             createStackframe(
-                state, NativeGetBytecodeOffset(function),
+                state, NativeGetBytecodeOffset(nativeFunction),
                 ByteVectorReadPackUint(state->bytecode, &state->ip));
-            invokeNative(state, function);
+            invokeNative(state, nativeFunction);
             destroyStackframe(state);
+            break;
+
+        case OP_COND_INVOKE:
+            condition = ByteVectorReadPackUint(state->bytecode, &state->ip);
+            function = ByteVectorReadPackUint(state->bytecode, &state->ip);
+            if (getBooleanValue(state, state->bp, condition))
+            {
+                setValue(state, state->bp,
+                         ByteVectorReadPackUint(state->bytecode, &state->ip),
+                         VALUE_STACKFRAME, IntVectorSize(&state->values));
+                createStackframe(
+                    state, function,
+                    ByteVectorReadPackUint(state->bytecode, &state->ip));
+            }
+            else
+            {
+                ByteVectorSkipPackUint(state->bytecode, &state->ip);
+                argumentCount = ByteVectorReadPackUint(state->bytecode,
+                                                       &state->ip);
+                while (argumentCount--)
+                {
+                    ByteVectorSkipPackUint(state->bytecode, &state->ip);
+                }
+            }
             break;
 
         default:
