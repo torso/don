@@ -516,7 +516,7 @@ static void markUsedValues(State *state)
                 break;
 
             case DATAOP_STRING:
-                readIndex += ByteVectorGetPackUintSize(state->parsed, readIndex);
+                ByteVectorSkipPackUint(state->parsed, &readIndex);
                 break;
 
             case DATAOP_PHI_VARIABLE:
@@ -524,24 +524,24 @@ static void markUsedValues(State *state)
                 break;
 
             case DATAOP_PARAMETER:
-                readIndex += ByteVectorGetPackUintSize(state->parsed, readIndex);
+                ByteVectorSkipPackUint(state->parsed, &readIndex);
                 break;
 
             case DATAOP_RETURN:
-                readIndex += ByteVectorGetPackUintSize(state->parsed, readIndex);
-                readIndex += ByteVectorGetPackUintSize(state->parsed, readIndex);
+                ByteVectorSkipPackUint(state->parsed, &readIndex);
+                ByteVectorSkipPackUint(state->parsed, &readIndex);
                 break;
 
             case DATAOP_STACKFRAME:
                 break;
 
             case DATAOP_STACKFRAME_ABSOLUTE:
-                readIndex += ByteVectorGetPackUintSize(state->parsed, readIndex);
+                ByteVectorSkipPackUint(state->parsed, &readIndex);
                 break;
 
             case DATAOP_EQUALS:
-                readIndex += ByteVectorGetPackUintSize(state->parsed, readIndex);
-                readIndex += ByteVectorGetPackUintSize(state->parsed, readIndex);
+                ByteVectorSkipPackUint(state->parsed, &readIndex);
+                ByteVectorSkipPackUint(state->parsed, &readIndex);
                 break;
 
             default:
