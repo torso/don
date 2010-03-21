@@ -15,11 +15,15 @@ static const uint DUMP_STATE = 0;
 #define VALUE_OFFSET_TYPE 0
 #define VALUE_OFFSET_VALUE 1
 
-#define VALUE_UNEVALUATED 0
-#define VALUE_COPY 1
-#define VALUE_BOOLEAN 2
-#define VALUE_STRING 3
-#define VALUE_STACKFRAME 4
+typedef enum
+{
+    VALUE_UNEVALUATED,
+    VALUE_COPY,
+    VALUE_NULL,
+    VALUE_BOOLEAN,
+    VALUE_STRING,
+    VALUE_STACKFRAME
+} ValueType;
 
 typedef struct
 {
@@ -80,12 +84,12 @@ static uint getValueOffset(uint bp, uint value)
     return bp + value * VALUE_ENTRY_SIZE;
 }
 
-static uint getValueType(const State *state, uint valueOffset)
+static ValueType getValueType(const State *state, uint valueOffset)
 {
     return IntVectorGet(&state->values, valueOffset + VALUE_OFFSET_TYPE);
 }
 
-static uint getLocalValueType(const State *state, uint bp, uint value)
+static ValueType getLocalValueType(const State *state, uint bp, uint value)
 {
     return getValueType(state, getValueOffset(bp, value));
 }
@@ -101,7 +105,7 @@ static uint getLocalValue(const State *state, uint bp, uint value)
 }
 
 static void setValue(State *state, uint bp, uint valueIndex,
-                     uint type, uint value)
+                     ValueType type, uint value)
 {
     uint offset = getValueOffset(bp, valueIndex);
     IntVectorSet(&state->values, offset + VALUE_OFFSET_TYPE, type);
@@ -118,7 +122,7 @@ static uint readRelativeValueOffset(State *state, uint valueOffset,
 
 static void evaluateValue(State *state, uint valueOffset)
 {
-    uint type;
+    ValueType type;
     uint value = IntVectorGet(&state->values, valueOffset + VALUE_OFFSET_VALUE);
     uint condition;
     uint value1;
@@ -129,6 +133,11 @@ static void evaluateValue(State *state, uint valueOffset)
     case VALUE_UNEVALUATED:
         switch (ByteVectorRead(state->valueBytecode, &value))
         {
+        case DATAOP_NULL:
+            type = VALUE_NULL;
+            value = 0;
+            break;
+
         case DATAOP_TRUE:
             type = VALUE_BOOLEAN;
             value = true;
@@ -189,7 +198,7 @@ static void evaluateValue(State *state, uint valueOffset)
 static void copyValue(State *state, uint sourceBP, uint sourceValue,
                       uint destBP, uint destValue)
 {
-    uint type = getLocalValueType(state, sourceBP, sourceValue);
+    ValueType type = getLocalValueType(state, sourceBP, sourceValue);
 
     if (type != VALUE_UNEVALUATED)
     {
