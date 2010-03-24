@@ -16,6 +16,7 @@ static char errorBuffer[256];
 static stringref keywordElse;
 static stringref keywordIf;
 static stringref keywordFalse;
+static stringref keywordNull;
 static stringref keywordTrue;
 static stringref keywordWhile;
 
@@ -223,6 +224,10 @@ static uint parseExpression2(ParseState *state)
             else if (identifier == keywordFalse)
             {
                 return ParseStateWriteFalseLiteral(state);
+            }
+            else if (identifier == keywordNull)
+            {
+                return ParseStateWriteNullLiteral(state);
             }
             sprintf(errorBuffer, "Unexpected keyword '%s'.",
                     StringPoolGetString(identifier));
@@ -540,6 +545,7 @@ void ParserAddKeywords(void)
     keywordElse = StringPoolAdd("else");
     keywordIf = StringPoolAdd("if");
     keywordFalse = StringPoolAdd("false");
+    keywordNull = StringPoolAdd("null");
     keywordTrue = StringPoolAdd("true");
     keywordWhile = StringPoolAdd("while");
     maxStatementKeyword = keywordWhile;
