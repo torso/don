@@ -269,12 +269,33 @@ static void destroyStackframe(State *state)
 
 static void invokeNative(State* state, nativefunctionref function)
 {
+    uint value;
+
     if (function == 0)
     {
         evaluateValue(state, getValueOffset(state->bp, 0));
-        assert(getLocalValueType(state, state->bp, 0) == VALUE_STRING);
-        printf("%s\n", StringPoolGetString(
-                   (stringref)getLocalValue(state, state->bp, 0)));
+        value = getLocalValue(state, state->bp, 0);
+        switch (getLocalValueType(state, state->bp, 0))
+        {
+        case VALUE_NULL:
+            printf("null\n");
+            break;
+
+        case VALUE_BOOLEAN:
+            printf(value ? "true\n" : "false\n");
+            break;
+
+        case VALUE_STRING:
+            printf("%s\n", StringPoolGetString((stringref)value));
+            break;
+
+        case VALUE_UNEVALUATED:
+        case VALUE_COPY:
+        case VALUE_STACKFRAME:
+        default:
+            assert(false);
+            break;
+        }
     }
 }
 
