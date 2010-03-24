@@ -614,6 +614,17 @@ uint ParseStateWriteFalseLiteral(ParseState *state)
     return getFunction(state)->valueCount++;
 }
 
+uint ParseStateWriteIntegerLiteral(ParseState *state, int value)
+{
+    ParseStateCheck(state);
+    if (!ByteVectorAdd(getData(state), DATAOP_INTEGER) ||
+        !ByteVectorAddPackInt(getData(state), value))
+    {
+        ParseStateSetFailed(state);
+    }
+    return getFunction(state)->valueCount++;
+}
+
 uint ParseStateWriteStringLiteral(ParseState *state, stringref value)
 {
     ParseStateCheck(state);

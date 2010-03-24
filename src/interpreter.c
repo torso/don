@@ -22,6 +22,7 @@ typedef enum
     VALUE_COPY,
     VALUE_NULL,
     VALUE_BOOLEAN,
+    VALUE_INTEGER,
     VALUE_STRING,
     VALUE_STACKFRAME
 } ValueType;
@@ -147,6 +148,11 @@ static void evaluateValue(State *state, uint valueOffset)
         case DATAOP_FALSE:
             type = VALUE_BOOLEAN;
             value = false;
+            break;
+
+        case DATAOP_INTEGER:
+            type = VALUE_INTEGER;
+            value = (uint)ByteVectorGetPackInt(state->valueBytecode, value);
             break;
 
         case DATAOP_STRING:
@@ -283,6 +289,10 @@ static void invokeNative(State* state, nativefunctionref function)
 
         case VALUE_BOOLEAN:
             printf(value ? "true\n" : "false\n");
+            break;
+
+        case VALUE_INTEGER:
+            printf("%d\n", value);
             break;
 
         case VALUE_STRING:

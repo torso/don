@@ -81,6 +81,11 @@ static void dumpParsed(const bytevector *parsed)
                 printf("%d: false\n", ip);
                 break;
 
+            case DATAOP_INTEGER:
+                printf("%d: integer %d\n", ip,
+                       ByteVectorReadPackInt(parsed, &readIndex));
+                break;
+
             case DATAOP_STRING:
                 value = ByteVectorReadPackUint(parsed, &readIndex);
                 printf("%d: string %d:\"%s\"\n", ip, value,
@@ -207,6 +212,11 @@ static void dumpValueBytecode(const bytevector *bytecode)
 
         case DATAOP_FALSE:
             printf("%d: false\n", valueOffset);
+            break;
+
+        case DATAOP_INTEGER:
+            printf("%d: integer %d\n", valueOffset,
+                   ByteVectorReadPackInt(bytecode, &readIndex));
             break;
 
         case DATAOP_STRING:
@@ -515,6 +525,10 @@ static void markUsedValues(State *state)
             case DATAOP_FALSE:
                 break;
 
+            case DATAOP_INTEGER:
+                ByteVectorSkipPackInt(state->parsed, &readIndex);
+                break;
+
             case DATAOP_STRING:
                 ByteVectorSkipPackUint(state->parsed, &readIndex);
                 break;
@@ -650,6 +664,12 @@ static void writeValue(State *restrict state,
     case DATAOP_FALSE:
     case DATAOP_STACKFRAME:
         ByteVectorAdd(valueBytecode, op);
+        break;
+
+    case DATAOP_INTEGER:
+        ByteVectorAdd(valueBytecode, op);
+        ByteVectorAddPackInt(valueBytecode,
+                             ByteVectorGetPackInt(state->parsed, offset));
         break;
 
     case DATAOP_STRING:

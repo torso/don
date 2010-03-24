@@ -161,6 +161,17 @@ static boolean isKeyword(stringref identifier)
     return identifier <= maxKeyword;
 }
 
+static boolean isDigit(byte b)
+{
+    return b >= '0' && b <= '9';
+}
+
+static boolean peekNumber(const ParseState *state)
+{
+    ParseStateCheck(state);
+    return isDigit(state->current[0]);
+}
+
 static boolean peekString(const ParseState *state)
 {
     ParseStateCheck(state);
@@ -208,6 +219,26 @@ static boolean readExpectedOperator(ParseState *state, byte op)
 }
 
 
+/* TODO: Parse big numbers */
+/* TODO: Parse non-decimal numbers */
+/* TODO: Parse non-integer numbers */
+static uint parseNumber(ParseState *state)
+{
+    int value = 0;
+
+    assert(peekNumber(state));
+
+    do
+    {
+        value = value * 10 + state->current[0] - '0';
+        assert(value >= 0);
+        state->current++;
+    }
+    while (isDigit(state->current[0]));
+
+    return ParseStateWriteIntegerLiteral(state, value);
+}
+
 static uint parseExpression2(ParseState *state)
 {
     stringref identifier;
@@ -235,6 +266,10 @@ static uint parseExpression2(ParseState *state)
             return 0;
         }
         return ParseStateGetVariable(state, identifier);
+    }
+    else if (peekNumber(state))
+    {
+        return parseNumber(state);
     }
     else if (peekString(state))
     {

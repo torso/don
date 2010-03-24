@@ -35,6 +35,7 @@ extern nonnull int ByteVectorGetPackInt(const bytevector *v, uint index);
 extern nonnull uint ByteVectorGetPackUint(const bytevector *v, uint index);
 #define ByteVectorReadPackInt(v, index) ((int)ByteVectorReadPackUint(v, index))
 extern nonnull uint ByteVectorReadPackUint(const bytevector *v, uint *index);
+#define ByteVectorSkipPackInt(v, index) (ByteVectorSkipPackUint(v, index))
 extern nonnull void ByteVectorSkipPackUint(const bytevector *v, uint *index);
 #define ByteVectorGetPackIntSize ByteVectorGetPackUintSize
 extern nonnull uint ByteVectorGetPackUintSize(const bytevector *v, uint index);
