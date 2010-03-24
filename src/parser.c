@@ -239,7 +239,7 @@ static uint parseNumber(ParseState *state)
     return ParseStateWriteIntegerLiteral(state, value);
 }
 
-static uint parseExpression2(ParseState *state)
+static uint parseExpression3(ParseState *state)
 {
     stringref identifier;
     ParseStateCheck(state);
@@ -279,6 +279,26 @@ static uint parseExpression2(ParseState *state)
     return 0;
 }
 
+static uint parseExpression2(ParseState *state)
+{
+    uint value = parseExpression3(state);
+    uint value2;
+
+    if (state->failed)
+    {
+        return 0;
+    }
+    skipWhitespace(state);
+    if (readOperator(state, '+'))
+    {
+        skipWhitespace(state);
+        value2 = parseExpression3(state);
+        value = ParseStateWriteBinaryOperation(
+            state, DATAOP_ADD, value, value2);
+    }
+    return value;
+}
+
 static uint parseExpression(ParseState *state)
 {
     uint value = parseExpression2(state);
@@ -298,7 +318,8 @@ static uint parseExpression(ParseState *state)
         }
         skipWhitespace(state);
         value2 = parseExpression2(state);
-        value = ParseStateWriteBinaryOperation(state, DATAOP_EQUALS, value, value2);
+        value = ParseStateWriteBinaryOperation(
+            state, DATAOP_EQUALS, value, value2);
     }
     return value;
 }

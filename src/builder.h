@@ -12,6 +12,8 @@ typedef uint8 byte;
 #define false 0
 #define true 1
 #define MAX_UINT ((uint)-1)
+#define MIN_INT (1 << (sizeof(int) * 8 - 1))
+#define MAX_INT (-1 - MIN_INT)
 
 #define nonnull __attribute((nonnull))
 #define pure __attribute((pure))

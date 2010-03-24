@@ -125,6 +125,12 @@ static void dumpParsed(const bytevector *parsed)
                        value, ByteVectorReadPackUint(parsed, &readIndex));
                 break;
 
+            case DATAOP_ADD:
+                value = ByteVectorReadPackUint(parsed, &readIndex);
+                printf("%d: add %d %d\n", ip,
+                       value, ByteVectorReadPackUint(parsed, &readIndex));
+                break;
+
             default:
                 assert(false);
                 break;
@@ -252,6 +258,12 @@ static void dumpValueBytecode(const bytevector *bytecode)
         case DATAOP_EQUALS:
             value = ByteVectorReadPackUint(bytecode, &readIndex);
             printf("%d: equals -%d -%d\n", valueOffset, value,
+                   ByteVectorReadPackUint(bytecode, &readIndex));
+            break;
+
+        case DATAOP_ADD:
+            value = ByteVectorReadPackUint(bytecode, &readIndex);
+            printf("%d: add -%d -%d\n", valueOffset, value,
                    ByteVectorReadPackUint(bytecode, &readIndex));
             break;
 
@@ -464,6 +476,7 @@ static void useValue(State *state, uint dataOffset, uint value)
             break;
 
         case DATAOP_EQUALS:
+        case DATAOP_ADD:
             useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
             useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
             break;
@@ -554,6 +567,7 @@ static void markUsedValues(State *state)
                 break;
 
             case DATAOP_EQUALS:
+            case DATAOP_ADD:
                 ByteVectorSkipPackUint(state->parsed, &readIndex);
                 ByteVectorSkipPackUint(state->parsed, &readIndex);
                 break;
@@ -723,6 +737,7 @@ static void writeValue(State *restrict state,
         break;
 
     case DATAOP_EQUALS:
+    case DATAOP_ADD:
         ByteVectorAdd(valueBytecode, op);
         ByteVectorAddPackUint(valueBytecode,
                               newValue - getAllocatedNewIndex(

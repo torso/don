@@ -81,6 +81,11 @@ static void dumpState(const State *state)
     }
 }
 
+static boolean addOverflow(int a, int b)
+{
+    return (boolean)(b < 1 ? MIN_INT - b > a : MAX_INT - b < a);
+}
+
 static uint getValueOffset(uint bp, uint value)
 {
     return bp + value * VALUE_ENTRY_SIZE;
@@ -129,6 +134,8 @@ static void evaluateValue(State *state, uint valueOffset)
     uint condition;
     uint value1;
     uint value2;
+    int a;
+    int b;
 
     switch (IntVectorGet(&state->values, valueOffset + VALUE_OFFSET_TYPE))
     {
@@ -192,6 +199,21 @@ static void evaluateValue(State *state, uint valueOffset)
             value =
                 getValueType(state, value1) == getValueType(state, value2) &&
                 getValue(state, value1) == getValue(state, value2);
+            break;
+
+        case DATAOP_ADD:
+            value1 = readRelativeValueOffset(state, valueOffset, &value);
+            value2 = readRelativeValueOffset(state, valueOffset, &value);
+            evaluateValue(state, value1);
+            evaluateValue(state, value2);
+            assert(getValueType(state, value1) == VALUE_INTEGER);
+            assert(getValueType(state, value2) == VALUE_INTEGER);
+            type = VALUE_INTEGER;
+            a = (int)getValue(state, value1);
+            b = (int)getValue(state, value2);
+            /* TODO: Promote to bigger integer type */
+            assert(!addOverflow(a, b));
+            value = (uint)(a + b);
             break;
 
         default:
