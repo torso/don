@@ -22,5 +22,6 @@ typedef enum
     DATAOP_STACKFRAME_ABSOLUTE,
     DATAOP_CONDITION,
     DATAOP_EQUALS,
-    DATAOP_ADD
+    DATAOP_ADD,
+    DATAOP_SUB
 } DataInstruction;

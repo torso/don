@@ -296,6 +296,13 @@ static uint parseExpression3(ParseState *state)
         value = ParseStateWriteBinaryOperation(
             state, DATAOP_ADD, value, value2);
     }
+    else if (readOperator(state, '-'))
+    {
+        skipWhitespace(state);
+        value2 = parseExpression4(state);
+        value = ParseStateWriteBinaryOperation(
+            state, DATAOP_SUB, value, value2);
+    }
     return value;
 }
 

@@ -86,6 +86,11 @@ static boolean addOverflow(int a, int b)
     return (boolean)(b < 1 ? MIN_INT - b > a : MAX_INT - b < a);
 }
 
+static boolean subOverflow(int a, int b)
+{
+    return (boolean)(b < 1 ? MAX_INT + b < a : MIN_INT + b > a);
+}
+
 static uint getValueOffset(uint bp, uint value)
 {
     return bp + value * VALUE_ENTRY_SIZE;
@@ -214,6 +219,21 @@ static void evaluateValue(State *state, uint valueOffset)
             /* TODO: Promote to bigger integer type */
             assert(!addOverflow(a, b));
             value = (uint)(a + b);
+            break;
+
+        case DATAOP_SUB:
+            value1 = readRelativeValueOffset(state, valueOffset, &value);
+            value2 = readRelativeValueOffset(state, valueOffset, &value);
+            evaluateValue(state, value1);
+            evaluateValue(state, value2);
+            assert(getValueType(state, value1) == VALUE_INTEGER);
+            assert(getValueType(state, value2) == VALUE_INTEGER);
+            type = VALUE_INTEGER;
+            a = (int)getValue(state, value1);
+            b = (int)getValue(state, value2);
+            /* TODO: Promote to bigger integer type */
+            assert(!subOverflow(a, b));
+            value = (uint)(a - b);
             break;
 
         default:
