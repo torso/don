@@ -92,10 +92,10 @@ static void dumpParsed(const bytevector *parsed)
                        StringPoolGetString((stringref)value));
                 break;
 
-            case DATAOP_PHI_VARIABLE:
+            case DATAOP_CONDITION:
                 condition = ByteVectorReadUint(parsed, &readIndex);
                 value = ByteVectorReadUint(parsed, &readIndex);
-                printf("%d: phi variable condition=%d %d %d\n", ip, condition,
+                printf("%d: condition: %d %d %d\n", ip, condition,
                        value, ByteVectorReadInt(parsed, &readIndex));
                 break;
 
@@ -231,10 +231,10 @@ static void dumpValueBytecode(const bytevector *bytecode)
                    value, StringPoolGetString((stringref)value));
             break;
 
-        case DATAOP_PHI_VARIABLE:
+        case DATAOP_CONDITION:
             condition = ByteVectorReadPackUint(bytecode, &readIndex);
             value = ByteVectorReadPackUint(bytecode, &readIndex);
-            printf("%d: phi variable condition=-%d -%d -%d\n",
+            printf("%d: condition: -%d -%d -%d\n",
                    valueOffset, condition, value,
                    ByteVectorReadPackUint(bytecode, &readIndex));
             break;
@@ -456,7 +456,7 @@ static void useValue(State *state, uint dataOffset, uint value)
         readIndex = getValueOffset(state, dataOffset, value);
         switch (ByteVectorGet(state->parsed, readIndex++))
         {
-        case DATAOP_PHI_VARIABLE:
+        case DATAOP_CONDITION:
             useValue(state, dataOffset, ByteVectorReadUint(state->parsed, &readIndex));
             useValue(state, dataOffset, ByteVectorReadUint(state->parsed, &readIndex));
             useValue(state, dataOffset, ByteVectorReadUint(state->parsed, &readIndex));
@@ -546,7 +546,7 @@ static void markUsedValues(State *state)
                 ByteVectorSkipPackUint(state->parsed, &readIndex);
                 break;
 
-            case DATAOP_PHI_VARIABLE:
+            case DATAOP_CONDITION:
                 readIndex += 3 * (uint)sizeof(uint);
                 break;
 
@@ -692,7 +692,7 @@ static void writeValue(State *restrict state,
                               ByteVectorGetPackUint(state->parsed, offset));
         break;
 
-    case DATAOP_PHI_VARIABLE:
+    case DATAOP_CONDITION:
         ByteVectorAdd(valueBytecode, op);
         ByteVectorAddPackUint(
             valueBytecode,

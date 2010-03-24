@@ -290,7 +290,7 @@ static boolean finishIfBlockNoElse(ParseState *state)
         oldFlags = IntVectorGet(oldLocals, i + LOCAL_OFFSET_FLAGS);
         if (flags & LOCAL_FLAG_MODIFIED)
         {
-            if (!ByteVectorAdd(getData(state), DATAOP_PHI_VARIABLE) ||
+            if (!ByteVectorAdd(getData(state), DATAOP_CONDITION) ||
                 !ByteVectorAddUint(getData(state), block->condition) ||
                 !ByteVectorAddUint(
                     getData(state),
@@ -355,7 +355,7 @@ static boolean finishIfBlockWithElse(ParseState *state)
         }
         if (flags & LOCAL_FLAG_MODIFIED)
         {
-            if (!ByteVectorAdd(getData(state), DATAOP_PHI_VARIABLE) ||
+            if (!ByteVectorAdd(getData(state), DATAOP_CONDITION) ||
                 !ByteVectorAddUint(getData(state),
                                    block->unfinished->condition) ||
                 !ByteVectorAddUint(
@@ -445,7 +445,7 @@ static boolean finishLoopBlock(ParseState *restrict state,
             }
             IntVectorSet(oldLocals, index + LOCAL_OFFSET_VALUE,
                          function->parent->valueCount++);
-            if (!ByteVectorAdd(&function->parent->data, DATAOP_PHI_VARIABLE) ||
+            if (!ByteVectorAdd(&function->parent->data, DATAOP_CONDITION) ||
                 !ByteVectorAddUint(&function->parent->data,
                                    function->firstBlock.condition) ||
                 !ByteVectorAddUint(&function->parent->data, oldValue) ||
@@ -650,6 +650,20 @@ uint ParseStateWriteBinaryOperation(ParseState *state,
     return getFunction(state)->valueCount++;
 }
 
+uint ParseStateWriteTernaryOperation(ParseState *state,
+                                     DataInstruction operation,
+                                     uint value1, uint value2, uint value3)
+{
+    ParseStateCheck(state);
+    if (!ByteVectorAdd(getData(state), operation) ||
+        !ByteVectorAddUint(getData(state), value1) ||
+        !ByteVectorAddUint(getData(state), value2) ||
+        !ByteVectorAddUint(getData(state), value3))
+    {
+        ParseStateSetFailed(state);
+    }
+    return getFunction(state)->valueCount++;
+}
 
 boolean ParseStateWriteIf(ParseState *state, uint value)
 {

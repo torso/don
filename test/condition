@@ -1,0 +1,3 @@
+default:
+    a = false ? 1 : 2
+    echo(a == 2 ? "PASS" : "FAIL")

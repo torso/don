@@ -93,6 +93,10 @@ extern nonnull uint ParseStateWriteStringLiteral(ParseState *state,
 extern nonnull uint ParseStateWriteBinaryOperation(ParseState *state,
                                                    DataInstruction operation,
                                                    uint value1, uint value2);
+extern nonnull uint ParseStateWriteTernaryOperation(ParseState *state,
+                                                    DataInstruction operation,
+                                                    uint value1, uint value2,
+                                                    uint value3);
 
 extern nonnull boolean ParseStateWriteIf(ParseState *state, uint value);
 extern nonnull boolean ParseStateWriteWhile(ParseState *state, uint value);

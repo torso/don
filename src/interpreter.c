@@ -167,7 +167,7 @@ static void evaluateValue(State *state, uint valueOffset)
             value = ByteVectorGetPackUint(state->valueBytecode, value);
             break;
 
-        case DATAOP_PHI_VARIABLE:
+        case DATAOP_CONDITION:
             condition = readRelativeValueOffset(state, valueOffset, &value);
             value1 = readRelativeValueOffset(state, valueOffset, &value);
             value2 = readRelativeValueOffset(state, valueOffset, &value);
