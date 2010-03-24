@@ -291,7 +291,7 @@ static uint parseExpression3(ParseState *state)
     skipWhitespace(state);
     if (readOperator(state, '+'))
     {
-        assert(!readOperator(state, '+'));
+        assert(!readOperator(state, '+')); /* TODO: ++ operator */
         skipWhitespace(state);
         value2 = parseExpression4(state);
         value = ParseStateWriteBinaryOperation(
@@ -299,7 +299,7 @@ static uint parseExpression3(ParseState *state)
     }
     else if (readOperator(state, '-'))
     {
-        assert(!readOperator(state, '-'));
+        assert(!readOperator(state, '-')); /* TODO: -- operator */
         skipWhitespace(state);
         value2 = parseExpression4(state);
         value = ParseStateWriteBinaryOperation(
