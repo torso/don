@@ -264,7 +264,7 @@ static uint parseListRest(ParseState *state)
     return value;
 }
 
-static uint parseExpression4(ParseState *state)
+static uint parseExpression5(ParseState *state)
 {
     stringref identifier;
     ParseStateCheck(state);
@@ -306,6 +306,30 @@ static uint parseExpression4(ParseState *state)
     }
     statementError(state, "Invalid expression.");
     return 0;
+}
+
+static uint parseExpression4(ParseState *state)
+{
+    uint value = parseExpression5(state);
+    uint indexValue;
+
+    if (readOperator(state, '['))
+    {
+        skipWhitespace(state);
+        indexValue = parseExpression(state);
+        if (state->failed)
+        {
+            return 0;
+        }
+        skipWhitespace(state);
+        if (!readExpectedOperator(state, ']'))
+        {
+            return 0;
+        }
+        return ParseStateWriteBinaryOperation(state, DATAOP_INDEXED_ACCESS,
+                                              value, indexValue);
+    }
+    return value;
 }
 
 static uint parseExpression3(ParseState *state)

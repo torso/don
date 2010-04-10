@@ -147,6 +147,12 @@ static void dumpParsed(const bytevector *parsed)
                        value, ByteVectorReadPackUint(parsed, &readIndex));
                 break;
 
+            case DATAOP_INDEXED_ACCESS:
+                value = ByteVectorReadPackUint(parsed, &readIndex);
+                printf("%d: indexed access %d[%d]\n", ip,
+                       value, ByteVectorReadPackUint(parsed, &readIndex));
+                break;
+
             default:
                 assert(false);
                 break;
@@ -298,6 +304,12 @@ static void dumpValueBytecode(const bytevector *bytecode)
             value = ByteVectorReadPackUint(bytecode, &readIndex);
             printf("%d: sub -%d -%d\n", valueOffset, value,
                    ByteVectorReadPackUint(bytecode, &readIndex));
+            break;
+
+        case DATAOP_INDEXED_ACCESS:
+            value = ByteVectorReadPackUint(bytecode, &readIndex);
+            printf("%d: indexed access -%d[-%d]\n", valueOffset,
+                   value, ByteVectorReadPackUint(bytecode, &readIndex));
             break;
 
         default:
@@ -520,6 +532,7 @@ static void useValue(State *state, uint dataOffset, uint value)
         case DATAOP_EQUALS:
         case DATAOP_ADD:
         case DATAOP_SUB:
+        case DATAOP_INDEXED_ACCESS:
             useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
             useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
             break;
@@ -620,6 +633,7 @@ static void markUsedValues(State *state)
             case DATAOP_EQUALS:
             case DATAOP_ADD:
             case DATAOP_SUB:
+            case DATAOP_INDEXED_ACCESS:
                 ByteVectorSkipPackUint(state->parsed, &readIndex);
                 ByteVectorSkipPackUint(state->parsed, &readIndex);
                 break;
@@ -809,6 +823,7 @@ static void writeValue(State *restrict state,
     case DATAOP_EQUALS:
     case DATAOP_ADD:
     case DATAOP_SUB:
+    case DATAOP_INDEXED_ACCESS:
         ByteVectorAdd(valueBytecode, op);
         ByteVectorAddPackUint(valueBytecode,
                               newValue - getAllocatedNewIndex(

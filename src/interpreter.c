@@ -45,7 +45,17 @@ typedef struct
     bytevector heap;
 } State;
 
+typedef struct
+{
+    State *state;
+    uint index;
+    uint length;
+    uint bytecodeOffset;
+    uint valueOffset;
+} Iterator;
 
+
+static uint getElementValueOffset(State *state, uint object, uint index);
 static void printValue(State *state, uint valueOffset);
 
 
@@ -148,6 +158,14 @@ static void setValue(State *state, uint bp, uint valueIndex,
     uint offset = getValueOffset(bp, valueIndex);
     IntVectorSet(&state->values, offset + VALUE_OFFSET_TYPE, type);
     IntVectorSet(&state->values, offset + VALUE_OFFSET_VALUE, value);
+}
+
+static uint getRelativeValueOffset(State *state, uint valueOffset,
+                                   uint bytecodeOffset)
+{
+    return valueOffset -
+        ByteVectorGetPackUint(state->valueBytecode,
+                              bytecodeOffset) * VALUE_ENTRY_SIZE;
 }
 
 static uint readRelativeValueOffset(State *state, uint valueOffset,
@@ -271,6 +289,21 @@ static void evaluateValue(State *state, uint valueOffset)
             value = (uint)(a - b);
             break;
 
+        case DATAOP_INDEXED_ACCESS:
+            value1 = readRelativeValueOffset(state, valueOffset, &value);
+            value2 = readRelativeValueOffset(state, valueOffset, &value);
+            evaluateValue(state, value1);
+            evaluateValue(state, value2);
+            assert(getValueType(state, value1) == VALUE_OBJECT);
+            assert(getValueType(state, value2) == VALUE_INTEGER);
+
+            value = getElementValueOffset(state, getValue(state, value1),
+                                          getValue(state, value2));
+            evaluateValue(state, value);
+            type = getValueType(state, value);
+            value = getValue(state, value);
+            break;
+
         default:
             assert(false);
             return;
@@ -313,6 +346,53 @@ static boolean getBooleanValue(State *state, uint bp, uint valueIndex)
     evaluateValue(state, getValueOffset(bp, valueIndex));
     assert(getLocalValueType(state, bp, valueIndex) == VALUE_BOOLEAN);
     return (boolean)getLocalValue(state, bp, valueIndex);
+}
+
+static void iteratorInit(Iterator *iterator, State *state, uint object)
+{
+    ObjectType type;
+
+    iterator->state = state;
+    iterator->index = 0;
+
+    type = ByteVectorRead(&state->heap, &object);
+    assert(type == OBJECT_LIST);
+    iterator->bytecodeOffset = ByteVectorReadPackUint(&state->heap, &object);
+    iterator->valueOffset = ByteVectorReadPackUint(&state->heap, &object);
+    iterator->length = ByteVectorReadPackUint(state->valueBytecode,
+                                              &iterator->bytecodeOffset);
+}
+
+static void iteratorNext(Iterator *iterator)
+{
+    assert(iterator->index < iterator->length);
+    iterator->index++;
+    ByteVectorSkipPackUint(iterator->state->valueBytecode,
+                           &iterator->bytecodeOffset);
+}
+
+static void iteratorMove(Iterator *iterator, uint amount)
+{
+    while (amount--)
+    {
+        iteratorNext(iterator);
+    }
+}
+
+static uint iteratorGetValueOffset(Iterator *iterator)
+{
+    return getRelativeValueOffset(iterator->state,
+                                  iterator->valueOffset,
+                                  iterator->bytecodeOffset);
+}
+
+static uint getElementValueOffset(State *state, uint object, uint index)
+{
+    Iterator iterator;
+
+    iteratorInit(&iterator, state, object);
+    iteratorMove(&iterator, index);
+    return iteratorGetValueOffset(&iterator);
 }
 
 static void createStackframe(State *state, uint ip, uint argumentCount)
@@ -441,7 +521,9 @@ static void execute(State *state)
     {
         if (TRACE)
         {
-            printf("execute ip=%d bp=%d stacksize=%d\n", state->ip, state->bp, IntVectorSize(&state->stack));
+            printf("execute ip=%d op=%d bp=%d stacksize=%d\n", state->ip,
+                   ByteVectorGet(state->bytecode, state->ip), state->bp,
+                   IntVectorSize(&state->stack));
         }
         switch (ByteVectorRead(state->bytecode, &state->ip))
         {

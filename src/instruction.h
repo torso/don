@@ -24,5 +24,6 @@ typedef enum
     DATAOP_CONDITION,
     DATAOP_EQUALS,
     DATAOP_ADD,
-    DATAOP_SUB
+    DATAOP_SUB,
+    DATAOP_INDEXED_ACCESS
 } DataInstruction;
