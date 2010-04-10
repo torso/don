@@ -8,9 +8,9 @@
 #include "instruction.h"
 #include "bytecodegenerator.h"
 
-static const boolean DUMP_PARSED = false;
+static const boolean DUMP_PARSED   = false;
 static const boolean DUMP_BYTECODE = false;
-static const boolean DUMP_STATE = false;
+static const boolean DUMP_STATE    = false;
 
 typedef struct
 {
