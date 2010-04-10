@@ -90,6 +90,8 @@ extern nonnull uint ParseStateWriteFalseLiteral(ParseState *state);
 extern nonnull uint ParseStateWriteIntegerLiteral(ParseState *state, int value);
 extern nonnull uint ParseStateWriteStringLiteral(ParseState *state,
                                                  stringref value);
+extern nonnull uint ParseStateWriteList(ParseState *restrict state,
+                                        const intvector *restrict values);
 extern nonnull uint ParseStateWriteBinaryOperation(ParseState *state,
                                                    DataInstruction operation,
                                                    uint value1, uint value2);

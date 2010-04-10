@@ -92,6 +92,16 @@ static void dumpParsed(const bytevector *parsed)
                        StringPoolGetString((stringref)value));
                 break;
 
+            case DATAOP_LIST:
+                valueCount = ByteVectorReadPackUint(parsed, &readIndex);
+                printf("%d: list length=%d [", ip, valueCount);
+                while (valueCount--)
+                {
+                    printf(valueCount ? "%d " : "%d", ByteVectorReadPackUint(parsed, &readIndex));
+                }
+                printf("]\n");
+                break;
+
             case DATAOP_CONDITION:
                 condition = ByteVectorReadUint(parsed, &readIndex);
                 value = ByteVectorReadUint(parsed, &readIndex);
@@ -206,6 +216,7 @@ static void dumpValueBytecode(const bytevector *bytecode)
     uint valueOffset;
     uint condition;
     uint value;
+    uint valueCount;
     uint stackframe;
 
     printf("Dump value bytecode\n");
@@ -235,6 +246,16 @@ static void dumpValueBytecode(const bytevector *bytecode)
             value = ByteVectorReadPackUint(bytecode, &readIndex);
             printf("%d: string %d: \"%s\"\n", valueOffset,
                    value, StringPoolGetString((stringref)value));
+            break;
+
+        case DATAOP_LIST:
+            valueCount = ByteVectorReadPackUint(bytecode, &readIndex);
+            printf("%d: list length=%d [", valueOffset, valueCount);
+            while (valueCount--)
+            {
+                printf(valueCount ? "-%d " : "-%d", ByteVectorReadPackUint(bytecode, &readIndex));
+            }
+            printf("]\n");
             break;
 
         case DATAOP_CONDITION:
@@ -460,6 +481,7 @@ static void useValue(State *state, uint dataOffset, uint value)
     uint stackframe;
     uint stackframeOffset;
     uint function;
+    uint valueCount;
 
     checkValueIndex(state, dataOffset, value);
     if (!isUsed(state, dataOffset, value))
@@ -468,6 +490,14 @@ static void useValue(State *state, uint dataOffset, uint value)
         readIndex = getValueOffset(state, dataOffset, value);
         switch (ByteVectorGet(state->parsed, readIndex++))
         {
+        case DATAOP_LIST:
+            valueCount = ByteVectorReadPackUint(state->parsed, &readIndex);
+            while (valueCount-- > 0)
+            {
+                useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
+            }
+            break;
+
         case DATAOP_CONDITION:
             useValue(state, dataOffset, ByteVectorReadUint(state->parsed, &readIndex));
             useValue(state, dataOffset, ByteVectorReadUint(state->parsed, &readIndex));
@@ -557,6 +587,14 @@ static void markUsedValues(State *state)
 
             case DATAOP_STRING:
                 ByteVectorSkipPackUint(state->parsed, &readIndex);
+                break;
+
+            case DATAOP_LIST:
+                valueCount = ByteVectorReadPackUint(state->parsed, &readIndex);
+                while (valueCount-- > 0)
+                {
+                    ByteVectorSkipPackUint(state->parsed, &readIndex);
+                }
                 break;
 
             case DATAOP_CONDITION:
@@ -678,6 +716,7 @@ static void writeValue(State *restrict state,
                        uint dataOffset, uint value, uint newValue)
 {
     uint offset = getValueOffset(state, dataOffset, value);
+    uint valueCount;
     uint stackframe;
     uint returnIndex;
     byte op;
@@ -706,20 +745,37 @@ static void writeValue(State *restrict state,
                               ByteVectorGetPackUint(state->parsed, offset));
         break;
 
+    case DATAOP_LIST:
+        ByteVectorAdd(valueBytecode, op);
+        valueCount = ByteVectorReadPackUint(state->parsed, &offset);
+        ByteVectorAddPackUint(valueBytecode, valueCount);
+        while (valueCount-- > 0)
+        {
+            ByteVectorAddPackUint(
+                valueBytecode,
+                newValue - getAllocatedNewIndex(
+                    state, dataOffset,
+                    ByteVectorReadPackUint(state->parsed, &offset)));
+        }
+        break;
+
     case DATAOP_CONDITION:
         ByteVectorAdd(valueBytecode, op);
         ByteVectorAddPackUint(
             valueBytecode,
             newValue - getAllocatedNewIndex(state, dataOffset,
-                                            ByteVectorReadUint(state->parsed, &offset)));
+                                            ByteVectorReadUint(state->parsed,
+                                                               &offset)));
         ByteVectorAddPackUint(
             valueBytecode,
             newValue - getAllocatedNewIndex(state, dataOffset,
-                                            ByteVectorReadUint(state->parsed, &offset)));
+                                            ByteVectorReadUint(state->parsed,
+                                                               &offset)));
         ByteVectorAddPackUint(
             valueBytecode,
             newValue - getAllocatedNewIndex(state, dataOffset,
-                                            ByteVectorReadUint(state->parsed, &offset)));
+                                            ByteVectorReadUint(state->parsed,
+                                                               &offset)));
         break;
 
     case DATAOP_PARAMETER:

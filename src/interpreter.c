@@ -24,8 +24,14 @@ typedef enum
     VALUE_BOOLEAN,
     VALUE_INTEGER,
     VALUE_STRING,
-    VALUE_STACKFRAME
+    VALUE_STACKFRAME,
+    VALUE_OBJECT
 } ValueType;
+
+typedef enum
+{
+    OBJECT_LIST
+} ObjectType;
 
 typedef struct
 {
@@ -36,7 +42,11 @@ typedef struct
     uint bp;
     intvector values;
     intvector stack;
+    bytevector heap;
 } State;
+
+
+static void printValue(State *state, uint valueOffset);
 
 
 static void dumpState(const State *state)
@@ -64,6 +74,10 @@ static void dumpState(const State *state)
             printf(" %d: boolean value=%d\n", valueIndex, value);
             break;
 
+        case VALUE_INTEGER:
+            printf(" %d: integer value=%d\n", valueIndex, value);
+            break;
+
         case VALUE_STRING:
             printf(" %d: string %d: %s\n", valueIndex, value,
                    StringPoolGetString((stringref)value));
@@ -71,6 +85,11 @@ static void dumpState(const State *state)
 
         case VALUE_STACKFRAME:
             printf(" %d: stackframe bp=%d\n", valueIndex, value);
+            break;
+
+        case VALUE_OBJECT:
+            printf(" %d: object: offset=%d type=%d\n", valueIndex, value,
+                   ByteVectorGet(&state->heap, value));
             break;
 
         default:
@@ -89,6 +108,13 @@ static boolean addOverflow(int a, int b)
 static boolean subOverflow(int a, int b)
 {
     return (boolean)(b < 1 ? MAX_INT + b < a : MIN_INT + b > a);
+}
+
+static uint allocateObject(State *state, ObjectType type)
+{
+    uint offset = ByteVectorSize(&state->heap);
+    ByteVectorAdd(&state->heap, type);
+    return offset;
 }
 
 static uint getValueOffset(uint bp, uint value)
@@ -136,6 +162,7 @@ static void evaluateValue(State *state, uint valueOffset)
 {
     ValueType type;
     uint value = IntVectorGet(&state->values, valueOffset + VALUE_OFFSET_VALUE);
+    uint object;
     uint condition;
     uint value1;
     uint value2;
@@ -170,6 +197,14 @@ static void evaluateValue(State *state, uint valueOffset)
         case DATAOP_STRING:
             type = VALUE_STRING;
             value = ByteVectorGetPackUint(state->valueBytecode, value);
+            break;
+
+        case DATAOP_LIST:
+            type = VALUE_OBJECT;
+            object = allocateObject(state, OBJECT_LIST);
+            ByteVectorAddPackUint(&state->heap, value);
+            ByteVectorAddPackUint(&state->heap, valueOffset);
+            value = object;
             break;
 
         case DATAOP_CONDITION:
@@ -315,39 +350,76 @@ static void destroyStackframe(State *state)
     state->ip = IntVectorPop(&state->stack);
 }
 
-static void invokeNative(State* state, nativefunctionref function)
+static void printObject(State *state, uint object)
+{
+    ObjectType type;
+    uint bytecodeOffset;
+    uint valueOffset;
+    uint length;
+    uint element;
+
+    type = ByteVectorRead(&state->heap, &object);
+    bytecodeOffset = ByteVectorReadPackUint(&state->heap, &object);
+    valueOffset = ByteVectorReadPackUint(&state->heap, &object);
+
+    length = ByteVectorReadPackUint(state->valueBytecode, &bytecodeOffset);
+    if (!length)
+    {
+        printf("[]");
+        return;
+    }
+    printf("[");
+    while (length--)
+    {
+        element = readRelativeValueOffset(state, valueOffset, &bytecodeOffset);
+        printValue(state, element);
+        printf(length ? " " : "]");
+    }
+}
+
+static void printValue(State *state, uint valueOffset)
 {
     uint value;
 
+    evaluateValue(state, valueOffset);
+    value = getValue(state, valueOffset);
+    switch (getValueType(state, valueOffset))
+    {
+    case VALUE_NULL:
+        printf("null");
+        break;
+
+    case VALUE_BOOLEAN:
+        printf(value ? "true" : "false");
+        break;
+
+    case VALUE_INTEGER:
+        printf("%d", value);
+        break;
+
+    case VALUE_STRING:
+        printf("%s", StringPoolGetString((stringref)value));
+        break;
+
+    case VALUE_OBJECT:
+        printObject(state, value);
+        break;
+
+    case VALUE_UNEVALUATED:
+    case VALUE_COPY:
+    case VALUE_STACKFRAME:
+    default:
+        assert(false);
+        break;
+    }
+}
+
+static void invokeNative(State* state, nativefunctionref function)
+{
     if (function == 0)
     {
-        evaluateValue(state, getValueOffset(state->bp, 0));
-        value = getLocalValue(state, state->bp, 0);
-        switch (getLocalValueType(state, state->bp, 0))
-        {
-        case VALUE_NULL:
-            printf("null\n");
-            break;
-
-        case VALUE_BOOLEAN:
-            printf(value ? "true\n" : "false\n");
-            break;
-
-        case VALUE_INTEGER:
-            printf("%d\n", value);
-            break;
-
-        case VALUE_STRING:
-            printf("%s\n", StringPoolGetString((stringref)value));
-            break;
-
-        case VALUE_UNEVALUATED:
-        case VALUE_COPY:
-        case VALUE_STACKFRAME:
-        default:
-            assert(false);
-            break;
-        }
+        printValue(state, getValueOffset(state->bp, 0));
+        printf("\n");
     }
 }
 
@@ -451,6 +523,7 @@ void InterpreterExecute(const bytevector *restrict bytecode,
     state.valueBytecode = valueBytecode;
     IntVectorInit(&state.values);
     IntVectorInit(&state.stack);
+    ByteVectorInit(&state.heap);
 
     execute(&state);
     if (DUMP_STATE)
@@ -460,4 +533,5 @@ void InterpreterExecute(const bytevector *restrict bytecode,
 
     IntVectorDispose(&state.values);
     IntVectorDispose(&state.stack);
+    ByteVectorDispose(&state.heap);
 }

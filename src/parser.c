@@ -23,6 +23,8 @@ static stringref keywordWhile;
 static stringref maxStatementKeyword;
 static stringref maxKeyword;
 
+static uint parseExpression(ParseState *state);
+
 static boolean isInitialIdentifierCharacter(byte c)
 {
     return (c >= 'a' && c <= 'z') ||
@@ -239,6 +241,29 @@ static uint parseNumber(ParseState *state)
     return ParseStateWriteIntegerLiteral(state, value);
 }
 
+static uint parseListRest(ParseState *state)
+{
+    intvector values;
+    uint value;
+
+    IntVectorInit(&values);
+    skipWhitespace(state);
+    while (!readOperator(state, ']'))
+    {
+        value = parseExpression(state);
+        skipWhitespace(state);
+        if (state->failed)
+        {
+            IntVectorDispose(&values);
+            return 0;
+        }
+        IntVectorAdd(&values, value);
+    }
+    value = ParseStateWriteList(state, &values);
+    IntVectorDispose(&values);
+    return value;
+}
+
 static uint parseExpression4(ParseState *state)
 {
     stringref identifier;
@@ -274,6 +299,10 @@ static uint parseExpression4(ParseState *state)
     else if (peekString(state))
     {
         return ParseStateWriteStringLiteral(state, readString(state));
+    }
+    else if (readOperator(state, '['))
+    {
+        return parseListRest(state);
     }
     statementError(state, "Invalid expression.");
     return 0;

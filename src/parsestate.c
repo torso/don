@@ -636,6 +636,30 @@ uint ParseStateWriteStringLiteral(ParseState *state, stringref value)
     return getFunction(state)->valueCount++;
 }
 
+uint ParseStateWriteList(ParseState *state, const intvector *values)
+{
+    uint i;
+    uint count;
+
+    ParseStateCheck(state);
+    count = IntVectorSize(values);
+    if (!ByteVectorAdd(getData(state), DATAOP_LIST) ||
+        !ByteVectorAddPackUint(getData(state), count))
+    {
+        ParseStateSetFailed(state);
+        return 0;
+    }
+    for (i = 0; i < count; i++)
+    {
+        if (!ByteVectorAddPackUint(getData(state), IntVectorGet(values, i)))
+        {
+            ParseStateSetFailed(state);
+            return 0;
+        }
+    }
+    return getFunction(state)->valueCount++;
+}
+
 uint ParseStateWriteBinaryOperation(ParseState *state,
                                     DataInstruction operation,
                                     uint value1, uint value2)
