@@ -29,6 +29,6 @@ uint CollectionGetElementValueOffset(const RunState *state, uint object,
     Iterator iterator;
 
     IteratorInit(&iterator, state, object);
-    IteratorMove(&iterator, index);
+    IteratorMove(&iterator, index + 1);
     return IteratorGetValueOffset(&iterator);
 }

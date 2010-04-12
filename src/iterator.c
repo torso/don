@@ -24,15 +24,18 @@ void IteratorInit(Iterator *iterator, const RunState *state, uint object)
 
 boolean IteratorHasNext(Iterator *iterator)
 {
-    return iterator->index + 1 < iterator->length;
+    return iterator->index < iterator->length;
 }
 
 void IteratorNext(Iterator *iterator)
 {
-    assert(iterator->index < iterator->length);
+    assert(IteratorHasNext(iterator));
+    if (iterator->index)
+    {
+        ByteVectorSkipPackUint(iterator->state->valueBytecode,
+                               &iterator->bytecodeOffset);
+    }
     iterator->index++;
-    ByteVectorSkipPackUint(iterator->state->valueBytecode,
-                           &iterator->bytecodeOffset);
 }
 
 void IteratorMove(Iterator *iterator, uint steps)
@@ -45,6 +48,7 @@ void IteratorMove(Iterator *iterator, uint steps)
 
 uint IteratorGetValueOffset(Iterator *iterator)
 {
+    assert(iterator->index);
     return ValueGetRelativeOffset(iterator->state,
                                   iterator->valueOffset,
                                   iterator->bytecodeOffset);

@@ -360,23 +360,19 @@ void ValueDestroyStackframe(RunState *state)
 static void printObject(RunState *state, uint object)
 {
     Iterator iterator;
+    boolean first = true;
 
     IteratorInit(&iterator, state, object);
-    if (!IteratorHasNext(&iterator))
-    {
-        printf("[]");
-        return;
-    }
     printf("[");
-    for (;;)
+    while (IteratorHasNext(&iterator))
     {
-        ValuePrint(state, IteratorGetValueOffset(&iterator));
-        if (!IteratorHasNext(&iterator))
+        if (!first)
         {
-            break;
+            printf(" ");
         }
-        printf(" ");
+        first = false;
         IteratorNext(&iterator);
+        ValuePrint(state, IteratorGetValueOffset(&iterator));
     }
     printf("]");
 }
