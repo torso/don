@@ -314,21 +314,28 @@ static uint parseExpression4(ParseState *state)
     uint value = parseExpression5(state);
     uint indexValue;
 
-    if (readOperator(state, '['))
+    for (;;)
     {
-        skipWhitespace(state);
-        indexValue = parseExpression(state);
-        if (state->failed)
+        if (readOperator(state, '['))
         {
-            return 0;
+            skipWhitespace(state);
+            indexValue = parseExpression(state);
+            if (state->failed)
+            {
+                return 0;
+            }
+            skipWhitespace(state);
+            if (!readExpectedOperator(state, ']'))
+            {
+                return 0;
+            }
+            value = ParseStateWriteBinaryOperation(state, DATAOP_INDEXED_ACCESS,
+                                                   value, indexValue);
         }
-        skipWhitespace(state);
-        if (!readExpectedOperator(state, ']'))
+        else
         {
-            return 0;
+            break;
         }
-        return ParseStateWriteBinaryOperation(state, DATAOP_INDEXED_ACCESS,
-                                              value, indexValue);
     }
     return value;
 }
