@@ -20,15 +20,6 @@ static void dumpState(const RunState *state)
     ValueDump(state);
 }
 
-static void invokeNative(RunState *state, nativefunctionref function)
-{
-    if (function == 0)
-    {
-        ValuePrint(state, ValueGetOffset(state->bp, 0));
-        printf("\n");
-    }
-}
-
 static void execute(RunState *state)
 {
     uint condition;
@@ -87,7 +78,7 @@ static void execute(RunState *state)
                 ValueCreateStackframe(
                     state, NativeGetBytecodeOffset(nativeFunction),
                     ByteVectorReadPackUint(state->bytecode, &state->ip)));
-            invokeNative(state, nativeFunction);
+            NativeInvoke(state, nativeFunction);
             ValueDestroyStackframe(state);
             break;
 

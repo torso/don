@@ -4,6 +4,7 @@
 #include "intvector.h"
 #include "stringpool.h"
 #include "fileindex.h"
+#include "interpreterstate.h"
 #include "native.h"
 #include "instruction.h"
 #include "parsestate.h"

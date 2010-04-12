@@ -5,6 +5,8 @@
 #error intvector.h not included
 #endif
 
+#define INTERPRETERSTATE_H
+
 typedef struct
 {
     const bytevector *restrict bytecode;

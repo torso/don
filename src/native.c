@@ -1,7 +1,10 @@
 #include <stdlib.h>
 #include "builder.h"
 #include "bytevector.h"
+#include "intvector.h"
 #include "stringpool.h"
+#include "interpreterstate.h"
+#include "value.h"
 #include "native.h"
 #include "instruction.h"
 
@@ -9,6 +12,15 @@
 
 static stringref echoParameterNames[1];
 static uint bytecodeOffsets[NATIVE_FUNCTION_COUNT];
+
+void NativeInvoke(RunState *state, nativefunctionref function)
+{
+    if (function == 0)
+    {
+        ValuePrint(state, ValueGetOffset(state->bp, 0));
+        printf("\n");
+    }
+}
 
 nativefunctionref NativeFindFunction(stringref name)
 {

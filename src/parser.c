@@ -6,6 +6,7 @@
 #include "fileindex.h"
 #include "targetindex.h"
 #include "log.h"
+#include "interpreterstate.h"
 #include "native.h"
 #include "instruction.h"
 #include "parser.h"

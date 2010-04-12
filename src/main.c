@@ -1,13 +1,15 @@
 #include <stdio.h>
 #include "builder.h"
 #include "bytevector.h"
+#include "intvector.h"
 #include "stringpool.h"
-#include "native.h"
 #include "fileindex.h"
 #include "targetindex.h"
 #include "parser.h"
 #include "bytecodegenerator.h"
+#include "interpreterstate.h"
 #include "interpreter.h"
+#include "native.h"
 
 #ifdef DEBUG
 #include <execinfo.h>
