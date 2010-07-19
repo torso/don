@@ -11,10 +11,13 @@
 #define TABLE_ENTRY_FILE 1
 #define TABLE_ENTRY_LINE 2
 #define TABLE_ENTRY_FILE_OFFSET 3
-#define TABLE_ENTRY_BYTECODE_OFFSET 4
-#define TABLE_ENTRY_PARAMETER_COUNT 5
-#define TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT 6
-#define TABLE_ENTRY_SIZE 7
+#define TABLE_ENTRY_FLAGS 4
+#define TABLE_ENTRY_BYTECODE_OFFSET 5
+#define TABLE_ENTRY_PARAMETER_COUNT 6
+#define TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT 7
+#define TABLE_ENTRY_SIZE 8
+
+#define TARGET_FLAG_QUEUED 1
 
 static intvector targetInfo;
 static intvector parseQueue;
@@ -52,6 +55,26 @@ static boolean isTarget(targetref target)
         }
     }
     return false;
+}
+
+static uint getFlag(targetref target, uint flag)
+{
+    return IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_FLAGS) & flag;
+}
+
+static uint getAndResetFlag(targetref target, uint flag)
+{
+    uint flags = IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_FLAGS);
+    IntVectorSet(&targetInfo, (uint)target + TABLE_ENTRY_FLAGS, flags & ~flag);
+    return flags & flag;
+}
+
+static void setFlag(targetref target, uint flag)
+{
+    IntVectorSet(
+        &targetInfo,
+        (uint)target + TABLE_ENTRY_FLAGS,
+        IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_FLAGS) | flag);
 }
 
 void TargetIndexInit(void)
@@ -121,6 +144,7 @@ boolean TargetIndexBeginTarget(stringref name, fileref file, uint line,
     IntVectorAdd(&targetInfo, 0);
     IntVectorAdd(&targetInfo, 0);
     IntVectorAdd(&targetInfo, 0);
+    IntVectorAdd(&targetInfo, 0);
     targetCount++;
     return true;
 }
@@ -131,15 +155,26 @@ void TargetIndexFinishTarget(void)
 
 void TargetIndexMarkForParsing(targetref target)
 {
-    if (!TargetIndexGetBytecodeOffset(target))
+    if (!TargetIndexGetBytecodeOffset(target) &&
+        !getFlag(target, TARGET_FLAG_QUEUED))
     {
+        setFlag(target, TARGET_FLAG_QUEUED);
         IntVectorAdd(&parseQueue, target);
     }
 }
 
 targetref TargetIndexPopUnparsedTarget(void)
 {
-    return IntVectorSize(&parseQueue) ? IntVectorPop(&parseQueue) : 0;
+    targetref target;
+    while (IntVectorSize(&parseQueue))
+    {
+        target = IntVectorPop(&parseQueue);
+        if (getAndResetFlag(target, TARGET_FLAG_QUEUED))
+        {
+            return target;
+        }
+    }
+    return 0;
 }
 
 uint TargetIndexGetTargetCount(void)
