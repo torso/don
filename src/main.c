@@ -49,6 +49,7 @@ int main(int argc, const char **argv)
     const char *inputFilename = null;
     fileref inputFile;
     targetref target;
+    targetref unparsedTarget;
     boolean parseOptions = true;
 
     for (i = 1; i < argc; i++)
@@ -117,24 +118,35 @@ int main(int argc, const char **argv)
 
     inputFile = FileIndexAdd(inputFilename);
     assert(inputFile);
-    if (!ParseFile(inputFile))
+    if (!ParseFile(inputFile) || !TargetIndexBuildIndex())
     {
         cleanup();
         return 1;
     }
-    TargetIndexFinish();
 
     target = TargetIndexGet(StringPoolAdd("default"));
-    assert(target >= 0); /* TODO: Error handling for non-existing target */
+    assert(target); /* TODO: Error handling for non-existing target */
     if (!ParseTarget(target, &parsed))
     {
         cleanup();
         return 1;
     }
+    for (;;)
+    {
+        unparsedTarget = TargetIndexPopUnparsedTarget();
+        if (!unparsedTarget)
+        {
+            break;
+        }
+        if (!ParseFunction(unparsedTarget, &parsed))
+        {
+            cleanup();
+            return 1;
+        }
+    }
 
     NativeWriteBytecode(&bytecode, &valueBytecode);
     BytecodeGeneratorExecute(&parsed, &bytecode, &valueBytecode);
-    TargetIndexDisposeParsed();
     ByteVectorDispose(&parsed);
 
     InterpreterExecute(&bytecode, &valueBytecode, target);

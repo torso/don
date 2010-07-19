@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include "builder.h"
 #include "bytevector.h"
@@ -242,6 +243,91 @@ static uint parseNumber(ParseState *state)
     return ParseStateWriteIntegerLiteral(state, value);
 }
 
+static uint parseInvocationRest(ParseState *state, stringref name)
+{
+    nativefunctionref nativeFunction = NativeFindFunction(name);
+    targetref target = 0;
+    uint parameterCount;
+    const stringref *parameterNames;
+    uint minimumArgumentCount;
+    uint *arguments;
+    uint argumentCount = 0;
+    uint returnValue;
+    uint line = state->line;
+
+    ParseStateCheck(state);
+    if (nativeFunction >= 0)
+    {
+        parameterCount = NativeGetParameterCount(nativeFunction);
+        parameterNames = NativeGetParameterNames(nativeFunction);
+        minimumArgumentCount = NativeGetMinimumArgumentCount(nativeFunction);
+    }
+    else
+    {
+        target = TargetIndexGet(name);
+        if (!target)
+        {
+            sprintf(errorBuffer, "Unknown function '%s'.",
+                    StringPoolGetString(name));
+            statementError(state, errorBuffer);
+            return 0;
+        }
+        TargetIndexMarkForParsing(target);
+        parameterCount = TargetIndexGetParameterCount(target);
+        parameterNames = TargetIndexGetParameterNames(target);
+        minimumArgumentCount = TargetIndexGetMinimumArgumentCount(target);
+    }
+    assert(parameterNames || !parameterCount);
+
+    /* TODO: Avoid malloc */
+    arguments = (uint*)zmalloc(parameterCount * sizeof(uint));
+    assert(arguments); /* TODO: Error handling */
+
+    if (!readOperator(state, ')'))
+    {
+        for (;;)
+        {
+            if (argumentCount >= parameterCount)
+            {
+                free(arguments);
+                sprintf(errorBuffer,
+                        "Too many arguments. Got %d arguments, but at most %d were expected.",
+                        argumentCount, parameterCount);
+                errorOnLine(state, line, errorBuffer);
+                return 0;
+            }
+            arguments[argumentCount++] = parseExpression(state);
+            if (state->failed)
+            {
+                free(arguments);
+                return 0;
+            }
+            if (readOperator(state, ')'))
+            {
+                break;
+            }
+            if (!readExpectedOperator(state, ','))
+            {
+                free(arguments);
+                return 0;
+            }
+        }
+    }
+    if (argumentCount < minimumArgumentCount)
+    {
+        free(arguments);
+        sprintf(errorBuffer,
+                "Too few arguments. Got %d arguments, but at least %d were expected.",
+                argumentCount, parameterCount);
+        errorOnLine(state, line, errorBuffer);
+        return 0;
+    }
+    returnValue = ParseStateWriteInvocation(state, nativeFunction, target,
+                                            parameterCount, arguments);
+    free(arguments);
+    return returnValue;
+}
+
 static uint parseListRest(ParseState *state)
 {
     intvector values;
@@ -291,6 +377,10 @@ static uint parseExpression5(ParseState *state)
             statementError(state, errorBuffer);
             return 0;
         }
+        if (readOperator(state, '('))
+        {
+            return parseInvocationRest(state, identifier);
+        }
         return ParseStateGetVariable(state, identifier);
     }
     else if (peekNumber(state))
@@ -314,7 +404,7 @@ static uint parseExpression4(ParseState *state)
     uint value = parseExpression5(state);
     uint indexValue;
 
-    for (;;)
+    do
     {
         if (readOperator(state, '['))
         {
@@ -337,6 +427,7 @@ static uint parseExpression4(ParseState *state)
             break;
         }
     }
+    while (!state->failed);
     return value;
 }
 
@@ -421,70 +512,6 @@ static uint parseExpression(ParseState *state)
             state, DATAOP_CONDITION, value, value3, value2);
     }
     return value;
-}
-
-static boolean parseInvocationRest(ParseState *state, stringref name)
-{
-    nativefunctionref nativeFunction = NativeFindFunction(name);
-    uint parameterCount = NativeGetParameterCount(nativeFunction);
-    stringref *parameterNames = NativeGetParameterNames(nativeFunction);
-    uint argumentOutputOffset;
-    uint argumentCount = 0;
-    uint line = state->line;
-    uint value;
-
-    ParseStateCheck(state);
-    assert(nativeFunction >= 0);
-    assert(parameterNames);
-
-    argumentOutputOffset = ParseStateWriteNativeInvocation(
-        state, nativeFunction, parameterCount);
-    if (argumentOutputOffset == 0)
-    {
-        return false;
-    }
-
-    if (!readOperator(state, ')'))
-    {
-        for (;;)
-        {
-            value = parseExpression(state);
-            if (state->failed)
-            {
-                return false;
-            }
-            ParseStateSetArgument(
-                state,
-                argumentOutputOffset,
-                argumentCount++,
-                value);
-            if (readOperator(state, ')'))
-            {
-                break;
-            }
-            if (!readExpectedOperator(state, ','))
-            {
-                return false;
-            }
-        }
-    }
-    if (argumentCount > parameterCount)
-    {
-        sprintf(errorBuffer,
-                "Too many arguments. Got %d arguments, but at most %d were expected.",
-                argumentCount, parameterCount);
-        errorOnLine(state, line, errorBuffer);
-        return false;
-    }
-    if (argumentCount < NativeGetMinimumArgumentCount(nativeFunction))
-    {
-        sprintf(errorBuffer,
-                "Too few arguments. Got %d arguments, but at least %d were expected.",
-                argumentCount, parameterCount);
-        errorOnLine(state, line, errorBuffer);
-        return false;
-    }
-    return true;
 }
 
 static boolean parseFunctionBody(ParseState *state,
@@ -628,7 +655,8 @@ static boolean parseFunctionBody(ParseState *state,
                 {
                     if (readOperator(state, '('))
                     {
-                        if (!parseInvocationRest(state, identifier))
+                        parseInvocationRest(state, identifier);
+                        if (state->failed)
                         {
                             return false;
                         }
@@ -674,9 +702,14 @@ static boolean parseScript(ParseState *state)
     {
         if (peekIdentifier(state))
         {
-            TargetIndexAdd(readIdentifier(state), state->file, state->line,
-                           getOffset(state, state->start));
+            if (!TargetIndexBeginTarget(readIdentifier(state), state->file, state->line,
+                                        getOffset(state, state->start)))
+            {
+                return false;
+            }
+            /* TODO: Parse arguments */
             skipEndOfLine(state);
+            TargetIndexFinishTarget();
             inFunction = true;
         }
         else if ((peekIndent(state) && inFunction) ||
@@ -717,15 +750,27 @@ boolean ParseFile(fileref file)
     return result;
 }
 
+static boolean parseFunctionRest(ParseState *state, targetref target,
+                                 bytevector *parsed)
+{
+    if (!parseFunctionBody(state, parsed) || state->failed)
+    {
+        ParseStateDispose(state);
+        return false;
+    }
+    TargetIndexSetBytecodeOffset(target, state->parsedOffset);
+    return true;
+}
+
 boolean ParseTarget(targetref target, bytevector *parsed)
 {
     ParseState state;
     stringref name;
-    assert(target >= 0);
+    assert(target);
     ParseStateInit(&state,
                    TargetIndexGetFile(target),
                    TargetIndexGetLine(target),
-                   TargetIndexGetOffset(target));
+                   TargetIndexGetFileOffset(target));
     name = readIdentifier(&state);
     assert(name == TargetIndexGetName(target));
     if (!readOperator(&state, ':'))
@@ -736,13 +781,37 @@ boolean ParseTarget(targetref target, bytevector *parsed)
     }
     assert(peekNewline(&state)); /* TODO: Error handling */
     skipEndOfLine(&state);
-    if (!parseFunctionBody(&state, parsed) ||
-        state.failed)
+    if (!parseFunctionRest(&state, target, parsed))
     {
+        return false;
+    }
+    ParseStateDispose(&state);
+    return true;
+}
+
+boolean ParseFunction(targetref target, bytevector *parsed)
+{
+    ParseState state;
+    stringref name;
+    assert(target);
+    ParseStateInit(&state,
+                   TargetIndexGetFile(target),
+                   TargetIndexGetLine(target),
+                   TargetIndexGetFileOffset(target));
+    name = readIdentifier(&state);
+    assert(name == TargetIndexGetName(target));
+    if (!readOperator(&state, '(') || !readOperator(&state, ')')) /* TODO: Parse parameters */
+    {
+        error(&state, "Expected ':' after target name.");
         ParseStateDispose(&state);
         return false;
     }
-    TargetIndexSetParsedOffset(target, state.parsedOffset);
+    assert(peekNewline(&state)); /* TODO: Error handling */
+    skipEndOfLine(&state);
+    if (!parseFunctionRest(&state, target, parsed))
+    {
+        return false;
+    }
     ParseStateDispose(&state);
     return true;
 }

@@ -20,7 +20,7 @@ static void checkByteVectorIndex(const bytevector *v, uint index)
 static void checkByteVectorRange(const bytevector *v, uint index, uint length)
 {
     checkByteVector(v);
-    assert(index < v->size);
+    assert(index <= v->size);
     assert(ByteVectorSize(v) >= index + length);
 }
 

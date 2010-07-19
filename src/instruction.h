@@ -6,6 +6,7 @@ typedef enum
     OP_BRANCH,
     OP_JUMP,
     OP_INVOKE_NATIVE,
+    OP_INVOKE_TARGET,
     OP_COND_INVOKE
 } ControlInstruction;
 

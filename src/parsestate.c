@@ -6,6 +6,7 @@
 #include "fileindex.h"
 #include "interpreterstate.h"
 #include "native.h"
+#include "targetindex.h"
 #include "instruction.h"
 #include "parsestate.h"
 #include "log.h"
@@ -736,25 +737,50 @@ boolean ParseStateWriteReturn(ParseState *state)
     return ByteVectorAdd(getControl(state), OP_RETURN);
 }
 
-uint ParseStateWriteNativeInvocation(ParseState *state,
-                                     nativefunctionref nativeFunction,
-                                     uint parameterCount)
+uint ParseStateWriteInvocation(ParseState *state,
+                               nativefunctionref nativeFunction,
+                               targetref target,
+                               uint parameterCount,
+                               uint *arguments)
 {
-    uint argumentOffset;
+    uint returnValue;
+
     ParseStateCheck(state);
-    if (!ByteVectorAdd(getControl(state), OP_INVOKE_NATIVE) ||
-        !ByteVectorAdd(getControl(state), (byte)nativeFunction) ||
-        !ByteVectorAddPackUint(getControl(state),
-                               getFunction(state)->valueCount++) ||
+    returnValue = getFunction(state)->valueCount++;
+    if (nativeFunction >= 0)
+    {
+        assert(!target);
+        if (!ByteVectorAdd(getControl(state), OP_INVOKE_NATIVE) ||
+            !ByteVectorAdd(getControl(state), (byte)nativeFunction))
+        {
+            ParseStateSetFailed(state);
+            return 0;
+        }
+    }
+    else
+    {
+        if (!ByteVectorAdd(getControl(state), OP_INVOKE_TARGET) ||
+            !ByteVectorAddPackUint(getControl(state), target))
+        {
+            ParseStateSetFailed(state);
+            return 0;
+        }
+    }
+    if (!ByteVectorAddPackUint(getControl(state),
+                               returnValue) ||
         !ByteVectorAdd(getData(state), DATAOP_STACKFRAME) ||
         !ByteVectorAddPackUint(getControl(state), parameterCount))
     {
+        ParseStateSetFailed(state);
         return 0;
     }
-    argumentOffset = ByteVectorSize(getControl(state));
-    ByteVectorSetSize(getControl(state),
-                      argumentOffset + parameterCount * (uint)sizeof(int));
-    ByteVectorFill(getControl(state), argumentOffset,
-                   parameterCount * (uint)sizeof(int), 0);
-    return argumentOffset;
+    while (parameterCount--)
+    {
+        if (!ByteVectorAddPackUint(getControl(state), *arguments++))
+        {
+            ParseStateSetFailed(state);
+            return 0;
+        }
+    }
+    return returnValue;
 }

@@ -25,6 +25,7 @@ static void execute(RunState *state)
     uint condition;
     uint offset;
     nativefunctionref nativeFunction;
+    targetref target;
     uint stackframeValueOffset;
     uint function;
     uint argumentCount;
@@ -80,6 +81,19 @@ static void execute(RunState *state)
                     ByteVectorReadPackUint(state->bytecode, &state->ip)));
             NativeInvoke(state, nativeFunction);
             ValueDestroyStackframe(state);
+            break;
+
+        case OP_INVOKE_TARGET:
+            target = (targetref)ByteVectorReadPackUint(state->bytecode,
+                                                       &state->ip);
+            stackframeValueOffset = ValueGetOffset(
+                state->bp, ByteVectorReadPackUint(state->bytecode, &state->ip));
+            ValueSetStackframeValue(
+                state,
+                stackframeValueOffset,
+                ValueCreateStackframe(
+                    state, TargetIndexGetBytecodeOffset(target),
+                    ByteVectorReadPackUint(state->bytecode, &state->ip)));
             break;
 
         case OP_COND_INVOKE:

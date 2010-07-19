@@ -191,7 +191,20 @@ static void dumpParsed(const bytevector *parsed)
                 for (i = 0; i < argumentCount; i++)
                 {
                     printf("  %d: argument %d\n", i,
-                           ByteVectorReadUint(parsed, &readIndex));
+                           ByteVectorReadPackUint(parsed, &readIndex));
+                }
+                break;
+
+            case OP_INVOKE_TARGET:
+                function = ByteVectorReadPackUint(parsed, &readIndex);
+                value = ByteVectorReadPackUint(parsed, &readIndex);
+                argumentCount = ByteVectorReadPackUint(parsed, &readIndex);
+                printf("%d: invoke target=%d, arguments=%d, stackframe=%d\n",
+                       ip, function, argumentCount, value);
+                for (i = 0; i < argumentCount; i++)
+                {
+                    printf("  %d: argument %d\n", i,
+                           ByteVectorReadPackUint(parsed, &readIndex));
                 }
                 break;
 
@@ -384,6 +397,19 @@ static void dumpBytecode(const bytevector *bytecode)
                 }
                 break;
 
+            case OP_INVOKE_TARGET:
+                function = ByteVectorReadPackUint(bytecode, &readIndex);
+                value = ByteVectorReadPackUint(bytecode, &readIndex);
+                argumentCount = ByteVectorReadPackUint(bytecode, &readIndex);
+                printf("%d: invoke target=%d, arguments=%d, stackframe=%d\n",
+                       ip, function, argumentCount, value);
+                for (i = 0; i < argumentCount; i++)
+                {
+                    printf("  %d: argument %d\n", i,
+                           ByteVectorReadPackUint(bytecode, &readIndex));
+                }
+                break;
+
             case OP_COND_INVOKE:
                 condition = ByteVectorReadPackUint(bytecode, &readIndex);
                 function = ByteVectorReadPackUint(bytecode, &readIndex);
@@ -561,6 +587,20 @@ static void dumpState(const State *state)
     }
 }
 
+static void markArguments(State *restrict state, uint dataOffset,
+                          uint *restrict readIndex)
+{
+    uint argumentCount;
+
+    for (argumentCount = ByteVectorReadPackUint(state->parsed, readIndex);
+         argumentCount > 0;
+         argumentCount--)
+    {
+        useValue(state, dataOffset,
+                 ByteVectorReadPackUint(state->parsed, readIndex));
+    }
+}
+
 static void markUsedValues(State *state)
 {
     uint readIndex;
@@ -569,7 +609,6 @@ static void markUsedValues(State *state)
     uint dataSize;
     uint controlSize;
     uint valueCount;
-    uint argumentCount;
     uint value;
 
     for (readIndex = 0; readIndex < ByteVectorSize(state->parsed);)
@@ -663,24 +702,19 @@ static void markUsedValues(State *state)
             case OP_INVOKE_NATIVE:
                 readIndex++;
                 useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
-                for (argumentCount = ByteVectorReadPackUint(state->parsed, &readIndex);
-                     argumentCount > 0;
-                     argumentCount--)
-                {
-                    useValue(state, dataOffset, ByteVectorReadUint(state->parsed, &readIndex));
-                }
+                markArguments(state, dataOffset, &readIndex);
+                break;
+
+            case OP_INVOKE_TARGET:
+                readIndex++;
+                useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
+                markArguments(state, dataOffset, &readIndex);
                 break;
 
             case OP_COND_INVOKE:
                 useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
                 useValue(state, dataOffset, ByteVectorReadPackUint(state->parsed, &readIndex));
-                for (argumentCount = ByteVectorReadPackUint(state->parsed, &readIndex);
-                     argumentCount > 0;
-                     argumentCount--)
-                {
-                    useValue(state, dataOffset,
-                             ByteVectorReadPackUint(state->parsed, &readIndex));
-                }
+                markArguments(state, dataOffset, &readIndex);
                 break;
 
             default:
@@ -843,6 +877,22 @@ static void writeValue(State *restrict state,
     }
 }
 
+static void writeArguments(State *restrict state, bytevector *restrict bytecode,
+                           uint dataOffset, uint *restrict readIndex)
+{
+    uint argumentCount = ByteVectorReadPackUint(state->parsed,
+                                                readIndex);
+    ByteVectorAddPackUint(bytecode, argumentCount);
+    while (argumentCount-- > 0)
+    {
+        ByteVectorAddPackUint(
+            bytecode,
+            getAllocatedNewIndex(
+                state, dataOffset,
+                ByteVectorReadPackUint(state->parsed, readIndex)));
+    }
+}
+
 static void writeBytecode(State *restrict state,
                           bytevector *restrict bytecode,
                           bytevector *restrict valueBytecode)
@@ -859,7 +909,6 @@ static void writeBytecode(State *restrict state,
     uint value;
     uint newValue;
     byte op;
-    uint argumentCount;
     uint branchOffset;
     uint target;
     uint i;
@@ -943,17 +992,21 @@ static void writeBytecode(State *restrict state,
                     getAllocatedNewIndex(state, dataOffset,
                                          ByteVectorReadPackUint(state->parsed,
                                                                 &readIndex)));
-                argumentCount = ByteVectorReadPackUint(state->parsed,
-                                                       &readIndex);
-                ByteVectorAddPackUint(bytecode, argumentCount);
-                while (argumentCount-- > 0)
-                {
-                    ByteVectorAddPackUint(
-                        bytecode,
-                        getAllocatedNewIndex(state, dataOffset,
-                                             ByteVectorReadUint(state->parsed,
+                writeArguments(state, bytecode, dataOffset, &readIndex);
+                break;
+
+            case OP_INVOKE_TARGET:
+                /* target */
+                ByteVectorAddPackUint(
+                    bytecode,
+                    ByteVectorReadPackUint(state->parsed, &readIndex));
+                /* stackframe value */
+                ByteVectorAddPackUint(
+                    bytecode,
+                    getAllocatedNewIndex(state, dataOffset,
+                                         ByteVectorReadPackUint(state->parsed,
                                                                 &readIndex)));
-                }
+                writeArguments(state, bytecode, dataOffset, &readIndex);
                 break;
 
             case OP_COND_INVOKE:
@@ -976,17 +1029,7 @@ static void writeBytecode(State *restrict state,
                 /* stackframe value */
                 ByteVectorAddPackUint(
                     bytecode, getAllocatedNewIndex(state, dataOffset, value));
-                argumentCount = ByteVectorReadPackUint(state->parsed,
-                                                       &readIndex);
-                ByteVectorAddPackUint(bytecode, argumentCount);
-                while (argumentCount-- > 0)
-                {
-                    ByteVectorAddPackUint(
-                        bytecode,
-                        getAllocatedNewIndex(state, dataOffset,
-                                             ByteVectorReadPackUint(state->parsed,
-                                                                    &readIndex)));
-                }
+                writeArguments(state, bytecode, dataOffset, &readIndex);
                 break;
 
             default:
@@ -1019,7 +1062,7 @@ void BytecodeGeneratorExecute(bytevector *restrict parsed,
                               bytevector *restrict valueBytecode)
 {
     State state;
-    uint target;
+    targetref target;
 
     if (DUMP_PARSED)
     {
@@ -1032,14 +1075,16 @@ void BytecodeGeneratorExecute(bytevector *restrict parsed,
     allocateValues(&state);
     writeBytecode(&state, bytecode, valueBytecode);
 
-    for (target = TargetIndexGetTargetCount(); target-- > 0;)
+    for (target = TargetIndexGetFirstTarget();
+         target;
+         target = TargetIndexGetNextTarget(target))
     {
         TargetIndexSetBytecodeOffset(
-            (targetref)target,
+            target,
             getBytecodeOffset(
                 &state,
                 getDataOffset(&state,
-                              TargetIndexGetParsedOffset((targetref)target))));
+                              TargetIndexGetBytecodeOffset(target))));
     }
 
     if (DUMP_STATE)

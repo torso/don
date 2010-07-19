@@ -16,7 +16,7 @@ extern nonnull void NativeInvoke(RunState *state, nativefunctionref function);
 extern pure nativefunctionref NativeFindFunction(stringref name);
 extern pure uint NativeGetParameterCount(nativefunctionref function);
 extern pure uint NativeGetMinimumArgumentCount(nativefunctionref function);
-extern pure stringref *NativeGetParameterNames(nativefunctionref function);
+extern pure const stringref *NativeGetParameterNames(nativefunctionref function);
 extern pure uint NativeGetBytecodeOffset(nativefunctionref function);
 extern void NativeWriteBytecode(bytevector *restrict bytecode,
                                 bytevector *restrict valueBytecode);

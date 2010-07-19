@@ -10,6 +10,9 @@
 #ifndef NATIVE_H
 #error native.h not included
 #endif
+#ifndef TARGETINDEX_H
+#error targetindex.h not included
+#endif
 #ifndef INSTRUCTION_H
 #error instruction.h not included
 #endif
@@ -103,5 +106,6 @@ extern nonnull uint ParseStateWriteTernaryOperation(ParseState *state,
 extern nonnull boolean ParseStateWriteIf(ParseState *state, uint value);
 extern nonnull boolean ParseStateWriteWhile(ParseState *state, uint value);
 extern nonnull boolean ParseStateWriteReturn(ParseState *state);
-extern nonnull uint ParseStateWriteNativeInvocation(
-    ParseState *state, nativefunctionref nativeFunction, uint parameterCount);
+extern nonnull uint ParseStateWriteInvocation(
+    ParseState *restrict state, nativefunctionref nativeFunction,
+    targetref target, uint parameterCount, uint *restrict arguments);
