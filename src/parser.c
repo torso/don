@@ -314,9 +314,18 @@ static uint parseInvocationRest(ParseState *state, stringref name)
     if (argumentCount > parameterCount)
     {
         free(arguments);
-        sprintf(errorBuffer,
-                "Too many arguments. Got %d arguments, but at most %d were expected.",
-                argumentCount, parameterCount);
+        if (!parameterCount)
+        {
+            sprintf(errorBuffer,
+                    "Function '%s' does not take any arguments.",
+                    StringPoolGetString(name));
+        }
+        else
+        {
+            sprintf(errorBuffer,
+                    "Too many arguments for function '%s'. Got %d arguments, but at most %d were expected.",
+                    StringPoolGetString(name), argumentCount, parameterCount);
+        }
         errorOnLine(state, line, errorBuffer);
         return 0;
     }
@@ -324,8 +333,8 @@ static uint parseInvocationRest(ParseState *state, stringref name)
     {
         free(arguments);
         sprintf(errorBuffer,
-                "Too few arguments. Got %d arguments, but at least %d were expected.",
-                argumentCount, parameterCount);
+                "Too few arguments for function '%s'. Got %d arguments, but at least %d were expected.",
+                StringPoolGetString(name), argumentCount, parameterCount);
         errorOnLine(state, line, errorBuffer);
         return 0;
     }
