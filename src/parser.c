@@ -254,6 +254,7 @@ static uint parseInvocationRest(ParseState *state, stringref name)
     uint argumentCount = 0;
     uint returnValue;
     uint line = state->line;
+    uint expression;
 
     ParseStateCheck(state);
     if (nativeFunction >= 0)
@@ -287,21 +288,17 @@ static uint parseInvocationRest(ParseState *state, stringref name)
     {
         for (;;)
         {
-            if (argumentCount >= parameterCount)
-            {
-                free(arguments);
-                sprintf(errorBuffer,
-                        "Too many arguments. Got %d arguments, but at most %d were expected.",
-                        argumentCount, parameterCount);
-                errorOnLine(state, line, errorBuffer);
-                return 0;
-            }
-            arguments[argumentCount++] = parseExpression(state);
+            expression = parseExpression(state);
             if (state->failed)
             {
                 free(arguments);
                 return 0;
             }
+            if (argumentCount < parameterCount)
+            {
+                arguments[argumentCount] = expression;
+            }
+            argumentCount++;
             if (readOperator(state, ')'))
             {
                 break;
@@ -311,7 +308,17 @@ static uint parseInvocationRest(ParseState *state, stringref name)
                 free(arguments);
                 return 0;
             }
+            skipWhitespace(state);
         }
+    }
+    if (argumentCount > parameterCount)
+    {
+        free(arguments);
+        sprintf(errorBuffer,
+                "Too many arguments. Got %d arguments, but at most %d were expected.",
+                argumentCount, parameterCount);
+        errorOnLine(state, line, errorBuffer);
+        return 0;
     }
     if (argumentCount < minimumArgumentCount)
     {
