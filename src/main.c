@@ -42,6 +42,17 @@ static void cleanup(void)
     StringPoolDispose();
 }
 
+static targetref getTarget(const char *name)
+{
+    targetref target = TargetIndexGet(StringPoolAdd(name));
+    if (!target || !TargetIndexIsTarget(target))
+    {
+        printf("'%s' is not a target.\n", name);
+        return 0;
+    }
+    return target;
+}
+
 int main(int argc, const char **argv)
 {
     int i;
@@ -124,12 +135,9 @@ int main(int argc, const char **argv)
         return 1;
     }
 
-    target = TargetIndexGet(StringPoolAdd("default"));
-    assert(target); /* TODO: Error handling for non-existing target */
-    if (!TargetIndexIsTarget(target))
+    target = getTarget("default");
+    if (!target)
     {
-        printf("'%s' is not a target.\n",
-               StringPoolGetString(TargetIndexGetName(target)));
         cleanup();
         return 1;
     }
