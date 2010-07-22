@@ -712,20 +712,39 @@ static boolean parseFunctionBody(ParseState *state,
 static boolean parseScript(ParseState *state)
 {
     boolean inFunction = false;
+    boolean isTarget;
 
     ParseStateCheck(state);
     while (!eof(state))
     {
         if (peekIdentifier(state))
         {
-            if (!TargetIndexBeginTarget(readIdentifier(state), state->file, state->line,
-                                        getOffset(state, state->start)))
+            if (!TargetIndexBeginTarget(readIdentifier(state)))
             {
                 return false;
             }
+            if (readOperator(state, ':'))
+            {
+                isTarget = true;
+            }
+            else if (readOperator(state, '('))
+            {
+                isTarget = false;
+                if (!readExpectedOperator(state, ')'))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                error(state, "Invalid function declaration.");
+                return false;
+            }
             /* TODO: Parse arguments */
+            assert(peekNewline(state));
             skipEndOfLine(state);
-            TargetIndexFinishTarget();
+            TargetIndexFinishTarget(state->file, state->line,
+                                    getOffset(state, state->start), isTarget);
             inFunction = true;
         }
         else if ((peekIndent(state) && inFunction) ||
@@ -778,52 +797,14 @@ static boolean parseFunctionRest(ParseState *state, targetref target,
     return true;
 }
 
-boolean ParseTarget(targetref target, bytevector *parsed)
-{
-    ParseState state;
-    stringref name;
-    assert(target);
-    ParseStateInit(&state,
-                   TargetIndexGetFile(target),
-                   TargetIndexGetLine(target),
-                   TargetIndexGetFileOffset(target));
-    name = readIdentifier(&state);
-    assert(name == TargetIndexGetName(target));
-    if (!readOperator(&state, ':'))
-    {
-        error(&state, "Expected ':' after target name.");
-        ParseStateDispose(&state);
-        return false;
-    }
-    assert(peekNewline(&state)); /* TODO: Error handling */
-    skipEndOfLine(&state);
-    if (!parseFunctionRest(&state, target, parsed))
-    {
-        return false;
-    }
-    ParseStateDispose(&state);
-    return true;
-}
-
 boolean ParseFunction(targetref target, bytevector *parsed)
 {
     ParseState state;
-    stringref name;
     assert(target);
     ParseStateInit(&state,
                    TargetIndexGetFile(target),
                    TargetIndexGetLine(target),
                    TargetIndexGetFileOffset(target));
-    name = readIdentifier(&state);
-    assert(name == TargetIndexGetName(target));
-    if (!readOperator(&state, '(') || !readOperator(&state, ')')) /* TODO: Parse parameters */
-    {
-        error(&state, "Expected ':' after target name.");
-        ParseStateDispose(&state);
-        return false;
-    }
-    assert(peekNewline(&state)); /* TODO: Error handling */
-    skipEndOfLine(&state);
     if (!parseFunctionRest(&state, target, parsed))
     {
         return false;

@@ -58,6 +58,13 @@ void IntVectorSetSize(intvector *v, uint size)
     v->size = size;
 }
 
+void IntVectorGrowZero(intvector *v, uint size)
+{
+    uint oldSize = IntVectorSize(v);
+    IntVectorSetSize(v, oldSize + size);
+    memset((void*)IntVectorGetPointer(v, oldSize), 0, size * sizeof(int));
+}
+
 void IntVectorCopy(const intvector *restrict src, uint srcOffset,
                    intvector *restrict dst, uint dstOffset, uint length)
 {

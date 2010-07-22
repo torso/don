@@ -126,11 +126,14 @@ int main(int argc, const char **argv)
 
     target = TargetIndexGet(StringPoolAdd("default"));
     assert(target); /* TODO: Error handling for non-existing target */
-    if (!ParseTarget(target, &parsed))
+    if (!TargetIndexIsTarget(target))
     {
+        printf("'%s' is not a target.\n",
+               StringPoolGetString(TargetIndexGetName(target)));
         cleanup();
         return 1;
     }
+    TargetIndexMarkForParsing(target);
     for (;;)
     {
         unparsedTarget = TargetIndexPopUnparsedTarget();

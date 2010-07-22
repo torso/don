@@ -36,10 +36,10 @@ extern boolean TargetIndexBuildIndex(void);
 extern targetref TargetIndexGetFirstTarget(void);
 extern targetref TargetIndexGetNextTarget(targetref target);
 
-extern boolean TargetIndexBeginTarget(stringref name, fileref file, uint line,
-                                      uint fileOffset);
+extern boolean TargetIndexBeginTarget(stringref name);
 extern boolean TargetIndexAddParameter(stringref name, boolean required);
-extern void TargetIndexFinishTarget(void);
+extern void TargetIndexFinishTarget(fileref file, uint line, uint fileOffset,
+                                    boolean isTarget);
 extern void TargetIndexMarkForParsing(targetref target);
 extern targetref TargetIndexPopUnparsedTarget(void);
 
@@ -49,6 +49,7 @@ extern pure stringref TargetIndexGetName(targetref target);
 extern pure fileref TargetIndexGetFile(targetref target);
 extern pure uint TargetIndexGetLine(targetref target);
 extern pure uint TargetIndexGetFileOffset(targetref target);
+extern pure boolean TargetIndexIsTarget(targetref target);
 extern pure uint TargetIndexGetBytecodeOffset(targetref target);
 extern void TargetIndexSetBytecodeOffset(targetref target, uint offset);
 extern pure uint TargetIndexGetParameterCount(targetref target);

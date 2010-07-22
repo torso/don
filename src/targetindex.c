@@ -17,7 +17,8 @@
 #define TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT 7
 #define TABLE_ENTRY_SIZE 8
 
-#define TARGET_FLAG_QUEUED 1
+#define TARGET_FLAG_TARGET 1
+#define TARGET_FLAG_QUEUED 2
 
 static intvector targetInfo;
 static intvector parseQueue;
@@ -38,7 +39,7 @@ static uint getTargetSize(targetref target)
         IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_PARAMETER_COUNT);
 }
 
-static boolean isTarget(targetref target)
+static boolean isValidTarget(targetref target)
 {
     uint offset;
     if (!target || !targetCount || (uint)target >= IntVectorSize(&targetInfo))
@@ -127,30 +128,32 @@ targetref TargetIndexGetFirstTarget(void)
 
 targetref TargetIndexGetNextTarget(targetref target)
 {
-    assert(isTarget(target));
+    assert(isValidTarget(target));
     target = (targetref)((uint)target + getTargetSize(target));
     return (uint)target < IntVectorSize(&targetInfo) ? target : 0;
 }
 
-boolean TargetIndexBeginTarget(stringref name, fileref file, uint line,
-                               uint fileOffset)
+boolean TargetIndexBeginTarget(stringref name)
 {
     assert(!hasIndex);
     currentTarget = (targetref)IntVectorSize(&targetInfo);
     IntVectorAdd(&targetInfo, (uint)name);
-    IntVectorAdd(&targetInfo, (uint)file);
-    IntVectorAdd(&targetInfo, line);
-    IntVectorAdd(&targetInfo, fileOffset);
-    IntVectorAdd(&targetInfo, 0);
-    IntVectorAdd(&targetInfo, 0);
-    IntVectorAdd(&targetInfo, 0);
-    IntVectorAdd(&targetInfo, 0);
+    IntVectorGrowZero(&targetInfo, TABLE_ENTRY_SIZE - 1);
     targetCount++;
     return true;
 }
 
-void TargetIndexFinishTarget(void)
+void TargetIndexFinishTarget(fileref file, uint line, uint fileOffset,
+                             boolean isTarget)
 {
+    IntVectorSet(&targetInfo, (uint)currentTarget + TABLE_ENTRY_FILE, file);
+    IntVectorSet(&targetInfo, (uint)currentTarget + TABLE_ENTRY_LINE, line);
+    IntVectorSet(&targetInfo, (uint)currentTarget + TABLE_ENTRY_FILE_OFFSET,
+                 fileOffset);
+    if (isTarget)
+    {
+        setFlag(currentTarget, TARGET_FLAG_TARGET);
+    }
 }
 
 void TargetIndexMarkForParsing(targetref target)
@@ -191,42 +194,49 @@ targetref TargetIndexGet(stringref name)
 stringref TargetIndexGetName(targetref target)
 {
     assert(hasIndex);
-    assert(isTarget(target));
+    assert(isValidTarget(target));
     return (stringref)IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_NAME);
 }
 
 fileref TargetIndexGetFile(targetref target)
 {
     assert(hasIndex);
-    assert(isTarget(target));
+    assert(isValidTarget(target));
     return IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_FILE);
 }
 
 uint TargetIndexGetLine(targetref target)
 {
     assert(hasIndex);
-    assert(isTarget(target));
+    assert(isValidTarget(target));
     return IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_LINE);
 }
 
 uint TargetIndexGetFileOffset(targetref target)
 {
     assert(hasIndex);
-    assert(isTarget(target));
+    assert(isValidTarget(target));
     return IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_FILE_OFFSET);
+}
+
+boolean TargetIndexIsTarget(targetref target)
+{
+    assert(hasIndex);
+    assert(isValidTarget(target));
+    return getFlag(target, TARGET_FLAG_TARGET) ? true : false;
 }
 
 uint TargetIndexGetBytecodeOffset(targetref target)
 {
     assert(hasIndex);
-    assert(isTarget(target));
+    assert(isValidTarget(target));
     return IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_BYTECODE_OFFSET);
 }
 
 void TargetIndexSetBytecodeOffset(targetref target, uint offset)
 {
     assert(hasIndex);
-    assert(isTarget(target));
+    assert(isValidTarget(target));
     IntVectorSet(&targetInfo, (uint)target + TABLE_ENTRY_BYTECODE_OFFSET,
                  offset);
 }
@@ -234,20 +244,20 @@ void TargetIndexSetBytecodeOffset(targetref target, uint offset)
 uint TargetIndexGetParameterCount(targetref target)
 {
     assert(hasIndex);
-    assert(isTarget(target));
+    assert(isValidTarget(target));
     return IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_PARAMETER_COUNT);
 }
 
 const stringref *TargetIndexGetParameterNames(targetref target)
 {
     assert(hasIndex);
-    assert(isTarget(target));
+    assert(isValidTarget(target));
     return (stringref*)IntVectorGetPointer(&targetInfo, (uint)target + TABLE_ENTRY_SIZE);
 }
 
 uint TargetIndexGetMinimumArgumentCount(targetref target)
 {
     assert(hasIndex);
-    assert(isTarget(target));
+    assert(isValidTarget(target));
     return IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT);
 }

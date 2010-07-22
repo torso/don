@@ -12,6 +12,7 @@ extern nonnull void IntVectorInitCopy(intvector *restrict v,
 extern nonnull void IntVectorDispose(intvector *v);
 extern nonnull pure uint IntVectorSize(const intvector *v);
 extern nonnull void IntVectorSetSize(intvector *v, uint size);
+extern nonnull void IntVectorGrowZero(intvector *v, uint size);
 extern nonnull void IntVectorCopy(
     const intvector *restrict src, uint srcOffset,
     intvector *restrict dst, uint dstOffset, uint length);
