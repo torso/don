@@ -766,8 +766,8 @@ static boolean parseScript(ParseState *state)
 void ParserAddKeywords(void)
 {
     keywordElse = StringPoolAdd("else");
-    keywordIf = StringPoolAdd("if");
     keywordFalse = StringPoolAdd("false");
+    keywordIf = StringPoolAdd("if");
     keywordNull = StringPoolAdd("null");
     keywordTrue = StringPoolAdd("true");
     keywordWhile = StringPoolAdd("while");
