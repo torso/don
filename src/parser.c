@@ -713,6 +713,7 @@ static boolean parseScript(ParseState *state)
 {
     boolean inFunction = false;
     boolean isTarget;
+    stringref parameterName;
 
     ParseStateCheck(state);
     while (!eof(state))
@@ -730,9 +731,33 @@ static boolean parseScript(ParseState *state)
             else if (readOperator(state, '('))
             {
                 isTarget = false;
-                if (!readExpectedOperator(state, ')'))
+                skipWhitespace(state);
+                if (!readOperator(state, ')'))
                 {
-                    return false;
+                    for (;;)
+                    {
+                        parameterName = peekReadIdentifier(state);
+                        if (!parameterName)
+                        {
+                            error(state, "Expected parameter name or ')'.");
+                            return false;
+                        }
+                        skipWhitespace(state);
+                        if (!TargetIndexAddParameter(parameterName, true))
+                        {
+                            return false;
+                        }
+                        if (readOperator(state, ')'))
+                        {
+                            break;
+                        }
+                        if (!readOperator(state, ','))
+                        {
+                            error(state, "Expected ',' or ')'.");
+                            return false;
+                        }
+                        skipWhitespace(state);
+                    }
                 }
             }
             else

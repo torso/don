@@ -143,9 +143,35 @@ boolean TargetIndexBeginTarget(stringref name)
     return true;
 }
 
+boolean TargetIndexAddParameter(stringref name, boolean required)
+{
+    uint parameterCount =
+        IntVectorGet(&targetInfo,
+                     (uint)currentTarget + TABLE_ENTRY_PARAMETER_COUNT);
+    uint minArgumentCount =
+        IntVectorGet(&targetInfo,
+                     (uint)currentTarget + TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT);
+
+    assert(!hasIndex);
+    assert(!required || parameterCount == minArgumentCount);
+    IntVectorSet(&targetInfo, (uint)currentTarget + TABLE_ENTRY_PARAMETER_COUNT,
+                 parameterCount + 1);
+    if (required)
+    {
+        IntVectorSet(&targetInfo,
+                     (uint)currentTarget + TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT,
+                     minArgumentCount + 1);
+    }
+    IntVectorAdd(&targetInfo, (uint)name);
+    return true;
+}
+
 void TargetIndexFinishTarget(fileref file, uint line, uint fileOffset,
                              boolean isTarget)
 {
+    assert(!isTarget ||
+           !IntVectorGet(&targetInfo,
+                         (uint)currentTarget + TABLE_ENTRY_PARAMETER_COUNT));
     IntVectorSet(&targetInfo, (uint)currentTarget + TABLE_ENTRY_FILE, file);
     IntVectorSet(&targetInfo, (uint)currentTarget + TABLE_ENTRY_LINE, line);
     IntVectorSet(&targetInfo, (uint)currentTarget + TABLE_ENTRY_FILE_OFFSET,
