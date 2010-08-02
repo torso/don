@@ -214,7 +214,7 @@ static boolean readExpectedOperator(ParseState *state, byte op)
 {
     if (!readOperator(state, op))
     {
-        sprintf(errorBuffer, "Expected operator %c. Got %c", op,
+        sprintf(errorBuffer, "Expected operator '%c'. Got '%c'", op,
                 state->current[0]);
         error(state, errorBuffer);
         return false;
