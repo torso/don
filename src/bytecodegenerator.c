@@ -16,6 +16,7 @@ typedef struct
 {
     bytevector *parsed;
     intvector data;
+    ErrorCode error;
 } State;
 
 static const uint OFFSET_PARSED_OFFSET = 0;
@@ -30,6 +31,12 @@ static const uint OFFSET_VALUE_NEWINDEX = 1;
 static const uint VALUE_UNUSED = (uint)-2;
 static const uint VALUE_USED_UNALLOCATED = (uint)-1;
 
+
+static boolean setError(State *state, ErrorCode error)
+{
+    state->error = error;
+    return error ? true : false;
+}
 
 static void dumpParsed(const bytevector *parsed)
 {
@@ -614,8 +621,11 @@ static void markUsedValues(State *state)
     for (readIndex = 0; readIndex < ByteVectorSize(state->parsed);)
     {
         dataOffset = IntVectorSize(&state->data);
-        IntVectorAdd(&state->data, readIndex); /* PARSED_OFFSET */
-        IntVectorAdd(&state->data, 0); /* BYTECODE_OFFSET */
+        if (setError(state, IntVectorAdd(&state->data, readIndex)) || /* PARSED_OFFSET */
+            setError(state, IntVectorAdd(&state->data, 0))) /* BYTECODE_OFFSET */
+        {
+            return;
+        }
 
         ByteVectorWriteUint(state->parsed, &readIndex, dataOffset);
         valueCount = ByteVectorReadPackUint(state->parsed, &readIndex);
@@ -624,8 +634,11 @@ static void markUsedValues(State *state)
 
         for (stop = readIndex + dataSize, value = 0; readIndex < stop;)
         {
-            IntVectorAdd(&state->data, readIndex); /* VALUE_OFFSET */
-            IntVectorAdd(&state->data, VALUE_UNUSED); /* VALUE_NEWINDEX */
+            if (setError(state, IntVectorAdd(&state->data, readIndex)) || /* VALUE_OFFSET */
+                setError(state, IntVectorAdd(&state->data, VALUE_UNUSED))) /* VALUE_NEWINDEX */
+            {
+                return;
+            }
             switch (ByteVectorRead(state->parsed, &readIndex))
             {
             case DATAOP_NULL:
@@ -956,7 +969,10 @@ static void writeBytecode(State *restrict state,
         parsedControlBase = readIndex;
         bytecodeControlBase = ByteVectorSize(bytecode);
         IntVectorSetSize(&branches, 0);
-        IntVectorSetSize(&branchOffsets, controlSize);
+        if (setError(state, IntVectorSetSize(&branchOffsets, controlSize)))
+        {
+            return;
+        }
         for (stop = readIndex + controlSize; readIndex < stop;)
         {
             IntVectorSet(&branchOffsets, readIndex - parsedControlBase,
@@ -976,7 +992,11 @@ static void writeBytecode(State *restrict state,
                                                                 &readIndex)));
                 /* fallthrough */
             case OP_JUMP:
-                IntVectorAdd(&branches, ByteVectorSize(bytecode));
+                if (setError(state, IntVectorAdd(&branches,
+                                                 ByteVectorSize(bytecode))))
+                {
+                    return;
+                }
                 target = ByteVectorReadUint(state->parsed, &readIndex);
                 ByteVectorAddPackUint(bytecode,
                                       readIndex - parsedControlBase + target);
@@ -1057,9 +1077,9 @@ static void writeBytecode(State *restrict state,
     IntVectorDispose(&branches);
 }
 
-void BytecodeGeneratorExecute(bytevector *restrict parsed,
-                              bytevector *restrict bytecode,
-                              bytevector *restrict valueBytecode)
+ErrorCode BytecodeGeneratorExecute(bytevector *restrict parsed,
+                                   bytevector *restrict bytecode,
+                                   bytevector *restrict valueBytecode)
 {
     State state;
     targetref target;
@@ -1071,9 +1091,18 @@ void BytecodeGeneratorExecute(bytevector *restrict parsed,
 
     state.parsed = parsed;
     IntVectorInit(&state.data);
+    state.error = NO_ERROR;
     markUsedValues(&state);
+    if (state.error)
+    {
+        return state.error;
+    }
     allocateValues(&state);
     writeBytecode(&state, bytecode, valueBytecode);
+    if (state.error)
+    {
+        return state.error;
+    }
 
     for (target = TargetIndexGetFirstTarget();
          target;
@@ -1098,4 +1127,5 @@ void BytecodeGeneratorExecute(bytevector *restrict parsed,
     }
 
     IntVectorDispose(&state.data);
+    return NO_ERROR;
 }

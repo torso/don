@@ -9,6 +9,5 @@
 #endif
 
 extern void ParserAddKeywords(void);
-extern boolean ParseFile(fileref file);
-extern nonnull boolean ParseTarget(targetref target, bytevector *parsed);
-extern nonnull boolean ParseFunction(targetref target, bytevector *parsed);
+extern ErrorCode ParseFile(fileref file);
+extern nonnull ErrorCode ParseFunction(targetref target, bytevector *parsed);

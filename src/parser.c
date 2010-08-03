@@ -42,19 +42,19 @@ static boolean isIdentifierCharacter(byte c)
 
 static void error(ParseState *state, const char *message)
 {
-    ParseStateSetFailed(state);
+    ParseStateSetFailed(state, BUILD_ERROR);
     LogParseError(state->file, state->line, message);
 }
 
 static void errorOnLine(ParseState *state, uint line, const char *message)
 {
-    ParseStateSetFailed(state);
+    ParseStateSetFailed(state, BUILD_ERROR);
     LogParseError(state->file, line, message);
 }
 
 static void statementError(ParseState *state, const char *message)
 {
-    ParseStateSetFailed(state);
+    ParseStateSetFailed(state, BUILD_ERROR);
     LogParseError(state->file, state->statementLine, message);
 }
 
@@ -289,7 +289,7 @@ static uint parseInvocationRest(ParseState *state, stringref name)
         for (;;)
         {
             expression = parseExpression(state);
-            if (state->failed)
+            if (state->error)
             {
                 free(arguments);
                 return 0;
@@ -349,18 +349,24 @@ static uint parseListRest(ParseState *state)
     intvector values;
     uint value;
 
-    IntVectorInit(&values);
+    if (ParseStateSetError(state, IntVectorInit(&values)))
+    {
+        return 0;
+    }
     skipWhitespace(state);
     while (!readOperator(state, ']'))
     {
         value = parseExpression(state);
         skipWhitespace(state);
-        if (state->failed)
+        if (state->error)
         {
             IntVectorDispose(&values);
             return 0;
         }
-        IntVectorAdd(&values, value);
+        if (ParseStateSetError(state, IntVectorAdd(&values, value)))
+        {
+            return 0;
+        }
     }
     value = ParseStateWriteList(state, &values);
     IntVectorDispose(&values);
@@ -426,7 +432,7 @@ static uint parseExpression4(ParseState *state)
         {
             skipWhitespace(state);
             indexValue = parseExpression(state);
-            if (state->failed)
+            if (state->error)
             {
                 return 0;
             }
@@ -443,7 +449,7 @@ static uint parseExpression4(ParseState *state)
             break;
         }
     }
-    while (!state->failed);
+    while (!state->error);
     return value;
 }
 
@@ -452,7 +458,7 @@ static uint parseExpression3(ParseState *state)
     uint value = parseExpression4(state);
     uint value2;
 
-    if (state->failed)
+    if (state->error)
     {
         return 0;
     }
@@ -481,7 +487,7 @@ static uint parseExpression2(ParseState *state)
     uint value = parseExpression3(state);
     uint value2;
 
-    if (state->failed)
+    if (state->error)
     {
         return 0;
     }
@@ -507,7 +513,7 @@ static uint parseExpression(ParseState *state)
     uint value2;
     uint value3;
 
-    if (state->failed)
+    if (state->error)
     {
         return 0;
     }
@@ -583,7 +589,7 @@ static boolean parseFunctionBody(ParseState *state,
                     currentIndent = indent;
                     if (identifier == keywordElse)
                     {
-                        if (state->failed)
+                        if (state->error)
                         {
                             statementError(state, "else without matching if.");
                             return false;
@@ -621,7 +627,7 @@ static boolean parseFunctionBody(ParseState *state,
                         prevIndent = currentIndent;
                         currentIndent = 0;
                         value = parseExpression(state);
-                        if (state->failed)
+                        if (state->error)
                         {
                             return false;
                         }
@@ -646,7 +652,7 @@ static boolean parseFunctionBody(ParseState *state,
                         prevIndent = currentIndent;
                         currentIndent = 0;
                         value = parseExpression(state);
-                        if (state->failed)
+                        if (state->error)
                         {
                             return false;
                         }
@@ -672,7 +678,7 @@ static boolean parseFunctionBody(ParseState *state,
                     if (readOperator(state, '('))
                     {
                         parseInvocationRest(state, identifier);
-                        if (state->failed)
+                        if (state->error)
                         {
                             return false;
                         }
@@ -681,7 +687,7 @@ static boolean parseFunctionBody(ParseState *state,
                     {
                         skipWhitespace(state);
                         value = parseExpression(state);
-                        if (state->failed ||
+                        if (state->error ||
                             !ParseStateSetVariable(state, identifier, value))
                         {
                             return false;
@@ -709,7 +715,7 @@ static boolean parseFunctionBody(ParseState *state,
     }
 }
 
-static boolean parseScript(ParseState *state)
+static void parseScript(ParseState *state)
 {
     boolean inFunction = false;
     boolean isTarget;
@@ -720,9 +726,10 @@ static boolean parseScript(ParseState *state)
     {
         if (peekIdentifier(state))
         {
-            if (!TargetIndexBeginTarget(readIdentifier(state)))
+            state->error = TargetIndexBeginTarget(readIdentifier(state));
+            if (state->error)
             {
-                return false;
+                return;
             }
             if (readOperator(state, ':'))
             {
@@ -740,12 +747,14 @@ static boolean parseScript(ParseState *state)
                         if (!parameterName)
                         {
                             error(state, "Expected parameter name or ')'.");
-                            return false;
+                            return;
                         }
                         skipWhitespace(state);
-                        if (!TargetIndexAddParameter(parameterName, true))
+                        state->error =
+                            TargetIndexAddParameter(parameterName, true);
+                        if (state->error)
                         {
-                            return false;
+                            return;
                         }
                         if (readOperator(state, ')'))
                         {
@@ -754,7 +763,7 @@ static boolean parseScript(ParseState *state)
                         if (!readOperator(state, ','))
                         {
                             error(state, "Expected ',' or ')'.");
-                            return false;
+                            return;
                         }
                         skipWhitespace(state);
                     }
@@ -763,7 +772,7 @@ static boolean parseScript(ParseState *state)
             else
             {
                 error(state, "Invalid function declaration.");
-                return false;
+                return;
             }
             /* TODO: Parse arguments */
             assert(peekNewline(state));
@@ -782,10 +791,9 @@ static boolean parseScript(ParseState *state)
             sprintf(errorBuffer, "Unsupported character: %d",
                     state->current[0]);
             error(state, errorBuffer);
-            return false;
+            return;
         }
     }
-    return true;
 }
 
 void ParserAddKeywords(void)
@@ -800,20 +808,23 @@ void ParserAddKeywords(void)
     maxKeyword = keywordWhile;
 }
 
-boolean ParseFile(fileref file)
+ErrorCode ParseFile(fileref file)
 {
     ParseState state;
-    boolean result;
     ParseStateInit(&state, file, 1, 0);
-    result = parseScript(&state);
+    if (state.error)
+    {
+        return state.error;
+    }
+    parseScript(&state);
     ParseStateDispose(&state);
-    return result;
+    return state.error;
 }
 
 static boolean parseFunctionRest(ParseState *state, targetref target,
                                  bytevector *parsed)
 {
-    if (!parseFunctionBody(state, parsed) || state->failed)
+    if (!parseFunctionBody(state, parsed) || state->error)
     {
         ParseStateDispose(state);
         return false;
@@ -822,7 +833,7 @@ static boolean parseFunctionRest(ParseState *state, targetref target,
     return true;
 }
 
-boolean ParseFunction(targetref target, bytevector *parsed)
+ErrorCode ParseFunction(targetref target, bytevector *parsed)
 {
     ParseState state;
     assert(target);
@@ -830,10 +841,11 @@ boolean ParseFunction(targetref target, bytevector *parsed)
                    TargetIndexGetFile(target),
                    TargetIndexGetLine(target),
                    TargetIndexGetFileOffset(target));
-    if (!parseFunctionRest(&state, target, parsed))
+    if (state.error)
     {
-        return false;
+        return state.error;
     }
+    parseFunctionRest(&state, target, parsed);
     ParseStateDispose(&state);
-    return true;
+    return state.error;
 }

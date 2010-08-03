@@ -3,6 +3,8 @@
 #include "bytevector.h"
 #include "intvector.h"
 #include "stringpool.h"
+#include "fileindex.h"
+#include "log.h"
 #include "interpreterstate.h"
 #include "value.h"
 #include "collection.h"
@@ -25,6 +27,12 @@ typedef enum
     VALUE_OBJECT
 } ValueType;
 
+
+static boolean setError(RunState *state, ErrorCode error)
+{
+    state->error = error;
+    return error ? true : false;
+}
 
 void ValueDump(const RunState *state)
 {
@@ -331,9 +339,13 @@ uint ValueCreateStackframe(RunState *state, uint ip, uint argumentCount)
     valueCount = ByteVectorReadPackUint(state->bytecode, &ip);
     for (value = 0; value < valueCount; value++)
     {
-        IntVectorAdd(&state->values, VALUE_UNEVALUATED);
-        IntVectorAdd(&state->values,
-                     ByteVectorReadPackUint(state->bytecode, &ip));
+        if (setError(state, IntVectorAdd(&state->values, VALUE_UNEVALUATED)) ||
+            setError(state, IntVectorAdd(
+                         &state->values,
+                         ByteVectorReadPackUint(state->bytecode, &ip))))
+        {
+            return 0;
+        }
     }
 
     for (argument = 0; argument < argumentCount; argument++)
@@ -343,8 +355,12 @@ uint ValueCreateStackframe(RunState *state, uint ip, uint argumentCount)
                   state->bp, argument);
     }
 
-    IntVectorAdd(&state->stack, state->ip);
-    IntVectorAdd(&state->stack, parentBP);
+    if (setError(state, IntVectorAdd(&state->stack, state->ip)) ||
+        setError(state, IntVectorAdd(&state->stack, parentBP)))
+    {
+        setError(state, OUT_OF_MEMORY);
+        return 0;
+    }
 
     state->ip = ip;
 

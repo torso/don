@@ -60,7 +60,7 @@ typedef struct
     fileref file;
     uint line;
     uint statementLine;
-    boolean failed;
+    ErrorCode error;
 
     Function *currentFunction;
     Function firstFunction;
@@ -69,13 +69,14 @@ typedef struct
 } ParseState;
 
 extern nonnull void ParseStateCheck(const ParseState *state);
-extern nonnull void ParseStateInit(ParseState *state, fileref file, uint line,
-                                   uint offset);
+extern nonnull ErrorCode ParseStateInit(ParseState *state,
+                                        fileref file, uint line, uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
 extern nonnull boolean ParseStateFinishBlock(ParseState *restrict state,
                                              bytevector *restrict parsed,
                                              uint indent, boolean trailingElse);
-extern nonnull void ParseStateSetFailed(ParseState *state);
+extern nonnull boolean ParseStateSetError(ParseState *state, ErrorCode error);
+extern nonnull void ParseStateSetFailed(ParseState *state, ErrorCode error);
 
 extern nonnull void ParseStateSetIndent(ParseState *state, uint indent);
 extern nonnull uint ParseStateBlockIndent(ParseState *state);

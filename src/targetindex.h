@@ -30,14 +30,14 @@
 
 typedef uint targetref;
 
-extern void TargetIndexInit(void);
+extern ErrorCode TargetIndexInit(void);
 extern void TargetIndexDispose(void);
 extern boolean TargetIndexBuildIndex(void);
 extern targetref TargetIndexGetFirstTarget(void);
 extern targetref TargetIndexGetNextTarget(targetref target);
 
-extern boolean TargetIndexBeginTarget(stringref name);
-extern boolean TargetIndexAddParameter(stringref name, boolean required);
+extern ErrorCode TargetIndexBeginTarget(stringref name);
+extern ErrorCode TargetIndexAddParameter(stringref name, boolean required);
 extern void TargetIndexFinishTarget(fileref file, uint line, uint fileOffset,
                                     boolean isTarget);
 extern void TargetIndexMarkForParsing(targetref target);

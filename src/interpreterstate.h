@@ -14,6 +14,7 @@ typedef struct
 
     uint ip;
     uint bp;
+    ErrorCode error;
     intvector values;
     intvector stack;
     bytevector heap;

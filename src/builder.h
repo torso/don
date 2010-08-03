@@ -38,3 +38,10 @@ extern int printf(__const char *__restrict __format, ...);
 #else
 #define assert(e) do { (void)sizeof(e); } while(0)
 #endif
+
+typedef enum
+{
+    NO_ERROR = 0,
+    OUT_OF_MEMORY,
+    BUILD_ERROR
+} ErrorCode;

@@ -27,10 +27,15 @@ static void execute(RunState *state)
     nativefunctionref nativeFunction;
     targetref target;
     uint stackframeValueOffset;
+    uint stackframe;
     uint function;
     uint argumentCount;
 
     ValueCreateStackframe(state, state->ip, 0);
+    if (state->error)
+    {
+        return;
+    }
 
     /* Remove old (non-existing) stackframe pushed onto the stack by
      * ValueCreateStackframe. */
@@ -73,12 +78,14 @@ static void execute(RunState *state)
                                                                &state->ip);
             stackframeValueOffset = ValueGetOffset(
                 state->bp, ByteVectorReadPackUint(state->bytecode, &state->ip));
-            ValueSetStackframeValue(
-                state,
-                stackframeValueOffset,
-                ValueCreateStackframe(
-                    state, NativeGetBytecodeOffset(nativeFunction),
-                    ByteVectorReadPackUint(state->bytecode, &state->ip)));
+            stackframe = ValueCreateStackframe(
+                state, NativeGetBytecodeOffset(nativeFunction),
+                ByteVectorReadPackUint(state->bytecode, &state->ip));
+            if (state->error)
+            {
+                return;
+            }
+            ValueSetStackframeValue(state, stackframeValueOffset, stackframe);
             NativeInvoke(state, nativeFunction);
             ValueDestroyStackframe(state);
             break;
@@ -88,12 +95,14 @@ static void execute(RunState *state)
                                                        &state->ip);
             stackframeValueOffset = ValueGetOffset(
                 state->bp, ByteVectorReadPackUint(state->bytecode, &state->ip));
-            ValueSetStackframeValue(
-                state,
-                stackframeValueOffset,
-                ValueCreateStackframe(
-                    state, TargetIndexGetBytecodeOffset(target),
-                    ByteVectorReadPackUint(state->bytecode, &state->ip)));
+            stackframe = ValueCreateStackframe(
+                state, TargetIndexGetBytecodeOffset(target),
+                ByteVectorReadPackUint(state->bytecode, &state->ip));
+            if (state->error)
+            {
+                return;
+            }
+            ValueSetStackframeValue(state, stackframeValueOffset, stackframe);
             break;
 
         case OP_COND_INVOKE:
@@ -104,12 +113,15 @@ static void execute(RunState *state)
                 stackframeValueOffset = ValueGetOffset(
                     state->bp,
                     ByteVectorReadPackUint(state->bytecode, &state->ip));
-                ValueSetStackframeValue(
-                    state,
-                    stackframeValueOffset,
-                    ValueCreateStackframe(
-                        state, function,
-                        ByteVectorReadPackUint(state->bytecode, &state->ip)));
+                stackframe = ValueCreateStackframe(
+                    state, function,
+                    ByteVectorReadPackUint(state->bytecode, &state->ip));
+                if (state->error)
+                {
+                    return;
+                }
+                ValueSetStackframeValue(state, stackframeValueOffset,
+                                        stackframe);
             }
             else
             {
@@ -130,14 +142,15 @@ static void execute(RunState *state)
     }
 }
 
-void InterpreterExecute(const bytevector *restrict bytecode,
-                        const bytevector *restrict valueBytecode,
-                        targetref target)
+ErrorCode InterpreterExecute(const bytevector *restrict bytecode,
+                             const bytevector *restrict valueBytecode,
+                             targetref target)
 {
     RunState state;
 
     state.ip = TargetIndexGetBytecodeOffset(target);
-    state.bp = 0;
+    state.bp = 1;
+    state.error = NO_ERROR;
     state.bytecode = bytecode;
     state.valueBytecode = valueBytecode;
     IntVectorInit(&state.values);
@@ -153,4 +166,5 @@ void InterpreterExecute(const bytevector *restrict bytecode,
     IntVectorDispose(&state.values);
     IntVectorDispose(&state.stack);
     ByteVectorDispose(&state.heap);
+    return state.error;
 }

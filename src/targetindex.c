@@ -78,16 +78,23 @@ static void setFlag(targetref target, uint flag)
         IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_FLAGS) | flag);
 }
 
-void TargetIndexInit(void)
+ErrorCode TargetIndexInit(void)
 {
+    ErrorCode error;
+
     IntVectorInit(&targetInfo);
     /* Position 0 is reserved to mean invalid target. */
-    IntVectorAdd(&targetInfo, 0);
+    error = IntVectorAdd(&targetInfo, 0);
+    if (error)
+    {
+        return error;
+    }
 
     IntVectorInit(&parseQueue);
 
     targetCount = 0;
     hasIndex = false;
+    return NO_ERROR;
 }
 
 void TargetIndexDispose(void)
@@ -133,17 +140,27 @@ targetref TargetIndexGetNextTarget(targetref target)
     return (uint)target < IntVectorSize(&targetInfo) ? target : 0;
 }
 
-boolean TargetIndexBeginTarget(stringref name)
+ErrorCode TargetIndexBeginTarget(stringref name)
 {
+    ErrorCode error;
+
     assert(!hasIndex);
     currentTarget = (targetref)IntVectorSize(&targetInfo);
-    IntVectorAdd(&targetInfo, (uint)name);
-    IntVectorGrowZero(&targetInfo, TABLE_ENTRY_SIZE - 1);
+    error = IntVectorAdd(&targetInfo, (uint)name);
+    if (error)
+    {
+        return error;
+    }
+    error = IntVectorGrowZero(&targetInfo, TABLE_ENTRY_SIZE - 1);
+    if (error)
+    {
+        return error;
+    }
     targetCount++;
-    return true;
+    return NO_ERROR;
 }
 
-boolean TargetIndexAddParameter(stringref name, boolean required)
+ErrorCode TargetIndexAddParameter(stringref name, boolean required)
 {
     uint parameterCount =
         IntVectorGet(&targetInfo,
@@ -162,8 +179,7 @@ boolean TargetIndexAddParameter(stringref name, boolean required)
                      (uint)currentTarget + TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT,
                      minArgumentCount + 1);
     }
-    IntVectorAdd(&targetInfo, (uint)name);
-    return true;
+    return IntVectorAdd(&targetInfo, (uint)name);
 }
 
 void TargetIndexFinishTarget(fileref file, uint line, uint fileOffset,

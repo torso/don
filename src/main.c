@@ -31,6 +31,23 @@ static bytevector parsed;
 static bytevector bytecode;
 static bytevector valueBytecode;
 
+static boolean handleError(ErrorCode error)
+{
+    switch (error)
+    {
+    case NO_ERROR:
+        return false;
+
+    case OUT_OF_MEMORY:
+        printf("Out of memory\n");
+        break;
+
+    case BUILD_ERROR:
+        break;
+    }
+    return true;
+}
+
 static void cleanup(void)
 {
     ByteVectorDispose(&parsed);
@@ -122,14 +139,18 @@ int main(int argc, const char **argv)
 
     StringPoolInit();
     ParserAddKeywords();
-    TargetIndexInit();
+    if (handleError(TargetIndexInit()))
+    {
+        cleanup();
+        return 1;
+    }
     ByteVectorInit(&parsed);
     ByteVectorInit(&bytecode);
     ByteVectorInit(&valueBytecode);
 
     inputFile = FileIndexAdd(inputFilename);
     assert(inputFile);
-    if (!ParseFile(inputFile) || !TargetIndexBuildIndex())
+    if (handleError(ParseFile(inputFile)) || !TargetIndexBuildIndex())
     {
         cleanup();
         return 1;
@@ -149,7 +170,7 @@ int main(int argc, const char **argv)
         {
             break;
         }
-        if (!ParseFunction(unparsedTarget, &parsed))
+        if (handleError(ParseFunction(unparsedTarget, &parsed)))
         {
             cleanup();
             return 1;
@@ -157,10 +178,19 @@ int main(int argc, const char **argv)
     }
 
     NativeWriteBytecode(&bytecode, &valueBytecode);
-    BytecodeGeneratorExecute(&parsed, &bytecode, &valueBytecode);
+    if (handleError(
+            BytecodeGeneratorExecute(&parsed, &bytecode, &valueBytecode)))
+    {
+        cleanup();
+        return 1;
+    }
     ByteVectorDispose(&parsed);
 
-    InterpreterExecute(&bytecode, &valueBytecode, target);
+    if (handleError(InterpreterExecute(&bytecode, &valueBytecode, target)))
+    {
+        cleanup();
+        return 1;
+    }
 
     cleanup();
     return 0;
