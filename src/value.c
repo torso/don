@@ -98,7 +98,7 @@ static boolean subOverflow(int a, int b)
 static uint allocateObject(RunState *state, ObjectType type)
 {
     uint offset = ByteVectorSize(&state->heap);
-    ByteVectorAdd(&state->heap, type);
+    setError(state, ByteVectorAdd(&state->heap, type));
     return offset;
 }
 
@@ -199,8 +199,13 @@ static void evaluateValue(RunState *state, uint valueOffset)
         case DATAOP_LIST:
             type = VALUE_OBJECT;
             object = allocateObject(state, OBJECT_LIST);
-            ByteVectorAddPackUint(&state->heap, value);
-            ByteVectorAddPackUint(&state->heap, valueOffset);
+            if (state->error ||
+                (state->error = ByteVectorAddPackUint(&state->heap, value)) ||
+                (state->error = ByteVectorAddPackUint(&state->heap,
+                                                      valueOffset)))
+            {
+                return;
+            }
             value = object;
             break;
 
@@ -209,9 +214,17 @@ static void evaluateValue(RunState *state, uint valueOffset)
             value1 = readRelativeValueOffset(state, valueOffset, &value);
             value2 = readRelativeValueOffset(state, valueOffset, &value);
             evaluateValue(state, condition);
+            if (state->error)
+            {
+                return;
+            }
             assert(getValueType(state, condition) == VALUE_BOOLEAN);
             value = getValue(state, condition) ? value2 : value1;
             evaluateValue(state, value);
+            if (state->error)
+            {
+                return;
+            }
             type = getValueType(state, value);
             value = getValue(state, value);
             break;
@@ -223,6 +236,10 @@ static void evaluateValue(RunState *state, uint valueOffset)
                 getValue(state, value1),
                 ByteVectorGetPackUint(state->valueBytecode, value));
             evaluateValue(state, value2);
+            if (state->error)
+            {
+                return;
+            }
             type = getValueType(state, value2);
             value = getValue(state, value2);
             break;
@@ -231,7 +248,15 @@ static void evaluateValue(RunState *state, uint valueOffset)
             value1 = readRelativeValueOffset(state, valueOffset, &value);
             value2 = readRelativeValueOffset(state, valueOffset, &value);
             evaluateValue(state, value1);
+            if (state->error)
+            {
+                return;
+            }
             evaluateValue(state, value2);
+            if (state->error)
+            {
+                return;
+            }
             type = VALUE_BOOLEAN;
             value =
                 getValueType(state, value1) == getValueType(state, value2) &&
@@ -242,7 +267,15 @@ static void evaluateValue(RunState *state, uint valueOffset)
             value1 = readRelativeValueOffset(state, valueOffset, &value);
             value2 = readRelativeValueOffset(state, valueOffset, &value);
             evaluateValue(state, value1);
+            if (state->error)
+            {
+                return;
+            }
             evaluateValue(state, value2);
+            if (state->error)
+            {
+                return;
+            }
             assert(getValueType(state, value1) == VALUE_INTEGER);
             assert(getValueType(state, value2) == VALUE_INTEGER);
             type = VALUE_INTEGER;
@@ -257,7 +290,15 @@ static void evaluateValue(RunState *state, uint valueOffset)
             value1 = readRelativeValueOffset(state, valueOffset, &value);
             value2 = readRelativeValueOffset(state, valueOffset, &value);
             evaluateValue(state, value1);
+            if (state->error)
+            {
+                return;
+            }
             evaluateValue(state, value2);
+            if (state->error)
+            {
+                return;
+            }
             assert(getValueType(state, value1) == VALUE_INTEGER);
             assert(getValueType(state, value2) == VALUE_INTEGER);
             type = VALUE_INTEGER;
@@ -272,7 +313,15 @@ static void evaluateValue(RunState *state, uint valueOffset)
             value1 = readRelativeValueOffset(state, valueOffset, &value);
             value2 = readRelativeValueOffset(state, valueOffset, &value);
             evaluateValue(state, value1);
+            if (state->error)
+            {
+                return;
+            }
             evaluateValue(state, value2);
+            if (state->error)
+            {
+                return;
+            }
             assert(getValueType(state, value1) == VALUE_OBJECT);
             assert(getValueType(state, value2) == VALUE_INTEGER);
 
@@ -280,6 +329,10 @@ static void evaluateValue(RunState *state, uint valueOffset)
                                                     getValue(state, value1),
                                                     getValue(state, value2));
             evaluateValue(state, value);
+            if (state->error)
+            {
+                return;
+            }
             type = getValueType(state, value);
             value = getValue(state, value);
             break;
@@ -292,6 +345,10 @@ static void evaluateValue(RunState *state, uint valueOffset)
 
     case VALUE_COPY:
         evaluateValue(state, value);
+        if (state->error)
+        {
+            return;
+        }
         type = IntVectorGet(&state->values, value + VALUE_OFFSET_TYPE);
         value = IntVectorGet(&state->values, value + VALUE_OFFSET_VALUE);
         break;
@@ -324,6 +381,10 @@ static void copyValue(RunState *state, uint sourceBP, uint sourceValue,
 boolean ValueGetBoolean(RunState *state, uint bp, uint valueIndex)
 {
     evaluateValue(state, ValueGetOffset(bp, valueIndex));
+    if (state->error)
+    {
+        return false;
+    }
     assert(getLocalValueType(state, bp, valueIndex) == VALUE_BOOLEAN);
     return (boolean)getLocalValue(state, bp, valueIndex);
 }
@@ -398,6 +459,10 @@ void ValuePrint(RunState *state, uint valueOffset)
     uint value;
 
     evaluateValue(state, valueOffset);
+    if (state->error)
+    {
+        return;
+    }
     value = getValue(state, valueOffset);
     switch (getValueType(state, valueOffset))
     {

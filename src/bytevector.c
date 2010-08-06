@@ -89,34 +89,34 @@ void ByteVectorMove(bytevector *v, uint src, uint dst, uint length)
     memmove(&v->data[dst], &v->data[src], length);
 }
 
-boolean ByteVectorAdd(bytevector *v, byte value)
+ErrorCode ByteVectorAdd(bytevector *v, byte value)
 {
     checkByteVector(v);
     assert(ByteVectorSize(v) + 1 < SEGMENT_SIZE); /* TODO: grow byte vector */
     v->data[v->size++] = value;
-    return true;
+    return NO_ERROR;
 }
 
-boolean ByteVectorAddInt(bytevector *v, int value)
+ErrorCode ByteVectorAddInt(bytevector *v, int value)
 {
     return ByteVectorAddUint(v, (uint)value);
 }
 
-boolean ByteVectorAddUint(bytevector *v, uint value)
+ErrorCode ByteVectorAddUint(bytevector *v, uint value)
 {
     checkByteVector(v);
     assert(ByteVectorSize(v) + 4 < SEGMENT_SIZE); /* TODO: grow byte vector */
     *((uint*)&v->data[v->size]) = value;
     v->size += 4;
-    return true;
+    return NO_ERROR;
 }
 
-boolean ByteVectorAddPackInt(bytevector *v, int value)
+ErrorCode ByteVectorAddPackInt(bytevector *v, int value)
 {
     return ByteVectorAddPackUint(v, (uint)value);
 }
 
-boolean ByteVectorAddPackUint(bytevector *v, uint value)
+ErrorCode ByteVectorAddPackUint(bytevector *v, uint value)
 {
     checkByteVector(v);
     if (value <= 127)
@@ -126,7 +126,7 @@ boolean ByteVectorAddPackUint(bytevector *v, uint value)
     v->data[v->size++] = 128;
     *((uint*)&v->data[v->size]) = value;
     v->size += 4;
-    return true;
+    return NO_ERROR;
 }
 
 byte ByteVectorGet(const bytevector *v, uint index)

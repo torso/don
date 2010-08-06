@@ -55,24 +55,39 @@ uint NativeGetBytecodeOffset(nativefunctionref function)
     return bytecodeOffsets[function];
 }
 
-void NativeWriteBytecode(bytevector *restrict bytecode,
-                         bytevector *restrict valueBytecode)
+ErrorCode NativeWriteBytecode(bytevector *restrict bytecode,
+                              bytevector *restrict valueBytecode)
 {
     uint function;
     uint parameter;
     uint parameterCount;
+    ErrorCode error;
 
     for (function = 0; function < NATIVE_FUNCTION_COUNT; function++)
     {
         bytecodeOffsets[function] = ByteVectorSize(bytecode);
         parameterCount = NativeGetParameterCount((nativefunctionref)function);
-        ByteVectorAddPackUint(bytecode, parameterCount);
+        error = ByteVectorAddPackUint(bytecode, parameterCount);
+        if (error)
+        {
+            return error;
+        }
         for (parameter = 0; parameter < parameterCount; parameter++)
         {
-            ByteVectorAddPackUint(bytecode, ByteVectorSize(valueBytecode));
-            ByteVectorAdd(valueBytecode, DATAOP_PARAMETER);
-            ByteVectorAddPackUint(valueBytecode, (uint)StringPoolAdd("dummy"));
+            if ((error = ByteVectorAddPackUint(
+                     bytecode, ByteVectorSize(valueBytecode))) ||
+                (error = ByteVectorAdd(valueBytecode, DATAOP_PARAMETER)) ||
+                (error = ByteVectorAddPackUint(valueBytecode,
+                                               (uint)StringPoolAdd("dummy"))))
+            {
+                return error;
+            }
         }
-        ByteVectorAdd(bytecode, (byte)-1);
+        error = ByteVectorAdd(bytecode, (byte)-1);
+        if (error)
+        {
+            return error;
+        }
     }
+    return NO_ERROR;
 }

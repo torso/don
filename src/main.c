@@ -177,8 +177,8 @@ int main(int argc, const char **argv)
         }
     }
 
-    NativeWriteBytecode(&bytecode, &valueBytecode);
-    if (handleError(
+    if (handleError(NativeWriteBytecode(&bytecode, &valueBytecode)) ||
+        handleError(
             BytecodeGeneratorExecute(&parsed, &bytecode, &valueBytecode)))
     {
         cleanup();

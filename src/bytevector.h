@@ -20,11 +20,11 @@ extern nonnull ErrorCode ByteVectorAppendAll(const bytevector *restrict src,
                                              bytevector *restrict dst);
 extern nonnull void ByteVectorMove(bytevector *v, uint src, uint dst,
                                    uint length);
-extern nonnull boolean ByteVectorAdd(bytevector *v, byte value);
-extern nonnull boolean ByteVectorAddInt(bytevector *v, int value);
-extern nonnull boolean ByteVectorAddUint(bytevector *v, uint value);
-extern nonnull boolean ByteVectorAddPackInt(bytevector *v, int value);
-extern nonnull boolean ByteVectorAddPackUint(bytevector *v, uint value);
+extern nonnull ErrorCode ByteVectorAdd(bytevector *v, byte value);
+extern nonnull ErrorCode ByteVectorAddInt(bytevector *v, int value);
+extern nonnull ErrorCode ByteVectorAddUint(bytevector *v, uint value);
+extern nonnull ErrorCode ByteVectorAddPackInt(bytevector *v, int value);
+extern nonnull ErrorCode ByteVectorAddPackUint(bytevector *v, uint value);
 extern nonnull pure byte ByteVectorGet(const bytevector *v, uint index);
 extern nonnull byte ByteVectorRead(const bytevector *v, uint *index);
 #define ByteVectorGetInt(v, index) ((int)ByteVectorGetUint(v, index))

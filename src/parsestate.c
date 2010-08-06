@@ -58,18 +58,21 @@ static bytevector *getControl(const ParseState *state)
 }
 
 
-static boolean writeParsed(const ParseState *restrict state,
+static boolean writeParsed(ParseState *restrict state,
                            bytevector *restrict parsed)
 {
     bytevector *data = getData(state);
     bytevector *control = getControl(state);
-    if (!ByteVectorAddUint(parsed, 0) ||
-        !ByteVectorAddPackUint(parsed, getFunction(state)->valueCount) ||
-        !ByteVectorAddPackUint(parsed, ByteVectorSize(data)) ||
-        !ByteVectorAddPackUint(parsed, ByteVectorSize(control) + 1) ||
-        ByteVectorAppendAll(data, parsed) ||
-        ByteVectorAppendAll(control, parsed) ||
-        !ByteVectorAdd(parsed, OP_RETURN))
+    if (ParseStateSetError(state, ByteVectorAddUint(parsed, 0)) ||
+        ParseStateSetError(state, ByteVectorAddPackUint(
+                               parsed, getFunction(state)->valueCount)) ||
+        ParseStateSetError(state, ByteVectorAddPackUint(
+                               parsed, ByteVectorSize(data))) ||
+        ParseStateSetError(state, ByteVectorAddPackUint(
+                               parsed, ByteVectorSize(control) + 1)) ||
+        ParseStateSetError(state, ByteVectorAppendAll(data, parsed)) ||
+        ParseStateSetError(state, ByteVectorAppendAll(control, parsed)) ||
+        ParseStateSetError(state, ByteVectorAdd(parsed, OP_RETURN)))
     {
         return false;
     }
@@ -131,7 +134,8 @@ static Block *createBlock(ParseState *state, Block *unfinished)
                             IntVectorGet(unfinishedLocals,
                                          i + LOCAL_OFFSET_IDENTIFIER),
                             getFunction(state)->valueCount++, 0, 0)) ||
-                    !ByteVectorAdd(getData(state), DATAOP_NULL))
+                    ParseStateSetError(
+                        state, ByteVectorAdd(getData(state), DATAOP_NULL)))
                 {
                     return null;
                 }
@@ -212,7 +216,6 @@ static uint getLocal(ParseState *state, Function *function, stringref name)
     uint value;
     uint index;
     intvector *locals;
-    boolean success;
 
     ParseStateCheck(state);
     assert(function);
@@ -233,15 +236,20 @@ static uint getLocal(ParseState *state, Function *function, stringref name)
     }
     if (!function->parent)
     {
-        success = ByteVectorAdd(&function->data, DATAOP_NULL);
-        assert(success); /* TODO: Error handling */
+        if (ParseStateSetError(state,
+                               ByteVectorAdd(&function->data, DATAOP_NULL)))
+        {
+            return 0;
+        }
         return value;
     }
     function->parameterCount++;
-    if (!ByteVectorAdd(&function->data, DATAOP_PARAMETER) ||
-        !ByteVectorAddPackUint(&function->data, (uint)name))
+    if (ParseStateSetError(state,
+                           ByteVectorAdd(&function->data, DATAOP_PARAMETER)) ||
+        ParseStateSetError(state,
+                           ByteVectorAddPackUint(&function->data, (uint)name)))
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        return 0;
     }
     return value;
 }
@@ -312,7 +320,8 @@ static boolean finishIfBlockNoElse(ParseState *state)
                         oldLocals,
                         IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER),
                         getFunction(state)->valueCount++, 0, 0)) ||
-                !ByteVectorAdd(getData(state), DATAOP_NULL))
+                ParseStateSetError(state,
+                                   ByteVectorAdd(getData(state), DATAOP_NULL)))
             {
                 return false;
             }
@@ -320,15 +329,21 @@ static boolean finishIfBlockNoElse(ParseState *state)
         oldFlags = IntVectorGet(oldLocals, i + LOCAL_OFFSET_FLAGS);
         if (flags & LOCAL_FLAG_MODIFIED)
         {
-            if (!ByteVectorAdd(getData(state), DATAOP_CONDITION) ||
-                !ByteVectorAddUint(getData(state), block->condition) ||
-                !ByteVectorAddUint(
-                    getData(state),
-                    IntVectorGet(oldLocals,
-                                 i + LOCAL_OFFSET_VALUE)) ||
-                !ByteVectorAddUint(
-                    getData(state),
-                    IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
+            if (ParseStateSetError(
+                    state, ByteVectorAdd(getData(state), DATAOP_CONDITION)) ||
+                ParseStateSetError(
+                    state,
+                    ByteVectorAddUint(getData(state), block->condition)) ||
+                ParseStateSetError(
+                    state,
+                    ByteVectorAddUint(
+                        getData(state),
+                        IntVectorGet(oldLocals, i + LOCAL_OFFSET_VALUE))) ||
+                ParseStateSetError(
+                    state,
+                    ByteVectorAddUint(
+                        getData(state),
+                        IntVectorGet(locals, i + LOCAL_OFFSET_VALUE))))
             {
                 return false;
             }
@@ -376,7 +391,8 @@ static boolean finishIfBlockWithElse(ParseState *state)
                         oldLocals,
                         IntVectorGet(locals, i + LOCAL_OFFSET_IDENTIFIER),
                         getFunction(state)->valueCount++, 0, 0)) ||
-                !ByteVectorAdd(getData(state), DATAOP_NULL))
+                ParseStateSetError(state,
+                                   ByteVectorAdd(getData(state), DATAOP_NULL)))
             {
                 return false;
             }
@@ -388,17 +404,21 @@ static boolean finishIfBlockWithElse(ParseState *state)
         }
         if (flags & LOCAL_FLAG_MODIFIED)
         {
-            if (!ByteVectorAdd(getData(state), DATAOP_CONDITION) ||
-                !ByteVectorAddUint(getData(state),
-                                   block->unfinished->condition) ||
-                !ByteVectorAddUint(
-                    getData(state),
-                    IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)) ||
-                !ByteVectorAddUint(
-                    getData(state),
-                    IntVectorGet(IntVectorSize(unfinishedLocals) > i ?
-                                 unfinishedLocals : oldLocals,
-                                 i + LOCAL_OFFSET_VALUE)))
+            if (ParseStateSetError(
+                    state, ByteVectorAdd(getData(state), DATAOP_CONDITION)) ||
+                ParseStateSetError(
+                    state, ByteVectorAddUint(getData(state),
+                                             block->unfinished->condition)) ||
+                ParseStateSetError(
+                    state, ByteVectorAddUint(
+                        getData(state),
+                        IntVectorGet(locals, i + LOCAL_OFFSET_VALUE))) ||
+                ParseStateSetError(
+                    state, ByteVectorAddUint(
+                        getData(state),
+                        IntVectorGet(IntVectorSize(unfinishedLocals) > i ?
+                                     unfinishedLocals : oldLocals,
+                                     i + LOCAL_OFFSET_VALUE))))
             {
                 return false;
             }
@@ -440,8 +460,11 @@ static boolean finishLoopBlock(ParseState *restrict state,
     parentData = &function->parent->data;
     parentControl = &function->parent->control;
 
-    if (!ByteVectorAddPackUint(parentData, ByteVectorSize(parsed)) ||
-        !ByteVectorAddPackUint(parentControl, function->parameterCount) ||
+    if (ParseStateSetError(
+            state, ByteVectorAddPackUint(parentData, ByteVectorSize(parsed))) ||
+        ParseStateSetError(
+            state,
+            ByteVectorAddPackUint(parentControl, function->parameterCount)) ||
         !writeParsed(state, parsed))
     {
         return false;
@@ -463,7 +486,8 @@ static boolean finishLoopBlock(ParseState *restrict state,
         oldValue = IntVectorGet(oldLocals, index + LOCAL_OFFSET_VALUE);
         if (flags & LOCAL_FLAG_ACCESSED)
         {
-            if (!ByteVectorAddPackUint(parentControl, oldValue))
+            if (ParseStateSetError(
+                    state, ByteVectorAddPackUint(parentControl, oldValue)))
             {
                 return false;
             }
@@ -471,22 +495,32 @@ static boolean finishLoopBlock(ParseState *restrict state,
         if (flags & LOCAL_FLAG_MODIFIED)
         {
             value = function->parent->valueCount++;
-            if (!ByteVectorAdd(&function->parent->data, DATAOP_RETURN) ||
-                !ByteVectorAddPackUint(&function->parent->data,
-                                       function->stackframe) ||
-                !ByteVectorAddPackUint(
-                    &function->parent->data,
-                    IntVectorGet(locals, i + LOCAL_OFFSET_VALUE)))
+            if (ParseStateSetError(
+                    state,
+                    ByteVectorAdd(&function->parent->data, DATAOP_RETURN)) ||
+                ParseStateSetError(
+                    state, ByteVectorAddPackUint(&function->parent->data,
+                                                 function->stackframe)) ||
+                ParseStateSetError(
+                    state, ByteVectorAddPackUint(
+                        &function->parent->data,
+                        IntVectorGet(locals, i + LOCAL_OFFSET_VALUE))))
             {
                 return false;
             }
             IntVectorSet(oldLocals, index + LOCAL_OFFSET_VALUE,
                          function->parent->valueCount++);
-            if (!ByteVectorAdd(&function->parent->data, DATAOP_CONDITION) ||
-                !ByteVectorAddUint(&function->parent->data,
-                                   function->firstBlock.condition) ||
-                !ByteVectorAddUint(&function->parent->data, oldValue) ||
-                !ByteVectorAddUint(&function->parent->data, value))
+            if (ParseStateSetError(
+                    state,
+                    ByteVectorAdd(&function->parent->data, DATAOP_CONDITION)) ||
+                ParseStateSetError(
+                    state, ByteVectorAddUint(&function->parent->data,
+                                             function->firstBlock.condition)) ||
+                ParseStateSetError(
+                    state,
+                    ByteVectorAddUint(&function->parent->data, oldValue)) ||
+                ParseStateSetError(
+                    state, ByteVectorAddUint(&function->parent->data, value)))
             {
                 return false;
             }
@@ -521,8 +555,10 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         {
             conditionBranchOffset = block->branchOffset;
             block->branchOffset = ByteVectorSize(getControl(state)) + 1;
-            if (!ByteVectorAdd(getControl(state), OP_JUMP) ||
-                !ByteVectorAddInt(getControl(state), 0))
+            if (ParseStateSetError(state,
+                                   ByteVectorAdd(getControl(state), OP_JUMP)) ||
+                ParseStateSetError(state,
+                                   ByteVectorAddInt(getControl(state), 0)))
             {
                 return false;
             }
@@ -630,9 +666,9 @@ void ParseStateSetArgument(ParseState *state, uint argumentOffset,
 uint ParseStateWriteNullLiteral(ParseState *state)
 {
     ParseStateCheck(state);
-    if (!ByteVectorAdd(getData(state), DATAOP_NULL))
+    if (ParseStateSetError(state, ByteVectorAdd(getData(state), DATAOP_NULL)))
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        return 0;
     }
     return getFunction(state)->valueCount++;
 }
@@ -640,9 +676,9 @@ uint ParseStateWriteNullLiteral(ParseState *state)
 uint ParseStateWriteTrueLiteral(ParseState *state)
 {
     ParseStateCheck(state);
-    if (!ByteVectorAdd(getData(state), DATAOP_TRUE))
+    if (ParseStateSetError(state, ByteVectorAdd(getData(state), DATAOP_TRUE)))
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        return 0;
     }
     return getFunction(state)->valueCount++;
 }
@@ -650,9 +686,9 @@ uint ParseStateWriteTrueLiteral(ParseState *state)
 uint ParseStateWriteFalseLiteral(ParseState *state)
 {
     ParseStateCheck(state);
-    if (!ByteVectorAdd(getData(state), DATAOP_FALSE))
+    if (ParseStateSetError(state, ByteVectorAdd(getData(state), DATAOP_FALSE)))
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        return 0;
     }
     return getFunction(state)->valueCount++;
 }
@@ -660,10 +696,11 @@ uint ParseStateWriteFalseLiteral(ParseState *state)
 uint ParseStateWriteIntegerLiteral(ParseState *state, int value)
 {
     ParseStateCheck(state);
-    if (!ByteVectorAdd(getData(state), DATAOP_INTEGER) ||
-        !ByteVectorAddPackInt(getData(state), value))
+    if (ParseStateSetError(state,
+                           ByteVectorAdd(getData(state), DATAOP_INTEGER)) ||
+        ParseStateSetError(state, ByteVectorAddPackInt(getData(state), value)))
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        return 0;
     }
     return getFunction(state)->valueCount++;
 }
@@ -671,10 +708,12 @@ uint ParseStateWriteIntegerLiteral(ParseState *state, int value)
 uint ParseStateWriteStringLiteral(ParseState *state, stringref value)
 {
     ParseStateCheck(state);
-    if (!ByteVectorAdd(getData(state), DATAOP_STRING) ||
-        !ByteVectorAddPackUint(getData(state), (uint)value))
+    if (ParseStateSetError(state,
+                           ByteVectorAdd(getData(state), DATAOP_STRING)) ||
+        ParseStateSetError(state,
+                           ByteVectorAddPackUint(getData(state), (uint)value)))
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        return 0;
     }
     return getFunction(state)->valueCount++;
 }
@@ -686,17 +725,17 @@ uint ParseStateWriteList(ParseState *state, const intvector *values)
 
     ParseStateCheck(state);
     count = IntVectorSize(values);
-    if (!ByteVectorAdd(getData(state), DATAOP_LIST) ||
-        !ByteVectorAddPackUint(getData(state), count))
+    if (ParseStateSetError(state, ByteVectorAdd(getData(state), DATAOP_LIST)) ||
+        ParseStateSetError(state, ByteVectorAddPackUint(getData(state), count)))
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
         return 0;
     }
     for (i = 0; i < count; i++)
     {
-        if (!ByteVectorAddPackUint(getData(state), IntVectorGet(values, i)))
+        if (ParseStateSetError(
+                state,
+                ByteVectorAddPackUint(getData(state), IntVectorGet(values, i))))
         {
-            ParseStateSetFailed(state, OUT_OF_MEMORY);
             return 0;
         }
     }
@@ -708,11 +747,13 @@ uint ParseStateWriteBinaryOperation(ParseState *state,
                                     uint value1, uint value2)
 {
     ParseStateCheck(state);
-    if (!ByteVectorAdd(getData(state), operation) ||
-        !ByteVectorAddPackUint(getData(state), value1) ||
-        !ByteVectorAddPackUint(getData(state), value2))
+    if (ParseStateSetError(state, ByteVectorAdd(getData(state), operation)) ||
+        ParseStateSetError(state,
+                           ByteVectorAddPackUint(getData(state), value1)) ||
+        ParseStateSetError(state,
+                           ByteVectorAddPackUint(getData(state), value2)))
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        return 0;
     }
     return getFunction(state)->valueCount++;
 }
@@ -722,12 +763,12 @@ uint ParseStateWriteTernaryOperation(ParseState *state,
                                      uint value1, uint value2, uint value3)
 {
     ParseStateCheck(state);
-    if (!ByteVectorAdd(getData(state), operation) ||
-        !ByteVectorAddUint(getData(state), value1) ||
-        !ByteVectorAddUint(getData(state), value2) ||
-        !ByteVectorAddUint(getData(state), value3))
+    if (ParseStateSetError(state, ByteVectorAdd(getData(state), operation)) ||
+        ParseStateSetError(state, ByteVectorAddUint(getData(state), value1)) ||
+        ParseStateSetError(state, ByteVectorAddUint(getData(state), value2)) ||
+        ParseStateSetError(state, ByteVectorAddUint(getData(state), value3)))
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        return 0;
     }
     return getFunction(state)->valueCount++;
 }
@@ -741,14 +782,20 @@ boolean ParseStateWriteIf(ParseState *state, uint value)
 
     block = createBlock(state, null);
     if (!block ||
-        !ByteVectorAdd(getControl(state), OP_BRANCH) ||
-        !ByteVectorAddPackUint(getControl(state), value))
+        ParseStateSetError(state,
+                           ByteVectorAdd(getControl(state), OP_BRANCH)) ||
+        ParseStateSetError(state,
+                           ByteVectorAddPackUint(getControl(state), value)))
     {
         return false;
     }
     block->condition = value;
     block->branchOffset = ByteVectorSize(getControl(state));
-    return ByteVectorAddInt(getControl(state), 0);
+    if (ParseStateSetError(state, ByteVectorAddInt(getControl(state), 0)))
+    {
+        return false;
+    }
+    return true;
 }
 
 boolean ParseStateWriteWhile(ParseState *state, uint value)
@@ -759,11 +806,17 @@ boolean ParseStateWriteWhile(ParseState *state, uint value)
     function = (Function*)malloc(sizeof(Function));
     function->stackframe = getFunction(state)->valueCount;
     if (!function ||
-        !ByteVectorAdd(getControl(state), OP_COND_INVOKE) ||
-        !ByteVectorAddPackUint(getControl(state), value) ||
-        !ByteVectorAddPackUint(getControl(state),
-                               getFunction(state)->valueCount++) ||
-        !ByteVectorAdd(getData(state), DATAOP_STACKFRAME_ABSOLUTE))
+        ParseStateSetError(state,
+                           ByteVectorAdd(getControl(state), OP_COND_INVOKE)) ||
+        ParseStateSetError(state,
+                           ByteVectorAddPackUint(getControl(state), value)) ||
+        ParseStateSetError(state,
+                           ByteVectorAddPackUint(
+                               getControl(state),
+                               getFunction(state)->valueCount++)) ||
+        ParseStateSetError(state,
+                           ByteVectorAdd(
+                               getData(state), DATAOP_STACKFRAME_ABSOLUTE)))
     {
         return false;
     }
@@ -779,7 +832,11 @@ boolean ParseStateWriteWhile(ParseState *state, uint value)
 boolean ParseStateWriteReturn(ParseState *state)
 {
     ParseStateCheck(state);
-    return ByteVectorAdd(getControl(state), OP_RETURN);
+    if (ParseStateSetError(state, ByteVectorAdd(getControl(state), OP_RETURN)))
+    {
+        return false;
+    }
+    return true;
 }
 
 uint ParseStateWriteInvocation(ParseState *state,
@@ -795,35 +852,39 @@ uint ParseStateWriteInvocation(ParseState *state,
     if (nativeFunction >= 0)
     {
         assert(!target);
-        if (!ByteVectorAdd(getControl(state), OP_INVOKE_NATIVE) ||
-            !ByteVectorAdd(getControl(state), (byte)nativeFunction))
+        if (ParseStateSetError(
+                state, ByteVectorAdd(getControl(state), OP_INVOKE_NATIVE)) ||
+            ParseStateSetError(
+                state, ByteVectorAdd(getControl(state), (byte)nativeFunction)))
         {
-            ParseStateSetFailed(state, OUT_OF_MEMORY);
             return 0;
         }
     }
     else
     {
-        if (!ByteVectorAdd(getControl(state), OP_INVOKE_TARGET) ||
-            !ByteVectorAddPackUint(getControl(state), target))
+        if (ParseStateSetError(
+                state, ByteVectorAdd(getControl(state), OP_INVOKE_TARGET)) ||
+            ParseStateSetError(
+                state, ByteVectorAddPackUint(getControl(state), target)))
         {
-            ParseStateSetFailed(state, OUT_OF_MEMORY);
             return 0;
         }
     }
-    if (!ByteVectorAddPackUint(getControl(state),
-                               returnValue) ||
-        !ByteVectorAdd(getData(state), DATAOP_STACKFRAME) ||
-        !ByteVectorAddPackUint(getControl(state), parameterCount))
+    if (ParseStateSetError(
+            state, ByteVectorAddPackUint(getControl(state), returnValue)) ||
+        ParseStateSetError(
+            state, ByteVectorAdd(getData(state), DATAOP_STACKFRAME)) ||
+        ParseStateSetError(
+            state, ByteVectorAddPackUint(getControl(state), parameterCount)))
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+
         return 0;
     }
     while (parameterCount--)
     {
-        if (!ByteVectorAddPackUint(getControl(state), *arguments++))
+        if (ParseStateSetError(
+                state, ByteVectorAddPackUint(getControl(state), *arguments++)))
         {
-            ParseStateSetFailed(state, OUT_OF_MEMORY);
             return 0;
         }
     }
