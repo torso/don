@@ -61,7 +61,14 @@ static void cleanup(void)
 
 static targetref getTarget(const char *name)
 {
-    targetref target = TargetIndexGet(StringPoolAdd(name));
+    stringref string = StringPoolAdd(name);
+    targetref target;
+    if (!string)
+    {
+        handleError(OUT_OF_MEMORY);
+        return 0;
+    }
+    target = TargetIndexGet(string);
     if (!target || !TargetIndexIsTarget(target))
     {
         printf("'%s' is not a target.\n", name);
@@ -137,9 +144,10 @@ int main(int argc, const char **argv)
         inputFilename = "build.don";
     }
 
-    StringPoolInit();
-    ParserAddKeywords();
-    if (handleError(TargetIndexInit()) ||
+    if (handleError(StringPoolInit()) ||
+        handleError(ParserAddKeywords()) ||
+        handleError(TargetIndexInit()) ||
+        handleError(NativeInit()) ||
         handleError(ByteVectorInit(&parsed)) ||
         handleError(ByteVectorInit(&bytecode)) ||
         handleError(ByteVectorInit(&valueBytecode)))

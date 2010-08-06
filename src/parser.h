@@ -8,6 +8,6 @@
 #error targetindex.h not included
 #endif
 
-extern void ParserAddKeywords(void);
+extern ErrorCode ParserAddKeywords(void);
 extern ErrorCode ParseFile(fileref file);
 extern nonnull ErrorCode ParseFunction(targetref target, bytevector *parsed);

@@ -67,15 +67,22 @@ static boolean slotContainsString(const uint *t, uint slot, uint hash,
                string, length) == 0;
 }
 
-void StringPoolInit(void)
+ErrorCode StringPoolInit(void)
 {
     assert(!stringData);
     assert(!table);
     stringData = (char*)malloc(65536);
-    assert(stringData); /* TODO: handle oom */
+    if (!stringData)
+    {
+        return OUT_OF_MEMORY;
+    }
     table = (uint*)zmalloc((1024 + TABLE_DATA_BEGIN) * sizeof(uint));
-    assert(table); /* TODO: handle oom */
+    if (!table)
+    {
+        return OUT_OF_MEMORY;
+    }
     table[TABLE_SIZE] = 1024;
+    return NO_ERROR;
 }
 
 void StringPoolDispose(void)

@@ -12,6 +12,7 @@
 
 typedef int nativefunctionref;
 
+extern ErrorCode NativeInit(void);
 extern nonnull void NativeInvoke(RunState *state, nativefunctionref function);
 extern pure nativefunctionref NativeFindFunction(stringref name);
 extern pure uint NativeGetParameterCount(nativefunctionref function);

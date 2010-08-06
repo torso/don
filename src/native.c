@@ -13,6 +13,11 @@
 static stringref echoParameterNames[1];
 static uint bytecodeOffsets[NATIVE_FUNCTION_COUNT];
 
+ErrorCode NativeInit(void)
+{
+    return StringPoolAdd("echo") ? NO_ERROR : OUT_OF_MEMORY;
+}
+
 void NativeInvoke(RunState *state, nativefunctionref function)
 {
     if (function == 0)

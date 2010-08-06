@@ -148,11 +148,17 @@ static boolean peekIdentifier(const ParseState *state)
 static stringref readIdentifier(ParseState *state)
 {
     const byte *begin = state->current;
+    stringref identifier;
 
     ParseStateCheck(state);
     assert(peekIdentifier(state));
     while (isIdentifierCharacter(*++state->current));
-    return StringPoolAdd2((const char*)begin, getOffset(state, begin));
+    identifier = StringPoolAdd2((const char*)begin, getOffset(state, begin));
+    if (!identifier)
+    {
+        ParseStateSetFailed(state, OUT_OF_MEMORY);
+    }
+    return identifier;
 }
 
 static stringref peekReadIdentifier(ParseState *state)
@@ -196,6 +202,11 @@ static stringref readString(ParseState *state)
         state->current++;
     }
     s = StringPoolAdd2((const char*)begin, getOffset(state, begin));
+    if (!s)
+    {
+        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        return 0;
+    }
     state->current++;
     return s;
 }
@@ -376,10 +387,16 @@ static uint parseListRest(ParseState *state)
 static uint parseExpression5(ParseState *state)
 {
     stringref identifier;
+    stringref string;
+
     ParseStateCheck(state);
     if (peekIdentifier(state))
     {
         identifier = readIdentifier(state);
+        if (state->error)
+        {
+            return 0;
+        }
         if (isKeyword(identifier))
         {
             if (identifier == keywordTrue)
@@ -411,7 +428,12 @@ static uint parseExpression5(ParseState *state)
     }
     else if (peekString(state))
     {
-        return ParseStateWriteStringLiteral(state, readString(state));
+        string = readString(state);
+        if (state->error)
+        {
+            return 0;
+        }
+        return ParseStateWriteStringLiteral(state, string);
     }
     else if (readOperator(state, '['))
     {
@@ -563,6 +585,10 @@ static boolean parseFunctionBody(ParseState *state,
         else
         {
             identifier = peekReadIdentifier(state);
+            if (state->error)
+            {
+                return false;
+            }
             if (indent != currentIndent)
             {
                 if (!currentIndent)
@@ -719,6 +745,7 @@ static void parseScript(ParseState *state)
 {
     boolean inFunction = false;
     boolean isTarget;
+    stringref target;
     stringref parameterName;
 
     ParseStateCheck(state);
@@ -726,7 +753,12 @@ static void parseScript(ParseState *state)
     {
         if (peekIdentifier(state))
         {
-            state->error = TargetIndexBeginTarget(readIdentifier(state));
+            target = readIdentifier(state);
+            if (state->error)
+            {
+                return;
+            }
+            state->error = TargetIndexBeginTarget(target);
             if (state->error)
             {
                 return;
@@ -744,6 +776,10 @@ static void parseScript(ParseState *state)
                     for (;;)
                     {
                         parameterName = peekReadIdentifier(state);
+                        if (state->error)
+                        {
+                            return;
+                        }
                         if (!parameterName)
                         {
                             error(state, "Expected parameter name or ')'.");
@@ -796,16 +832,20 @@ static void parseScript(ParseState *state)
     }
 }
 
-void ParserAddKeywords(void)
+ErrorCode ParserAddKeywords(void)
 {
-    keywordElse = StringPoolAdd("else");
-    keywordFalse = StringPoolAdd("false");
-    keywordIf = StringPoolAdd("if");
-    keywordNull = StringPoolAdd("null");
-    keywordTrue = StringPoolAdd("true");
-    keywordWhile = StringPoolAdd("while");
+    if (!(keywordElse = StringPoolAdd("else")) ||
+        !(keywordFalse = StringPoolAdd("false")) ||
+        !(keywordIf = StringPoolAdd("if")) ||
+        !(keywordNull = StringPoolAdd("null")) ||
+        !(keywordTrue = StringPoolAdd("true")) ||
+        !(keywordWhile = StringPoolAdd("while")))
+    {
+        return OUT_OF_MEMORY;
+    }
     maxStatementKeyword = keywordWhile;
     maxKeyword = keywordWhile;
+    return NO_ERROR;
 }
 
 ErrorCode ParseFile(fileref file)

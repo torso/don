@@ -2,7 +2,7 @@
 
 typedef int stringref;
 
-extern void StringPoolInit(void);
+extern ErrorCode StringPoolInit(void);
 extern void StringPoolDispose(void);
 extern nonnull stringref StringPoolAdd(const char *token);
 extern nonnull stringref StringPoolAdd2(const char *token, size_t length);
