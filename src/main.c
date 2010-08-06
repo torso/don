@@ -139,14 +139,14 @@ int main(int argc, const char **argv)
 
     StringPoolInit();
     ParserAddKeywords();
-    if (handleError(TargetIndexInit()))
+    if (handleError(TargetIndexInit()) ||
+        handleError(ByteVectorInit(&parsed)) ||
+        handleError(ByteVectorInit(&bytecode)) ||
+        handleError(ByteVectorInit(&valueBytecode)))
     {
         cleanup();
         return 1;
     }
-    ByteVectorInit(&parsed);
-    ByteVectorInit(&bytecode);
-    ByteVectorInit(&valueBytecode);
 
     inputFile = FileIndexAdd(inputFilename);
     assert(inputFile);

@@ -24,11 +24,15 @@ static void checkByteVectorRange(const bytevector *v, uint index, uint length)
     assert(ByteVectorSize(v) >= index + length);
 }
 
-void ByteVectorInit(bytevector *v)
+ErrorCode ByteVectorInit(bytevector *v)
 {
     v->data = (byte*)malloc(SEGMENT_SIZE);
-    assert(v->data); /* TODO: handle oom */
+    if (!v->data)
+    {
+        return OUT_OF_MEMORY;
+    }
     v->size = 0;
+    return NO_ERROR;
 }
 
 void ByteVectorDispose(bytevector *v)

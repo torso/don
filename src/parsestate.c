@@ -167,8 +167,11 @@ static void disposeCurrentBlock(ParseState *state)
 static void initFunction(ParseState *state, Function *function)
 {
     function->parent = state->currentFunction;
-    ByteVectorInit(&function->data);
-    ByteVectorInit(&function->control);
+    if (ParseStateSetError(state, ByteVectorInit(&function->data)) ||
+        ParseStateSetError(state, ByteVectorInit(&function->control)))
+    {
+        return;
+    }
     function->valueCount = 0;
     function->parameterCount = 0;
     state->currentFunction = function;

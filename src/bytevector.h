@@ -6,7 +6,7 @@ typedef struct
     byte *data;
 } bytevector;
 
-extern nonnull void ByteVectorInit(bytevector *v);
+extern nonnull ErrorCode ByteVectorInit(bytevector *v);
 extern nonnull void ByteVectorDispose(bytevector *v);
 extern nonnull pure uint ByteVectorSize(const bytevector *v);
 extern nonnull void ByteVectorSetSize(bytevector *v, uint size);

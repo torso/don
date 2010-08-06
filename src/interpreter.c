@@ -15,6 +15,12 @@ static const boolean DUMP_STATE = false;
 static const boolean TRACE = false;
 
 
+static boolean setError(RunState *state, ErrorCode error)
+{
+    state->error = error;
+    return error ? true : false;
+}
+
 static void dumpState(const RunState *state)
 {
     ValueDump(state);
@@ -155,7 +161,10 @@ ErrorCode InterpreterExecute(const bytevector *restrict bytecode,
     state.valueBytecode = valueBytecode;
     IntVectorInit(&state.values);
     IntVectorInit(&state.stack);
-    ByteVectorInit(&state.heap);
+    if (setError(&state, ByteVectorInit(&state.heap)))
+    {
+        return state.error;
+    }
 
     execute(&state);
     if (DUMP_STATE)
