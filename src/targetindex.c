@@ -233,6 +233,21 @@ targetref TargetIndexGet(stringref name)
     return (targetref)IntHashMapGet(&targetIndex, (uint)name);
 }
 
+targetref TargetIndexGetTargetFromBytecode(uint bytecodeOffset)
+{
+    targetref target;
+    for (target = TargetIndexGetFirstTarget();
+         target;
+         target = TargetIndexGetNextTarget(target))
+    {
+        if (TargetIndexGetBytecodeOffset(target) == bytecodeOffset)
+        {
+            return target;
+        }
+    }
+    return 0;
+}
+
 stringref TargetIndexGetName(targetref target)
 {
     assert(hasIndex);

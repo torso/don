@@ -11,11 +11,13 @@
 #define NATIVE_FUNCTION_COUNT 1
 
 static stringref echoParameterNames[1];
+static stringref functionNames[NATIVE_FUNCTION_COUNT];
 static uint bytecodeOffsets[NATIVE_FUNCTION_COUNT];
 
 ErrorCode NativeInit(void)
 {
-    return StringPoolAdd("echo") ? NO_ERROR : OUT_OF_MEMORY;
+    functionNames[0] = StringPoolAdd("echo");
+    return functionNames[0] ? NO_ERROR : OUT_OF_MEMORY;
 }
 
 void NativeInvoke(RunState *state, nativefunctionref function)
@@ -29,11 +31,36 @@ void NativeInvoke(RunState *state, nativefunctionref function)
 
 nativefunctionref NativeFindFunction(stringref name)
 {
-    if (name == StringPoolAdd("echo"))
+    int i;
+    for (i = 0; i < NATIVE_FUNCTION_COUNT; i++)
     {
-        return 0;
+        if (name == functionNames[i])
+        {
+            return i;
+        }
     }
     return -1;
+}
+
+nativefunctionref NativeGetFromBytecodeOffset(uint bytecodeOffset)
+{
+    int i;
+    for (i = 0; i < NATIVE_FUNCTION_COUNT; i++)
+    {
+        if (bytecodeOffset == bytecodeOffsets[i])
+        {
+            return i;
+        }
+    }
+    assert(false);
+    return -1;
+}
+
+stringref NativeGetName(nativefunctionref function)
+{
+    assert(function >= 0);
+    assert(function < NATIVE_FUNCTION_COUNT);
+    return functionNames[function];
 }
 
 uint NativeGetParameterCount(nativefunctionref function)

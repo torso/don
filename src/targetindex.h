@@ -45,6 +45,7 @@ extern targetref TargetIndexPopUnparsedTarget(void);
 
 extern pure uint TargetIndexGetTargetCount(void);
 extern pure targetref TargetIndexGet(stringref name);
+extern pure targetref TargetIndexGetTargetFromBytecode(uint bytecodeOffset);
 extern pure stringref TargetIndexGetName(targetref target);
 extern pure fileref TargetIndexGetFile(targetref target);
 extern pure uint TargetIndexGetLine(targetref target);
