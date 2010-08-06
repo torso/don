@@ -9,15 +9,15 @@ typedef struct
 extern nonnull ErrorCode ByteVectorInit(bytevector *v);
 extern nonnull void ByteVectorDispose(bytevector *v);
 extern nonnull pure uint ByteVectorSize(const bytevector *v);
-extern nonnull void ByteVectorSetSize(bytevector *v, uint size);
+extern nonnull ErrorCode ByteVectorSetSize(bytevector *v, uint size);
 extern nonnull void ByteVectorCopy(
     const bytevector *restrict src, uint srcOffset,
     bytevector *restrict dst, uint dstOffset, uint length);
-extern nonnull void ByteVectorAppend(
+extern nonnull ErrorCode ByteVectorAppend(
     const bytevector *restrict src, uint srcOffset,
     bytevector *restrict dst, uint length);
-extern nonnull void ByteVectorAppendAll(const bytevector *restrict src,
-                                        bytevector *restrict dst);
+extern nonnull ErrorCode ByteVectorAppendAll(const bytevector *restrict src,
+                                             bytevector *restrict dst);
 extern nonnull void ByteVectorMove(bytevector *v, uint src, uint dst,
                                    uint length);
 extern nonnull boolean ByteVectorAdd(bytevector *v, byte value);

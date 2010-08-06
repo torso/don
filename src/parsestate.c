@@ -66,13 +66,10 @@ static boolean writeParsed(const ParseState *restrict state,
     if (!ByteVectorAddUint(parsed, 0) ||
         !ByteVectorAddPackUint(parsed, getFunction(state)->valueCount) ||
         !ByteVectorAddPackUint(parsed, ByteVectorSize(data)) ||
-        !ByteVectorAddPackUint(parsed, ByteVectorSize(control) + 1))
-    {
-        return false;
-    }
-    ByteVectorAppendAll(data, parsed);
-    ByteVectorAppendAll(control, parsed);
-    if (!ByteVectorAdd(parsed, OP_RETURN))
+        !ByteVectorAddPackUint(parsed, ByteVectorSize(control) + 1) ||
+        ByteVectorAppendAll(data, parsed) ||
+        ByteVectorAppendAll(control, parsed) ||
+        !ByteVectorAdd(parsed, OP_RETURN))
     {
         return false;
     }

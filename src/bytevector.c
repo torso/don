@@ -47,11 +47,12 @@ uint ByteVectorSize(const bytevector *v)
     return v->size;
 }
 
-void ByteVectorSetSize(bytevector *v, uint size)
+ErrorCode ByteVectorSetSize(bytevector *v, uint size)
 {
     checkByteVector(v);
     assert(size <= SEGMENT_SIZE); /* TODO: grow byte vector */
     v->size = size;
+    return NO_ERROR;
 }
 
 void ByteVectorCopy(const bytevector *restrict src, uint srcOffset,
@@ -62,18 +63,23 @@ void ByteVectorCopy(const bytevector *restrict src, uint srcOffset,
     memcpy(&dst->data[dstOffset], &src->data[srcOffset], length);
 }
 
-void ByteVectorAppend(const bytevector *restrict src, uint srcOffset,
-                      bytevector *restrict dst, uint length)
+ErrorCode ByteVectorAppend(const bytevector *restrict src, uint srcOffset,
+                           bytevector *restrict dst, uint length)
 {
     uint size = ByteVectorSize(dst);
-    ByteVectorSetSize(dst, size + length);
+    ErrorCode error = ByteVectorSetSize(dst, size + length);
+    if (error)
+    {
+        return error;
+    }
     ByteVectorCopy(src, srcOffset, dst, size, length);
+    return NO_ERROR;
 }
 
-void ByteVectorAppendAll(const bytevector *restrict src,
-                         bytevector *restrict dst)
+ErrorCode ByteVectorAppendAll(const bytevector *restrict src,
+                              bytevector *restrict dst)
 {
-    ByteVectorAppend(src, 0, dst, ByteVectorSize(src));
+    return ByteVectorAppend(src, 0, dst, ByteVectorSize(src));
 }
 
 void ByteVectorMove(bytevector *v, uint src, uint dst, uint length)
