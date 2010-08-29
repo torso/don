@@ -85,9 +85,6 @@ extern nonnull uint ParseStateGetVariable(ParseState *state, stringref name);
 extern nonnull boolean ParseStateSetVariable(ParseState *state,
                                              stringref name, uint value);
 
-extern nonnull void ParseStateSetArgument(
-    ParseState *state, uint argumentOffset, uint parameterIndex, uint value);
-
 extern nonnull uint ParseStateWriteNullLiteral(ParseState *state);
 extern nonnull uint ParseStateWriteTrueLiteral(ParseState *state);
 extern nonnull uint ParseStateWriteFalseLiteral(ParseState *state);

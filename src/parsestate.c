@@ -653,16 +653,6 @@ boolean ParseStateSetVariable(ParseState *state, stringref name, uint value)
 }
 
 
-void ParseStateSetArgument(ParseState *state, uint argumentOffset,
-                           uint parameterIndex, uint value)
-{
-    ParseStateCheck(state);
-    ByteVectorSetUint(getControl(state),
-                      argumentOffset + parameterIndex * (uint)sizeof(int),
-                      value);
-}
-
-
 uint ParseStateWriteNullLiteral(ParseState *state)
 {
     ParseStateCheck(state);
