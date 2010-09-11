@@ -20,7 +20,7 @@ static void checkByteVectorIndex(const bytevector *v, uint index)
 static void checkByteVectorRange(const bytevector *v, uint index, uint length)
 {
     checkByteVector(v);
-    assert(index <= v->size);
+    assert(index < v->size || (index == v->size && !length));
     assert(ByteVectorSize(v) >= index + length);
 }
 
@@ -60,7 +60,7 @@ void ByteVectorCopy(const bytevector *restrict src, uint srcOffset,
 {
     checkByteVectorRange(src, srcOffset, length);
     checkByteVectorRange(dst, dstOffset, length);
-    memcpy(&dst->data[dstOffset], &src->data[srcOffset], length);
+    memmove(&dst->data[dstOffset], &src->data[srcOffset], length);
 }
 
 ErrorCode ByteVectorAppend(const bytevector *restrict src, uint srcOffset,
@@ -123,6 +123,17 @@ ErrorCode ByteVectorAddPackUint(bytevector *v, uint value)
     {
         return ByteVectorAdd(v, (byte)value);
     }
+    return ByteVectorAddUnpackedUint(v, value);
+}
+
+ErrorCode ByteVectorAddUnpackedInt(bytevector *v, int value)
+{
+    return ByteVectorAddUnpackedUint(v, (uint)value);
+}
+
+ErrorCode ByteVectorAddUnpackedUint(bytevector *v, uint value)
+{
+    checkByteVector(v);
     v->data[v->size++] = 128;
     *((uint*)&v->data[v->size]) = value;
     v->size += 4;
@@ -209,6 +220,19 @@ const byte *ByteVectorGetPointer(const bytevector *v, uint index)
     return &v->data[index];
 }
 
+byte ByteVectorPeek(const bytevector *v)
+{
+    checkByteVectorIndex(v, 0);
+    return v->data[v->size - 1];
+}
+
+byte ByteVectorPop(bytevector *v)
+{
+    checkByteVectorIndex(v, 0);
+    v->size--;
+    return v->data[v->size];
+}
+
 void ByteVectorSet(bytevector *v, uint index, byte value)
 {
     checkByteVectorIndex(v, index);
@@ -233,15 +257,20 @@ void ByteVectorSetUint(bytevector *v, uint index, uint value)
     *((uint*)&v->data[index]) = value;
 }
 
+void ByteVectorSetPackInt(bytevector *v, uint index, int value)
+{
+    ByteVectorSetPackUint(v, index, (uint)value);
+}
+
 void ByteVectorSetPackUint(bytevector *v, uint index, uint value)
 {
-    assert(ByteVectorGetPackUint(v, index) >= value);
     if ((int8)v->data[index] < 0)
     {
         *((uint*)&v->data[index + 1]) = value;
     }
     else
     {
+        assert(value < 127);
         v->data[index] = (byte)value;
     }
 }

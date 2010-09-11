@@ -1,0 +1,5 @@
+f()
+    return "PASS"
+
+default:
+    echo(f())

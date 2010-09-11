@@ -1,5 +1,5 @@
 default:
-    if "A" == "B"
+    if "A" != "A"
         echo("FAIL")
     else
         echo("PASS")

@@ -8,6 +8,6 @@ for i in test/* ; do
   ./builder -i $i
 done
 
-valgrind -q --leak-check=full --show-reachable=yes ./builder -i input
+valgrind -q --leak-check=full --show-reachable=yes ./builder -i input -d
 
 fi

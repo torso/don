@@ -1,7 +1,3 @@
-#define STRINGPOOL_H
-
-typedef int stringref;
-
 extern ErrorCode StringPoolInit(void);
 extern void StringPoolDispose(void);
 extern nonnull stringref StringPoolAdd(const char *token);

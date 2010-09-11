@@ -1,109 +1,62 @@
-#ifndef BYTEVECTOR_H
-#error bytevector.h not included
+#ifndef INTHASHMAP_H
+#error inthashmap.h not included
 #endif
 #ifndef INTVECTOR_H
 #error intvector.h not included
 #endif
-#ifndef FILEINDEX_H
-#error fileindex.h not included
-#endif
-#ifndef NATIVE_H
-#error native.h not included
-#endif
-#ifndef TARGETINDEX_H
-#error targetindex.h not included
-#endif
-#ifndef INSTRUCTION_H
-#error instruction.h not included
-#endif
-
-#define PARSESTATE_H
-
-struct _Block;
-typedef struct _Block Block;
-struct _Block
-{
-    Block *parent;
-
-    /* Holds the then-block of an if statement while parsing the else-block. */
-    Block *unfinished;
-
-    uint branchOffset;
-    uint condition;
-    intvector locals;
-    uint indent;
-};
-
-struct _Function;
-typedef struct _Function Function;
-struct _Function
-{
-    Function *parent;
-
-    Block *currentBlock;
-    Block firstBlock;
-
-    bytevector data;
-    bytevector control;
-    uint valueCount;
-    uint parameterCount;
-
-    /* Index of the stackframe value in the caller function.
-       Only used for loops. */
-    uint stackframe;
-};
 
 typedef struct
 {
     const byte *start;
     const byte *current;
+    targetref target;
     fileref file;
     uint line;
     uint statementLine;
+    uint indent;
     ErrorCode error;
 
-    Function *currentFunction;
-    Function firstFunction;
+    intvector blockStack;
+    inthashmap locals;
 
-    uint parsedOffset;
+    bytevector *bytecode;
 } ParseState;
 
 extern nonnull void ParseStateCheck(const ParseState *state);
-extern nonnull ErrorCode ParseStateInit(ParseState *state,
-                                        fileref file, uint line, uint offset);
+extern void ParseStateInit(ParseState *restrict state,
+                           bytevector *restrict bytecode,
+                           targetref target,
+                           fileref file, uint line, uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
+extern nonnull boolean ParseStateFinish(ParseState *restrict state);
 extern nonnull boolean ParseStateFinishBlock(ParseState *restrict state,
-                                             bytevector *restrict parsed,
                                              uint indent, boolean trailingElse);
+extern nonnull uint ParseStateGetJumpTarget(ParseState *state);
 extern nonnull boolean ParseStateSetError(ParseState *state, ErrorCode error);
-extern nonnull void ParseStateSetFailed(ParseState *state, ErrorCode error);
 
 extern nonnull void ParseStateSetIndent(ParseState *state, uint indent);
 extern nonnull uint ParseStateBlockIndent(ParseState *state);
 
-extern nonnull uint ParseStateGetVariable(ParseState *state, stringref name);
-extern nonnull boolean ParseStateSetVariable(ParseState *state,
-                                             stringref name, uint value);
+extern nonnull boolean ParseStateGetVariable(ParseState *state, stringref name);
+extern nonnull boolean ParseStateSetVariable(ParseState *state, stringref name);
 
-extern nonnull uint ParseStateWriteNullLiteral(ParseState *state);
-extern nonnull uint ParseStateWriteTrueLiteral(ParseState *state);
-extern nonnull uint ParseStateWriteFalseLiteral(ParseState *state);
-extern nonnull uint ParseStateWriteIntegerLiteral(ParseState *state, int value);
-extern nonnull uint ParseStateWriteStringLiteral(ParseState *state,
-                                                 stringref value);
-extern nonnull uint ParseStateWriteList(ParseState *restrict state,
-                                        const intvector *restrict values);
-extern nonnull uint ParseStateWriteBinaryOperation(ParseState *state,
-                                                   DataInstruction operation,
-                                                   uint value1, uint value2);
-extern nonnull uint ParseStateWriteTernaryOperation(ParseState *state,
-                                                    DataInstruction operation,
-                                                    uint value1, uint value2,
-                                                    uint value3);
+extern nonnull boolean ParseStateWriteNullLiteral(ParseState *state);
+extern nonnull boolean ParseStateWriteTrueLiteral(ParseState *state);
+extern nonnull boolean ParseStateWriteFalseLiteral(ParseState *state);
+extern nonnull boolean ParseStateWriteIntegerLiteral(ParseState *state,
+                                                     int value);
+extern nonnull boolean ParseStateWriteStringLiteral(ParseState *state,
+                                                    stringref value);
+extern nonnull boolean ParseStateWriteBinaryOperation(ParseState *state,
+                                                      Instruction operation);
+extern nonnull boolean ParseStateWriteBeginCondition(ParseState *state);
+extern nonnull boolean ParseStateWriteSecondConsequent(ParseState *state);
+extern nonnull boolean ParseStateWriteFinishCondition(ParseState *state);
 
-extern nonnull boolean ParseStateWriteIf(ParseState *state, uint value);
-extern nonnull boolean ParseStateWriteWhile(ParseState *state, uint value);
-extern nonnull boolean ParseStateWriteReturn(ParseState *state);
-extern nonnull uint ParseStateWriteInvocation(
-    ParseState *restrict state, nativefunctionref nativeFunction,
-    targetref target, uint parameterCount, uint *restrict arguments);
+extern nonnull boolean ParseStateWriteIf(ParseState *state);
+extern nonnull boolean ParseStateWriteWhile(ParseState *state, uint loopTarget);
+extern nonnull boolean ParseStateWriteReturn(ParseState *state, uint values);
+extern nonnull boolean ParseStateWriteReturnVoid(ParseState *state);
+extern nonnull boolean ParseStateWriteInvocation(
+    ParseState *state, nativefunctionref nativeFunction,
+    targetref target, uint argumentCount, uint returnValues);

@@ -1,10 +1,10 @@
 #define INTVECTOR_H
 
-typedef struct
+struct intvector
 {
     uint size;
     uint *data;
-} intvector;
+};
 
 extern nonnull ErrorCode IntVectorInit(intvector *v);
 extern nonnull ErrorCode IntVectorInitCopy(intvector *restrict v,
@@ -29,5 +29,6 @@ extern nonnull ErrorCode IntVectorAdd4(intvector *v, uint value1, uint value2,
 extern nonnull pure uint IntVectorGet(const intvector *v, uint index);
 extern nonnull pure const uint *IntVectorGetPointer(const intvector *v,
                                                     uint index);
+extern nonnull pure uint IntVectorPeek(const intvector *v);
 extern nonnull uint IntVectorPop(intvector *v);
 extern nonnull void IntVectorSet(intvector *v, uint index, uint value);

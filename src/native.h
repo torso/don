@@ -1,19 +1,6 @@
-#ifndef BYTEVECTOR_H
-#error bytevector.h not included
-#endif
-#ifndef STRINGPOOL_H
-#error stringpool.h not included
-#endif
-#ifndef INTERPRETERSTATE_H
-#error interpreterstate.h not included
-#endif
-
-#define NATIVE_H
-
-typedef int nativefunctionref;
-
 extern ErrorCode NativeInit(void);
-extern nonnull void NativeInvoke(RunState *state, nativefunctionref function);
+extern nonnull void NativeInvoke(RunState *state, nativefunctionref function,
+                                 uint returnValues);
 extern pure nativefunctionref NativeFindFunction(stringref name);
 extern pure nativefunctionref NativeGetFromBytecodeOffset(uint bytecodeOffset);
 extern pure stringref NativeGetName(nativefunctionref function);
@@ -21,5 +8,3 @@ extern pure uint NativeGetParameterCount(nativefunctionref function);
 extern pure uint NativeGetMinimumArgumentCount(nativefunctionref function);
 extern pure const stringref *NativeGetParameterNames(nativefunctionref function);
 extern pure uint NativeGetBytecodeOffset(nativefunctionref function);
-extern ErrorCode NativeWriteBytecode(bytevector *restrict bytecode,
-                                     bytevector *restrict valueBytecode);

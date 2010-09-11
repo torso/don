@@ -1,12 +1,25 @@
 #define INTHASHMAP_H
 
+struct inthashmap
+{
+    uint *table;
+    uint tableSize;
+    uint size;
+};
+
 typedef struct
 {
-    uint tableSize;
-    uint *table;
-} inthashmap;
+    const inthashmap *map;
+    uint position;
+} inthashmapiterator;
 
-extern boolean IntHashMapInit(inthashmap *map, uint capacity);
-extern void IntHashMapDispose(inthashmap *map);
-extern void IntHashMapAdd(inthashmap *map, uint key, uint value);
-extern uint IntHashMapGet(const inthashmap *map, uint key);
+extern nonnull ErrorCode IntHashMapInit(inthashmap *map, uint capacity);
+extern nonnull void IntHashMapDispose(inthashmap *map);
+extern nonnull ErrorCode IntHashMapAdd(inthashmap *map, uint key, uint value);
+extern nonnull pure uint IntHashMapGet(const inthashmap *map, uint key);
+extern nonnull pure uint IntHashMapSize(const inthashmap *map);
+
+extern nonnull void IntHashMapIteratorInit(const inthashmap *map,
+                                           inthashmapiterator *iterator);
+extern nonnull boolean IntHashMapIteratorNext(inthashmapiterator *iterator,
+                                              uint *key, uint *value);

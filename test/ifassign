@@ -1,0 +1,7 @@
+default:
+    msg = "b"
+    if msg == "b"
+        msg = "PASS"
+    if msg == "b"
+        msg = "FAIL"
+    echo(msg)

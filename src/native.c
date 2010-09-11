@@ -1,12 +1,8 @@
 #include <stdlib.h>
 #include "builder.h"
-#include "bytevector.h"
-#include "intvector.h"
-#include "stringpool.h"
-#include "interpreterstate.h"
-#include "value.h"
+#include "interpreter.h"
 #include "native.h"
-#include "instruction.h"
+#include "stringpool.h"
 
 #define NATIVE_FUNCTION_COUNT 1
 
@@ -20,12 +16,42 @@ ErrorCode NativeInit(void)
     return functionNames[0] ? NO_ERROR : OUT_OF_MEMORY;
 }
 
-void NativeInvoke(RunState *state, nativefunctionref function)
+void NativeInvoke(RunState *state, nativefunctionref function,
+                  uint returnValues)
 {
+    ValueType type;
+    uint value;
+
     if (function == 0)
     {
-        ValuePrint(state, ValueGetOffset(state->bp, 0));
-        printf("\n");
+        assert(!returnValues);
+        InterpreterPop(state, &type, &value);
+        switch (type)
+        {
+        case TYPE_NULL_LITERAL:
+            printf("null\n");
+            return;
+
+        case TYPE_BOOLEAN_LITERAL:
+            printf(value ? "true\n" : "false\n");
+            return;
+
+        case TYPE_INTEGER_LITERAL:
+            printf("%d\n", value);
+            return;
+
+        case TYPE_STRING_LITERAL:
+            printf("%s\n", StringPoolGetString((stringref)value));
+            return;
+
+        default:
+            assert(false);
+            return;
+        }
+    }
+    else
+    {
+        assert(false);
     }
 }
 
@@ -85,41 +111,4 @@ uint NativeGetBytecodeOffset(nativefunctionref function)
 {
     assert(function < NATIVE_FUNCTION_COUNT);
     return bytecodeOffsets[function];
-}
-
-ErrorCode NativeWriteBytecode(bytevector *restrict bytecode,
-                              bytevector *restrict valueBytecode)
-{
-    uint function;
-    uint parameter;
-    uint parameterCount;
-    ErrorCode error;
-
-    for (function = 0; function < NATIVE_FUNCTION_COUNT; function++)
-    {
-        bytecodeOffsets[function] = ByteVectorSize(bytecode);
-        parameterCount = NativeGetParameterCount((nativefunctionref)function);
-        error = ByteVectorAddPackUint(bytecode, parameterCount);
-        if (error)
-        {
-            return error;
-        }
-        for (parameter = 0; parameter < parameterCount; parameter++)
-        {
-            if ((error = ByteVectorAddPackUint(
-                     bytecode, ByteVectorSize(valueBytecode))) ||
-                (error = ByteVectorAdd(valueBytecode, DATAOP_PARAMETER)) ||
-                (error = ByteVectorAddPackUint(valueBytecode,
-                                               (uint)StringPoolAdd("dummy"))))
-            {
-                return error;
-            }
-        }
-        error = ByteVectorAdd(bytecode, (byte)-1);
-        if (error)
-        {
-            return error;
-        }
-    }
-    return NO_ERROR;
 }

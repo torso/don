@@ -1,10 +1,10 @@
 #define BYTEVECTOR_H
 
-typedef struct
+struct bytevector
 {
     uint size;
     byte *data;
-} bytevector;
+};
 
 extern nonnull ErrorCode ByteVectorInit(bytevector *v);
 extern nonnull void ByteVectorDispose(bytevector *v);
@@ -25,6 +25,8 @@ extern nonnull ErrorCode ByteVectorAddInt(bytevector *v, int value);
 extern nonnull ErrorCode ByteVectorAddUint(bytevector *v, uint value);
 extern nonnull ErrorCode ByteVectorAddPackInt(bytevector *v, int value);
 extern nonnull ErrorCode ByteVectorAddPackUint(bytevector *v, uint value);
+extern nonnull ErrorCode ByteVectorAddUnpackedInt(bytevector *v, int value);
+extern nonnull ErrorCode ByteVectorAddUnpackedUint(bytevector *v, uint value);
 extern nonnull pure byte ByteVectorGet(const bytevector *v, uint index);
 extern nonnull byte ByteVectorRead(const bytevector *v, uint *index);
 #define ByteVectorGetInt(v, index) ((int)ByteVectorGetUint(v, index))
@@ -41,10 +43,13 @@ extern nonnull void ByteVectorSkipPackUint(const bytevector *v, uint *index);
 extern nonnull pure uint ByteVectorGetPackUintSize(const bytevector *v, uint index);
 extern nonnull pure const byte *ByteVectorGetPointer(const bytevector *v,
                                                      uint index);
+extern nonnull pure byte ByteVectorPeek(const bytevector *v);
+extern nonnull byte ByteVectorPop(bytevector *v);
 extern nonnull void ByteVectorSet(bytevector *v, uint index, byte value);
 extern nonnull void ByteVectorWrite(bytevector *v, uint *index, byte value);
 extern nonnull void ByteVectorSetInt(bytevector *v, uint index, int value);
 extern nonnull void ByteVectorSetUint(bytevector *v, uint index, uint value);
+extern nonnull void ByteVectorSetPackInt(bytevector *v, uint index, int value);
 extern nonnull void ByteVectorSetPackUint(bytevector *v, uint index, uint value);
 extern nonnull void ByteVectorWriteInt(bytevector *v, uint *index, int value);
 extern nonnull void ByteVectorWriteUint(bytevector *v, uint *index, uint value);

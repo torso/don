@@ -3,8 +3,6 @@
 #include "builder.h"
 #include "intvector.h"
 #include "inthashmap.h"
-#include "stringpool.h"
-#include "fileindex.h"
 #include "targetindex.h"
 
 #define TABLE_ENTRY_NAME 0
@@ -15,7 +13,9 @@
 #define TABLE_ENTRY_BYTECODE_OFFSET 5
 #define TABLE_ENTRY_PARAMETER_COUNT 6
 #define TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT 7
-#define TABLE_ENTRY_SIZE 8
+#define TABLE_ENTRY_LOCALS 8
+#define TABLE_ENTRY_LOCAL_NAMES_OFFSET 9
+#define TABLE_ENTRY_SIZE 10
 
 #define TARGET_FLAG_TARGET 1
 #define TARGET_FLAG_QUEUED 2
@@ -25,6 +25,7 @@ static intvector parseQueue;
 static inthashmap targetIndex;
 static uint targetCount;
 static boolean hasIndex;
+static intvector localNames;
 
 /*
   This value is used temporarily between TargetIndexBeginTarget and
@@ -82,7 +83,11 @@ ErrorCode TargetIndexInit(void)
 {
     ErrorCode error;
 
-    IntVectorInit(&targetInfo);
+    error = IntVectorInit(&targetInfo);
+    if (error)
+    {
+        return error;
+    }
     /* Position 0 is reserved to mean invalid target. */
     error = IntVectorAdd(&targetInfo, 0);
     if (error)
@@ -90,17 +95,23 @@ ErrorCode TargetIndexInit(void)
         return error;
     }
 
-    IntVectorInit(&parseQueue);
+    error = IntVectorInit(&parseQueue);
+    if (error)
+    {
+        return error;
+    }
+    error = IntVectorInit(&localNames);
 
     targetCount = 0;
     hasIndex = false;
-    return NO_ERROR;
+    return error;
 }
 
 void TargetIndexDispose(void)
 {
     IntVectorDispose(&targetInfo);
     IntVectorDispose(&parseQueue);
+    IntVectorDispose(&localNames);
     if (hasIndex)
     {
         IntHashMapDispose(&targetIndex);
@@ -113,7 +124,7 @@ boolean TargetIndexBuildIndex(void)
     targetref target;
 
     assert(!hasIndex);
-    if (!IntHashMapInit(&targetIndex, TargetIndexGetTargetCount()))
+    if (IntHashMapInit(&targetIndex, TargetIndexGetTargetCount()))
     {
         return false;
     }
@@ -317,4 +328,48 @@ uint TargetIndexGetMinimumArgumentCount(targetref target)
     assert(hasIndex);
     assert(isValidTarget(target));
     return IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT);
+}
+
+uint TargetIndexGetLocalsCount(targetref target)
+{
+    assert(hasIndex);
+    assert(isValidTarget(target));
+    return IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_LOCALS);
+}
+
+stringref TargetIndexGetLocalName(targetref target, uint local)
+{
+    assert(hasIndex);
+    assert(isValidTarget(target));
+    assert(local < TargetIndexGetLocalsCount(target));
+    return (stringref)IntVectorGet(
+        &localNames,
+        IntVectorGet(&targetInfo,
+                     (uint)target + TABLE_ENTRY_LOCAL_NAMES_OFFSET));
+}
+
+ErrorCode TargetIndexSetLocals(targetref target, const inthashmap *locals)
+{
+    uint count = IntHashMapSize(locals);
+    uint offset = IntVectorSize(&localNames);
+    inthashmapiterator iter;
+    uint name;
+    uint index;
+    ErrorCode error;
+
+    assert(hasIndex);
+    assert(isValidTarget(target));
+
+    error = IntVectorSetSize(&localNames, IntVectorSize(&localNames) + count);
+    if (error)
+    {
+        return error;
+    }
+    IntVectorSet(&targetInfo, (uint)target + TABLE_ENTRY_LOCALS, count);
+    IntHashMapIteratorInit(locals, &iter);
+    while (IntHashMapIteratorNext(&iter, &name, &index))
+    {
+        IntVectorSet(&localNames, offset + index - 1, name);
+    }
+    return NO_ERROR;
 }

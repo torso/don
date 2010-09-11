@@ -2,29 +2,24 @@
 
 typedef enum
 {
-    OP_RETURN,
-    OP_BRANCH,
-    OP_JUMP,
-    OP_INVOKE_NATIVE,
-    OP_INVOKE_TARGET,
-    OP_COND_INVOKE
-} ControlInstruction;
+    OP_NULL,
+    OP_TRUE,
+    OP_FALSE,
+    OP_INTEGER,
+    OP_STRING,
 
-typedef enum
-{
-    DATAOP_NULL,
-    DATAOP_TRUE,
-    DATAOP_FALSE,
-    DATAOP_INTEGER,
-    DATAOP_STRING,
-    DATAOP_LIST,
-    DATAOP_PARAMETER,
-    DATAOP_RETURN,
-    DATAOP_STACKFRAME,
-    DATAOP_STACKFRAME_ABSOLUTE,
-    DATAOP_CONDITION,
-    DATAOP_EQUALS,
-    DATAOP_ADD,
-    DATAOP_SUB,
-    DATAOP_INDEXED_ACCESS
-} DataInstruction;
+    OP_LOAD,
+    OP_STORE,
+
+    OP_EQUALS,
+    OP_NOT_EQUALS,
+    OP_ADD,
+    OP_SUB,
+
+    OP_JUMP,
+    OP_BRANCH_FALSE,
+    OP_RETURN,
+    OP_RETURN_VOID,
+    OP_INVOKE,
+    OP_INVOKE_NATIVE
+} Instruction;

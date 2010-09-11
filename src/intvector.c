@@ -20,7 +20,7 @@ static void checkIntVectorIndex(const intvector *v, uint index)
 static void checkIntVectorRange(const intvector *v, uint index, uint length)
 {
     checkIntVector(v);
-    assert(index < v->size);
+    assert(index < v->size || (index == v->size && !length));
     assert(IntVectorSize(v) >= index + length);
 }
 
@@ -85,7 +85,8 @@ void IntVectorCopy(const intvector *restrict src, uint srcOffset,
 {
     checkIntVectorRange(src, srcOffset, length);
     checkIntVectorRange(dst, dstOffset, length);
-    memcpy(&dst->data[dstOffset], &src->data[srcOffset], length * sizeof(uint));
+    memmove(&dst->data[dstOffset], &src->data[srcOffset],
+            length * sizeof(uint));
 }
 
 ErrorCode IntVectorAppend(const intvector *restrict src, uint srcOffset,
@@ -152,6 +153,12 @@ const uint *IntVectorGetPointer(const intvector *v, uint index)
 {
     checkIntVectorIndex(v, index);
     return &v->data[index];
+}
+
+uint IntVectorPeek(const intvector *v)
+{
+    checkIntVectorIndex(v, 0);
+    return v->data[v->size - 1];
 }
 
 uint IntVectorPop(intvector *v)

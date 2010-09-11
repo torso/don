@@ -1,11 +1,16 @@
-#ifndef BYTEVECTOR_H
-#error bytevector.h not included
-#endif
-#ifndef TARGETINDEX_H
-#error targetindex.h not included
-#endif
+typedef enum
+{
+    TYPE_NULL_LITERAL,
+    TYPE_BOOLEAN_LITERAL,
+    TYPE_INTEGER_LITERAL,
+    TYPE_STRING_LITERAL
+} ValueType;
 
-extern nonnull ErrorCode InterpreterExecute(
-    const bytevector *restrict bytecode,
-    const bytevector *restrict valueBytecode,
-    targetref target);
+extern nonnull ValueType InterpreterPeekType(RunState *state);
+extern nonnull void InterpreterPop(RunState *state,
+                                   ValueType *type, uint *value);
+extern nonnull boolean InterpreterPush(RunState *state,
+                                       ValueType type, uint value);
+
+extern nonnull ErrorCode InterpreterExecute(const bytevector *bytecode,
+                                            targetref target);

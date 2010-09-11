@@ -45,3 +45,13 @@ typedef enum
     OUT_OF_MEMORY,
     BUILD_ERROR
 } ErrorCode;
+
+
+typedef struct RunState RunState;
+typedef struct bytevector bytevector;
+typedef struct inthashmap inthashmap;
+typedef struct intvector intvector;
+typedef int nativefunctionref;
+typedef int stringref;
+typedef uint fileref;
+typedef uint targetref;

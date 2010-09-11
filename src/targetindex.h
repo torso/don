@@ -1,10 +1,3 @@
-#ifndef STRINGPOOL_H
-#error stringpool.h not included
-#endif
-#ifndef FILEINDEX_H
-#error fileindex.h not included
-#endif
-
 /*
   This class holds information about targets (including functions).
 
@@ -25,10 +18,6 @@
   Before looking up functions, the index needs to be built. After this has been
   done, no more functions can be added.
 */
-
-#define TARGETINDEX_H
-
-typedef uint targetref;
 
 extern ErrorCode TargetIndexInit(void);
 extern void TargetIndexDispose(void);
@@ -56,3 +45,7 @@ extern void TargetIndexSetBytecodeOffset(targetref target, uint offset);
 extern pure uint TargetIndexGetParameterCount(targetref target);
 extern pure const stringref *TargetIndexGetParameterNames(targetref target);
 extern pure uint TargetIndexGetMinimumArgumentCount(targetref target);
+extern pure uint TargetIndexGetLocalsCount(targetref target);
+extern pure stringref TargetIndexGetLocalName(targetref target, uint local);
+extern nonnull ErrorCode TargetIndexSetLocals(targetref target,
+                                              const inthashmap *locals);

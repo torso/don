@@ -1,0 +1,3 @@
+default:
+    if "A" != "B"
+        echo("PASS")

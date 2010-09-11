@@ -2,30 +2,31 @@
 #include <stdio.h>
 #include "builder.h"
 #include "bytevector.h"
-#include "intvector.h"
-#include "stringpool.h"
 #include "fileindex.h"
-#include "targetindex.h"
-#include "log.h"
-#include "interpreterstate.h"
-#include "native.h"
+#include "inthashmap.h"
 #include "instruction.h"
+#include "intvector.h"
+#include "log.h"
+#include "native.h"
 #include "parser.h"
 #include "parsestate.h"
+#include "stringpool.h"
+#include "targetindex.h"
 
 static char errorBuffer[256];
 
 static stringref keywordElse;
-static stringref keywordIf;
 static stringref keywordFalse;
+static stringref keywordIf;
 static stringref keywordNull;
+static stringref keywordReturn;
 static stringref keywordTrue;
 static stringref keywordWhile;
 
 static stringref maxStatementKeyword;
 static stringref maxKeyword;
 
-static uint parseExpression(ParseState *state);
+static boolean parseExpression(ParseState *state);
 
 static boolean isInitialIdentifierCharacter(byte c)
 {
@@ -42,19 +43,19 @@ static boolean isIdentifierCharacter(byte c)
 
 static void error(ParseState *state, const char *message)
 {
-    ParseStateSetFailed(state, BUILD_ERROR);
+    ParseStateSetError(state, BUILD_ERROR);
     LogParseError(state->file, state->line, message);
 }
 
 static void errorOnLine(ParseState *state, uint line, const char *message)
 {
-    ParseStateSetFailed(state, BUILD_ERROR);
+    ParseStateSetError(state, BUILD_ERROR);
     LogParseError(state->file, line, message);
 }
 
 static void statementError(ParseState *state, const char *message)
 {
-    ParseStateSetFailed(state, BUILD_ERROR);
+    ParseStateSetError(state, BUILD_ERROR);
     LogParseError(state->file, state->statementLine, message);
 }
 
@@ -66,12 +67,11 @@ static uint getOffset(const ParseState *state, const byte *begin)
 
 
 static boolean unwindBlocks(ParseState *restrict state,
-                            bytevector *restrict parsed,
                             uint indent, boolean trailingElse)
 {
     while (ParseStateBlockIndent(state) > indent)
     {
-        if (!ParseStateFinishBlock(state, parsed, indent, trailingElse))
+        if (!ParseStateFinishBlock(state, indent, trailingElse))
         {
             return false;
         }
@@ -156,7 +156,7 @@ static stringref readIdentifier(ParseState *state)
     identifier = StringPoolAdd2((const char*)begin, getOffset(state, begin));
     if (!identifier)
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        ParseStateSetError(state, OUT_OF_MEMORY);
     }
     return identifier;
 }
@@ -204,7 +204,7 @@ static stringref readString(ParseState *state)
     s = StringPoolAdd2((const char*)begin, getOffset(state, begin));
     if (!s)
     {
-        ParseStateSetFailed(state, OUT_OF_MEMORY);
+        ParseStateSetError(state, OUT_OF_MEMORY);
         return 0;
     }
     state->current++;
@@ -237,7 +237,7 @@ static boolean readExpectedOperator(ParseState *state, byte op)
 /* TODO: Parse big numbers */
 /* TODO: Parse non-decimal numbers */
 /* TODO: Parse non-integer numbers */
-static uint parseNumber(ParseState *state)
+static boolean parseNumber(ParseState *state)
 {
     int value = 0;
 
@@ -254,18 +254,16 @@ static uint parseNumber(ParseState *state)
     return ParseStateWriteIntegerLiteral(state, value);
 }
 
-static uint parseInvocationRest(ParseState *state, stringref name)
+static boolean parseInvocationRest(ParseState *state, stringref name,
+                                   uint returnValues)
 {
     nativefunctionref nativeFunction = NativeFindFunction(name);
     targetref target = 0;
     uint parameterCount;
     const stringref *parameterNames;
     uint minimumArgumentCount;
-    uint *arguments;
     uint argumentCount = 0;
-    uint returnValue;
     uint line = state->line;
-    uint expression;
 
     ParseStateCheck(state);
     if (nativeFunction >= 0)
@@ -282,7 +280,7 @@ static uint parseInvocationRest(ParseState *state, stringref name)
             sprintf(errorBuffer, "Unknown function '%s'.",
                     StringPoolGetString(name));
             statementError(state, errorBuffer);
-            return 0;
+            return false;
         }
         TargetIndexMarkForParsing(target);
         parameterCount = TargetIndexGetParameterCount(target);
@@ -291,23 +289,13 @@ static uint parseInvocationRest(ParseState *state, stringref name)
     }
     assert(parameterNames || !parameterCount);
 
-    /* TODO: Avoid malloc */
-    arguments = (uint*)zmalloc(parameterCount * sizeof(uint));
-    assert(arguments); /* TODO: Error handling */
-
     if (!readOperator(state, ')'))
     {
         for (;;)
         {
-            expression = parseExpression(state);
-            if (state->error)
+            if (!parseExpression(state))
             {
-                free(arguments);
-                return 0;
-            }
-            if (argumentCount < parameterCount)
-            {
-                arguments[argumentCount] = expression;
+                return false;
             }
             argumentCount++;
             if (readOperator(state, ')'))
@@ -316,15 +304,13 @@ static uint parseInvocationRest(ParseState *state, stringref name)
             }
             if (!readExpectedOperator(state, ','))
             {
-                free(arguments);
-                return 0;
+                return false;
             }
             skipWhitespace(state);
         }
     }
     if (argumentCount > parameterCount)
     {
-        free(arguments);
         if (!parameterCount)
         {
             sprintf(errorBuffer,
@@ -342,49 +328,101 @@ static uint parseInvocationRest(ParseState *state, stringref name)
     }
     if (argumentCount < minimumArgumentCount)
     {
-        free(arguments);
         sprintf(errorBuffer,
                 "Too few arguments for function '%s'. Got %d arguments, but at least %d were expected.",
                 StringPoolGetString(name), argumentCount, parameterCount);
         errorOnLine(state, line, errorBuffer);
         return 0;
     }
-    returnValue = ParseStateWriteInvocation(state, nativeFunction, target,
-                                            parameterCount, arguments);
-    free(arguments);
-    return returnValue;
+    return ParseStateWriteInvocation(state, nativeFunction, target,
+                                     argumentCount, returnValues);
 }
 
-static uint parseListRest(ParseState *state)
+static boolean parseReturnRest(ParseState *state)
 {
-    intvector values;
-    uint value;
+    uint values = 0;
 
-    if (ParseStateSetError(state, IntVectorInit(&values)))
+    if (peekNewline(state))
     {
-        return 0;
+        return ParseStateWriteReturnVoid(state);
     }
-    skipWhitespace(state);
-    while (!readOperator(state, ']'))
+    for (;;)
     {
-        value = parseExpression(state);
+        if (!parseExpression(state))
+        {
+            return false;
+        }
+        values++;
+        if (peekNewline(state))
+        {
+            return ParseStateWriteReturn(state, values);
+        }
+        if (!readExpectedOperator(state, ','))
+        {
+            return false;
+        }
         skipWhitespace(state);
+    }
+}
+
+static boolean parseMultiAssignmentRest(ParseState *state)
+{
+    intvector variables;
+    stringref name;
+
+    IntVectorInit(&variables);
+    do
+    {
+        skipWhitespace(state);
+        name = peekReadIdentifier(state);
         if (state->error)
         {
-            IntVectorDispose(&values);
-            return 0;
+            return false;
         }
-        if (ParseStateSetError(state, IntVectorAdd(&values, value)))
+        if (!name)
         {
-            return 0;
+            statementError(state, "Expected variable name.");
+            return false;
+        }
+        state->error = IntVectorAdd(&variables, (uint)name);
+        if (state->error)
+        {
+            return false;
+        }
+        skipWhitespace(state);
+    }
+    while (readOperator(state, ','));
+    if (!readExpectedOperator(state, '='))
+    {
+        return false;
+    }
+    skipWhitespace(state);
+    name = peekReadIdentifier(state);
+    if (state->error)
+    {
+        return false;
+    }
+    if (!name || !readOperator(state, '('))
+    {
+        statementError(state, "Expected function invocation.");
+        return false;
+    }
+    if (!parseInvocationRest(state, name, IntVectorSize(&variables) + 1))
+    {
+        return false;
+    }
+    while (IntVectorSize(&variables))
+    {
+        if (!ParseStateSetVariable(state, (stringref)IntVectorPop(&variables)))
+        {
+            return false;
         }
     }
-    value = ParseStateWriteList(state, &values);
-    IntVectorDispose(&values);
-    return value;
+    IntVectorDispose(&variables);
+    return true;
 }
 
-static uint parseExpression5(ParseState *state)
+static boolean parseExpression5(ParseState *state)
 {
     stringref identifier;
     stringref string;
@@ -418,7 +456,7 @@ static uint parseExpression5(ParseState *state)
         }
         if (readOperator(state, '('))
         {
-            return parseInvocationRest(state, identifier);
+            return parseInvocationRest(state, identifier, 1);
         }
         return ParseStateGetVariable(state, identifier);
     }
@@ -431,89 +469,53 @@ static uint parseExpression5(ParseState *state)
         string = readString(state);
         if (state->error)
         {
-            return 0;
+            return false;
         }
         return ParseStateWriteStringLiteral(state, string);
     }
-    else if (readOperator(state, '['))
-    {
-        return parseListRest(state);
-    }
     statementError(state, "Invalid expression.");
-    return 0;
+    return false;
 }
 
-static uint parseExpression4(ParseState *state)
+static boolean parseExpression4(ParseState *state)
 {
-    uint value = parseExpression5(state);
-    uint indexValue;
-
-    do
+    if (!parseExpression5(state))
     {
-        if (readOperator(state, '['))
-        {
-            skipWhitespace(state);
-            indexValue = parseExpression(state);
-            if (state->error)
-            {
-                return 0;
-            }
-            skipWhitespace(state);
-            if (!readExpectedOperator(state, ']'))
-            {
-                return 0;
-            }
-            value = ParseStateWriteBinaryOperation(state, DATAOP_INDEXED_ACCESS,
-                                                   value, indexValue);
-        }
-        else
-        {
-            break;
-        }
-    }
-    while (!state->error);
-    return value;
-}
-
-static uint parseExpression3(ParseState *state)
-{
-    uint value = parseExpression4(state);
-    uint value2;
-
-    if (state->error)
-    {
-        return 0;
+        return false;
     }
     skipWhitespace(state);
+    return true;
+}
+
+static boolean parseExpression3(ParseState *state)
+{
+    if (!parseExpression4(state))
+    {
+        return false;
+    }
     if (readOperator(state, '+'))
     {
         assert(!readOperator(state, '+')); /* TODO: ++ operator */
         skipWhitespace(state);
-        value2 = parseExpression4(state);
-        value = ParseStateWriteBinaryOperation(
-            state, DATAOP_ADD, value, value2);
+        return parseExpression4(state) &&
+            ParseStateWriteBinaryOperation(state, OP_ADD);
     }
     else if (readOperator(state, '-'))
     {
         assert(!readOperator(state, '-')); /* TODO: -- operator */
         skipWhitespace(state);
-        value2 = parseExpression4(state);
-        value = ParseStateWriteBinaryOperation(
-            state, DATAOP_SUB, value, value2);
+        return parseExpression4(state) &&
+            ParseStateWriteBinaryOperation(state, OP_SUB);
     }
-    return value;
+    return true;
 }
 
-static uint parseExpression2(ParseState *state)
+static boolean parseExpression2(ParseState *state)
 {
-    uint value = parseExpression3(state);
-    uint value2;
-
-    if (state->error)
+    if (!parseExpression3(state))
     {
-        return 0;
+        return false;
     }
-    skipWhitespace(state);
     if (readOperator(state, '='))
     {
         if (!readOperator(state, '='))
@@ -522,56 +524,63 @@ static uint parseExpression2(ParseState *state)
             return 0;
         }
         skipWhitespace(state);
-        value2 = parseExpression3(state);
-        value = ParseStateWriteBinaryOperation(
-            state, DATAOP_EQUALS, value, value2);
+        return parseExpression3(state) &&
+            ParseStateWriteBinaryOperation(state, OP_EQUALS);
     }
-    return value;
-}
-
-static uint parseExpression(ParseState *state)
-{
-    uint value = parseExpression2(state);
-    uint value2;
-    uint value3;
-
-    if (state->error)
+    if (readOperator(state, '!'))
     {
-        return 0;
-    }
-    skipWhitespace(state);
-    if (readOperator(state, '?'))
-    {
-        skipWhitespace(state);
-        value2 = parseExpression2(state);
-        skipWhitespace(state);
-        if (!readOperator(state, ':'))
+        if (!readOperator(state, '='))
         {
-            statementError(state, "Expected operator ':'.");
+            statementError(state, "Invalid expression.");
             return 0;
         }
         skipWhitespace(state);
-        value3 = parseExpression2(state);
-        value = ParseStateWriteTernaryOperation(
-            state, DATAOP_CONDITION, value, value3, value2);
+        return parseExpression3(state) &&
+            ParseStateWriteBinaryOperation(state, OP_NOT_EQUALS);
     }
-    return value;
+    return true;
 }
 
-static boolean parseFunctionBody(ParseState *state,
-                                 bytevector *restrict parsed)
+static boolean parseExpression(ParseState *state)
+{
+    if (!parseExpression2(state))
+    {
+        return false;
+    }
+    if (readOperator(state, '?'))
+    {
+        skipWhitespace(state);
+        /* TODO: Avoid recursion. */
+        if (!ParseStateWriteBeginCondition(state) ||
+            !parseExpression(state) ||
+            !readExpectedOperator(state, ':') ||
+            !ParseStateWriteSecondConsequent(state))
+        {
+            return false;
+        }
+        skipWhitespace(state);
+        if (!parseExpression(state) ||
+            !ParseStateWriteFinishCondition(state))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static boolean parseFunctionBody(ParseState *state)
 {
     uint indent;
     uint currentIndent = 0;
     uint prevIndent = 0;
     stringref identifier;
-    uint value;
+    uint target;
 
     for (;;)
     {
         if (eof(state))
         {
-            return unwindBlocks(state, parsed, 0, false);
+            return unwindBlocks(state, 0, false);
         }
 
         indent = readIndent(state);
@@ -603,8 +612,7 @@ static boolean parseFunctionBody(ParseState *state,
                 }
                 else if (indent < currentIndent)
                 {
-                    if (!unwindBlocks(state, parsed, indent,
-                                      identifier == keywordElse))
+                    if (!unwindBlocks(state, indent, identifier == keywordElse))
                     {
                         return false;
                     }
@@ -652,8 +660,7 @@ static boolean parseFunctionBody(ParseState *state,
                     {
                         prevIndent = currentIndent;
                         currentIndent = 0;
-                        value = parseExpression(state);
-                        if (state->error)
+                        if (!parseExpression(state))
                         {
                             return false;
                         }
@@ -663,7 +670,7 @@ static boolean parseFunctionBody(ParseState *state,
                             return false;
                         }
                         skipEndOfLine(state);
-                        if (!ParseStateWriteIf(state, value))
+                        if (!ParseStateWriteIf(state))
                         {
                             return false;
                         }
@@ -673,12 +680,19 @@ static boolean parseFunctionBody(ParseState *state,
                         statementError(state, "else without matching if.");
                         return false;
                     }
+                    else if (identifier == keywordReturn)
+                    {
+                        if (!parseReturnRest(state))
+                        {
+                            return false;
+                        }
+                    }
                     else if (identifier == keywordWhile)
                     {
                         prevIndent = currentIndent;
                         currentIndent = 0;
-                        value = parseExpression(state);
-                        if (state->error)
+                        target = ParseStateGetJumpTarget(state);
+                        if (!parseExpression(state))
                         {
                             return false;
                         }
@@ -688,7 +702,7 @@ static boolean parseFunctionBody(ParseState *state,
                             return false;
                         }
                         skipEndOfLine(state);
-                        if (!ParseStateWriteWhile(state, value))
+                        if (!ParseStateWriteWhile(state, target))
                         {
                             return false;
                         }
@@ -703,7 +717,7 @@ static boolean parseFunctionBody(ParseState *state,
                 {
                     if (readOperator(state, '('))
                     {
-                        parseInvocationRest(state, identifier);
+                        parseInvocationRest(state, identifier, 0);
                         if (state->error)
                         {
                             return false;
@@ -712,9 +726,16 @@ static boolean parseFunctionBody(ParseState *state,
                     else if (readOperator(state, '='))
                     {
                         skipWhitespace(state);
-                        value = parseExpression(state);
-                        if (state->error ||
-                            !ParseStateSetVariable(state, identifier, value))
+                        if (!parseExpression(state) ||
+                            !ParseStateSetVariable(state, identifier))
+                        {
+                            return false;
+                        }
+                    }
+                    else if (readOperator(state, ','))
+                    {
+                        if (!parseMultiAssignmentRest(state) ||
+                            !ParseStateSetVariable(state, identifier))
                         {
                             return false;
                         }
@@ -838,6 +859,7 @@ ErrorCode ParserAddKeywords(void)
         !(keywordFalse = StringPoolAdd("false")) ||
         !(keywordIf = StringPoolAdd("if")) ||
         !(keywordNull = StringPoolAdd("null")) ||
+        !(keywordReturn = StringPoolAdd("return")) ||
         !(keywordTrue = StringPoolAdd("true")) ||
         !(keywordWhile = StringPoolAdd("while")))
     {
@@ -851,7 +873,7 @@ ErrorCode ParserAddKeywords(void)
 ErrorCode ParseFile(fileref file)
 {
     ParseState state;
-    ParseStateInit(&state, file, 1, 0);
+    ParseStateInit(&state, null, 0, file, 1, 0);
     if (state.error)
     {
         return state.error;
@@ -861,23 +883,12 @@ ErrorCode ParseFile(fileref file)
     return state.error;
 }
 
-static boolean parseFunctionRest(ParseState *state, targetref target,
-                                 bytevector *parsed)
-{
-    if (!parseFunctionBody(state, parsed) || state->error)
-    {
-        ParseStateDispose(state);
-        return false;
-    }
-    TargetIndexSetBytecodeOffset(target, state->parsedOffset);
-    return true;
-}
-
-ErrorCode ParseFunction(targetref target, bytevector *parsed)
+ErrorCode ParseFunction(targetref target, bytevector *bytecode)
 {
     ParseState state;
     assert(target);
-    ParseStateInit(&state,
+    TargetIndexSetBytecodeOffset(target, ByteVectorSize(bytecode));
+    ParseStateInit(&state, bytecode, target,
                    TargetIndexGetFile(target),
                    TargetIndexGetLine(target),
                    TargetIndexGetFileOffset(target));
@@ -885,7 +896,7 @@ ErrorCode ParseFunction(targetref target, bytevector *parsed)
     {
         return state.error;
     }
-    parseFunctionRest(&state, target, parsed);
+    parseFunctionBody(&state);
     ParseStateDispose(&state);
     return state.error;
 }

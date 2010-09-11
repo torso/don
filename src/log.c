@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include "builder.h"
-#include "stringpool.h"
 #include "fileindex.h"
 #include "log.h"
+#include "stringpool.h"
 
 void LogParseError(fileref file, uint line, const char *message)
 {

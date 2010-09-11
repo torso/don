@@ -1,15 +1,13 @@
 #include <stdio.h>
 #include "builder.h"
+#include "bytecode.h"
 #include "bytevector.h"
-#include "intvector.h"
-#include "stringpool.h"
 #include "fileindex.h"
-#include "targetindex.h"
-#include "parser.h"
-#include "bytecodegenerator.h"
-#include "interpreterstate.h"
 #include "interpreter.h"
 #include "native.h"
+#include "parser.h"
+#include "stringpool.h"
+#include "targetindex.h"
 
 #ifdef DEBUG
 #include <execinfo.h>
@@ -27,9 +25,7 @@ void _assert(const char *expression, const char *file, int line)
 }
 #endif
 
-static bytevector parsed;
 static bytevector bytecode;
-static bytevector valueBytecode;
 
 static boolean handleError(ErrorCode error)
 {
@@ -50,9 +46,7 @@ static boolean handleError(ErrorCode error)
 
 static void cleanup(void)
 {
-    ByteVectorDispose(&parsed);
     ByteVectorDispose(&bytecode);
-    ByteVectorDispose(&valueBytecode);
 
     TargetIndexDispose();
     FileIndexDispose();
@@ -86,6 +80,7 @@ int main(int argc, const char **argv)
     targetref target;
     targetref unparsedTarget;
     boolean parseOptions = true;
+    boolean disassemble = false;
 
     for (i = 1; i < argc; i++)
     {
@@ -113,6 +108,12 @@ int main(int argc, const char **argv)
             {
                 switch (*options)
                 {
+#ifdef DEBUG
+                case 'd':
+                    disassemble = true;
+                    break;
+#endif
+
                 case 'i':
                     if (inputFilename)
                     {
@@ -148,9 +149,7 @@ int main(int argc, const char **argv)
         handleError(ParserAddKeywords()) ||
         handleError(TargetIndexInit()) ||
         handleError(NativeInit()) ||
-        handleError(ByteVectorInit(&parsed)) ||
-        handleError(ByteVectorInit(&bytecode)) ||
-        handleError(ByteVectorInit(&valueBytecode)))
+        handleError(ByteVectorInit(&bytecode)))
     {
         cleanup();
         return 1;
@@ -178,23 +177,19 @@ int main(int argc, const char **argv)
         {
             break;
         }
-        if (handleError(ParseFunction(unparsedTarget, &parsed)))
+        if (handleError(ParseFunction(unparsedTarget, &bytecode)))
         {
             cleanup();
             return 1;
         }
     }
 
-    if (handleError(NativeWriteBytecode(&bytecode, &valueBytecode)) ||
-        handleError(
-            BytecodeGeneratorExecute(&parsed, &bytecode, &valueBytecode)))
+    if (disassemble)
     {
-        cleanup();
-        return 1;
+        BytecodeDisassembleFunction(&bytecode, 0);
     }
-    ByteVectorDispose(&parsed);
 
-    if (handleError(InterpreterExecute(&bytecode, &valueBytecode, target)))
+    if (handleError(InterpreterExecute(&bytecode, target)))
     {
         cleanup();
         return 1;

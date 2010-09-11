@@ -35,11 +35,12 @@ static boolean isSlotEmpty(const inthashmap *map, uint slot)
     return getSlotKey(map, slot) ? false : true;
 }
 
-boolean IntHashMapInit(inthashmap *map, uint capacity)
+ErrorCode IntHashMapInit(inthashmap *map, uint capacity)
 {
     map->tableSize = max(roundToPow2(capacity * 4 / 3), capacity + 1);
+    map->size = 0;
     map->table = (uint*)zmalloc(map->tableSize * 2 * sizeof(uint));
-    return map->table ? true : false;
+    return map->table ? NO_ERROR : OUT_OF_MEMORY;
 }
 
 void IntHashMapDispose(inthashmap *map)
@@ -47,9 +48,11 @@ void IntHashMapDispose(inthashmap *map)
     free(map->table);
 }
 
-void IntHashMapAdd(inthashmap *map, uint key, uint value)
+ErrorCode IntHashMapAdd(inthashmap *map, uint key, uint value)
 {
     uint slot = getSlotForKey(map, key);
+    assert(key);
+    assert(map->size < map->tableSize);
     while (!isSlotEmpty(map, slot))
     {
         assert(getSlotKey(map, slot) != key);
@@ -59,13 +62,16 @@ void IntHashMapAdd(inthashmap *map, uint key, uint value)
             slot = 0;
         }
     }
+    map->size++;
     map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_KEY] = key;
     map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE] = value;
+    return NO_ERROR;
 }
 
 uint IntHashMapGet(const inthashmap *map, uint key)
 {
     uint slot = getSlotForKey(map, key);
+    assert(key);
     for (;;)
     {
         if (getSlotKey(map, slot) == key)
@@ -83,4 +89,36 @@ uint IntHashMapGet(const inthashmap *map, uint key)
         }
     }
     return 0;
+}
+
+uint IntHashMapSize(const inthashmap *map)
+{
+    return map->size;
+}
+
+void IntHashMapIteratorInit(const inthashmap *map, inthashmapiterator *iterator)
+{
+    iterator->map = map;
+    iterator->position = 0;
+}
+
+boolean IntHashMapIteratorNext(inthashmapiterator *iterator, uint *key, uint *value)
+{
+    uint slotKey;
+
+    for (;; iterator->position++)
+    {
+        if (iterator->position >= iterator->map->tableSize)
+        {
+            return false;
+        }
+        slotKey = getSlotKey(iterator->map, iterator->position);
+        if (slotKey)
+        {
+            *key = slotKey;
+            *value = getSlotValue(iterator->map, iterator->position);
+            iterator->position++;
+            return true;
+        }
+    }
 }

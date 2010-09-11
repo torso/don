@@ -1,18 +1,25 @@
 #include <stdio.h>
 #include "builder.h"
+#include "bytecode.h"
 #include "bytevector.h"
-#include "intvector.h"
-#include "stringpool.h"
-#include "fileindex.h"
-#include "targetindex.h"
-#include "interpreter.h"
-#include "interpreterstate.h"
-#include "value.h"
 #include "instruction.h"
+#include "intvector.h"
+#include "interpreter.h"
 #include "native.h"
+#include "targetindex.h"
 
-static const boolean DUMP_STATE = false;
 static const boolean TRACE = false;
+
+
+struct RunState
+{
+    const bytevector *restrict bytecode;
+
+    intvector callStack;
+    bytevector typeStack;
+    intvector stack;
+    ErrorCode error;
+};
 
 
 static boolean setError(RunState *state, ErrorCode error)
@@ -21,159 +28,254 @@ static boolean setError(RunState *state, ErrorCode error)
     return error ? true : false;
 }
 
-static void dumpState(const RunState *state)
+ValueType InterpreterPeekType(RunState *state)
 {
-    ValueDump(state);
+    return ByteVectorPeek(&state->typeStack);
 }
 
-static void execute(RunState *state)
+void InterpreterPop(RunState *state, ValueType *type, uint *value)
 {
-    uint condition;
-    uint offset;
-    nativefunctionref nativeFunction;
-    targetref target;
-    uint stackframeValueOffset;
-    uint stackframe;
+    *type = ByteVectorPop(&state->typeStack);
+    *value = IntVectorPop(&state->stack);
+}
+
+static uint popValue(RunState *state)
+{
+    ByteVectorPop(&state->typeStack);
+    return IntVectorPop(&state->stack);
+}
+
+static void pop(RunState *state, ValueType *type, uint *value)
+{
+    InterpreterPop(state, type, value);
+}
+
+static void pop2(RunState *state, ValueType *type1, uint *value1,
+                 ValueType *type2, uint *value2)
+{
+    InterpreterPop(state, type1, value1);
+    InterpreterPop(state, type2, value2);
+}
+
+boolean InterpreterPush(RunState *state, ValueType type, uint value)
+{
+    return !setError(state, ByteVectorAdd(&state->typeStack, type)) &&
+        !setError(state, IntVectorAdd(&state->stack, value));
+}
+
+static boolean equals(ValueType type1, uint value1,
+                      ValueType type2, uint value2)
+{
+    return type1 == type2 && value1 == value2;
+}
+
+static boolean addOverflow(int a, int b)
+{
+    return (boolean)(b < 1 ? MIN_INT - b > a : MAX_INT - b < a);
+}
+
+static boolean subOverflow(int a, int b)
+{
+    return (boolean)(b < 1 ? MAX_INT + b < a : MIN_INT + b > a);
+}
+
+static void pushStackFrame(RunState *state, uint ip, uint bp, uint returnValues)
+{
+    IntVectorAdd(&state->callStack, ip);
+    IntVectorAdd(&state->callStack, bp);
+    IntVectorAdd(&state->callStack, returnValues);
+}
+
+static void popStackFrame(RunState *state, uint *ip, uint *bp,
+                          uint returnValues)
+{
+    uint expectedReturnValues = IntVectorPop(&state->callStack);
+
+    ByteVectorCopy(&state->typeStack,
+                   ByteVectorSize(&state->typeStack) - returnValues,
+                   &state->typeStack,
+                   *bp,
+                   expectedReturnValues);
+    IntVectorCopy(&state->stack,
+                  IntVectorSize(&state->stack) - returnValues,
+                  &state->stack,
+                  *bp,
+                  expectedReturnValues);
+    ByteVectorSetSize(&state->typeStack, *bp + expectedReturnValues);
+    IntVectorSetSize(&state->stack, *bp + expectedReturnValues);
+
+    *bp = IntVectorPop(&state->callStack);
+    *ip = IntVectorPop(&state->callStack);
+}
+
+static void execute(RunState *state, uint target)
+{
+    uint ip = TargetIndexGetBytecodeOffset(target);
+    uint bp = 0;
     uint function;
     uint argumentCount;
+    uint jumpOffset;
+    uint local;
+    ValueType type;
+    ValueType type2;
+    uint value;
+    uint value2;
 
-    ValueCreateStackframe(state, state->ip, 0);
-    if (state->error)
-    {
-        return;
-    }
-
-    /* Remove old (non-existing) stackframe pushed onto the stack by
-     * ValueCreateStackframe. */
-    IntVectorSetSize(&state->stack, 0);
-
+    local = TargetIndexGetLocalsCount(target);
+    ByteVectorSetSize(&state->typeStack, local);
+    IntVectorSetSize(&state->stack, local);
     for (;;)
     {
         if (TRACE)
         {
-            printf("execute ip=%d op=%d bp=%d stacksize=%d\n", state->ip,
-                   ByteVectorGet(state->bytecode, state->ip), state->bp,
-                   IntVectorSize(&state->stack));
+            BytecodeDisassembleInstruction(state->bytecode, ip);
         }
-        switch (ByteVectorRead(state->bytecode, &state->ip))
+        switch ((Instruction)(int)ByteVectorRead(state->bytecode, &ip))
         {
-        case OP_RETURN:
-            if (!IntVectorSize(&state->stack))
-            {
-                return;
-            }
-            ValueDestroyStackframe(state);
+        case OP_NULL:
+            InterpreterPush(state, TYPE_NULL_LITERAL, 0);
             break;
 
-        case OP_BRANCH:
-            condition = ByteVectorReadPackUint(state->bytecode, &state->ip);
-            offset = ByteVectorReadPackUint(state->bytecode, &state->ip);
-            if (!ValueGetBoolean(state, state->bp, condition))
-            {
-                state->ip += offset;
-            }
+        case OP_TRUE:
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, 1);
+            break;
+
+        case OP_FALSE:
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, 0);
+            break;
+
+        case OP_INTEGER:
+            InterpreterPush(state, TYPE_INTEGER_LITERAL,
+                            (uint)ByteVectorReadPackInt(state->bytecode, &ip));
+            break;
+
+        case OP_STRING:
+            InterpreterPush(state, TYPE_STRING_LITERAL,
+                            ByteVectorReadPackUint(state->bytecode, &ip));
+            break;
+
+        case OP_LOAD:
+            local = ByteVectorReadPackUint(state->bytecode, &ip);
+            InterpreterPush(state, ByteVectorGet(&state->typeStack, bp + local),
+                            IntVectorGet(&state->stack, bp + local));
+            break;
+
+        case OP_STORE:
+            local = ByteVectorReadPackUint(state->bytecode, &ip);
+            pop(state, &type, &value);
+            ByteVectorSet(&state->typeStack, bp + local, type);
+            IntVectorSet(&state->stack, bp + local, value);
+            break;
+
+        case OP_EQUALS:
+            pop2(state, &type, &value, &type2, &value2);
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL,
+                            equals(type, value, type2, value2));
+            break;
+
+        case OP_NOT_EQUALS:
+            pop2(state, &type, &value, &type2, &value2);
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL,
+                            !equals(type, value, type2, value2));
+            break;
+
+        case OP_ADD:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_INTEGER_LITERAL);
+            assert(!addOverflow((int)value, (int)value2));
+            InterpreterPush(state, TYPE_INTEGER_LITERAL, value + value2);
+            break;
+
+        case OP_SUB:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_INTEGER_LITERAL);
+            assert(!subOverflow((int)value2, (int)value));
+            InterpreterPush(state, TYPE_INTEGER_LITERAL, value2 - value);
             break;
 
         case OP_JUMP:
-            offset = ByteVectorReadPackUint(state->bytecode, &state->ip);
-            state->ip += offset;
+            jumpOffset = (uint)ByteVectorReadPackInt(state->bytecode, &ip);
+            ip += jumpOffset;
+            break;
+
+        case OP_BRANCH_FALSE:
+            assert(InterpreterPeekType(state) == TYPE_BOOLEAN_LITERAL);
+            jumpOffset = (uint)ByteVectorReadPackInt(state->bytecode, &ip);
+            if (!popValue(state))
+            {
+                ip += jumpOffset;
+            }
+            break;
+
+        case OP_RETURN:
+            assert(IntVectorSize(&state->callStack));
+            popStackFrame(state, &ip, &bp,
+                          ByteVectorReadPackUint(state->bytecode, &ip));
+            break;
+
+        case OP_RETURN_VOID:
+            if (!IntVectorSize(&state->callStack))
+            {
+                assert(IntVectorSize(&state->stack) ==
+                       TargetIndexGetLocalsCount(target));
+                return;
+            }
+            popStackFrame(state, &ip, &bp, 0);
+            break;
+
+        case OP_INVOKE:
+            function = ByteVectorReadPackUint(state->bytecode, &ip);
+            argumentCount = ByteVectorReadPackUint(state->bytecode, &ip);
+            value = TargetIndexGetLocalsCount((targetref)function);
+            assert(argumentCount == value); /* TODO */
+            pushStackFrame(state, ip, bp,
+                           ByteVectorReadPackUint(state->bytecode, &ip));
+            ip = TargetIndexGetBytecodeOffset((targetref)function);
+            bp = IntVectorSize(&state->stack) - value;
             break;
 
         case OP_INVOKE_NATIVE:
-            nativeFunction = (nativefunctionref)ByteVectorRead(state->bytecode,
-                                                               &state->ip);
-            stackframeValueOffset = ValueGetOffset(
-                state->bp, ByteVectorReadPackUint(state->bytecode, &state->ip));
-            stackframe = ValueCreateStackframe(
-                state, NativeGetBytecodeOffset(nativeFunction),
-                ByteVectorReadPackUint(state->bytecode, &state->ip));
-            if (state->error)
-            {
-                return;
-            }
-            ValueSetStackframeValue(state, stackframeValueOffset, stackframe);
-            NativeInvoke(state, nativeFunction);
-            ValueDestroyStackframe(state);
-            break;
-
-        case OP_INVOKE_TARGET:
-            target = (targetref)ByteVectorReadPackUint(state->bytecode,
-                                                       &state->ip);
-            stackframeValueOffset = ValueGetOffset(
-                state->bp, ByteVectorReadPackUint(state->bytecode, &state->ip));
-            stackframe = ValueCreateStackframe(
-                state, TargetIndexGetBytecodeOffset(target),
-                ByteVectorReadPackUint(state->bytecode, &state->ip));
-            if (state->error)
-            {
-                return;
-            }
-            ValueSetStackframeValue(state, stackframeValueOffset, stackframe);
-            break;
-
-        case OP_COND_INVOKE:
-            condition = ByteVectorReadPackUint(state->bytecode, &state->ip);
-            function = ByteVectorReadPackUint(state->bytecode, &state->ip);
-            if (ValueGetBoolean(state, state->bp, condition))
-            {
-                stackframeValueOffset = ValueGetOffset(
-                    state->bp,
-                    ByteVectorReadPackUint(state->bytecode, &state->ip));
-                stackframe = ValueCreateStackframe(
-                    state, function,
-                    ByteVectorReadPackUint(state->bytecode, &state->ip));
-                if (state->error)
-                {
-                    return;
-                }
-                ValueSetStackframeValue(state, stackframeValueOffset,
-                                        stackframe);
-            }
-            else
-            {
-                ByteVectorSkipPackUint(state->bytecode, &state->ip);
-                argumentCount = ByteVectorReadPackUint(state->bytecode,
-                                                       &state->ip);
-                while (argumentCount--)
-                {
-                    ByteVectorSkipPackUint(state->bytecode, &state->ip);
-                }
-            }
-            break;
-
-        default:
-            assert(false);
+            function = ByteVectorRead(state->bytecode, &ip);
+            argumentCount = ByteVectorReadPackUint(state->bytecode, &ip);
+            assert(argumentCount == NativeGetParameterCount((nativefunctionref)function)); /* TODO */
+            NativeInvoke(state, (nativefunctionref)function,
+                         ByteVectorReadPackUint(state->bytecode, &ip));
             break;
         }
     }
 }
 
-ErrorCode InterpreterExecute(const bytevector *restrict bytecode,
-                             const bytevector *restrict valueBytecode,
-                             targetref target)
+ErrorCode InterpreterExecute(const bytevector *bytecode, targetref target)
 {
     RunState state;
 
-    state.ip = TargetIndexGetBytecodeOffset(target);
-    state.bp = 1;
-    state.error = NO_ERROR;
     state.bytecode = bytecode;
-    state.valueBytecode = valueBytecode;
-    IntVectorInit(&state.values);
-    IntVectorInit(&state.stack);
-    if (setError(&state, ByteVectorInit(&state.heap)))
+    state.error = IntVectorInit(&state.callStack);
+    if (state.error)
     {
         return state.error;
     }
-
-    execute(&state);
-    if (DUMP_STATE)
+    state.error = ByteVectorInit(&state.typeStack);
+    if (state.error)
     {
-        dumpState(&state);
+        IntVectorDispose(&state.callStack);
+        return state.error;
+    }
+    state.error = IntVectorInit(&state.stack);
+    if (state.error)
+    {
+        IntVectorDispose(&state.callStack);
+        ByteVectorDispose(&state.typeStack);
+        return state.error;
     }
 
-    IntVectorDispose(&state.values);
+    execute(&state, target);
+
+    IntVectorDispose(&state.callStack);
+    ByteVectorDispose(&state.typeStack);
     IntVectorDispose(&state.stack);
-    ByteVectorDispose(&state.heap);
+
     return state.error;
 }
