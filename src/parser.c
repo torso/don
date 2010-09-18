@@ -13,6 +13,23 @@
 #include "stringpool.h"
 #include "targetindex.h"
 
+typedef enum
+{
+    VALUE_SIMPLE,
+    VALUE_VARIABLE,
+    VALUE_INVOCATION
+} ValueType;
+
+typedef struct
+{
+    stringref identifier;
+    ValueType valueType;
+    stringref valueIdentifier;
+    nativefunctionref nativeFunction;
+    targetref target;
+    uint argumentCount;
+} ExpressionState;
+
 static char errorBuffer[256];
 
 static stringref keywordElse;
@@ -26,7 +43,7 @@ static stringref keywordWhile;
 static stringref maxStatementKeyword;
 static stringref maxKeyword;
 
-static boolean parseExpression(ParseState *state);
+static boolean parseRValue(ParseState *state);
 
 static boolean isInitialIdentifierCharacter(byte c)
 {
@@ -221,6 +238,16 @@ static boolean readOperator(ParseState *state, byte op)
     return false;
 }
 
+static boolean readOperator2(ParseState *state, byte op1, byte op2)
+{
+    if (state->current[0] == op1 && state->current[1] == op2)
+    {
+        state->current += 2;
+        return true;
+    }
+    return false;
+}
+
 static boolean readExpectedOperator(ParseState *state, byte op)
 {
     if (!readOperator(state, op))
@@ -254,8 +281,88 @@ static boolean parseNumber(ParseState *state)
     return ParseStateWriteIntegerLiteral(state, value);
 }
 
-static boolean parseInvocationRest(ParseState *state, stringref name,
-                                   uint returnValues)
+static boolean parseReturnRest(ParseState *state)
+{
+    uint values = 0;
+
+    if (peekNewline(state))
+    {
+        return ParseStateWriteReturnVoid(state);
+    }
+    for (;;)
+    {
+        if (!parseRValue(state))
+        {
+            return false;
+        }
+        values++;
+        if (peekNewline(state))
+        {
+            return ParseStateWriteReturn(state, values);
+        }
+        if (!readExpectedOperator(state, ','))
+        {
+            return false;
+        }
+        skipWhitespace(state);
+    }
+}
+
+static boolean finishLValue(ParseState *state, ExpressionState *estate)
+{
+    switch (estate->valueType)
+    {
+    case VALUE_SIMPLE:
+    case VALUE_INVOCATION:
+        statementError(state, "Invalid target for assignment.");
+        return false;
+
+    case VALUE_VARIABLE:
+        return ParseStateSetVariable(state, estate->valueIdentifier);
+    }
+    assert(false);
+    return false;
+}
+
+static boolean finishRValue(ParseState *state, ExpressionState *estate)
+{
+    switch (estate->valueType)
+    {
+    case VALUE_SIMPLE:
+        return true;
+
+    case VALUE_VARIABLE:
+        return ParseStateGetVariable(state, estate->valueIdentifier);
+
+    case VALUE_INVOCATION:
+        return ParseStateWriteInvocation(state, estate->nativeFunction,
+                                         estate->target,
+                                         estate->argumentCount, 1);
+    }
+    assert(false);
+    return false;
+}
+
+static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
+{
+    switch (estate->valueType)
+    {
+    case VALUE_SIMPLE:
+    case VALUE_VARIABLE:
+        statementError(state, "Not a statement.");
+        return false;
+
+    case VALUE_INVOCATION:
+        return ParseStateWriteInvocation(state, estate->nativeFunction,
+                                         estate->target,
+                                         estate->argumentCount, 0);
+    }
+    assert(false);
+    return false;
+}
+
+static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
+                                   stringref name)
 {
     nativefunctionref nativeFunction = NativeFindFunction(name);
     targetref target = 0;
@@ -293,7 +400,7 @@ static boolean parseInvocationRest(ParseState *state, stringref name,
     {
         for (;;)
         {
-            if (!parseExpression(state))
+            if (!parseRValue(state))
             {
                 return false;
             }
@@ -324,7 +431,7 @@ static boolean parseInvocationRest(ParseState *state, stringref name,
                     StringPoolGetString(name), argumentCount, parameterCount);
         }
         errorOnLine(state, line, errorBuffer);
-        return 0;
+        return false;
     }
     if (argumentCount < minimumArgumentCount)
     {
@@ -332,109 +439,33 @@ static boolean parseInvocationRest(ParseState *state, stringref name,
                 "Too few arguments for function '%s'. Got %d arguments, but at least %d were expected.",
                 StringPoolGetString(name), argumentCount, parameterCount);
         errorOnLine(state, line, errorBuffer);
-        return 0;
-    }
-    return ParseStateWriteInvocation(state, nativeFunction, target,
-                                     argumentCount, returnValues);
-}
-
-static boolean parseReturnRest(ParseState *state)
-{
-    uint values = 0;
-
-    if (peekNewline(state))
-    {
-        return ParseStateWriteReturnVoid(state);
-    }
-    for (;;)
-    {
-        if (!parseExpression(state))
-        {
-            return false;
-        }
-        values++;
-        if (peekNewline(state))
-        {
-            return ParseStateWriteReturn(state, values);
-        }
-        if (!readExpectedOperator(state, ','))
-        {
-            return false;
-        }
-        skipWhitespace(state);
-    }
-}
-
-static boolean parseMultiAssignmentRest(ParseState *state)
-{
-    intvector variables;
-    stringref name;
-
-    IntVectorInit(&variables);
-    do
-    {
-        skipWhitespace(state);
-        name = peekReadIdentifier(state);
-        if (state->error)
-        {
-            return false;
-        }
-        if (!name)
-        {
-            statementError(state, "Expected variable name.");
-            return false;
-        }
-        state->error = IntVectorAdd(&variables, (uint)name);
-        if (state->error)
-        {
-            return false;
-        }
-        skipWhitespace(state);
-    }
-    while (readOperator(state, ','));
-    if (!readExpectedOperator(state, '='))
-    {
         return false;
     }
-    skipWhitespace(state);
-    name = peekReadIdentifier(state);
-    if (state->error)
-    {
-        return false;
-    }
-    if (!name || !readOperator(state, '('))
-    {
-        statementError(state, "Expected function invocation.");
-        return false;
-    }
-    if (!parseInvocationRest(state, name, IntVectorSize(&variables) + 1))
-    {
-        return false;
-    }
-    while (IntVectorSize(&variables))
-    {
-        if (!ParseStateSetVariable(state, (stringref)IntVectorPop(&variables)))
-        {
-            return false;
-        }
-    }
-    IntVectorDispose(&variables);
+    estate->valueType = VALUE_INVOCATION;
+    estate->nativeFunction = nativeFunction;
+    estate->target = target;
+    estate->argumentCount = argumentCount;
     return true;
 }
 
-static boolean parseExpression5(ParseState *state)
+static boolean parseExpression5(ParseState *state, ExpressionState *estate)
 {
-    stringref identifier;
+    stringref identifier = estate->identifier;
     stringref string;
 
     ParseStateCheck(state);
-    if (peekIdentifier(state))
+    estate->valueType = VALUE_SIMPLE;
+    estate->identifier = 0;
+    if (!identifier && peekIdentifier(state))
     {
         identifier = readIdentifier(state);
         if (state->error)
         {
             return 0;
         }
+    }
+    if (identifier)
+    {
         if (isKeyword(identifier))
         {
             if (identifier == keywordTrue)
@@ -452,13 +483,15 @@ static boolean parseExpression5(ParseState *state)
             sprintf(errorBuffer, "Unexpected keyword '%s'.",
                     StringPoolGetString(identifier));
             statementError(state, errorBuffer);
-            return 0;
+            return false;
         }
         if (readOperator(state, '('))
         {
-            return parseInvocationRest(state, identifier, 1);
+            return parseInvocationRest(state, estate, identifier);
         }
-        return ParseStateGetVariable(state, identifier);
+        estate->valueType = VALUE_VARIABLE;
+        estate->valueIdentifier = identifier;
+        return true;
     }
     else if (peekNumber(state))
     {
@@ -477,9 +510,9 @@ static boolean parseExpression5(ParseState *state)
     return false;
 }
 
-static boolean parseExpression4(ParseState *state)
+static boolean parseExpression4(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression5(state))
+    if (!parseExpression5(state, estate))
     {
         return false;
     }
@@ -487,9 +520,9 @@ static boolean parseExpression4(ParseState *state)
     return true;
 }
 
-static boolean parseExpression3(ParseState *state)
+static boolean parseExpression3(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression4(state))
+    if (!parseExpression4(state, estate))
     {
         return false;
     }
@@ -497,53 +530,71 @@ static boolean parseExpression3(ParseState *state)
     {
         assert(!readOperator(state, '+')); /* TODO: ++ operator */
         skipWhitespace(state);
-        return parseExpression4(state) &&
-            ParseStateWriteBinaryOperation(state, OP_ADD);
+        if (!finishRValue(state, estate) ||
+            !parseExpression4(state, estate) ||
+            !finishRValue(state, estate) ||
+            !ParseStateWriteBinaryOperation(state, OP_ADD))
+        {
+            return false;
+        }
+        estate->valueType = VALUE_SIMPLE;
+        return true;
     }
     else if (readOperator(state, '-'))
     {
         assert(!readOperator(state, '-')); /* TODO: -- operator */
         skipWhitespace(state);
-        return parseExpression4(state) &&
-            ParseStateWriteBinaryOperation(state, OP_SUB);
+        if (!finishRValue(state, estate) ||
+            !parseExpression4(state, estate) ||
+            !finishRValue(state, estate) ||
+            !ParseStateWriteBinaryOperation(state, OP_SUB))
+        {
+            return false;
+        }
+        estate->valueType = VALUE_SIMPLE;
+        return true;
     }
     return true;
 }
 
-static boolean parseExpression2(ParseState *state)
+static boolean parseExpression2(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression3(state))
+    if (!parseExpression3(state, estate))
     {
         return false;
     }
-    if (readOperator(state, '='))
+    if (readOperator2(state, '=', '='))
     {
-        if (!readOperator(state, '='))
-        {
-            statementError(state, "Assignment not allowed here.");
-            return 0;
-        }
         skipWhitespace(state);
-        return parseExpression3(state) &&
-            ParseStateWriteBinaryOperation(state, OP_EQUALS);
+        if (!finishRValue(state, estate) ||
+            !parseExpression3(state, estate) ||
+            !finishRValue(state, estate) ||
+            !ParseStateWriteBinaryOperation(state, OP_EQUALS))
+        {
+            return false;
+        }
+        estate->valueType = VALUE_SIMPLE;
+        return true;
     }
-    if (readOperator(state, '!'))
+    if (readOperator2(state, '!', '='))
     {
-        if (!readOperator(state, '='))
-        {
-            statementError(state, "Invalid expression.");
-            return 0;
-        }
         skipWhitespace(state);
-        return parseExpression3(state) &&
-            ParseStateWriteBinaryOperation(state, OP_NOT_EQUALS);
+        if (!finishRValue(state, estate) ||
+            !parseExpression3(state, estate) ||
+            !finishRValue(state, estate) ||
+            !ParseStateWriteBinaryOperation(state, OP_NOT_EQUALS))
+        {
+            return false;
+        }
+        estate->valueType = VALUE_SIMPLE;
+        return true;
     }
     return true;
 }
 
-static boolean parseExpression(ParseState *state)
+static boolean parseExpression(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression2(state))
+    if (!parseExpression2(state, estate))
     {
         return false;
     }
@@ -551,21 +602,117 @@ static boolean parseExpression(ParseState *state)
     {
         skipWhitespace(state);
         /* TODO: Avoid recursion. */
-        if (!ParseStateWriteBeginCondition(state) ||
-            !parseExpression(state) ||
+        if (!finishRValue(state, estate) ||
+            !ParseStateWriteBeginCondition(state) ||
+            !parseRValue(state) ||
             !readExpectedOperator(state, ':') ||
             !ParseStateWriteSecondConsequent(state))
         {
             return false;
         }
         skipWhitespace(state);
-        if (!parseExpression(state) ||
+        if (!parseRValue(state) ||
             !ParseStateWriteFinishCondition(state))
         {
             return false;
         }
+        estate->valueType = VALUE_SIMPLE;
+        return true;
     }
     return true;
+}
+
+static boolean parseRValue(ParseState *state)
+{
+    ExpressionState estate;
+
+    estate.identifier = 0;
+    return parseExpression(state, &estate) &&
+        finishRValue(state, &estate);
+}
+
+static boolean parseMultiAssignmentRest(ParseState *state)
+{
+    ExpressionState estate;
+    bytevector lvalues;
+
+    ByteVectorInit(&lvalues);
+    do
+    {
+        skipWhitespace(state);
+        estate.identifier = 0;
+        if (!parseExpression(state, &estate))
+        {
+            return false;
+        }
+        state->error = ByteVectorAddData(&lvalues, (byte*)&estate, sizeof(estate));
+        if (state->error)
+        {
+            return false;
+        }
+        skipWhitespace(state);
+    }
+    while (readOperator(state, ','));
+    if (!readExpectedOperator(state, '='))
+    {
+        return false;
+    }
+    skipWhitespace(state);
+    estate.identifier = 0;
+    parseExpression(state, &estate);
+    if (estate.valueType != VALUE_INVOCATION)
+    {
+        statementError(state, "Expected function invocation.");
+        return false;
+    }
+    if (!ParseStateWriteInvocation(
+            state, estate.nativeFunction, estate.target, estate.argumentCount,
+            ByteVectorSize(&lvalues) / sizeof(estate) + 1))
+    {
+        return false;
+    }
+    while (ByteVectorSize(&lvalues))
+    {
+        ByteVectorPopData(&lvalues, (byte*)&estate, sizeof(estate));
+        if (!finishLValue(state, &estate))
+        {
+            return false;
+        }
+    }
+    ByteVectorDispose(&lvalues);
+    return true;
+}
+
+static boolean parseExpressionStatement(ParseState *state,
+                                        stringref identifier)
+{
+    ExpressionState estate;
+
+    estate.identifier = identifier;
+    if (!parseExpression(state, &estate))
+    {
+        return false;
+    }
+    if (readOperator(state, '='))
+    {
+        skipWhitespace(state);
+        if (!parseRValue(state) ||
+            !finishLValue(state, &estate))
+        {
+            return false;
+        }
+        return true;
+    }
+    else if (readOperator(state, ','))
+    {
+        if (!parseMultiAssignmentRest(state) ||
+            !finishLValue(state, &estate))
+        {
+            return false;
+        }
+        return true;
+    }
+    return finishVoidValue(state, &estate);
 }
 
 static boolean parseFunctionBody(ParseState *state)
@@ -648,7 +795,6 @@ static boolean parseFunctionBody(ParseState *state)
             state->statementLine = state->line;
             if (identifier)
             {
-                skipWhitespace(state);
                 if (isKeyword(identifier))
                 {
                     if (identifier > maxStatementKeyword)
@@ -656,11 +802,12 @@ static boolean parseFunctionBody(ParseState *state)
                         statementError(state, "Not a statement.");
                         return false;
                     }
+                    skipWhitespace(state);
                     if (identifier == keywordIf)
                     {
                         prevIndent = currentIndent;
                         currentIndent = 0;
-                        if (!parseExpression(state))
+                        if (!parseRValue(state))
                         {
                             return false;
                         }
@@ -692,7 +839,7 @@ static boolean parseFunctionBody(ParseState *state)
                         prevIndent = currentIndent;
                         currentIndent = 0;
                         target = ParseStateGetJumpTarget(state);
-                        if (!parseExpression(state))
+                        if (!parseRValue(state))
                         {
                             return false;
                         }
@@ -715,34 +862,8 @@ static boolean parseFunctionBody(ParseState *state)
                 }
                 else
                 {
-                    if (readOperator(state, '('))
+                    if (!parseExpressionStatement(state, identifier))
                     {
-                        parseInvocationRest(state, identifier, 0);
-                        if (state->error)
-                        {
-                            return false;
-                        }
-                    }
-                    else if (readOperator(state, '='))
-                    {
-                        skipWhitespace(state);
-                        if (!parseExpression(state) ||
-                            !ParseStateSetVariable(state, identifier))
-                        {
-                            return false;
-                        }
-                    }
-                    else if (readOperator(state, ','))
-                    {
-                        if (!parseMultiAssignmentRest(state) ||
-                            !ParseStateSetVariable(state, identifier))
-                        {
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        statementError(state, "Not a statement1.");
                         return false;
                     }
                     assert(peekNewline(state));

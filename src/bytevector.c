@@ -134,9 +134,19 @@ ErrorCode ByteVectorAddUnpackedInt(bytevector *v, int value)
 ErrorCode ByteVectorAddUnpackedUint(bytevector *v, uint value)
 {
     checkByteVector(v);
+    assert(ByteVectorSize(v) + 5 < SEGMENT_SIZE); /* TODO: grow byte vector */
     v->data[v->size++] = 128;
     *((uint*)&v->data[v->size]) = value;
     v->size += 4;
+    return NO_ERROR;
+}
+
+ErrorCode ByteVectorAddData(bytevector *v, byte *value, size_t size)
+{
+    checkByteVector(v);
+    assert(ByteVectorSize(v) + size < SEGMENT_SIZE); /* TODO: grow byte vector */
+    memcpy(&v->data[v->size], value, size);
+    v->size += size;
     return NO_ERROR;
 }
 
@@ -231,6 +241,13 @@ byte ByteVectorPop(bytevector *v)
     checkByteVectorIndex(v, 0);
     v->size--;
     return v->data[v->size];
+}
+
+void ByteVectorPopData(bytevector *v, byte *value, size_t size)
+{
+    checkByteVectorRange(v, 0, size);
+    v->size -= size;
+    memcpy(value, &v->data[v->size], size);
 }
 
 void ByteVectorSet(bytevector *v, uint index, byte value)

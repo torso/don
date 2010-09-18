@@ -27,6 +27,8 @@ extern nonnull ErrorCode ByteVectorAddPackInt(bytevector *v, int value);
 extern nonnull ErrorCode ByteVectorAddPackUint(bytevector *v, uint value);
 extern nonnull ErrorCode ByteVectorAddUnpackedInt(bytevector *v, int value);
 extern nonnull ErrorCode ByteVectorAddUnpackedUint(bytevector *v, uint value);
+extern nonnull ErrorCode ByteVectorAddData(bytevector *v,
+                                           byte *value, size_t size);
 extern nonnull pure byte ByteVectorGet(const bytevector *v, uint index);
 extern nonnull byte ByteVectorRead(const bytevector *v, uint *index);
 #define ByteVectorGetInt(v, index) ((int)ByteVectorGetUint(v, index))
@@ -45,6 +47,7 @@ extern nonnull pure const byte *ByteVectorGetPointer(const bytevector *v,
                                                      uint index);
 extern nonnull pure byte ByteVectorPeek(const bytevector *v);
 extern nonnull byte ByteVectorPop(bytevector *v);
+extern nonnull void ByteVectorPopData(bytevector *v, byte *value, size_t size);
 extern nonnull void ByteVectorSet(bytevector *v, uint index, byte value);
 extern nonnull void ByteVectorWrite(bytevector *v, uint *index, byte value);
 extern nonnull void ByteVectorSetInt(bytevector *v, uint index, int value);
