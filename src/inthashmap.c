@@ -39,7 +39,7 @@ ErrorCode IntHashMapInit(inthashmap *map, uint capacity)
 {
     map->tableSize = max(roundToPow2(capacity * 4 / 3), capacity + 1);
     map->size = 0;
-    map->table = (uint*)zmalloc(map->tableSize * 2 * sizeof(uint));
+    map->table = (uint*)calloc(map->tableSize * 2, sizeof(uint));
     return map->table ? NO_ERROR : OUT_OF_MEMORY;
 }
 

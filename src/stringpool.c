@@ -76,7 +76,7 @@ ErrorCode StringPoolInit(void)
     {
         return OUT_OF_MEMORY;
     }
-    table = (uint*)zmalloc((1024 + TABLE_DATA_BEGIN) * sizeof(uint));
+    table = (uint*)calloc(1024 + TABLE_DATA_BEGIN, sizeof(uint));
     if (!table)
     {
         return OUT_OF_MEMORY;
