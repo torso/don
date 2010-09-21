@@ -9,7 +9,7 @@ typedef struct
 {
     const byte *data;
     stringref name;
-    uint length;
+    size_t size;
 } FileEntry;
 
 static FileEntry fileIndex[16];
@@ -30,7 +30,7 @@ fileref FileIndexAdd(const char *filename)
     FILE *f;
     int status;
     long l;
-    uint size;
+    size_t size;
     size_t read;
     byte *data;
 
@@ -43,9 +43,8 @@ fileref FileIndexAdd(const char *filename)
     status = fseek(f, 0, SEEK_END);
     assert(!status); /* TODO: handle file error */
     l = ftell(f);
-    assert(l >= 0); /* TODO: handle file error */
-    size = (uint)l;
-    assert((long)size == l); /* TODO: handle large files */
+    assert(l != -1); /* TODO: handle file error */
+    size = (size_t)l;
     status = fseek(f, 0, SEEK_SET);
     assert(!status); /* TODO: handle file error */
     data = (byte*)malloc(size + 1);
@@ -54,7 +53,7 @@ fileref FileIndexAdd(const char *filename)
     read = fread(data, 1, size, f);
     assert(read == size); /* TODO: handle file error */
     fclose(f);
-    fileIndex[fileCount].length = size;
+    fileIndex[fileCount].size = size;
     fileIndex[fileCount].data = data;
     fileIndex[fileCount].name = StringPoolAdd(filename);
     return fileCount;
@@ -72,8 +71,8 @@ const byte *FileIndexGetContents(fileref file)
     return fileIndex[file].data;
 }
 
-uint FileIndexGetSize(fileref file)
+size_t FileIndexGetSize(fileref file)
 {
     assert(file >= 1 && file <= fileCount);
-    return fileIndex[file].length;
+    return fileIndex[file].size;
 }
