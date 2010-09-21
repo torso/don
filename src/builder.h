@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 typedef signed char int8;
 typedef unsigned char uint8;
 typedef unsigned short uint16;

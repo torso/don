@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include "builder.h"
 #include "inthashmap.h"
 #include "math.h"

@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include "builder.h"
 #include "bytecode.h"
 #include "bytevector.h"

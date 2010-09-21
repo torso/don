@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include "builder.h"
 #include "interpreter.h"
 #include "native.h"

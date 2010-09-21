@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <memory.h>
 #include "builder.h"
 #include "intvector.h"
