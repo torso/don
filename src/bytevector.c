@@ -141,7 +141,7 @@ ErrorCode ByteVectorAddUnpackedUint(bytevector *v, uint value)
     return NO_ERROR;
 }
 
-ErrorCode ByteVectorAddData(bytevector *v, byte *value, size_t size)
+ErrorCode ByteVectorAddData(bytevector *v, byte *value, uint size)
 {
     checkByteVector(v);
     assert(ByteVectorSize(v) + size < SEGMENT_SIZE); /* TODO: grow byte vector */
@@ -243,7 +243,7 @@ byte ByteVectorPop(bytevector *v)
     return v->data[v->size];
 }
 
-void ByteVectorPopData(bytevector *v, byte *value, size_t size)
+void ByteVectorPopData(bytevector *v, byte *value, uint size)
 {
     checkByteVectorRange(v, 0, size);
     v->size -= size;
