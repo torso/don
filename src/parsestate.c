@@ -325,11 +325,12 @@ boolean ParseStateWriteWhile(ParseState *state, uint loopTarget)
 boolean ParseStateWriteReturn(ParseState *state, uint values)
 {
     assert(values);
+    assert(values <= MAX_UINT8); /* TODO: report error */
     ParseStateCheck(state);
     return !ParseStateSetError(state,
                                ByteVectorAdd(state->bytecode, OP_RETURN)) &&
         !ParseStateSetError(state,
-                            ByteVectorAddPackUint(state->bytecode, values));
+                            ByteVectorAdd(state->bytecode, (uint8)values));
 }
 
 boolean ParseStateWriteReturnVoid(ParseState *state)
@@ -344,6 +345,8 @@ boolean ParseStateWriteInvocation(ParseState *state,
                                   functionref function, uint argumentCount,
                                   uint returnValues)
 {
+    assert(argumentCount <= MAX_UINT16); /* TODO: report error */
+    assert(returnValues <= MAX_UINT8); /* TODO: report error */
     ParseStateCheck(state);
     if (nativeFunction >= 0)
     {
@@ -361,13 +364,14 @@ boolean ParseStateWriteInvocation(ParseState *state,
         if (ParseStateSetError(
                 state, ByteVectorAdd(state->bytecode, OP_INVOKE)) ||
             ParseStateSetError(
-                state, ByteVectorAddPackUint(state->bytecode, (uint)function)))
+                state, ByteVectorAddUint(state->bytecode, (uint)function)))
         {
             return false;
         }
     }
-    return !ParseStateSetError(state, ByteVectorAddPackUint(state->bytecode,
-                                                            argumentCount)) &&
-        !ParseStateSetError(state, ByteVectorAddPackUint(state->bytecode,
-                                                         returnValues));
+    return !ParseStateSetError(state,
+                               ByteVectorAddUint16(state->bytecode,
+                                                   (uint16)argumentCount)) &&
+        !ParseStateSetError(state, ByteVectorAdd(state->bytecode,
+                                                 (uint8)returnValues));
 }

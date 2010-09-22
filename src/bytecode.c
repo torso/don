@@ -73,7 +73,7 @@ uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
 
     case OP_RETURN:
         printf(" %u: return %u\n", ip,
-               ByteVectorReadPackUint(bytecode, &offset));
+               ByteVectorRead(bytecode, &offset));
         break;
 
     case OP_RETURN_VOID:
@@ -81,9 +81,9 @@ uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
         break;
 
     case OP_INVOKE:
-        function = ByteVectorReadPackUint(bytecode, &offset);
-        arguments = ByteVectorReadPackUint(bytecode, &offset);
-        value = ByteVectorReadPackUint(bytecode, &offset);
+        function = ByteVectorReadUint(bytecode, &offset);
+        arguments = ByteVectorReadUint16(bytecode, &offset);
+        value = ByteVectorRead(bytecode, &offset);
         printf(" %u: invoke %u \"%s\" arguments: %u return: %u\n",
                ip, function,
                StringPoolGetString(FunctionIndexGetName((functionref)function)),
@@ -92,8 +92,8 @@ uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
 
     case OP_INVOKE_NATIVE:
         function = ByteVectorRead(bytecode, &offset);
-        arguments = ByteVectorReadPackUint(bytecode, &offset);
-        value = ByteVectorReadPackUint(bytecode, &offset);
+        arguments = ByteVectorReadUint16(bytecode, &offset);
+        value = ByteVectorRead(bytecode, &offset);
         printf(" %u: invoke native %u \"%s\" arguments: %u return: %u\n",
                ip, function,
                StringPoolGetString(NativeGetName((nativefunctionref)function)),

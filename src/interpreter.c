@@ -213,7 +213,7 @@ static void execute(RunState *state, functionref target)
         case OP_RETURN:
             assert(IntVectorSize(&state->callStack));
             popStackFrame(state, &ip, &bp,
-                          ByteVectorReadPackUint(state->bytecode, &ip));
+                          ByteVectorRead(state->bytecode, &ip));
             break;
 
         case OP_RETURN_VOID:
@@ -227,22 +227,22 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_INVOKE:
-            function = (functionref)ByteVectorReadPackUint(state->bytecode, &ip);
-            argumentCount = ByteVectorReadPackUint(state->bytecode, &ip);
+            function = (functionref)ByteVectorReadUint(state->bytecode, &ip);
+            argumentCount = ByteVectorReadUint16(state->bytecode, &ip);
             value = FunctionIndexGetLocalsCount(function);
             assert(argumentCount == value); /* TODO */
             pushStackFrame(state, ip, bp,
-                           ByteVectorReadPackUint(state->bytecode, &ip));
+                           ByteVectorRead(state->bytecode, &ip));
             ip = FunctionIndexGetBytecodeOffset(function);
             bp = IntVectorSize(&state->stack) - value;
             break;
 
         case OP_INVOKE_NATIVE:
             nativeFunction = (nativefunctionref)ByteVectorRead(state->bytecode, &ip);
-            argumentCount = ByteVectorReadPackUint(state->bytecode, &ip);
+            argumentCount = ByteVectorReadUint16(state->bytecode, &ip);
             assert(argumentCount == NativeGetParameterCount(nativeFunction)); /* TODO */
             NativeInvoke(state, nativeFunction,
-                         ByteVectorReadPackUint(state->bytecode, &ip));
+                         ByteVectorRead(state->bytecode, &ip));
             break;
         }
     }

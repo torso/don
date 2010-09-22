@@ -14,6 +14,8 @@ typedef uint8 byte;
 #define false 0
 #define true 1
 #define MAX_UINT ((uint)-1)
+#define MAX_UINT8 ((uint8)-1)
+#define MAX_UINT16 ((uint16)-1)
 #define MIN_INT (1 << (sizeof(int) * 8 - 1))
 #define MAX_INT (-1 - MIN_INT)
 
