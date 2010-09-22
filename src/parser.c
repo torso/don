@@ -10,7 +10,7 @@
 #include "parser.h"
 #include "parsestate.h"
 #include "stringpool.h"
-#include "targetindex.h"
+#include "functionindex.h"
 
 typedef enum
 {
@@ -25,7 +25,7 @@ typedef struct
     ValueType valueType;
     stringref valueIdentifier;
     nativefunctionref nativeFunction;
-    targetref target;
+    functionref function;
     uint argumentCount;
 } ExpressionState;
 
@@ -335,7 +335,7 @@ static boolean finishRValue(ParseState *state, ExpressionState *estate)
 
     case VALUE_INVOCATION:
         return ParseStateWriteInvocation(state, estate->nativeFunction,
-                                         estate->target,
+                                         estate->function,
                                          estate->argumentCount, 1);
     }
     assert(false);
@@ -353,7 +353,7 @@ static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
 
     case VALUE_INVOCATION:
         return ParseStateWriteInvocation(state, estate->nativeFunction,
-                                         estate->target,
+                                         estate->function,
                                          estate->argumentCount, 0);
     }
     assert(false);
@@ -364,7 +364,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                                    stringref name)
 {
     nativefunctionref nativeFunction = NativeFindFunction(name);
-    targetref target = 0;
+    functionref function = 0;
     uint parameterCount;
     const stringref *parameterNames;
     uint minimumArgumentCount;
@@ -380,17 +380,17 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     }
     else
     {
-        target = TargetIndexGet(name);
-        if (!target)
+        function = FunctionIndexGet(name);
+        if (!function)
         {
             sprintf(errorBuffer, "Unknown function '%s'.",
                     StringPoolGetString(name));
             statementError(state, errorBuffer);
             return false;
         }
-        parameterCount = TargetIndexGetParameterCount(target);
-        parameterNames = TargetIndexGetParameterNames(target);
-        minimumArgumentCount = TargetIndexGetMinimumArgumentCount(target);
+        parameterCount = FunctionIndexGetParameterCount(function);
+        parameterNames = FunctionIndexGetParameterNames(function);
+        minimumArgumentCount = FunctionIndexGetMinimumArgumentCount(function);
     }
     assert(parameterNames || !parameterCount);
 
@@ -441,7 +441,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     }
     estate->valueType = VALUE_INVOCATION;
     estate->nativeFunction = nativeFunction;
-    estate->target = target;
+    estate->function = function;
     estate->argumentCount = argumentCount;
     return true;
 }
@@ -664,7 +664,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
         return false;
     }
     if (!ParseStateWriteInvocation(
-            state, estate.nativeFunction, estate.target, estate.argumentCount,
+            state, estate.nativeFunction, estate.function, estate.argumentCount,
             ByteVectorSize(&lvalues) / (uint)sizeof(estate) + 1))
     {
         return false;
@@ -885,7 +885,7 @@ static void parseScript(ParseState *state)
 {
     boolean inFunction = false;
     boolean isTarget;
-    stringref target;
+    stringref function;
     stringref parameterName;
 
     ParseStateCheck(state);
@@ -893,12 +893,12 @@ static void parseScript(ParseState *state)
     {
         if (peekIdentifier(state))
         {
-            target = readIdentifier(state);
+            function = readIdentifier(state);
             if (state->error)
             {
                 return;
             }
-            state->error = TargetIndexBeginTarget(target);
+            state->error = FunctionIndexBeginFunction(function);
             if (state->error)
             {
                 return;
@@ -927,7 +927,7 @@ static void parseScript(ParseState *state)
                         }
                         skipWhitespace(state);
                         state->error =
-                            TargetIndexAddParameter(parameterName, true);
+                            FunctionIndexAddParameter(parameterName, true);
                         if (state->error)
                         {
                             return;
@@ -953,8 +953,8 @@ static void parseScript(ParseState *state)
             /* TODO: Parse arguments */
             assert(peekNewline(state));
             skipEndOfLine(state);
-            TargetIndexFinishTarget(state->file, state->line,
-                                    getOffset(state, state->start), isTarget);
+            FunctionIndexFinishFunction(state->file, state->line,
+                                        getOffset(state, state->start), isTarget);
             inFunction = true;
         }
         else if ((peekIndent(state) && inFunction) ||
@@ -1002,15 +1002,15 @@ ErrorCode ParseFile(fileref file)
     return state.error;
 }
 
-ErrorCode ParseFunction(targetref target, bytevector *bytecode)
+ErrorCode ParseFunction(functionref function, bytevector *bytecode)
 {
     ParseState state;
-    assert(target);
-    TargetIndexSetBytecodeOffset(target, ByteVectorSize(bytecode));
-    ParseStateInit(&state, bytecode, target,
-                   TargetIndexGetFile(target),
-                   TargetIndexGetLine(target),
-                   TargetIndexGetFileOffset(target));
+    assert(function);
+    FunctionIndexSetBytecodeOffset(function, ByteVectorSize(bytecode));
+    ParseStateInit(&state, bytecode, function,
+                   FunctionIndexGetFile(function),
+                   FunctionIndexGetLine(function),
+                   FunctionIndexGetFileOffset(function));
     if (state.error)
     {
         return state.error;

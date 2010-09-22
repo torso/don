@@ -9,7 +9,7 @@ typedef struct
 {
     const byte *start;
     const byte *current;
-    targetref target;
+    functionref function;
     fileref file;
     uint line;
     uint statementLine;
@@ -25,7 +25,7 @@ typedef struct
 extern nonnull void ParseStateCheck(const ParseState *state);
 extern void ParseStateInit(ParseState *restrict state,
                            bytevector *restrict bytecode,
-                           targetref target,
+                           functionref function,
                            fileref file, uint line, uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
 extern nonnull boolean ParseStateFinish(ParseState *restrict state);
@@ -59,4 +59,4 @@ extern nonnull boolean ParseStateWriteReturn(ParseState *state, uint values);
 extern nonnull boolean ParseStateWriteReturnVoid(ParseState *state);
 extern nonnull boolean ParseStateWriteInvocation(
     ParseState *state, nativefunctionref nativeFunction,
-    targetref target, uint argumentCount, uint returnValues);
+    functionref function, uint argumentCount, uint returnValues);

@@ -6,7 +6,7 @@
 #include "intvector.h"
 #include "log.h"
 #include "parsestate.h"
-#include "targetindex.h"
+#include "functionindex.h"
 
 typedef enum
 {
@@ -48,13 +48,13 @@ static boolean writeBackwardsJump(ParseState *state, uint target)
 
 
 void ParseStateInit(ParseState *state, bytevector *bytecode,
-                    targetref target, fileref file, uint line, uint offset)
+                    functionref function, fileref file, uint line, uint offset)
 {
     assert(file);
     assert(line == 1 || line <= offset);
     state->start = FileIndexGetContents(file);
     state->current = state->start + offset;
-    state->target = target;
+    state->function = function;
     state->file = file;
     state->line = line;
     state->indent = 0;
@@ -125,7 +125,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
             return false;
         }
 
-        state->error = TargetIndexSetLocals(state->target, &state->locals);
+        state->error = FunctionIndexSetLocals(state->function, &state->locals);
         return !state->error && ParseStateWriteReturnVoid(state);
     }
 
@@ -350,13 +350,13 @@ boolean ParseStateWriteReturnVoid(ParseState *state)
 
 boolean ParseStateWriteInvocation(ParseState *state,
                                   nativefunctionref nativeFunction,
-                                  targetref target, uint argumentCount,
+                                  functionref function, uint argumentCount,
                                   uint returnValues)
 {
     ParseStateCheck(state);
     if (nativeFunction >= 0)
     {
-        assert(!target);
+        assert(!function);
         if (ParseStateSetError(
                 state, ByteVectorAdd(state->bytecode, OP_INVOKE_NATIVE)) ||
             ParseStateSetError(
@@ -370,7 +370,7 @@ boolean ParseStateWriteInvocation(ParseState *state,
         if (ParseStateSetError(
                 state, ByteVectorAdd(state->bytecode, OP_INVOKE)) ||
             ParseStateSetError(
-                state, ByteVectorAddPackUint(state->bytecode, target)))
+                state, ByteVectorAddPackUint(state->bytecode, (uint)function)))
         {
             return false;
         }

@@ -54,4 +54,4 @@ typedef struct intvector intvector;
 typedef int nativefunctionref;
 typedef int stringref;
 typedef uint fileref;
-typedef uint targetref;
+typedef uint functionref;

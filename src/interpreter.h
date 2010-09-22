@@ -13,4 +13,4 @@ extern nonnull boolean InterpreterPush(RunState *state,
                                        ValueType type, uint value);
 
 extern nonnull ErrorCode InterpreterExecute(const bytevector *bytecode,
-                                            targetref target);
+                                            functionref target);

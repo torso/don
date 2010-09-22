@@ -6,7 +6,7 @@
 #include "intvector.h"
 #include "interpreter.h"
 #include "native.h"
-#include "targetindex.h"
+#include "functionindex.h"
 
 static const boolean TRACE = false;
 
@@ -108,11 +108,10 @@ static void popStackFrame(RunState *state, uint *ip, uint *bp,
     *ip = IntVectorPop(&state->callStack);
 }
 
-static void execute(RunState *state, uint target)
+static void execute(RunState *state, functionref target)
 {
-    uint ip = TargetIndexGetBytecodeOffset(target);
+    uint ip = FunctionIndexGetBytecodeOffset(target);
     uint bp = 0;
-    uint function;
     uint argumentCount;
     uint jumpOffset;
     uint local;
@@ -120,8 +119,10 @@ static void execute(RunState *state, uint target)
     ValueType type2;
     uint value;
     uint value2;
+    functionref function;
+    nativefunctionref nativeFunction;
 
-    local = TargetIndexGetLocalsCount(target);
+    local = FunctionIndexGetLocalsCount(target);
     ByteVectorSetSize(&state->typeStack, local);
     IntVectorSetSize(&state->stack, local);
     for (;;)
@@ -219,35 +220,35 @@ static void execute(RunState *state, uint target)
             if (!IntVectorSize(&state->callStack))
             {
                 assert(IntVectorSize(&state->stack) ==
-                       TargetIndexGetLocalsCount(target));
+                       FunctionIndexGetLocalsCount(target));
                 return;
             }
             popStackFrame(state, &ip, &bp, 0);
             break;
 
         case OP_INVOKE:
-            function = ByteVectorReadPackUint(state->bytecode, &ip);
+            function = (functionref)ByteVectorReadPackUint(state->bytecode, &ip);
             argumentCount = ByteVectorReadPackUint(state->bytecode, &ip);
-            value = TargetIndexGetLocalsCount((targetref)function);
+            value = FunctionIndexGetLocalsCount(function);
             assert(argumentCount == value); /* TODO */
             pushStackFrame(state, ip, bp,
                            ByteVectorReadPackUint(state->bytecode, &ip));
-            ip = TargetIndexGetBytecodeOffset((targetref)function);
+            ip = FunctionIndexGetBytecodeOffset(function);
             bp = IntVectorSize(&state->stack) - value;
             break;
 
         case OP_INVOKE_NATIVE:
-            function = ByteVectorRead(state->bytecode, &ip);
+            nativeFunction = (nativefunctionref)ByteVectorRead(state->bytecode, &ip);
             argumentCount = ByteVectorReadPackUint(state->bytecode, &ip);
-            assert(argumentCount == NativeGetParameterCount((nativefunctionref)function)); /* TODO */
-            NativeInvoke(state, (nativefunctionref)function,
+            assert(argumentCount == NativeGetParameterCount(nativeFunction)); /* TODO */
+            NativeInvoke(state, nativeFunction,
                          ByteVectorReadPackUint(state->bytecode, &ip));
             break;
         }
     }
 }
 
-ErrorCode InterpreterExecute(const bytevector *bytecode, targetref target)
+ErrorCode InterpreterExecute(const bytevector *bytecode, functionref target)
 {
     RunState state;
 

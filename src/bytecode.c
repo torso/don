@@ -4,7 +4,7 @@
 #include "instruction.h"
 #include "native.h"
 #include "stringpool.h"
-#include "targetindex.h"
+#include "functionindex.h"
 
 uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
 {
@@ -86,7 +86,7 @@ uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
         value = ByteVectorReadPackUint(bytecode, &offset);
         printf(" %u: invoke %u \"%s\" arguments: %u return: %u\n",
                ip, function,
-               StringPoolGetString(TargetIndexGetName((targetref)function)),
+               StringPoolGetString(FunctionIndexGetName((functionref)function)),
                arguments, value);
         break;
 

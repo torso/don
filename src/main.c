@@ -7,7 +7,7 @@
 #include "native.h"
 #include "parser.h"
 #include "stringpool.h"
-#include "targetindex.h"
+#include "functionindex.h"
 
 #ifdef DEBUG
 #include <execinfo.h>
@@ -48,27 +48,27 @@ static void cleanup(void)
 {
     ByteVectorDispose(&bytecode);
 
-    TargetIndexDispose();
+    FunctionIndexDispose();
     FileIndexDispose();
     StringPoolDispose();
 }
 
-static targetref getTarget(const char *name)
+static functionref getTarget(const char *name)
 {
     stringref string = StringPoolAdd(name);
-    targetref target;
+    functionref function;
     if (!string)
     {
         handleError(OUT_OF_MEMORY);
         return 0;
     }
-    target = TargetIndexGet(string);
-    if (!target || !TargetIndexIsTarget(target))
+    function = FunctionIndexGet(string);
+    if (!function || !FunctionIndexIsTarget(function))
     {
         printf("'%s' is not a target.\n", name);
         return 0;
     }
-    return target;
+    return function;
 }
 
 int main(int argc, const char **argv)
@@ -77,7 +77,7 @@ int main(int argc, const char **argv)
     const char *options;
     const char *inputFilename = null;
     fileref inputFile;
-    targetref target;
+    functionref function;
     boolean parseOptions = true;
     boolean disassemble = false;
     ErrorCode error;
@@ -148,7 +148,7 @@ int main(int argc, const char **argv)
 
     if (handleError(StringPoolInit()) ||
         handleError(ParserAddKeywords()) ||
-        handleError(TargetIndexInit()) ||
+        handleError(FunctionIndexInit()) ||
         handleError(NativeInit()) ||
         handleError(ByteVectorInit(&bytecode)))
     {
@@ -158,17 +158,17 @@ int main(int argc, const char **argv)
 
     inputFile = FileIndexAdd(inputFilename);
     assert(inputFile);
-    if (handleError(ParseFile(inputFile)) || !TargetIndexBuildIndex())
+    if (handleError(ParseFile(inputFile)) || !FunctionIndexBuildIndex())
     {
         cleanup();
         return 1;
     }
 
-    for (target = TargetIndexGetFirstTarget();
-         target;
-         target = TargetIndexGetNextTarget(target))
+    for (function = FunctionIndexGetFirstFunction();
+         function;
+         function = FunctionIndexGetNextFunction(function))
     {
-        error = ParseFunction(target, &bytecode);
+        error = ParseFunction(function, &bytecode);
         if (error)
         {
             if (error == BUILD_ERROR)
@@ -184,8 +184,8 @@ int main(int argc, const char **argv)
         }
     }
 
-    target = getTarget("default");
-    if (!target || parseFailed)
+    function = getTarget("default");
+    if (!function || parseFailed)
     {
         cleanup();
         return 1;
@@ -196,7 +196,7 @@ int main(int argc, const char **argv)
         BytecodeDisassembleFunction(&bytecode, 0);
     }
 
-    if (handleError(InterpreterExecute(&bytecode, target)))
+    if (handleError(InterpreterExecute(&bytecode, function)))
     {
         cleanup();
         return 1;
