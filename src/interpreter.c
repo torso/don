@@ -233,7 +233,7 @@ static void execute(RunState *state, functionref target)
             value2 = *ip++;
             pushStackFrame(state, ip, bp, value2);
             ip = state->bytecode + FunctionIndexGetBytecodeOffset(function);
-            bp = IntVectorSize(&state->stack) - value;
+            bp = (uint)IntVectorSize(&state->stack) - value;
             break;
 
         case OP_INVOKE_NATIVE:

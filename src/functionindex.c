@@ -312,7 +312,7 @@ stringref FunctionIndexGetLocalName(functionref function, uint16 local)
 ErrorCode FunctionIndexSetLocals(functionref function, const inthashmap *locals)
 {
     uint count = IntHashMapSize(locals);
-    uint offset = IntVectorSize(&localNames);
+    uint offset = (uint)IntVectorSize(&localNames);
     inthashmapiterator iter;
     uint name;
     uint index;

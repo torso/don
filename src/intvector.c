@@ -2,7 +2,7 @@
 #include "builder.h"
 #include "intvector.h"
 
-#define SEGMENT_SIZE 1024
+#define SEGMENT_SIZE (size_t)1024
 
 static void checkIntVector(const intvector *v)
 {
@@ -10,17 +10,17 @@ static void checkIntVector(const intvector *v)
     assert(v->data);
 }
 
-static void checkIntVectorIndex(const intvector *v, uint index)
+static void checkIntVectorIndex(const intvector *v, size_t index)
 {
     checkIntVector(v);
     assert(index < v->size);
 }
 
-static void checkIntVectorRange(const intvector *v, uint index, uint length)
+static void checkIntVectorRange(const intvector *v, size_t index, size_t size)
 {
     checkIntVector(v);
-    assert(index < v->size || (index == v->size && !length));
-    assert(IntVectorSize(v) >= index + length);
+    assert(index < v->size || (index == v->size && !size));
+    assert(IntVectorSize(v) >= index + size);
 }
 
 ErrorCode IntVectorInit(intvector *v)
@@ -53,13 +53,13 @@ void IntVectorDispose(intvector *v)
     v->data = null;
 }
 
-uint IntVectorSize(const intvector *v)
+size_t IntVectorSize(const intvector *v)
 {
     checkIntVector(v);
     return v->size;
 }
 
-ErrorCode IntVectorSetSize(intvector *v, uint size)
+ErrorCode IntVectorSetSize(intvector *v, size_t size)
 {
     checkIntVector(v);
     assert(size <= SEGMENT_SIZE); /* TODO: grow int vector */
@@ -67,9 +67,9 @@ ErrorCode IntVectorSetSize(intvector *v, uint size)
     return NO_ERROR;
 }
 
-ErrorCode IntVectorGrowZero(intvector *v, uint size)
+ErrorCode IntVectorGrowZero(intvector *v, size_t size)
 {
-    uint oldSize = IntVectorSize(v);
+    size_t oldSize = IntVectorSize(v);
     ErrorCode error = IntVectorSetSize(v, oldSize + size);
     if (error)
     {
@@ -79,25 +79,25 @@ ErrorCode IntVectorGrowZero(intvector *v, uint size)
     return NO_ERROR;
 }
 
-void IntVectorCopy(const intvector *restrict src, uint srcOffset,
-                   intvector *restrict dst, uint dstOffset, uint length)
+void IntVectorCopy(const intvector *restrict src, size_t srcOffset,
+                   intvector *restrict dst, size_t dstOffset, size_t size)
 {
-    checkIntVectorRange(src, srcOffset, length);
-    checkIntVectorRange(dst, dstOffset, length);
+    checkIntVectorRange(src, srcOffset, size);
+    checkIntVectorRange(dst, dstOffset, size);
     memmove(&dst->data[dstOffset], &src->data[srcOffset],
-            length * sizeof(uint));
+            size * sizeof(uint));
 }
 
-ErrorCode IntVectorAppend(const intvector *restrict src, uint srcOffset,
-                          intvector *restrict dst, uint length)
+ErrorCode IntVectorAppend(const intvector *restrict src, size_t srcOffset,
+                          intvector *restrict dst, size_t size)
 {
-    uint size = IntVectorSize(dst);
-    ErrorCode error = IntVectorSetSize(dst, size + length);
+    size_t vectorSize = IntVectorSize(dst);
+    ErrorCode error = IntVectorSetSize(dst, vectorSize + size);
     if (error)
     {
         return error;
     }
-    IntVectorCopy(src, srcOffset, dst, size, length);
+    IntVectorCopy(src, srcOffset, dst, size, size);
     return NO_ERROR;
 }
 
@@ -107,11 +107,11 @@ ErrorCode IntVectorAppendAll(const intvector *restrict src,
     return IntVectorAppend(src, 0, dst, IntVectorSize(src));
 }
 
-void IntVectorMove(intvector *v, uint src, uint dst, uint length)
+void IntVectorMove(intvector *v, size_t src, size_t dst, size_t size)
 {
-    checkIntVectorRange(v, src, length);
-    checkIntVectorRange(v, dst, length);
-    memmove(&v->data[dst], &v->data[src], length * sizeof(uint));
+    checkIntVectorRange(v, src, size);
+    checkIntVectorRange(v, dst, size);
+    memmove(&v->data[dst], &v->data[src], size * sizeof(uint));
 }
 
 ErrorCode IntVectorAdd(intvector *v, uint value)
@@ -125,7 +125,7 @@ ErrorCode IntVectorAdd(intvector *v, uint value)
 ErrorCode IntVectorAdd4(intvector *v, uint value1, uint value2, uint value3,
                         uint value4)
 {
-    uint size = IntVectorSize(v);
+    size_t size = IntVectorSize(v);
     uint *p;
     ErrorCode error;
     checkIntVector(v);
@@ -142,13 +142,13 @@ ErrorCode IntVectorAdd4(intvector *v, uint value1, uint value2, uint value3,
     return NO_ERROR;
 }
 
-uint IntVectorGet(const intvector *v, uint index)
+uint IntVectorGet(const intvector *v, size_t index)
 {
     checkIntVectorIndex(v, index);
     return v->data[index];
 }
 
-const uint *IntVectorGetPointer(const intvector *v, uint index)
+const uint *IntVectorGetPointer(const intvector *v, size_t index)
 {
     checkIntVectorIndex(v, index);
     return &v->data[index];
@@ -167,7 +167,7 @@ uint IntVectorPop(intvector *v)
     return v->data[v->size];
 }
 
-void IntVectorSet(intvector *v, uint index, uint value)
+void IntVectorSet(intvector *v, size_t index, uint value)
 {
     checkIntVectorIndex(v, index);
     v->data[index] = value;
