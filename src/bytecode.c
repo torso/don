@@ -28,11 +28,11 @@ uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
         break;
 
     case OP_INTEGER:
-        printf(" %u: push integer %d\n", ip, ByteVectorReadPackInt(bytecode, &offset));
+        printf(" %u: push integer %d\n", ip, ByteVectorReadInt(bytecode, &offset));
         break;
 
     case OP_STRING:
-        value = ByteVectorReadPackUint(bytecode, &offset);
+        value = ByteVectorReadUint(bytecode, &offset);
         printf(" %u: push string %u \"%s\"\n", ip, value,
                StringPoolGetString((stringref)value));
         break;

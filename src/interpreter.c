@@ -147,12 +147,12 @@ static void execute(RunState *state, functionref target)
 
         case OP_INTEGER:
             InterpreterPush(state, TYPE_INTEGER_LITERAL,
-                            (uint)ByteVectorReadPackInt(state->bytecode, &ip));
+                            (uint)ByteVectorReadInt(state->bytecode, &ip));
             break;
 
         case OP_STRING:
             InterpreterPush(state, TYPE_STRING_LITERAL,
-                            ByteVectorReadPackUint(state->bytecode, &ip));
+                            ByteVectorReadUint(state->bytecode, &ip));
             break;
 
         case OP_LOAD:

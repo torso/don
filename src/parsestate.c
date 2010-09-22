@@ -263,7 +263,7 @@ boolean ParseStateWriteIntegerLiteral(ParseState *state, int value)
     return !ParseStateSetError(
         state, ByteVectorAdd(state->bytecode, OP_INTEGER)) &&
         !ParseStateSetError(
-            state, ByteVectorAddPackInt(state->bytecode, value));
+            state, ByteVectorAddInt(state->bytecode, value));
 }
 
 boolean ParseStateWriteStringLiteral(ParseState *state, stringref value)
@@ -272,7 +272,7 @@ boolean ParseStateWriteStringLiteral(ParseState *state, stringref value)
     return !ParseStateSetError(
         state, ByteVectorAdd(state->bytecode, OP_STRING)) &&
         !ParseStateSetError(
-            state, ByteVectorAddPackUint(state->bytecode, (uint)value));
+            state, ByteVectorAddUint(state->bytecode, (uint)value));
 }
 
 boolean ParseStateWriteBinaryOperation(ParseState *state, Instruction operation)
