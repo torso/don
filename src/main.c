@@ -78,9 +78,10 @@ int main(int argc, const char **argv)
     const char *inputFilename = null;
     fileref inputFile;
     targetref target;
-    targetref unparsedTarget;
     boolean parseOptions = true;
     boolean disassemble = false;
+    ErrorCode error;
+    boolean parseFailed = false;
 
     for (i = 1; i < argc; i++)
     {
@@ -163,25 +164,31 @@ int main(int argc, const char **argv)
         return 1;
     }
 
+    for (target = TargetIndexGetFirstTarget();
+         target;
+         target = TargetIndexGetNextTarget(target))
+    {
+        error = ParseFunction(target, &bytecode);
+        if (error)
+        {
+            if (error == BUILD_ERROR)
+            {
+                parseFailed = true;
+            }
+            else
+            {
+                handleError(error);
+                cleanup();
+                return 1;
+            }
+        }
+    }
+
     target = getTarget("default");
-    if (!target)
+    if (!target || parseFailed)
     {
         cleanup();
         return 1;
-    }
-    TargetIndexMarkForParsing(target);
-    for (;;)
-    {
-        unparsedTarget = TargetIndexPopUnparsedTarget();
-        if (!unparsedTarget)
-        {
-            break;
-        }
-        if (handleError(ParseFunction(unparsedTarget, &bytecode)))
-        {
-            cleanup();
-            return 1;
-        }
     }
 
     if (disassemble)

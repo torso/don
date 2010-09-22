@@ -388,7 +388,6 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             statementError(state, errorBuffer);
             return false;
         }
-        TargetIndexMarkForParsing(target);
         parameterCount = TargetIndexGetParameterCount(target);
         parameterNames = TargetIndexGetParameterNames(target);
         minimumArgumentCount = TargetIndexGetMinimumArgumentCount(target);

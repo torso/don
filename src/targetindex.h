@@ -29,8 +29,6 @@ extern ErrorCode TargetIndexBeginTarget(stringref name);
 extern ErrorCode TargetIndexAddParameter(stringref name, boolean required);
 extern void TargetIndexFinishTarget(fileref file, uint line, uint fileOffset,
                                     boolean isTarget);
-extern void TargetIndexMarkForParsing(targetref target);
-extern targetref TargetIndexPopUnparsedTarget(void);
 
 extern pure uint TargetIndexGetTargetCount(void);
 extern pure targetref TargetIndexGet(stringref name);

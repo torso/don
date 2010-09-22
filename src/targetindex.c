@@ -20,7 +20,6 @@
 #define TARGET_FLAG_QUEUED 2
 
 static intvector targetInfo;
-static intvector parseQueue;
 static inthashmap targetIndex;
 static uint targetCount;
 static boolean hasIndex;
@@ -63,13 +62,6 @@ static uint getFlag(targetref target, uint flag)
     return IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_FLAGS) & flag;
 }
 
-static uint getAndResetFlag(targetref target, uint flag)
-{
-    uint flags = IntVectorGet(&targetInfo, (uint)target + TABLE_ENTRY_FLAGS);
-    IntVectorSet(&targetInfo, (uint)target + TABLE_ENTRY_FLAGS, flags & ~flag);
-    return flags & flag;
-}
-
 static void setFlag(targetref target, uint flag)
 {
     IntVectorSet(
@@ -94,11 +86,6 @@ ErrorCode TargetIndexInit(void)
         return error;
     }
 
-    error = IntVectorInit(&parseQueue);
-    if (error)
-    {
-        return error;
-    }
     error = IntVectorInit(&localNames);
 
     targetCount = 0;
@@ -109,7 +96,6 @@ ErrorCode TargetIndexInit(void)
 void TargetIndexDispose(void)
 {
     IntVectorDispose(&targetInfo);
-    IntVectorDispose(&parseQueue);
     IntVectorDispose(&localNames);
     if (hasIndex)
     {
@@ -206,30 +192,6 @@ void TargetIndexFinishTarget(fileref file, uint line, uint fileOffset,
     {
         setFlag(currentTarget, TARGET_FLAG_TARGET);
     }
-}
-
-void TargetIndexMarkForParsing(targetref target)
-{
-    if (!TargetIndexGetBytecodeOffset(target) &&
-        !getFlag(target, TARGET_FLAG_QUEUED))
-    {
-        setFlag(target, TARGET_FLAG_QUEUED);
-        IntVectorAdd(&parseQueue, target);
-    }
-}
-
-targetref TargetIndexPopUnparsedTarget(void)
-{
-    targetref target;
-    while (IntVectorSize(&parseQueue))
-    {
-        target = IntVectorPop(&parseQueue);
-        if (getAndResetFlag(target, TARGET_FLAG_QUEUED))
-        {
-            return target;
-        }
-    }
-    return 0;
 }
 
 uint TargetIndexGetTargetCount(void)
