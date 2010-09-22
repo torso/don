@@ -665,7 +665,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     }
     if (!ParseStateWriteInvocation(
             state, estate.nativeFunction, estate.function, estate.argumentCount,
-            ByteVectorSize(&lvalues) / (uint)sizeof(estate) + 1))
+            (uint)(ByteVectorSize(&lvalues) / sizeof(estate) + 1)))
     {
         return false;
     }
@@ -1006,7 +1006,7 @@ ErrorCode ParseFunction(functionref function, bytevector *bytecode)
 {
     ParseState state;
     assert(function);
-    FunctionIndexSetBytecodeOffset(function, ByteVectorSize(bytecode));
+    FunctionIndexSetBytecodeOffset(function, (uint)ByteVectorSize(bytecode));
     ParseStateInit(&state, bytecode, function,
                    FunctionIndexGetFile(function),
                    FunctionIndexGetLine(function),

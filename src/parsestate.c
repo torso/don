@@ -84,7 +84,7 @@ boolean ParseStateSetError(ParseState *state, ErrorCode error)
 
 static boolean beginBlock(ParseState *state, BlockType type, uint loopOffset)
 {
-    IntVectorAdd(&state->blockStack, ByteVectorSize(state->bytecode));
+    IntVectorAdd(&state->blockStack, (uint)ByteVectorSize(state->bytecode));
     IntVectorAdd(&state->blockStack, state->indent);
     IntVectorAdd(&state->blockStack, type);
     IntVectorAdd(&state->blockStack, loopOffset);
@@ -190,7 +190,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
 uint ParseStateGetJumpTarget(ParseState *state)
 {
     ParseStateCheck(state);
-    return ByteVectorSize(state->bytecode);
+    return (uint)ByteVectorSize(state->bytecode);
 }
 
 

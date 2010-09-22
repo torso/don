@@ -2,7 +2,7 @@
 #include "builder.h"
 #include "bytevector.h"
 
-#define SEGMENT_SIZE (uint)1024
+#define SEGMENT_SIZE (size_t)1024
 
 static void checkByteVector(const bytevector *v)
 {
@@ -10,17 +10,17 @@ static void checkByteVector(const bytevector *v)
     assert(v->data);
 }
 
-static void checkByteVectorIndex(const bytevector *v, uint index)
+static void checkByteVectorIndex(const bytevector *v, size_t index)
 {
     checkByteVector(v);
     assert(index < v->size);
 }
 
-static void checkByteVectorRange(const bytevector *v, uint index, uint length)
+static void checkByteVectorRange(const bytevector *v, size_t index, size_t size)
 {
     checkByteVector(v);
-    assert(index < v->size || (index == v->size && !length));
-    assert(ByteVectorSize(v) >= index + length);
+    assert(index < v->size || (index == v->size && !size));
+    assert(ByteVectorSize(v) >= index + size);
 }
 
 ErrorCode ByteVectorInit(bytevector *v)
@@ -45,13 +45,13 @@ byte *ByteVectorDisposeContainer(bytevector *v)
     return v->data;
 }
 
-uint ByteVectorSize(const bytevector *v)
+size_t ByteVectorSize(const bytevector *v)
 {
     checkByteVector(v);
     return v->size;
 }
 
-ErrorCode ByteVectorSetSize(bytevector *v, uint size)
+ErrorCode ByteVectorSetSize(bytevector *v, size_t size)
 {
     checkByteVector(v);
     assert(size <= SEGMENT_SIZE); /* TODO: grow byte vector */
@@ -59,24 +59,24 @@ ErrorCode ByteVectorSetSize(bytevector *v, uint size)
     return NO_ERROR;
 }
 
-void ByteVectorCopy(const bytevector *restrict src, uint srcOffset,
-                    bytevector *restrict dst, uint dstOffset, uint length)
+void ByteVectorCopy(const bytevector *restrict src, size_t srcOffset,
+                    bytevector *restrict dst, size_t dstOffset, size_t size)
 {
-    checkByteVectorRange(src, srcOffset, length);
-    checkByteVectorRange(dst, dstOffset, length);
-    memmove(&dst->data[dstOffset], &src->data[srcOffset], length);
+    checkByteVectorRange(src, srcOffset, size);
+    checkByteVectorRange(dst, dstOffset, size);
+    memmove(&dst->data[dstOffset], &src->data[srcOffset], size);
 }
 
-ErrorCode ByteVectorAppend(const bytevector *restrict src, uint srcOffset,
-                           bytevector *restrict dst, uint length)
+ErrorCode ByteVectorAppend(const bytevector *restrict src, size_t srcOffset,
+                           bytevector *restrict dst, size_t size)
 {
-    uint size = ByteVectorSize(dst);
-    ErrorCode error = ByteVectorSetSize(dst, size + length);
+    size_t vectorSize = ByteVectorSize(dst);
+    ErrorCode error = ByteVectorSetSize(dst, vectorSize + size);
     if (error)
     {
         return error;
     }
-    ByteVectorCopy(src, srcOffset, dst, size, length);
+    ByteVectorCopy(src, srcOffset, dst, vectorSize, size);
     return NO_ERROR;
 }
 
@@ -86,11 +86,11 @@ ErrorCode ByteVectorAppendAll(const bytevector *restrict src,
     return ByteVectorAppend(src, 0, dst, ByteVectorSize(src));
 }
 
-void ByteVectorMove(bytevector *v, uint src, uint dst, uint length)
+void ByteVectorMove(bytevector *v, size_t src, size_t dst, size_t size)
 {
-    checkByteVectorRange(v, src, length);
-    checkByteVectorRange(v, dst, length);
-    memmove(&v->data[dst], &v->data[src], length);
+    checkByteVectorRange(v, src, size);
+    checkByteVectorRange(v, dst, size);
+    memmove(&v->data[dst], &v->data[src], size);
 }
 
 ErrorCode ByteVectorAdd(bytevector *v, byte value)
@@ -154,7 +154,7 @@ ErrorCode ByteVectorAddUnpackedUint(bytevector *v, uint value)
     return NO_ERROR;
 }
 
-ErrorCode ByteVectorAddData(bytevector *v, byte *value, uint size)
+ErrorCode ByteVectorAddData(bytevector *v, byte *value, size_t size)
 {
     checkByteVector(v);
     assert(ByteVectorSize(v) + size < SEGMENT_SIZE); /* TODO: grow byte vector */
@@ -163,67 +163,67 @@ ErrorCode ByteVectorAddData(bytevector *v, byte *value, uint size)
     return NO_ERROR;
 }
 
-byte ByteVectorGet(const bytevector *v, uint index)
+byte ByteVectorGet(const bytevector *v, size_t index)
 {
     checkByteVectorIndex(v, index);
     return v->data[index];
 }
 
-byte ByteVectorRead(const bytevector *v, uint *index)
+byte ByteVectorRead(const bytevector *v, size_t *index)
 {
     checkByteVectorIndex(v, *index);
     return v->data[(*index)++];
 }
 
-uint ByteVectorGetUint(const bytevector *v, uint index)
+uint ByteVectorGetUint(const bytevector *v, size_t index)
 {
-    checkByteVectorRange(v, index, (uint)sizeof(int));
-    return *(uint16*)&v->data[index];
+    checkByteVectorRange(v, index, sizeof(int));
+    return *(uint*)&v->data[index];
 }
 
-uint16 ByteVectorGetUint16(const bytevector *v, uint index)
+uint16 ByteVectorGetUint16(const bytevector *v, size_t index)
 {
-    checkByteVectorRange(v, index, (uint)sizeof(uint16));
+    checkByteVectorRange(v, index, sizeof(uint16));
     return (uint16)(((uint16)v->data[index] << 8) + v->data[index + 1]);
 }
 
-uint ByteVectorReadUint(const bytevector *v, uint *index)
+uint ByteVectorReadUint(const bytevector *v, size_t *index)
 {
     uint value;
-    checkByteVectorRange(v, *index, (uint)sizeof(int));
+    checkByteVectorRange(v, *index, sizeof(int));
     value = *(uint*)&v->data[*index];
-    *index += (uint)sizeof(int);
+    *index += sizeof(int);
     return value;
 }
 
-uint16 ByteVectorReadUint16(const bytevector *v, uint *index)
+uint16 ByteVectorReadUint16(const bytevector *v, size_t *index)
 {
     uint16 value;
-    checkByteVectorRange(v, *index, (uint)sizeof(uint16));
+    checkByteVectorRange(v, *index, sizeof(uint16));
     value = (uint16)((v->data[*index] << 8) + v->data[*index + 1]);
-    *index += (uint)sizeof(uint16);
+    *index += sizeof(uint16);
     return value;
 }
 
-int ByteVectorGetPackInt(const bytevector *v, uint index)
+int ByteVectorGetPackInt(const bytevector *v, size_t index)
 {
     int i;
     checkByteVectorIndex(v, index);
     i = (int8)v->data[index];
     if (i < 0)
     {
-        checkByteVectorRange(v, index, (uint)sizeof(int) + 1);
+        checkByteVectorRange(v, index, sizeof(int) + 1);
         return *((int*)&v->data[index + 1]);
     }
     return i;
 }
 
-uint ByteVectorGetPackUint(const bytevector *v, uint index)
+uint ByteVectorGetPackUint(const bytevector *v, size_t index)
 {
     return ByteVectorReadPackUint(v, &index);
 }
 
-uint ByteVectorReadPackUint(const bytevector *v, uint *index)
+uint ByteVectorReadPackUint(const bytevector *v, size_t *index)
 {
     int i;
     uint value;
@@ -231,28 +231,27 @@ uint ByteVectorReadPackUint(const bytevector *v, uint *index)
     i = (int8)v->data[*index];
     if (i < 0)
     {
-        checkByteVectorRange(v, *index, (uint)sizeof(int) + 1);
+        checkByteVectorRange(v, *index, sizeof(int) + 1);
         value = *((uint*)&v->data[*index + 1]);
-        *index += 1 + (uint)sizeof(int);
+        *index += 1 + sizeof(int);
         return value;
     }
     (*index)++;
     return (uint)i;
 }
 
-void ByteVectorSkipPackUint(const bytevector *v, uint *index)
+void ByteVectorSkipPackUint(const bytevector *v, size_t *index)
 {
-    uint size = ByteVectorGetPackUintSize(v, *index);
-    *index += size;
+    *index += ByteVectorGetPackUintSize(v, *index);
 }
 
-uint ByteVectorGetPackUintSize(const bytevector *v, uint index)
+uint ByteVectorGetPackUintSize(const bytevector *v, size_t index)
 {
     checkByteVectorIndex(v, index);
     return (int8)v->data[index] < 0 ? 5 : 1;
 }
 
-const byte *ByteVectorGetPointer(const bytevector *v, uint index)
+const byte *ByteVectorGetPointer(const bytevector *v, size_t index)
 {
     checkByteVectorIndex(v, index);
     return &v->data[index];
@@ -271,43 +270,43 @@ byte ByteVectorPop(bytevector *v)
     return v->data[v->size];
 }
 
-void ByteVectorPopData(bytevector *v, byte *value, uint size)
+void ByteVectorPopData(bytevector *v, byte *value, size_t size)
 {
     checkByteVectorRange(v, 0, size);
     v->size -= size;
     memcpy(value, &v->data[v->size], size);
 }
 
-void ByteVectorSet(bytevector *v, uint index, byte value)
+void ByteVectorSet(bytevector *v, size_t index, byte value)
 {
     checkByteVectorIndex(v, index);
     v->data[index] = value;
 }
 
-void ByteVectorWrite(bytevector *v, uint *index, byte value)
+void ByteVectorWrite(bytevector *v, size_t *index, byte value)
 {
     checkByteVectorIndex(v, *index);
     v->data[(*index)++] = value;
 }
 
-void ByteVectorSetInt(bytevector *v, uint index, int value)
+void ByteVectorSetInt(bytevector *v, size_t index, int value)
 {
-    checkByteVectorRange(v, index, (uint)sizeof(int));
+    checkByteVectorRange(v, index, sizeof(int));
     *((int*)&v->data[index]) = value;
 }
 
-void ByteVectorSetUint(bytevector *v, uint index, uint value)
+void ByteVectorSetUint(bytevector *v, size_t index, uint value)
 {
-    checkByteVectorRange(v, index, (uint)sizeof(uint));
+    checkByteVectorRange(v, index, sizeof(uint));
     *((uint*)&v->data[index]) = value;
 }
 
-void ByteVectorSetPackInt(bytevector *v, uint index, int value)
+void ByteVectorSetPackInt(bytevector *v, size_t index, int value)
 {
     ByteVectorSetPackUint(v, index, (uint)value);
 }
 
-void ByteVectorSetPackUint(bytevector *v, uint index, uint value)
+void ByteVectorSetPackUint(bytevector *v, size_t index, uint value)
 {
     if ((int8)v->data[index] < 0)
     {
@@ -320,24 +319,24 @@ void ByteVectorSetPackUint(bytevector *v, uint index, uint value)
     }
 }
 
-void ByteVectorWriteInt(bytevector *v, uint *index, int value)
+void ByteVectorWriteInt(bytevector *v, size_t *index, int value)
 {
     ByteVectorSetInt(v, *index, value);
-    *index += (uint)sizeof(int);
+    *index += sizeof(int);
 }
 
-void ByteVectorWriteUint(bytevector *v, uint *index, uint value)
+void ByteVectorWriteUint(bytevector *v, size_t *index, uint value)
 {
     ByteVectorSetUint(v, *index, value);
-    *index += (uint)sizeof(int);
+    *index += sizeof(int);
 }
 
-void ByteVectorWritePackInt(bytevector *v, uint *index, int value)
+void ByteVectorWritePackInt(bytevector *v, size_t *index, int value)
 {
     ByteVectorWritePackUint(v, index, (uint)value);
 }
 
-void ByteVectorWritePackUint(bytevector *v, uint *index, uint value)
+void ByteVectorWritePackUint(bytevector *v, size_t *index, uint value)
 {
     if (value <= 127)
     {
@@ -350,9 +349,9 @@ void ByteVectorWritePackUint(bytevector *v, uint *index, uint value)
     }
 }
 
-void ByteVectorFill(bytevector *v, uint index, uint length, byte value)
+void ByteVectorFill(bytevector *v, size_t index, size_t size, byte value)
 {
-    checkByteVectorRange(v, index, length);
-    assert((index & ~(SEGMENT_SIZE - 1)) == ((index + length) & ~(SEGMENT_SIZE - 1))); /* TODO: big byte vector support */
-    memset(&v->data[index], value, length);
+    checkByteVectorRange(v, index, size);
+    assert((index & ~(SEGMENT_SIZE - 1)) == ((index + size) & ~(SEGMENT_SIZE - 1))); /* TODO: big byte vector support */
+    memset(&v->data[index], value, size);
 }
