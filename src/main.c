@@ -25,8 +25,6 @@ void _assert(const char *expression, const char *file, int line)
 }
 #endif
 
-static bytevector bytecode;
-
 static boolean handleError(ErrorCode error)
 {
     switch (error)
@@ -46,8 +44,6 @@ static boolean handleError(ErrorCode error)
 
 static void cleanup(void)
 {
-    ByteVectorDispose(&bytecode);
-
     FunctionIndexDispose();
     FileIndexDispose();
     StringPoolDispose();
@@ -82,6 +78,8 @@ int main(int argc, const char **argv)
     boolean disassemble = false;
     ErrorCode error;
     boolean parseFailed = false;
+    bytevector parsed;
+    byte *bytecode;
 
     for (i = 1; i < argc; i++)
     {
@@ -150,7 +148,7 @@ int main(int argc, const char **argv)
         handleError(ParserAddKeywords()) ||
         handleError(FunctionIndexInit()) ||
         handleError(NativeInit()) ||
-        handleError(ByteVectorInit(&bytecode)))
+        handleError(ByteVectorInit(&parsed)))
     {
         cleanup();
         return 1;
@@ -160,6 +158,7 @@ int main(int argc, const char **argv)
     assert(inputFile);
     if (handleError(ParseFile(inputFile)) || !FunctionIndexBuildIndex())
     {
+        ByteVectorDispose(&parsed);
         cleanup();
         return 1;
     }
@@ -168,7 +167,7 @@ int main(int argc, const char **argv)
          function;
          function = FunctionIndexGetNextFunction(function))
     {
-        error = ParseFunction(function, &bytecode);
+        error = ParseFunction(function, &parsed);
         if (error)
         {
             if (error == BUILD_ERROR)
@@ -178,30 +177,34 @@ int main(int argc, const char **argv)
             else
             {
                 handleError(error);
+                ByteVectorDispose(&parsed);
                 cleanup();
                 return 1;
             }
         }
     }
 
+    bytecode = ByteVectorDisposeContainer(&parsed);
     function = getTarget("default");
     if (!function || parseFailed)
     {
+        free(bytecode);
         cleanup();
         return 1;
     }
 
     if (disassemble)
     {
-        BytecodeDisassembleFunction(&bytecode, 0);
+        BytecodeDisassembleFunction(bytecode);
     }
 
-    if (handleError(InterpreterExecute(&bytecode, function)))
+    if (handleError(InterpreterExecute(bytecode, function)))
     {
         cleanup();
         return 1;
     }
 
+    free(bytecode);
     cleanup();
     return 0;
 }

@@ -12,5 +12,5 @@ extern nonnull void InterpreterPop(RunState *state,
 extern nonnull boolean InterpreterPush(RunState *state,
                                        ValueType type, uint value);
 
-extern nonnull ErrorCode InterpreterExecute(const bytevector *bytecode,
+extern nonnull ErrorCode InterpreterExecute(const byte *bytecode,
                                             functionref target);

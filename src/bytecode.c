@@ -1,19 +1,35 @@
 #include "builder.h"
 #include "bytecode.h"
-#include "bytevector.h"
 #include "instruction.h"
 #include "native.h"
 #include "stringpool.h"
 #include "functionindex.h"
 
-uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
+#define MAX(a, b) (a > b ? a : b)
+
+uint BytecodeReadUint(const byte **bytecode)
 {
-    uint ip = offset;
+    uint value = *(uint*)*bytecode;
+    *bytecode += sizeof(uint);
+    return value;
+}
+
+uint16 BytecodeReadUint16(const byte **bytecode)
+{
+    byte value = *(*bytecode)++;
+    return (uint16)((value << 16) + *(*bytecode)++);
+}
+
+static const byte *disassemble(const byte *bytecode, const byte *base,
+                               const byte **limit)
+{
+    uint ip = (uint)(bytecode - base);
     uint function;
     uint arguments;
     uint value;
+    uint controlFlowNextInstruction = true;
 
-    switch ((Instruction)(int)ByteVectorRead(bytecode, &offset))
+    switch ((Instruction)*bytecode++)
     {
     case OP_NULL:
         printf(" %u: push null\n", ip);
@@ -28,21 +44,21 @@ uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
         break;
 
     case OP_INTEGER:
-        printf(" %u: push integer %d\n", ip, ByteVectorReadInt(bytecode, &offset));
+        printf(" %u: push integer %d\n", ip, BytecodeReadUint16(&bytecode));
         break;
 
     case OP_STRING:
-        value = ByteVectorReadUint(bytecode, &offset);
+        value = BytecodeReadUint(&bytecode);
         printf(" %u: push string %u \"%s\"\n", ip, value,
                StringPoolGetString((stringref)value));
         break;
 
     case OP_LOAD:
-        printf(" %u: load %u\n", ip, ByteVectorReadUint16(bytecode, &offset));
+        printf(" %u: load %u\n", ip, BytecodeReadUint16(&bytecode));
         break;
 
     case OP_STORE:
-        printf(" %u: store %u\n", ip, ByteVectorReadUint16(bytecode, &offset));
+        printf(" %u: store %u\n", ip, BytecodeReadUint16(&bytecode));
         break;
 
     case OP_EQUALS:
@@ -62,28 +78,33 @@ uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
         break;
 
     case OP_JUMP:
-        value = (uint)ByteVectorReadInt(bytecode, &offset);
-        printf(" %u: jump %u\n", ip, offset + value);
+        value = BytecodeReadUint(&bytecode);
+        printf(" %u: jump %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));
+        *limit = MAX(*limit, bytecode + (int)value);
+        controlFlowNextInstruction = false;
         break;
 
     case OP_BRANCH_FALSE:
-        value = (uint)ByteVectorReadInt(bytecode, &offset);
-        printf(" %u: branch_false %u\n", ip, offset + value);
+        value = BytecodeReadUint(&bytecode);
+        printf(" %u: branch_false %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));
+        *limit = MAX(*limit, bytecode + (int)value);
+        controlFlowNextInstruction = false;
         break;
 
     case OP_RETURN:
-        printf(" %u: return %u\n", ip,
-               ByteVectorRead(bytecode, &offset));
+        printf(" %u: return %u\n", ip, *bytecode++);
+        controlFlowNextInstruction = false;
         break;
 
     case OP_RETURN_VOID:
         printf(" %u: return\n", ip);
+        controlFlowNextInstruction = false;
         break;
 
     case OP_INVOKE:
-        function = ByteVectorReadUint(bytecode, &offset);
-        arguments = ByteVectorReadUint16(bytecode, &offset);
-        value = ByteVectorRead(bytecode, &offset);
+        function = BytecodeReadUint(&bytecode);
+        arguments = BytecodeReadUint16(&bytecode);
+        value = *bytecode++;
         printf(" %u: invoke %u \"%s\" arguments: %u return: %u\n",
                ip, function,
                StringPoolGetString(FunctionIndexGetName((functionref)function)),
@@ -91,22 +112,36 @@ uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
         break;
 
     case OP_INVOKE_NATIVE:
-        function = ByteVectorRead(bytecode, &offset);
-        arguments = ByteVectorReadUint16(bytecode, &offset);
-        value = ByteVectorRead(bytecode, &offset);
+        function = *bytecode++;
+        arguments = BytecodeReadUint16(&bytecode);
+        value = *bytecode++;
         printf(" %u: invoke native %u \"%s\" arguments: %u return: %u\n",
                ip, function,
                StringPoolGetString(NativeGetName((nativefunctionref)function)),
                arguments, value);
         break;
     }
-    return offset;
+    if (controlFlowNextInstruction)
+    {
+        *limit = MAX(*limit, bytecode);
+    }
+    return bytecode;
 }
 
-void BytecodeDisassembleFunction(const bytevector *bytecode, uint offset)
+const byte *BytecodeDisassembleInstruction(const byte *bytecode,
+                                           const byte *base)
 {
-    while (offset < ByteVectorSize(bytecode))
+    const byte *limit;
+    return disassemble(bytecode, base, &limit);
+}
+
+void BytecodeDisassembleFunction(const byte *bytecode)
+{
+    const byte *start = bytecode;
+    const byte *limit = bytecode + 10;
+
+    while (bytecode <= limit)
     {
-        offset = BytecodeDisassembleInstruction(bytecode, offset);
+        bytecode = disassemble(bytecode, start, &limit);
     }
 }

@@ -40,6 +40,11 @@ void ByteVectorDispose(bytevector *v)
     v->data = null;
 }
 
+byte *ByteVectorDisposeContainer(bytevector *v)
+{
+    return v->data;
+}
+
 uint ByteVectorSize(const bytevector *v)
 {
     checkByteVector(v);

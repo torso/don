@@ -13,7 +13,7 @@ static const boolean TRACE = false;
 
 struct RunState
 {
-    const bytevector *restrict bytecode;
+    const byte *restrict bytecode;
 
     intvector callStack;
     bytevector typeStack;
@@ -79,14 +79,15 @@ static boolean subOverflow(int a, int b)
     return (boolean)(b < 1 ? MAX_INT + b < a : MIN_INT + b > a);
 }
 
-static void pushStackFrame(RunState *state, uint ip, uint bp, uint returnValues)
+static void pushStackFrame(RunState *state, const byte *ip, uint bp,
+                           uint returnValues)
 {
-    IntVectorAdd(&state->callStack, ip);
+    IntVectorAdd(&state->callStack, (uint)(ip - state->bytecode));
     IntVectorAdd(&state->callStack, bp);
     IntVectorAdd(&state->callStack, returnValues);
 }
 
-static void popStackFrame(RunState *state, uint *ip, uint *bp,
+static void popStackFrame(RunState *state, const byte **ip, uint *bp,
                           uint returnValues)
 {
     uint expectedReturnValues = IntVectorPop(&state->callStack);
@@ -105,15 +106,16 @@ static void popStackFrame(RunState *state, uint *ip, uint *bp,
     IntVectorSetSize(&state->stack, *bp + expectedReturnValues);
 
     *bp = IntVectorPop(&state->callStack);
-    *ip = IntVectorPop(&state->callStack);
+    *ip = state->bytecode + IntVectorPop(&state->callStack);
 }
 
 static void execute(RunState *state, functionref target)
 {
-    uint ip = FunctionIndexGetBytecodeOffset(target);
+    const byte *ip = state->bytecode + FunctionIndexGetBytecodeOffset(target);
+    const byte *const baseIP = ip;
     uint bp = 0;
     uint argumentCount;
-    uint jumpOffset;
+    int jumpOffset;
     uint local;
     ValueType type;
     ValueType type2;
@@ -129,9 +131,9 @@ static void execute(RunState *state, functionref target)
     {
         if (TRACE)
         {
-            BytecodeDisassembleInstruction(state->bytecode, ip);
+            BytecodeDisassembleInstruction(ip, baseIP);
         }
-        switch ((Instruction)(int)ByteVectorRead(state->bytecode, &ip))
+        switch ((Instruction)*ip++)
         {
         case OP_NULL:
             InterpreterPush(state, TYPE_NULL_LITERAL, 0);
@@ -146,23 +148,21 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_INTEGER:
-            InterpreterPush(state, TYPE_INTEGER_LITERAL,
-                            (uint)ByteVectorReadInt(state->bytecode, &ip));
+            InterpreterPush(state, TYPE_INTEGER_LITERAL, BytecodeReadUint(&ip));
             break;
 
         case OP_STRING:
-            InterpreterPush(state, TYPE_STRING_LITERAL,
-                            ByteVectorReadUint(state->bytecode, &ip));
+            InterpreterPush(state, TYPE_STRING_LITERAL, BytecodeReadUint(&ip));
             break;
 
         case OP_LOAD:
-            local = ByteVectorReadUint16(state->bytecode, &ip);
+            local = BytecodeReadUint16(&ip);
             InterpreterPush(state, ByteVectorGet(&state->typeStack, bp + local),
                             IntVectorGet(&state->stack, bp + local));
             break;
 
         case OP_STORE:
-            local = ByteVectorReadUint16(state->bytecode, &ip);
+            local = BytecodeReadUint16(&ip);
             pop(state, &type, &value);
             ByteVectorSet(&state->typeStack, bp + local, type);
             IntVectorSet(&state->stack, bp + local, value);
@@ -197,13 +197,13 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_JUMP:
-            jumpOffset = (uint)ByteVectorReadInt(state->bytecode, &ip);
+            jumpOffset = BytecodeReadInt(&ip);
             ip += jumpOffset;
             break;
 
         case OP_BRANCH_FALSE:
             assert(InterpreterPeekType(state) == TYPE_BOOLEAN_LITERAL);
-            jumpOffset = (uint)ByteVectorReadInt(state->bytecode, &ip);
+            jumpOffset = BytecodeReadInt(&ip);
             if (!popValue(state))
             {
                 ip += jumpOffset;
@@ -212,8 +212,7 @@ static void execute(RunState *state, functionref target)
 
         case OP_RETURN:
             assert(IntVectorSize(&state->callStack));
-            popStackFrame(state, &ip, &bp,
-                          ByteVectorRead(state->bytecode, &ip));
+            popStackFrame(state, &ip, &bp, *ip++);
             break;
 
         case OP_RETURN_VOID:
@@ -227,28 +226,27 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_INVOKE:
-            function = (functionref)ByteVectorReadUint(state->bytecode, &ip);
-            argumentCount = ByteVectorReadUint16(state->bytecode, &ip);
+            function = (functionref)BytecodeReadUint(&ip);
+            argumentCount = BytecodeReadUint16(&ip);
             value = FunctionIndexGetLocalsCount(function);
             assert(argumentCount == value); /* TODO */
-            pushStackFrame(state, ip, bp,
-                           ByteVectorRead(state->bytecode, &ip));
-            ip = FunctionIndexGetBytecodeOffset(function);
+            value2 = *ip++;
+            pushStackFrame(state, ip, bp, value2);
+            ip = state->bytecode + FunctionIndexGetBytecodeOffset(function);
             bp = IntVectorSize(&state->stack) - value;
             break;
 
         case OP_INVOKE_NATIVE:
-            nativeFunction = (nativefunctionref)ByteVectorRead(state->bytecode, &ip);
-            argumentCount = ByteVectorReadUint16(state->bytecode, &ip);
+            nativeFunction = (nativefunctionref)*ip++;
+            argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == NativeGetParameterCount(nativeFunction)); /* TODO */
-            NativeInvoke(state, nativeFunction,
-                         ByteVectorRead(state->bytecode, &ip));
+            NativeInvoke(state, nativeFunction, *ip++);
             break;
         }
     }
 }
 
-ErrorCode InterpreterExecute(const bytevector *bytecode, functionref target)
+ErrorCode InterpreterExecute(const byte *bytecode, functionref target)
 {
     RunState state;
 

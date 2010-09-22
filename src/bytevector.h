@@ -8,6 +8,7 @@ struct bytevector
 
 extern nonnull ErrorCode ByteVectorInit(bytevector *v);
 extern nonnull void ByteVectorDispose(bytevector *v);
+extern nonnull byte *ByteVectorDisposeContainer(bytevector *v);
 extern nonnull pure uint ByteVectorSize(const bytevector *v);
 extern nonnull ErrorCode ByteVectorSetSize(bytevector *v, uint size);
 extern nonnull void ByteVectorCopy(
