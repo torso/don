@@ -23,6 +23,7 @@ extern nonnull void ByteVectorMove(bytevector *v, uint src, uint dst,
 extern nonnull ErrorCode ByteVectorAdd(bytevector *v, byte value);
 extern nonnull ErrorCode ByteVectorAddInt(bytevector *v, int value);
 extern nonnull ErrorCode ByteVectorAddUint(bytevector *v, uint value);
+extern nonnull ErrorCode ByteVectorAddUint16(bytevector *v, uint16 value);
 extern nonnull ErrorCode ByteVectorAddPackInt(bytevector *v, int value);
 extern nonnull ErrorCode ByteVectorAddPackUint(bytevector *v, uint value);
 extern nonnull ErrorCode ByteVectorAddUnpackedInt(bytevector *v, int value);
@@ -33,8 +34,10 @@ extern nonnull pure byte ByteVectorGet(const bytevector *v, uint index);
 extern nonnull byte ByteVectorRead(const bytevector *v, uint *index);
 #define ByteVectorGetInt(v, index) ((int)ByteVectorGetUint(v, index))
 extern nonnull pure uint ByteVectorGetUint(const bytevector *v, uint index);
+extern nonnull pure uint16 ByteVectorGetUint16(const bytevector *v, uint index);
 #define ByteVectorReadInt(v, index) ((int)ByteVectorReadUint(v, index))
 extern nonnull uint ByteVectorReadUint(const bytevector *v, uint *index);
+extern nonnull uint16 ByteVectorReadUint16(const bytevector *v, uint *index);
 extern nonnull pure int ByteVectorGetPackInt(const bytevector *v, uint index);
 extern nonnull pure uint ByteVectorGetPackUint(const bytevector *v, uint index);
 #define ByteVectorReadPackInt(v, index) ((int)ByteVectorReadPackUint(v, index))

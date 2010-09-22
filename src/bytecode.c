@@ -38,11 +38,11 @@ uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
         break;
 
     case OP_LOAD:
-        printf(" %u: load %u\n", ip, ByteVectorReadPackUint(bytecode, &offset));
+        printf(" %u: load %u\n", ip, ByteVectorReadUint16(bytecode, &offset));
         break;
 
     case OP_STORE:
-        printf(" %u: store %u\n", ip, ByteVectorReadPackUint(bytecode, &offset));
+        printf(" %u: store %u\n", ip, ByteVectorReadUint16(bytecode, &offset));
         break;
 
     case OP_EQUALS:

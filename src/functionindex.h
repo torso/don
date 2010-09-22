@@ -44,6 +44,7 @@ extern pure uint FunctionIndexGetParameterCount(functionref function);
 extern pure const stringref *FunctionIndexGetParameterNames(functionref function);
 extern pure uint FunctionIndexGetMinimumArgumentCount(functionref function);
 extern pure uint FunctionIndexGetLocalsCount(functionref function);
-extern pure stringref FunctionIndexGetLocalName(functionref function, uint local);
+extern pure stringref FunctionIndexGetLocalName(functionref function,
+                                                uint16 local);
 extern nonnull ErrorCode FunctionIndexSetLocals(functionref function,
                                                 const inthashmap *locals);

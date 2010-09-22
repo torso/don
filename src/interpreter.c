@@ -156,13 +156,13 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_LOAD:
-            local = ByteVectorReadPackUint(state->bytecode, &ip);
+            local = ByteVectorReadUint16(state->bytecode, &ip);
             InterpreterPush(state, ByteVectorGet(&state->typeStack, bp + local),
                             IntVectorGet(&state->stack, bp + local));
             break;
 
         case OP_STORE:
-            local = ByteVectorReadPackUint(state->bytecode, &ip);
+            local = ByteVectorReadUint16(state->bytecode, &ip);
             pop(state, &type, &value);
             ByteVectorSet(&state->typeStack, bp + local, type);
             IntVectorSet(&state->stack, bp + local, value);

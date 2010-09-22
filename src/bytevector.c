@@ -104,9 +104,18 @@ ErrorCode ByteVectorAddInt(bytevector *v, int value)
 ErrorCode ByteVectorAddUint(bytevector *v, uint value)
 {
     checkByteVector(v);
-    assert(ByteVectorSize(v) + 4 < SEGMENT_SIZE); /* TODO: grow byte vector */
+    assert(ByteVectorSize(v) + sizeof(uint) < SEGMENT_SIZE); /* TODO: grow byte vector */
     *((uint*)&v->data[v->size]) = value;
     v->size += 4;
+    return NO_ERROR;
+}
+
+ErrorCode ByteVectorAddUint16(bytevector *v, uint16 value)
+{
+    checkByteVector(v);
+    assert(ByteVectorSize(v) + sizeof(uint16) < SEGMENT_SIZE); /* TODO: grow byte vector */
+    v->data[v->size++] = (byte)(value >> 16);
+    v->data[v->size++] = (byte)value;
     return NO_ERROR;
 }
 
@@ -164,7 +173,13 @@ byte ByteVectorRead(const bytevector *v, uint *index)
 uint ByteVectorGetUint(const bytevector *v, uint index)
 {
     checkByteVectorRange(v, index, (uint)sizeof(int));
-    return *(uint*)&v->data[index];
+    return *(uint16*)&v->data[index];
+}
+
+uint16 ByteVectorGetUint16(const bytevector *v, uint index)
+{
+    checkByteVectorRange(v, index, (uint)sizeof(uint16));
+    return (uint16)(((uint16)v->data[index] << 8) + v->data[index + 1]);
 }
 
 uint ByteVectorReadUint(const bytevector *v, uint *index)
@@ -173,6 +188,15 @@ uint ByteVectorReadUint(const bytevector *v, uint *index)
     checkByteVectorRange(v, *index, (uint)sizeof(int));
     value = *(uint*)&v->data[*index];
     *index += (uint)sizeof(int);
+    return value;
+}
+
+uint16 ByteVectorReadUint16(const bytevector *v, uint *index)
+{
+    uint16 value;
+    checkByteVectorRange(v, *index, (uint)sizeof(uint16));
+    value = (uint16)((v->data[*index] << 8) + v->data[*index + 1]);
+    *index += (uint)sizeof(uint16);
     return value;
 }
 

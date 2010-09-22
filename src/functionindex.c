@@ -298,7 +298,7 @@ uint FunctionIndexGetLocalsCount(functionref function)
     return IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_LOCALS);
 }
 
-stringref FunctionIndexGetLocalName(functionref function, uint local)
+stringref FunctionIndexGetLocalName(functionref function, uint16 local)
 {
     assert(hasIndex);
     assert(isValidFunction(function));

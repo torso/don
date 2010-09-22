@@ -208,7 +208,7 @@ uint ParseStateBlockIndent(ParseState *state)
 }
 
 
-static uint getLocalIndex(ParseState *state, stringref name)
+static uint16 getLocalIndex(ParseState *state, stringref name)
 {
     uint local;
     ParseStateCheck(state);
@@ -218,24 +218,24 @@ static uint getLocalIndex(ParseState *state, stringref name)
         local = IntHashMapSize(&state->locals) + 1;
         state->error = IntHashMapAdd(&state->locals, (uint)name, local);
     }
-    return local - 1;
+    return (uint16)(local - 1);
 }
 
 boolean ParseStateGetVariable(ParseState *state, stringref name)
 {
-    uint local = getLocalIndex(state, name);
+    uint16 local = getLocalIndex(state, name);
     return !state->error &&
         !ParseStateSetError(state, ByteVectorAdd(state->bytecode, OP_LOAD)) &&
         !ParseStateSetError(state,
-                            ByteVectorAddPackUint(state->bytecode, local));
+                            ByteVectorAddUint16(state->bytecode, local));
 }
 
 boolean ParseStateSetVariable(ParseState *state, stringref name)
 {
-    uint local = getLocalIndex(state, name);
+    uint16 local = getLocalIndex(state, name);
     return !state->error &&
         !ParseStateSetError(state, ByteVectorAdd(state->bytecode, OP_STORE)) &&
-        !ParseStateSetError(state, ByteVectorAddPackUint(state->bytecode, local));
+        !ParseStateSetError(state, ByteVectorAddUint16(state->bytecode, local));
 }
 
 
