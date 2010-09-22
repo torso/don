@@ -62,12 +62,12 @@ uint BytecodeDisassembleInstruction(const bytevector *bytecode, uint offset)
         break;
 
     case OP_JUMP:
-        value = (uint)ByteVectorReadPackInt(bytecode, &offset);
+        value = (uint)ByteVectorReadInt(bytecode, &offset);
         printf(" %u: jump %u\n", ip, offset + value);
         break;
 
     case OP_BRANCH_FALSE:
-        value = (uint)ByteVectorReadPackInt(bytecode, &offset);
+        value = (uint)ByteVectorReadInt(bytecode, &offset);
         printf(" %u: branch_false %u\n", ip, offset + value);
         break;
 

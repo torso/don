@@ -33,17 +33,13 @@ static void setError(ParseState *state, const char *message)
 
 static boolean writeBackwardsJump(ParseState *state, uint target)
 {
-    uint offset = ByteVectorSize(state->bytecode) + 1;
-    if (ParseStateSetError(state,
-                           ByteVectorAdd(state->bytecode, OP_JUMP)) ||
-        ParseStateSetError(state,
-                           ByteVectorAddUnpackedInt(state->bytecode, 0)))
-    {
-        return false;
-    }
-    ByteVectorSetPackInt(state->bytecode, offset,
-                         (int)(target - ByteVectorSize(state->bytecode)));
-    return true;
+    return !ParseStateSetError(state,
+                               ByteVectorAdd(state->bytecode, OP_JUMP)) &&
+        !ParseStateSetError(
+            state,
+            ByteVectorAddInt(
+                state->bytecode,
+                (int)(target - ByteVectorSize(state->bytecode) - sizeof(int))));
 }
 
 
@@ -101,8 +97,7 @@ static boolean writeElse(ParseState *state, BlockType type)
     return !ParseStateSetError(state,
                                ByteVectorAdd(state->bytecode, OP_JUMP)) &&
         beginBlock(state, type, 0) &&
-        !ParseStateSetError(state,
-                            ByteVectorAddUnpackedInt(state->bytecode, 0));
+        !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
 }
 
 boolean ParseStateFinishBlock(ParseState *restrict state,
@@ -186,10 +181,9 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         }
     }
 
-    ByteVectorSetPackInt(
+    ByteVectorSetInt(
         state->bytecode, jumpOffset,
-        (int)(ByteVectorSize(state->bytecode) - jumpOffset -
-              ByteVectorGetPackIntSize(state->bytecode, jumpOffset)));
+        (int)(ByteVectorSize(state->bytecode) - jumpOffset - sizeof(int)));
     return true;
 }
 
@@ -294,8 +288,7 @@ boolean ParseStateWriteBeginCondition(ParseState *state)
     return !ParseStateSetError(
         state, ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE)) &&
         beginBlock(state, BLOCK_CONDITION1, 0) &&
-        !ParseStateSetError(state,
-                            ByteVectorAddUnpackedInt(state->bytecode, 0));
+        !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
 }
 
 boolean ParseStateWriteSecondConsequent(ParseState *state)
@@ -317,8 +310,7 @@ boolean ParseStateWriteIf(ParseState *state)
     return !ParseStateSetError(
         state, ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE)) &&
         beginBlock(state, BLOCK_IF, 0) &&
-        !ParseStateSetError(state,
-                            ByteVectorAddUnpackedInt(state->bytecode, 0));
+        !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
 }
 
 boolean ParseStateWriteWhile(ParseState *state, uint loopTarget)
@@ -327,8 +319,7 @@ boolean ParseStateWriteWhile(ParseState *state, uint loopTarget)
     return !ParseStateSetError(
         state, ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE)) &&
         beginBlock(state, BLOCK_WHILE, loopTarget) &&
-        !ParseStateSetError(state,
-                            ByteVectorAddUnpackedInt(state->bytecode, 0));
+        !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
 }
 
 boolean ParseStateWriteReturn(ParseState *state, uint values)

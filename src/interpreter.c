@@ -197,13 +197,13 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_JUMP:
-            jumpOffset = (uint)ByteVectorReadPackInt(state->bytecode, &ip);
+            jumpOffset = (uint)ByteVectorReadInt(state->bytecode, &ip);
             ip += jumpOffset;
             break;
 
         case OP_BRANCH_FALSE:
             assert(InterpreterPeekType(state) == TYPE_BOOLEAN_LITERAL);
-            jumpOffset = (uint)ByteVectorReadPackInt(state->bytecode, &ip);
+            jumpOffset = (uint)ByteVectorReadInt(state->bytecode, &ip);
             if (!popValue(state))
             {
                 ip += jumpOffset;
