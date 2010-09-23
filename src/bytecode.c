@@ -44,7 +44,7 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         break;
 
     case OP_INTEGER:
-        printf(" %u: push integer %d\n", ip, BytecodeReadUint16(&bytecode));
+        printf(" %u: push integer %d\n", ip, BytecodeReadInt(&bytecode));
         break;
 
     case OP_STRING:
