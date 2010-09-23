@@ -1,2 +1,2 @@
 default:
-    echo("PA" . "SS")
+    echo("P" . "A" . "S" . "S")

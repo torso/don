@@ -528,33 +528,39 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
     {
         return false;
     }
-    if (readOperator(state, '+'))
+    for (;;)
     {
-        assert(!readOperator(state, '+')); /* TODO: ++ operator */
-        skipWhitespace(state);
-        if (!finishRValue(state, estate) ||
-            !parseExpression5(state, estate) ||
-            !finishRValue(state, estate) ||
-            !ParseStateWriteBinaryOperation(state, OP_ADD))
+        if (readOperator(state, '+'))
         {
-            return false;
+            assert(!readOperator(state, '+')); /* TODO: ++ operator */
+            skipWhitespace(state);
+            if (!finishRValue(state, estate) ||
+                !parseExpression5(state, estate) ||
+                !finishRValue(state, estate) ||
+                !ParseStateWriteBinaryOperation(state, OP_ADD))
+            {
+                return false;
+            }
+            estate->valueType = VALUE_SIMPLE;
+            skipWhitespace(state);
+            continue;
         }
-        estate->valueType = VALUE_SIMPLE;
-        return true;
-    }
-    else if (readOperator(state, '-'))
-    {
-        assert(!readOperator(state, '-')); /* TODO: -- operator */
-        skipWhitespace(state);
-        if (!finishRValue(state, estate) ||
-            !parseExpression5(state, estate) ||
-            !finishRValue(state, estate) ||
-            !ParseStateWriteBinaryOperation(state, OP_SUB))
+        else if (readOperator(state, '-'))
         {
-            return false;
+            assert(!readOperator(state, '-')); /* TODO: -- operator */
+            skipWhitespace(state);
+            if (!finishRValue(state, estate) ||
+                !parseExpression5(state, estate) ||
+                !finishRValue(state, estate) ||
+                !ParseStateWriteBinaryOperation(state, OP_SUB))
+            {
+                return false;
+            }
+            estate->valueType = VALUE_SIMPLE;
+            skipWhitespace(state);
+            continue;
         }
-        estate->valueType = VALUE_SIMPLE;
-        return true;
+        break;
     }
     return true;
 }
@@ -565,18 +571,23 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
     {
         return false;
     }
-    if (readOperator(state, '.'))
+    for (;;)
     {
-        skipWhitespace(state);
-        if (!finishRValue(state, estate) ||
-            !parseExpression4(state, estate) ||
-            !finishRValue(state, estate) ||
-            !ParseStateWriteBinaryOperation(state, OP_CONCAT))
+        if (readOperator(state, '.'))
         {
-            return false;
+            skipWhitespace(state);
+            if (!finishRValue(state, estate) ||
+                !parseExpression4(state, estate) ||
+                !finishRValue(state, estate) ||
+                !ParseStateWriteBinaryOperation(state, OP_CONCAT))
+            {
+                return false;
+            }
+            estate->valueType = VALUE_SIMPLE;
+            skipWhitespace(state);
+            continue;
         }
-        estate->valueType = VALUE_SIMPLE;
-        return true;
+        break;
     }
     return true;
 }
@@ -587,31 +598,37 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
     {
         return false;
     }
-    if (readOperator2(state, '=', '='))
+    for (;;)
     {
-        skipWhitespace(state);
-        if (!finishRValue(state, estate) ||
-            !parseExpression3(state, estate) ||
-            !finishRValue(state, estate) ||
-            !ParseStateWriteBinaryOperation(state, OP_EQUALS))
+        if (readOperator2(state, '=', '='))
         {
-            return false;
+            skipWhitespace(state);
+            if (!finishRValue(state, estate) ||
+                !parseExpression3(state, estate) ||
+                !finishRValue(state, estate) ||
+                !ParseStateWriteBinaryOperation(state, OP_EQUALS))
+            {
+                return false;
+            }
+            estate->valueType = VALUE_SIMPLE;
+            skipWhitespace(state);
+            continue;
         }
-        estate->valueType = VALUE_SIMPLE;
-        return true;
-    }
-    if (readOperator2(state, '!', '='))
-    {
-        skipWhitespace(state);
-        if (!finishRValue(state, estate) ||
-            !parseExpression3(state, estate) ||
-            !finishRValue(state, estate) ||
-            !ParseStateWriteBinaryOperation(state, OP_NOT_EQUALS))
+        if (readOperator2(state, '!', '='))
         {
-            return false;
+            skipWhitespace(state);
+            if (!finishRValue(state, estate) ||
+                !parseExpression3(state, estate) ||
+                !finishRValue(state, estate) ||
+                !ParseStateWriteBinaryOperation(state, OP_NOT_EQUALS))
+            {
+                return false;
+            }
+            estate->valueType = VALUE_SIMPLE;
+            skipWhitespace(state);
+            continue;
         }
-        estate->valueType = VALUE_SIMPLE;
-        return true;
+        break;
     }
     return true;
 }
