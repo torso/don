@@ -446,7 +446,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     return true;
 }
 
-static boolean parseExpression5(ParseState *state, ExpressionState *estate)
+static boolean parseExpression6(ParseState *state, ExpressionState *estate)
 {
     stringref identifier = estate->identifier;
     stringref string;
@@ -508,19 +508,23 @@ static boolean parseExpression5(ParseState *state, ExpressionState *estate)
     return false;
 }
 
-static boolean parseExpression4(ParseState *state, ExpressionState *estate)
+static boolean parseExpression5(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression5(state, estate))
+    if (!parseExpression6(state, estate))
     {
         return false;
+    }
+    if (readOperator(state, '.'))
+    {
+        assert(false); /* TODO: handle namespace */
     }
     skipWhitespace(state);
     return true;
 }
 
-static boolean parseExpression3(ParseState *state, ExpressionState *estate)
+static boolean parseExpression4(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression4(state, estate))
+    if (!parseExpression5(state, estate))
     {
         return false;
     }
@@ -529,7 +533,7 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
         assert(!readOperator(state, '+')); /* TODO: ++ operator */
         skipWhitespace(state);
         if (!finishRValue(state, estate) ||
-            !parseExpression4(state, estate) ||
+            !parseExpression5(state, estate) ||
             !finishRValue(state, estate) ||
             !ParseStateWriteBinaryOperation(state, OP_ADD))
         {
@@ -543,9 +547,31 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
         assert(!readOperator(state, '-')); /* TODO: -- operator */
         skipWhitespace(state);
         if (!finishRValue(state, estate) ||
-            !parseExpression4(state, estate) ||
+            !parseExpression5(state, estate) ||
             !finishRValue(state, estate) ||
             !ParseStateWriteBinaryOperation(state, OP_SUB))
+        {
+            return false;
+        }
+        estate->valueType = VALUE_SIMPLE;
+        return true;
+    }
+    return true;
+}
+
+static boolean parseExpression3(ParseState *state, ExpressionState *estate)
+{
+    if (!parseExpression4(state, estate))
+    {
+        return false;
+    }
+    if (readOperator(state, '.'))
+    {
+        skipWhitespace(state);
+        if (!finishRValue(state, estate) ||
+            !parseExpression4(state, estate) ||
+            !finishRValue(state, estate) ||
+            !ParseStateWriteBinaryOperation(state, OP_CONCAT))
         {
             return false;
         }

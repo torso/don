@@ -20,38 +20,18 @@ void NativeInvoke(RunState *state, nativefunctionref function,
 {
     ValueType type;
     uint value;
+    const char *buffer;
 
     if (function == 0)
     {
         assert(!returnValues);
         InterpreterPop(state, &type, &value);
-        switch (type)
-        {
-        case TYPE_NULL_LITERAL:
-            printf("null\n");
-            return;
-
-        case TYPE_BOOLEAN_LITERAL:
-            printf(value ? "true\n" : "false\n");
-            return;
-
-        case TYPE_INTEGER_LITERAL:
-            printf("%d\n", value);
-            return;
-
-        case TYPE_STRING_LITERAL:
-            printf("%s\n", StringPoolGetString((stringref)value));
-            return;
-
-        default:
-            assert(false);
-            return;
-        }
+        buffer = InterpreterGetString(state, type, value);
+        printf("%s\n", buffer);
+        InterpreterFreeStringBuffer(state, buffer);
+        return;
     }
-    else
-    {
-        assert(false);
-    }
+    assert(false);
 }
 
 nativefunctionref NativeFindFunction(stringref name)

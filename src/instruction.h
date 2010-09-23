@@ -15,6 +15,7 @@ typedef enum
     OP_NOT_EQUALS,
     OP_ADD,
     OP_SUB,
+    OP_CONCAT,
 
     OP_JUMP,
     OP_BRANCH_FALSE,

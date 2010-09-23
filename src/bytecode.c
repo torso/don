@@ -1,9 +1,9 @@
 #include "builder.h"
 #include "bytecode.h"
+#include "functionindex.h"
 #include "instruction.h"
 #include "native.h"
 #include "stringpool.h"
-#include "functionindex.h"
 
 #define MAX(a, b) (a > b ? a : b)
 
@@ -75,6 +75,10 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_SUB:
         printf(" %u: sub\n", ip);
+        break;
+
+    case OP_CONCAT:
+        printf(" %u: concat\n", ip);
         break;
 
     case OP_JUMP:

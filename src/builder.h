@@ -22,6 +22,7 @@ typedef uint8 byte;
 #define nonnull __attribute((nonnull))
 #define pure __attribute((pure))
 #define restrict __restrict
+#define unused __attribute((unused))
 
 #define min(a, b) (a > b ? b : a)
 #define max(a, b) (a < b ? b : a)
