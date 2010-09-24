@@ -8,8 +8,12 @@ typedef enum
     OP_INTEGER,
     OP_STRING,
 
+    OP_POP,
+    OP_DUP,
     OP_LOAD,
     OP_STORE,
+
+    OP_CAST_BOOLEAN,
 
     OP_EQUALS,
     OP_NOT_EQUALS,

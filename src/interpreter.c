@@ -163,6 +163,12 @@ ValueType InterpreterPeekType(RunState *state)
     return ByteVectorPeek(&state->typeStack);
 }
 
+static void peek(RunState *state, ValueType *type, uint *value)
+{
+    *type = ByteVectorPeek(&state->typeStack);
+    *value = IntVectorPeek(&state->stack);
+}
+
 void InterpreterPop(RunState *state, ValueType *type, uint *value)
 {
     *type = ByteVectorPop(&state->typeStack);
@@ -332,6 +338,15 @@ static void execute(RunState *state, functionref target)
             InterpreterPush(state, TYPE_STRING_LITERAL, BytecodeReadUint(&ip));
             break;
 
+        case OP_POP:
+            pop(state, &type, &value);
+            break;
+
+        case OP_DUP:
+            peek(state, &type, &value);
+            InterpreterPush(state, type, value);
+            break;
+
         case OP_LOAD:
             local = BytecodeReadUint16(&ip);
             InterpreterPush(state, ByteVectorGet(&state->typeStack, bp + local),
@@ -343,6 +358,10 @@ static void execute(RunState *state, functionref target)
             pop(state, &type, &value);
             ByteVectorSet(&state->typeStack, bp + local, type);
             IntVectorSet(&state->stack, bp + local, value);
+            break;
+
+        case OP_CAST_BOOLEAN:
+            assert(InterpreterPeekType(state) == TYPE_BOOLEAN_LITERAL);
             break;
 
         case OP_EQUALS:

@@ -82,12 +82,14 @@ boolean ParseStateSetError(ParseState *state, ErrorCode error)
 }
 
 
-static boolean beginBlock(ParseState *state, BlockType type, uint loopOffset)
+static boolean beginBlock(ParseState *state, BlockType type, size_t loopOffset)
 {
+    assert(ByteVectorSize(state->bytecode) <= MAX_UINT);
+    assert(loopOffset <= MAX_UINT);
     IntVectorAdd(&state->blockStack, (uint)ByteVectorSize(state->bytecode));
     IntVectorAdd(&state->blockStack, state->indent);
     IntVectorAdd(&state->blockStack, type);
-    IntVectorAdd(&state->blockStack, loopOffset);
+    IntVectorAdd(&state->blockStack, (uint)loopOffset);
     state->indent = 0;
     return true;
 }
@@ -187,10 +189,30 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
     return true;
 }
 
-uint ParseStateGetJumpTarget(ParseState *state)
+size_t ParseStateGetJumpTarget(ParseState *state)
 {
     ParseStateCheck(state);
-    return (uint)ByteVectorSize(state->bytecode);
+    return ByteVectorSize(state->bytecode);
+}
+
+boolean ParseStateBeginForwardJump(ParseState *state, Instruction instruction,
+                                   size_t *branch)
+{
+    if (!ParseStateWriteInstruction(state, instruction))
+    {
+        return false;
+    }
+    *branch = ByteVectorSize(state->bytecode);
+    return !ParseStateSetError(state, ByteVectorAddUint(state->bytecode, 0));
+}
+
+boolean ParseStateFinishJump(ParseState *state, size_t branch)
+{
+    ParseStateCheck(state);
+    ByteVectorSetUint(
+        state->bytecode, branch,
+        (uint)(ParseStateGetJumpTarget(state) - branch - sizeof(uint)));
+    return true;
 }
 
 
@@ -239,6 +261,13 @@ boolean ParseStateSetVariable(ParseState *state, stringref name)
 }
 
 
+boolean ParseStateWriteInstruction(ParseState *state, Instruction instruction)
+{
+    ParseStateCheck(state);
+    return !ParseStateSetError(state,
+                               ByteVectorAdd(state->bytecode, instruction));
+}
+
 boolean ParseStateWriteNullLiteral(ParseState *state)
 {
     ParseStateCheck(state);
@@ -275,13 +304,6 @@ boolean ParseStateWriteStringLiteral(ParseState *state, stringref value)
             state, ByteVectorAddUint(state->bytecode, (uint)value));
 }
 
-boolean ParseStateWriteBinaryOperation(ParseState *state, Instruction operation)
-{
-    ParseStateCheck(state);
-    return !ParseStateSetError(state,
-                               ByteVectorAdd(state->bytecode, operation));
-}
-
 boolean ParseStateWriteBeginCondition(ParseState *state)
 {
     ParseStateCheck(state);
@@ -313,7 +335,7 @@ boolean ParseStateWriteIf(ParseState *state)
         !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
 }
 
-boolean ParseStateWriteWhile(ParseState *state, uint loopTarget)
+boolean ParseStateWriteWhile(ParseState *state, size_t loopTarget)
 {
     ParseStateCheck(state);
     return !ParseStateSetError(

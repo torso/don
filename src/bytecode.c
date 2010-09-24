@@ -53,12 +53,24 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
                StringPoolGetString((stringref)value));
         break;
 
+    case OP_POP:
+        printf(" %u: pop\n", ip);
+        break;
+
+    case OP_DUP:
+        printf(" %u: dup\n", ip);
+        break;
+
     case OP_LOAD:
         printf(" %u: load %u\n", ip, BytecodeReadUint16(&bytecode));
         break;
 
     case OP_STORE:
         printf(" %u: store %u\n", ip, BytecodeReadUint16(&bytecode));
+        break;
+
+    case OP_CAST_BOOLEAN:
+        printf(" %u: cast_boolean\n", ip);
         break;
 
     case OP_EQUALS:

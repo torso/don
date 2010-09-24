@@ -449,13 +449,13 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
 static boolean parseBinaryOperationRest(
     ParseState *state, ExpressionState *estate,
     boolean (*parseExpression)(ParseState*, ExpressionState*),
-    Instruction operation)
+    Instruction instruction)
 {
     skipWhitespace(state);
     if (!finishRValue(state, estate) ||
         !parseExpression(state, estate) ||
         !finishRValue(state, estate) ||
-        !ParseStateWriteBinaryOperation(state, operation))
+        !ParseStateWriteInstruction(state, instruction))
     {
         return false;
     }
@@ -690,12 +690,33 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
 
 static boolean parseExpression2(ParseState *state, ExpressionState *estate)
 {
+    size_t branch;
+
     if (!parseExpression3(state, estate))
     {
         return false;
     }
     for (;;)
     {
+        if (readOperator2(state, '&', '&'))
+        {
+            skipWhitespace(state);
+            if (!finishRValue(state, estate) ||
+                !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN) ||
+                !ParseStateWriteInstruction(state, OP_DUP) ||
+                !ParseStateBeginForwardJump(state, OP_BRANCH_FALSE, &branch) ||
+                !ParseStateWriteInstruction(state, OP_POP) ||
+                !parseExpression3(state, estate) ||
+                !finishRValue(state, estate) ||
+                !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN) ||
+                !ParseStateFinishJump(state, branch))
+            {
+                return false;
+            }
+            estate->valueType = VALUE_SIMPLE;
+            skipWhitespace(state);
+            continue;
+        }
         break;
     }
     return true;
@@ -830,7 +851,7 @@ static boolean parseFunctionBody(ParseState *state)
     uint currentIndent = 0;
     uint prevIndent = 0;
     stringref identifier;
-    uint target;
+    size_t target;
 
     for (;;)
     {
