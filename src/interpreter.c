@@ -441,6 +441,15 @@ static void execute(RunState *state, functionref target)
             ip += jumpOffset;
             break;
 
+        case OP_BRANCH_TRUE:
+            assert(InterpreterPeekType(state) == TYPE_BOOLEAN_LITERAL);
+            jumpOffset = BytecodeReadInt(&ip);
+            if (popValue(state))
+            {
+                ip += jumpOffset;
+            }
+            break;
+
         case OP_BRANCH_FALSE:
             assert(InterpreterPeekType(state) == TYPE_BOOLEAN_LITERAL);
             jumpOffset = BytecodeReadInt(&ip);

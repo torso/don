@@ -26,6 +26,7 @@ typedef enum
     OP_CONCAT,
 
     OP_JUMP,
+    OP_BRANCH_TRUE,
     OP_BRANCH_FALSE,
     OP_RETURN,
     OP_RETURN_VOID,

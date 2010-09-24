@@ -1,0 +1,7 @@
+default:
+    if false || false
+        echo("FAIL")
+    if true || true
+       if false || true
+          if true || false
+             echo("PASS")

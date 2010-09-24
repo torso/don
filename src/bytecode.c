@@ -116,6 +116,13 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         controlFlowNextInstruction = false;
         break;
 
+    case OP_BRANCH_TRUE:
+        value = BytecodeReadUint(&bytecode);
+        printf(" %u: branch_true %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));
+        *limit = MAX(*limit, bytecode + (int)value);
+        controlFlowNextInstruction = false;
+        break;
+
     case OP_BRANCH_FALSE:
         value = BytecodeReadUint(&bytecode);
         printf(" %u: branch_false %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));

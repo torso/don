@@ -717,6 +717,25 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
             skipWhitespace(state);
             continue;
         }
+        if (readOperator2(state, '|', '|'))
+        {
+            skipWhitespace(state);
+            if (!finishRValue(state, estate) ||
+                !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN) ||
+                !ParseStateWriteInstruction(state, OP_DUP) ||
+                !ParseStateBeginForwardJump(state, OP_BRANCH_TRUE, &branch) ||
+                !ParseStateWriteInstruction(state, OP_POP) ||
+                !parseExpression3(state, estate) ||
+                !finishRValue(state, estate) ||
+                !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN) ||
+                !ParseStateFinishJump(state, branch))
+            {
+                return false;
+            }
+            estate->valueType = VALUE_SIMPLE;
+            skipWhitespace(state);
+            continue;
+        }
         break;
     }
     return true;
