@@ -69,6 +69,22 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: !equals\n", ip);
         break;
 
+    case OP_LESS_EQUALS:
+        printf(" %u: lessequals\n", ip);
+        break;
+
+    case OP_GREATER_EQUALS:
+        printf(" %u: greaterequals\n", ip);
+        break;
+
+    case OP_LESS:
+        printf(" %u: less\n", ip);
+        break;
+
+    case OP_GREATER:
+        printf(" %u: greater\n", ip);
+        break;
+
     case OP_ADD:
         printf(" %u: add\n", ip);
         break;

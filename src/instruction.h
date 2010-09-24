@@ -13,6 +13,10 @@ typedef enum
 
     OP_EQUALS,
     OP_NOT_EQUALS,
+    OP_LESS_EQUALS,
+    OP_GREATER_EQUALS,
+    OP_LESS,
+    OP_GREATER,
     OP_ADD,
     OP_SUB,
     OP_CONCAT,

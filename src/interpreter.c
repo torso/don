@@ -357,6 +357,34 @@ static void execute(RunState *state, functionref target)
                             !equals(state, type, value, type2, value2));
             break;
 
+        case OP_LESS_EQUALS:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_INTEGER_LITERAL);
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 <= (int)value);
+            break;
+
+        case OP_GREATER_EQUALS:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_INTEGER_LITERAL);
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 >= (int)value);
+            break;
+
+        case OP_LESS:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_INTEGER_LITERAL);
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 < (int)value);
+            break;
+
+        case OP_GREATER:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_INTEGER_LITERAL);
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 > (int)value);
+            break;
+
         case OP_ADD:
             pop2(state, &type, &value, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);

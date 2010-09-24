@@ -647,6 +647,42 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
             }
             continue;
         }
+        if (readOperator2(state, '<', '='))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression4, OP_LESS_EQUALS))
+            {
+                return false;
+            }
+            continue;
+        }
+        if (readOperator2(state, '>', '='))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression4, OP_GREATER_EQUALS))
+            {
+                return false;
+            }
+            continue;
+        }
+        if (readOperator(state, '<'))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression4, OP_LESS))
+            {
+                return false;
+            }
+            continue;
+        }
+        if (readOperator(state, '>'))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression4, OP_GREATER))
+            {
+                return false;
+            }
+            continue;
+        }
         break;
     }
     return true;
