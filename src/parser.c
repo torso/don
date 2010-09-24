@@ -277,6 +277,12 @@ static boolean parseNumber(ParseState *state)
     }
     while (isDigit(state->current[0]));
 
+    if (isIdentifierCharacter(state->current[0]))
+    {
+        error(state, "Invalid character in number literal.");
+        return false;
+    }
+
     return ParseStateWriteIntegerLiteral(state, value);
 }
 
