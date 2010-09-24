@@ -464,7 +464,7 @@ static boolean parseBinaryOperationRest(
     return true;
 }
 
-static boolean parseExpression9(ParseState *state, ExpressionState *estate)
+static boolean parseExpression10(ParseState *state, ExpressionState *estate)
 {
     stringref identifier = estate->identifier;
     stringref string;
@@ -526,9 +526,10 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
     return false;
 }
 
-static boolean parseExpression8(ParseState *state, ExpressionState *estate)
+static boolean parseExpression9(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression9(state, estate))
+    /* TODO: Parse unary operators - ! ~ */
+    if (!parseExpression10(state, estate))
     {
         return false;
     }
@@ -537,6 +538,20 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
         assert(false); /* TODO: handle namespace */
     }
     skipWhitespace(state);
+    return true;
+}
+
+static boolean parseExpression8(ParseState *state, ExpressionState *estate)
+{
+    if (!parseExpression9(state, estate))
+    {
+        return false;
+    }
+    for (;;)
+    {
+        /* TODO: Parse operators * / % */
+        break;
+    }
     return true;
 }
 
@@ -581,6 +596,7 @@ static boolean parseExpression6(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
+        /* TODO: Parse operators << >> */
         break;
     }
     return true;
@@ -594,6 +610,7 @@ static boolean parseExpression5(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
+        /* TODO: Parse operators & | ^ */
         break;
     }
     return true;
