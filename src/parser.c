@@ -515,11 +515,11 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
         estate->valueIdentifier = identifier;
         return true;
     }
-    else if (peekNumber(state))
+    if (peekNumber(state))
     {
         return parseNumber(state);
     }
-    else if (peekString(state))
+    if (peekString(state))
     {
         string = readString(state);
         if (state->error)
@@ -527,6 +527,16 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
             return false;
         }
         return ParseStateWriteStringLiteral(state, string);
+    }
+    if (readOperator(state, '('))
+    {
+        skipWhitespace(state);
+        if (!parseRValue(state) ||
+            !readExpectedOperator(state, ')'))
+        {
+            return false;
+        }
+        return true;
     }
     statementError(state, "Invalid expression.");
     return false;
