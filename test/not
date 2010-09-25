@@ -1,0 +1,5 @@
+default:
+    a = false
+    b = true
+    if !a && !b == false
+        echo("PASS")

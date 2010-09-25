@@ -470,7 +470,7 @@ static boolean parseBinaryOperationRest(
     return true;
 }
 
-static boolean parseExpression10(ParseState *state, ExpressionState *estate)
+static boolean parseExpression11(ParseState *state, ExpressionState *estate)
 {
     stringref identifier = estate->identifier;
     stringref string;
@@ -532,16 +532,65 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     return false;
 }
 
-static boolean parseExpression9(ParseState *state, ExpressionState *estate)
+static boolean parseExpression10(ParseState *state, ExpressionState *estate)
 {
-    /* TODO: Parse unary operators - ! ~ */
-    if (!parseExpression10(state, estate))
+    if (!parseExpression11(state, estate))
     {
         return false;
     }
     if (readOperator(state, '.'))
     {
         assert(false); /* TODO: handle namespace */
+    }
+    skipWhitespace(state);
+    return true;
+}
+
+static boolean parseExpression9(ParseState *state, ExpressionState *estate)
+{
+    if (readOperator(state, '-'))
+    {
+        assert(!readOperator(state, '-')); /* TODO: -- operator */
+        skipWhitespace(state);
+        if (!parseExpression10(state, estate) ||
+            !finishRValue(state, estate) ||
+            !ParseStateWriteInstruction(state, OP_NEG))
+        {
+            return false;
+        }
+        skipWhitespace(state);
+        estate->valueType = VALUE_SIMPLE;
+        return true;
+    }
+    if (readOperator(state, '!'))
+    {
+        skipWhitespace(state);
+        if (!parseExpression10(state, estate) ||
+            !finishRValue(state, estate) ||
+            !ParseStateWriteInstruction(state, OP_NOT))
+        {
+            return false;
+        }
+        skipWhitespace(state);
+        estate->valueType = VALUE_SIMPLE;
+        return true;
+    }
+    if (readOperator(state, '~'))
+    {
+        skipWhitespace(state);
+        if (!parseExpression10(state, estate) ||
+            !finishRValue(state, estate) ||
+            !ParseStateWriteInstruction(state, OP_INV))
+        {
+            return false;
+        }
+        skipWhitespace(state);
+        estate->valueType = VALUE_SIMPLE;
+        return true;
+    }
+    if (!parseExpression10(state, estate))
+    {
+        return false;
     }
     skipWhitespace(state);
     return true;

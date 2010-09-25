@@ -404,6 +404,25 @@ static void execute(RunState *state, functionref target)
             InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 > (int)value);
             break;
 
+        case OP_NOT:
+            pop(state, &type, &value);
+            assert(type == TYPE_BOOLEAN_LITERAL);
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, !value);
+            break;
+
+        case OP_NEG:
+            pop(state, &type, &value);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert((int)value != MIN_INT);
+            InterpreterPush(state, TYPE_INTEGER_LITERAL, -value);
+            break;
+
+        case OP_INV:
+            pop(state, &type, &value);
+            assert(type == TYPE_INTEGER_LITERAL);
+            InterpreterPush(state, TYPE_INTEGER_LITERAL, ~value);
+            break;
+
         case OP_ADD:
             pop2(state, &type, &value, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);

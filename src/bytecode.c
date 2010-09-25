@@ -97,6 +97,18 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: greater\n", ip);
         break;
 
+    case OP_NOT:
+        printf(" %u: not\n", ip);
+        break;
+
+    case OP_NEG:
+        printf(" %u: neg\n", ip);
+        break;
+
+    case OP_INV:
+        printf(" %u: inv\n", ip);
+        break;
+
     case OP_ADD:
         printf(" %u: add\n", ip);
         break;
