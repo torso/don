@@ -439,6 +439,28 @@ static void execute(RunState *state, functionref target)
             InterpreterPush(state, TYPE_INTEGER_LITERAL, value2 - value);
             break;
 
+        case OP_MUL:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_INTEGER_LITERAL);
+            InterpreterPush(state, TYPE_INTEGER_LITERAL, value * value2);
+            break;
+
+        case OP_DIV:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_INTEGER_LITERAL);
+            assert(((int)value2 / (int)value) * (int)value == (int)value2); /* TODO: fraction */
+            InterpreterPush(state, TYPE_INTEGER_LITERAL, (uint)((int)value2 / (int)value));
+            break;
+
+        case OP_REM:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_INTEGER_LITERAL);
+            InterpreterPush(state, TYPE_INTEGER_LITERAL, value2 % value);
+            break;
+
         case OP_CONCAT:
             pop2(state, &type, &value, &type2, &value2);
             size1 = InterpreterGetStringSize(state, type2, value2);

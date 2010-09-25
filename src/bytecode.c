@@ -117,6 +117,18 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: sub\n", ip);
         break;
 
+    case OP_MUL:
+        printf(" %u: mul\n", ip);
+        break;
+
+    case OP_DIV:
+        printf(" %u: div\n", ip);
+        break;
+
+    case OP_REM:
+        printf(" %u: rem\n", ip);
+        break;
+
     case OP_CONCAT:
         printf(" %u: concat\n", ip);
         break;

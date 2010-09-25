@@ -26,6 +26,9 @@ typedef enum
     OP_INV,
     OP_ADD,
     OP_SUB,
+    OP_MUL,
+    OP_DIV,
+    OP_REM,
     OP_CONCAT,
 
     OP_JUMP,

@@ -604,7 +604,33 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        /* TODO: Parse operators * / % */
+        if (readOperator(state, '*'))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression8, OP_MUL))
+            {
+                return false;
+            }
+            continue;
+        }
+        if (readOperator(state, '/'))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression8, OP_DIV))
+            {
+                return false;
+            }
+            continue;
+        }
+        if (readOperator(state, '%'))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression8, OP_REM))
+            {
+                return false;
+            }
+            continue;
+        }
         break;
     }
     return true;
