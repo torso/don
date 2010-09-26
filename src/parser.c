@@ -474,6 +474,7 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
 {
     stringref identifier = estate->identifier;
     stringref string;
+    uint size;
 
     ParseStateCheck(state);
     estate->valueType = VALUE_SIMPLE;
@@ -531,12 +532,34 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '('))
     {
         skipWhitespace(state);
-        if (!parseRValue(state) ||
-            !readExpectedOperator(state, ')'))
+        return parseRValue(state) &&
+            readExpectedOperator(state, ')');
+    }
+    if (readOperator(state, '['))
+    {
+        size = 0;
+        skipWhitespace(state);
+        if (!readOperator(state, ']'))
         {
-            return false;
+            do
+            {
+                size++;
+                skipWhitespace(state);
+                if (!parseRValue(state))
+                {
+                    return false;
+                }
+                skipWhitespace(state);
+            }
+            while (readOperator(state, ','));
+            skipWhitespace(state);
+            if (!readExpectedOperator(state, ']'))
+            {
+                return false;
+            }
         }
-        return true;
+        skipWhitespace(state);
+        return ParseStateWriteList(state, size);
     }
     statementError(state, "Invalid expression.");
     return false;

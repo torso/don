@@ -3,6 +3,7 @@
 #include "bytecode.h"
 #include "bytevector.h"
 #include "fileindex.h"
+#include "heap.h"
 #include "interpreter.h"
 #include "native.h"
 #include "parser.h"

@@ -1,4 +1,5 @@
 #include "builder.h"
+#include "heap.h"
 #include "interpreter.h"
 #include "native.h"
 #include "stringpool.h"

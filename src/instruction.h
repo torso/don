@@ -7,6 +7,7 @@ typedef enum
     OP_FALSE,
     OP_INTEGER,
     OP_STRING,
+    OP_LIST,
 
     OP_POP,
     OP_DUP,

@@ -15,7 +15,7 @@ static size_t getPageFree(Heap *heap)
 ErrorCode HeapInit(Heap *heap)
 {
     heap->base = (byte*)malloc(PAGE_SIZE);
-    heap->free = heap->base;
+    heap->free = heap->base + sizeof(uint);
     return heap->base ? NO_ERROR : OUT_OF_MEMORY;
 }
 
@@ -52,4 +52,30 @@ byte *HeapAlloc(Heap *heap, ObjectType type, size_t size)
 uint HeapFinishAlloc(Heap *heap, byte *objectData)
 {
     return (uint)(objectData - OBJECT_OVERHEAD - heap->base);
+}
+
+size_t HeapCollectionSize(Heap *heap, uint object)
+{
+    assert(HeapGetObjectType(heap, object) == TYPE_ARRAY);
+    return HeapGetObjectSize(heap, object) / sizeof(uint);
+}
+
+void HeapCollectionIteratorInit(Heap *heap, Iterator *iter, uint object)
+{
+    assert(HeapGetObjectType(heap, object) == TYPE_ARRAY);
+    iter->heap = heap;
+    iter->current = HeapGetObjectData(heap, object);
+    iter->max = iter->current + HeapGetObjectSize(heap, object);
+}
+
+boolean HeapIteratorNext(Iterator *iter, ValueType *type, uint *value)
+{
+    if (iter->current >= iter->max)
+    {
+        return false;
+    }
+    *value = *(uint*)iter->current;
+    *type = !*value ? TYPE_NULL_LITERAL : TYPE_OBJECT;
+    iter->current += sizeof(uint);
+    return true;
 }

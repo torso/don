@@ -304,6 +304,13 @@ boolean ParseStateWriteStringLiteral(ParseState *state, stringref value)
             state, ByteVectorAddUint(state->bytecode, (uint)value));
 }
 
+boolean ParseStateWriteList(ParseState *state, uint size)
+{
+    ParseStateCheck(state);
+    return ParseStateWriteInstruction(state, OP_LIST) &&
+        !ParseStateSetError(state, ByteVectorAddUint(state->bytecode, size));
+}
+
 boolean ParseStateWriteBeginCondition(ParseState *state)
 {
     ParseStateCheck(state);

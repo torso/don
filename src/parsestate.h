@@ -53,6 +53,7 @@ extern nonnull boolean ParseStateWriteIntegerLiteral(ParseState *state,
                                                      int value);
 extern nonnull boolean ParseStateWriteStringLiteral(ParseState *state,
                                                     stringref value);
+extern nonnull boolean ParseStateWriteList(ParseState *state, uint size);
 extern nonnull boolean ParseStateWriteBeginCondition(ParseState *state);
 extern nonnull boolean ParseStateWriteSecondConsequent(ParseState *state);
 extern nonnull boolean ParseStateWriteFinishCondition(ParseState *state);

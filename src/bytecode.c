@@ -53,6 +53,10 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
                StringPoolGetString((stringref)value));
         break;
 
+    case OP_LIST:
+        printf(" %u: new list %u\n", ip, BytecodeReadUint(&bytecode));
+        break;
+
     case OP_POP:
         printf(" %u: pop\n", ip);
         break;
