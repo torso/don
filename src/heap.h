@@ -12,20 +12,39 @@ typedef enum
     TYPE_BOOLEAN,
     TYPE_INTEGER,
     TYPE_STRING,
-    TYPE_ARRAY
+    TYPE_EMPTY_LIST,
+    TYPE_ARRAY,
+    TYPE_INTEGER_RANGE
 } ObjectType;
+
+typedef enum
+{
+    ITER_EMPTY,
+    ITER_OBJECT_ARRAY,
+    ITER_INTEGER_RANGE
+} IteratorType;
 
 typedef struct
 {
     byte *base;
     byte *free;
+    uint emptyList;
 } Heap;
 
 typedef struct
 {
     Heap *heap;
-    const byte *current;
-    const byte *max;
+    IteratorType type;
+    union
+    {
+        const uint *objectArray;
+        int value;
+    } current;
+    union
+    {
+        const uint *objectArray;
+        int value;
+    } limit;
 } Iterator;
 
 extern nonnull ErrorCode HeapInit(Heap *heap);
@@ -40,6 +59,7 @@ extern nonnull uint HeapFinishAlloc(Heap *heap, byte *objectData);
 
 extern nonnull int HeapGetInteger(Heap *heap, uint object);
 
+extern nonnull boolean HeapIsCollection(Heap *heap, uint object);
 extern nonnull size_t HeapCollectionSize(Heap *heap, uint object);
 extern nonnull void HeapCollectionIteratorInit(Heap *heap, Iterator *iter,
                                                uint object);

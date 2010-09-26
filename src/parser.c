@@ -247,6 +247,15 @@ static boolean readOperator2(ParseState *state, byte op1, byte op2)
     return false;
 }
 
+static boolean peekOperator2(ParseState *state, byte op1, byte op2)
+{
+    if (state->current[0] == op1 && state->current[1] == op2)
+    {
+        return true;
+    }
+    return false;
+}
+
 static boolean readExpectedOperator(ParseState *state, byte op)
 {
     if (!readOperator(state, op))
@@ -470,7 +479,7 @@ static boolean parseBinaryOperationRest(
     return true;
 }
 
-static boolean parseExpression11(ParseState *state, ExpressionState *estate)
+static boolean parseExpression12(ParseState *state, ExpressionState *estate)
 {
     stringref identifier = estate->identifier;
     stringref string;
@@ -537,26 +546,28 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '['))
     {
-        size = 0;
         skipWhitespace(state);
-        if (!readOperator(state, ']'))
+        if (readOperator(state, ']'))
         {
-            do
-            {
-                size++;
-                skipWhitespace(state);
-                if (!parseRValue(state))
-                {
-                    return false;
-                }
-                skipWhitespace(state);
-            }
-            while (readOperator(state, ','));
             skipWhitespace(state);
-            if (!readExpectedOperator(state, ']'))
+            return ParseStateWriteInstruction(state, OP_EMPTY_LIST);
+        }
+        size = 0;
+        do
+        {
+            size++;
+            skipWhitespace(state);
+            if (!parseRValue(state))
             {
                 return false;
             }
+            skipWhitespace(state);
+        }
+        while (readOperator(state, ','));
+        skipWhitespace(state);
+        if (!readExpectedOperator(state, ']'))
+        {
+            return false;
         }
         skipWhitespace(state);
         return ParseStateWriteList(state, size);
@@ -565,13 +576,14 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
     return false;
 }
 
-static boolean parseExpression10(ParseState *state, ExpressionState *estate)
+static boolean parseExpression11(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression11(state, estate))
+    if (!parseExpression12(state, estate))
     {
         return false;
     }
-    if (readOperator(state, '.'))
+    if (!peekOperator2(state, '.', '.') &&
+        readOperator(state, '.'))
     {
         assert(false); /* TODO: handle namespace */
     }
@@ -579,13 +591,13 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression9(ParseState *state, ExpressionState *estate)
+static boolean parseExpression10(ParseState *state, ExpressionState *estate)
 {
     if (readOperator(state, '-'))
     {
         assert(!readOperator(state, '-')); /* TODO: -- operator */
         skipWhitespace(state);
-        if (!parseExpression10(state, estate) ||
+        if (!parseExpression11(state, estate) ||
             !finishRValue(state, estate) ||
             !ParseStateWriteInstruction(state, OP_NEG))
         {
@@ -598,7 +610,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '!'))
     {
         skipWhitespace(state);
-        if (!parseExpression10(state, estate) ||
+        if (!parseExpression11(state, estate) ||
             !finishRValue(state, estate) ||
             !ParseStateWriteInstruction(state, OP_NOT))
         {
@@ -611,7 +623,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '~'))
     {
         skipWhitespace(state);
-        if (!parseExpression10(state, estate) ||
+        if (!parseExpression11(state, estate) ||
             !finishRValue(state, estate) ||
             !ParseStateWriteInstruction(state, OP_INV))
         {
@@ -621,11 +633,51 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
         estate->valueType = VALUE_SIMPLE;
         return true;
     }
-    if (!parseExpression10(state, estate))
+    if (!parseExpression11(state, estate))
     {
         return false;
     }
     skipWhitespace(state);
+    return true;
+}
+
+static boolean parseExpression9(ParseState *state, ExpressionState *estate)
+{
+    if (!parseExpression10(state, estate))
+    {
+        return false;
+    }
+    for (;;)
+    {
+        if (readOperator(state, '*'))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression10, OP_MUL))
+            {
+                return false;
+            }
+            continue;
+        }
+        if (readOperator(state, '/'))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression10, OP_DIV))
+            {
+                return false;
+            }
+            continue;
+        }
+        if (readOperator(state, '%'))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression10, OP_REM))
+            {
+                return false;
+            }
+            continue;
+        }
+        break;
+    }
     return true;
 }
 
@@ -637,28 +689,21 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        if (readOperator(state, '*'))
+        if (readOperator(state, '+'))
         {
+            assert(!readOperator(state, '+')); /* TODO: ++ operator */
             if (!parseBinaryOperationRest(state, estate,
-                                          parseExpression8, OP_MUL))
+                                          parseExpression9, OP_ADD))
             {
                 return false;
             }
             continue;
         }
-        if (readOperator(state, '/'))
+        else if (readOperator(state, '-'))
         {
+            assert(!readOperator(state, '-')); /* TODO: -- operator */
             if (!parseBinaryOperationRest(state, estate,
-                                          parseExpression8, OP_DIV))
-            {
-                return false;
-            }
-            continue;
-        }
-        if (readOperator(state, '%'))
-        {
-            if (!parseBinaryOperationRest(state, estate,
-                                          parseExpression8, OP_REM))
+                                          parseExpression9, OP_SUB))
             {
                 return false;
             }
@@ -677,26 +722,7 @@ static boolean parseExpression7(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        if (readOperator(state, '+'))
-        {
-            assert(!readOperator(state, '+')); /* TODO: ++ operator */
-            if (!parseBinaryOperationRest(state, estate,
-                                          parseExpression8, OP_ADD))
-            {
-                return false;
-            }
-            continue;
-        }
-        else if (readOperator(state, '-'))
-        {
-            assert(!readOperator(state, '-')); /* TODO: -- operator */
-            if (!parseBinaryOperationRest(state, estate,
-                                          parseExpression8, OP_SUB))
-            {
-                return false;
-            }
-            continue;
-        }
+        /* TODO: Parse operators << >> */
         break;
     }
     return true;
@@ -710,7 +736,7 @@ static boolean parseExpression6(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        /* TODO: Parse operators << >> */
+        /* TODO: Parse operators & | ^ */
         break;
     }
     return true;
@@ -724,7 +750,15 @@ static boolean parseExpression5(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        /* TODO: Parse operators & | ^ */
+        if (readOperator2(state, '.', '.'))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression6, OP_RANGE))
+            {
+                return false;
+            }
+            continue;
+        }
         break;
     }
     return true;

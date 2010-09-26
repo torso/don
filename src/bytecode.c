@@ -53,6 +53,10 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
                StringPoolGetString((stringref)value));
         break;
 
+    case OP_EMPTY_LIST:
+        printf(" %u: push []\n", ip);
+        break;
+
     case OP_LIST:
         printf(" %u: new list %u\n", ip, BytecodeReadUint(&bytecode));
         break;
@@ -135,6 +139,10 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_CONCAT:
         printf(" %u: concat\n", ip);
+        break;
+
+    case OP_RANGE:
+        printf(" %u: range\n", ip);
         break;
 
     case OP_JUMP:

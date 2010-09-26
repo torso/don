@@ -7,6 +7,7 @@ typedef enum
     OP_FALSE,
     OP_INTEGER,
     OP_STRING,
+    OP_EMPTY_LIST,
     OP_LIST,
 
     OP_POP,
@@ -31,6 +32,7 @@ typedef enum
     OP_DIV,
     OP_REM,
     OP_CONCAT,
+    OP_RANGE,
 
     OP_JUMP,
     OP_BRANCH_TRUE,

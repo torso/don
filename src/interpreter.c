@@ -8,6 +8,7 @@
 #include "instruction.h"
 #include "interpreter.h"
 #include "intvector.h"
+#include "math.h"
 #include "native.h"
 #include "stringpool.h"
 
@@ -25,16 +26,6 @@ struct RunState
     ErrorCode error;
 };
 
-
-static boolean addOverflow(int a, int b)
-{
-    return (boolean)(b < 1 ? MIN_INT - b > a : MAX_INT - b < a);
-}
-
-static boolean subOverflow(int a, int b)
-{
-    return (boolean)(b < 1 ? MAX_INT + b < a : MIN_INT + b > a);
-}
 
 static boolean setError(RunState *state, ErrorCode error)
 {
@@ -154,13 +145,34 @@ static void unbox(RunState *state, ValueType *type, uint *value)
         return;
 
     case TYPE_STRING:
+    case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
         return;
 
     default:
         assert(false);
         return;
     }
+}
+
+static uint createRange(RunState *state, int low, int high)
+{
+    byte *objectData;
+    int *p;
+
+    assert((int)low <= (int)high); /* TODO: Reverse range */
+    assert(!subOverflow((int)high, (int)low));
+    objectData = HeapAlloc(&state->heap, TYPE_INTEGER_RANGE, 2 * sizeof(int));
+    if (!objectData)
+    {
+        state->error = OUT_OF_MEMORY;
+        return 0;
+    }
+    p = (int*)objectData;
+    *p++ = low;
+    *p = high;
+    return HeapFinishAlloc(&state->heap, objectData);
 }
 
 static boolean equals(RunState *state, ValueType type1, uint value1,
@@ -219,9 +231,11 @@ static boolean equals(RunState *state, ValueType type1, uint value1,
             !memcmp(HeapGetObjectData(&state->heap, value1),
                     HeapGetObjectData(&state->heap, value2), size);
 
+    case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
         if (type2 != TYPE_OBJECT ||
-            HeapGetObjectType(&state->heap, value2) != TYPE_ARRAY ||
+            !HeapIsCollection(&state->heap, value2) ||
             HeapCollectionSize(&state->heap, value1) !=
             HeapCollectionSize(&state->heap, value2))
         {
@@ -301,7 +315,9 @@ size_t InterpreterGetStringSize(RunState *state, ValueType type, uint value)
         case TYPE_STRING:
             return HeapGetObjectSize(&state->heap, value);
 
+        case TYPE_EMPTY_LIST:
         case TYPE_ARRAY:
+        case TYPE_INTEGER_RANGE:
             size = HeapCollectionSize(&state->heap, value);
             if (size)
             {
@@ -396,7 +412,9 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
             memcpy(dst, HeapGetObjectData(&state->heap, value), size);
             return dst + size;
 
+        case TYPE_EMPTY_LIST:
         case TYPE_ARRAY:
+        case TYPE_INTEGER_RANGE:
             *dst++ = '[';
             first = true;
             HeapCollectionIteratorInit(&state->heap, &iter, value);
@@ -497,6 +515,10 @@ static void execute(RunState *state, functionref target)
 
         case OP_STRING:
             InterpreterPush(state, TYPE_STRING_LITERAL, BytecodeReadUint(&ip));
+            break;
+
+        case OP_EMPTY_LIST:
+            InterpreterPush(state, TYPE_OBJECT, state->heap.emptyList);
             break;
 
         case OP_LIST:
@@ -660,6 +682,18 @@ static void execute(RunState *state, functionref target)
             InterpreterCopyString(state, type, value, objectData + size1);
             InterpreterPush(state, TYPE_OBJECT,
                             HeapFinishAlloc(&state->heap, objectData));
+            break;
+
+        case OP_RANGE:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_INTEGER_LITERAL);
+            value = createRange(state, (int)value2, (int)value);
+            if (!value)
+            {
+                return;
+            }
+            InterpreterPush(state, TYPE_OBJECT, value);
             break;
 
         case OP_JUMP:

@@ -1,6 +1,16 @@
 #include "builder.h"
 #include "math.h"
 
+boolean addOverflow(int a, int b)
+{
+    return (boolean)(b < 1 ? MIN_INT - b > a : MAX_INT - b < a);
+}
+
+boolean subOverflow(int a, int b)
+{
+    return (boolean)(b < 1 ? MAX_INT + b < a : MIN_INT + b > a);
+}
+
 uint roundToPow2(uint value)
 {
     uint i = 1;
