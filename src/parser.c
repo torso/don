@@ -33,7 +33,9 @@ static char errorBuffer[256];
 
 static stringref keywordElse;
 static stringref keywordFalse;
+static stringref keywordFor;
 static stringref keywordIf;
+static stringref keywordIn;
 static stringref keywordNull;
 static stringref keywordReturn;
 static stringref keywordTrue;
@@ -173,6 +175,7 @@ static stringref readIdentifier(ParseState *state)
     if (!identifier)
     {
         ParseStateSetError(state, OUT_OF_MEMORY);
+        return 0;
     }
     return identifier;
 }
@@ -185,6 +188,21 @@ static stringref peekReadIdentifier(ParseState *state)
 static boolean isKeyword(stringref identifier)
 {
     return identifier <= maxKeyword;
+}
+
+static boolean readExpectedKeyword(ParseState *state, stringref keyword)
+{
+    stringref identifier = peekReadIdentifier(state);
+    if (identifier == keyword)
+    {
+        return true;
+    }
+    if (!state->error)
+    {
+        sprintf(errorBuffer, "Expected keyword %s.", StringPoolGetString(keyword));
+        statementError(state, errorBuffer);
+    }
+    return false;
 }
 
 static boolean isDigit(byte b)
@@ -1010,21 +1028,11 @@ static boolean parseExpressionStatement(ParseState *state,
     if (readOperator(state, '='))
     {
         skipWhitespace(state);
-        if (!parseRValue(state) ||
-            !finishLValue(state, &estate))
-        {
-            return false;
-        }
-        return true;
+        return parseRValue(state) && finishLValue(state, &estate);
     }
     else if (readOperator(state, ','))
     {
-        if (!parseMultiAssignmentRest(state) ||
-            !finishLValue(state, &estate))
-        {
-            return false;
-        }
-        return true;
+        return parseMultiAssignmentRest(state) && finishLValue(state, &estate);
     }
     return finishVoidValue(state, &estate);
 }
@@ -1036,6 +1044,7 @@ static boolean parseFunctionBody(ParseState *state)
     uint prevIndent = 0;
     stringref identifier;
     size_t target;
+    uint16 iterVariable;
 
     for (;;)
     {
@@ -1140,6 +1149,48 @@ static boolean parseFunctionBody(ParseState *state)
                     {
                         statementError(state, "else without matching if.");
                         return false;
+                    }
+                    else if (identifier == keywordFor)
+                    {
+                        prevIndent = currentIndent;
+                        currentIndent = 0;
+                        identifier = peekReadIdentifier(state);
+                        if (!identifier)
+                        {
+                            if (!state->error)
+                            {
+                                statementError(state, "Expected variable name.");
+                            }
+                            return false;
+                        }
+                        iterVariable = ParseStateCreateUnnamedVariable(state);
+                        skipWhitespace(state);
+                        if (state->error ||
+                            !readExpectedKeyword(state, keywordIn))
+                        {
+                            return false;
+                        }
+                        skipWhitespace(state);
+                        if (!parseRValue(state) ||
+                            !ParseStateWriteInstruction(state, OP_ITER_INIT) ||
+                            !ParseStateSetUnnamedVariable(state, iterVariable))
+                        {
+                            return false;
+                        }
+                        if (!peekNewline(state))
+                        {
+                            error(state, "Garbage after for statement.");
+                            return false;
+                        }
+                        skipEndOfLine(state);
+                        target = ParseStateGetJumpTarget(state);
+                        if (!ParseStateGetUnnamedVariable(state, iterVariable) ||
+                            !ParseStateWriteInstruction(state, OP_ITER_NEXT) ||
+                            !ParseStateSetVariable(state, identifier) ||
+                            !ParseStateWriteWhile(state, target))
+                        {
+                            return false;
+                        }
                     }
                     else if (identifier == keywordReturn)
                     {
@@ -1292,7 +1343,9 @@ ErrorCode ParserAddKeywords(void)
 {
     if (!(keywordElse = StringPoolAdd("else")) ||
         !(keywordFalse = StringPoolAdd("false")) ||
+        !(keywordFor = StringPoolAdd("for")) ||
         !(keywordIf = StringPoolAdd("if")) ||
+        !(keywordIn = StringPoolAdd("in")) ||
         !(keywordNull = StringPoolAdd("null")) ||
         !(keywordReturn = StringPoolAdd("return")) ||
         !(keywordTrue = StringPoolAdd("true")) ||

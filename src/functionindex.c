@@ -309,9 +309,9 @@ stringref FunctionIndexGetLocalName(functionref function, uint16 local)
                      (uint)function + TABLE_ENTRY_LOCAL_NAMES_OFFSET));
 }
 
-ErrorCode FunctionIndexSetLocals(functionref function, const inthashmap *locals)
+ErrorCode FunctionIndexSetLocals(functionref function, const inthashmap *locals,
+                                 uint count)
 {
-    uint count = IntHashMapSize(locals);
     uint offset = (uint)IntVectorSize(&localNames);
     inthashmapiterator iter;
     uint name;
@@ -320,6 +320,7 @@ ErrorCode FunctionIndexSetLocals(functionref function, const inthashmap *locals)
 
     assert(hasIndex);
     assert(isValidFunction(function));
+    assert(count >= IntHashMapSize(locals));
 
     error = IntVectorSetSize(&localNames, IntVectorSize(&localNames) + count);
     if (error)

@@ -145,6 +145,14 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: range\n", ip);
         break;
 
+    case OP_ITER_INIT:
+        printf(" %u: iter_init\n", ip);
+        break;
+
+    case OP_ITER_NEXT:
+        printf(" %u: iter_next\n", ip);
+        break;
+
     case OP_JUMP:
         value = BytecodeReadUint(&bytecode);
         printf(" %u: jump %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));

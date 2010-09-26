@@ -148,6 +148,7 @@ static void unbox(RunState *state, ValueType *type, uint *value)
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+    case TYPE_ITERATOR:
         return;
 
     default:
@@ -173,6 +174,14 @@ static uint createRange(RunState *state, int low, int high)
     *p++ = low;
     *p = high;
     return HeapFinishAlloc(&state->heap, objectData);
+}
+
+static uint createIterator(RunState *state, uint object)
+{
+    Iterator *iter = (Iterator *)HeapAlloc(&state->heap, TYPE_ITERATOR,
+                                           sizeof(Iterator));
+    HeapCollectionIteratorInit(&state->heap, iter, object);
+    return HeapFinishAlloc(&state->heap, (byte*)iter);
 }
 
 static boolean equals(RunState *state, ValueType type1, uint value1,
@@ -211,6 +220,7 @@ static boolean equals(RunState *state, ValueType type1, uint value1,
     {
     case TYPE_BOOLEAN:
     case TYPE_INTEGER:
+    case TYPE_ITERATOR:
         assert(false);
         return false;
 
@@ -307,11 +317,6 @@ size_t InterpreterGetStringSize(RunState *state, ValueType type, uint value)
     case TYPE_OBJECT:
         switch (HeapGetObjectType(&state->heap, value))
         {
-        case TYPE_BOOLEAN:
-        case TYPE_INTEGER:
-            assert(false);
-            return 0;
-
         case TYPE_STRING:
             return HeapGetObjectSize(&state->heap, value);
 
@@ -330,8 +335,12 @@ size_t InterpreterGetStringSize(RunState *state, ValueType type, uint value)
                 size += InterpreterGetStringSize(state, type, value);
             }
             return size;
+
+        case TYPE_BOOLEAN:
+        case TYPE_INTEGER:
+        case TYPE_ITERATOR:
+            break;
         }
-        assert(false);
         break;
     }
     assert(false);
@@ -402,11 +411,6 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
     case TYPE_OBJECT:
         switch (HeapGetObjectType(&state->heap, value))
         {
-        case TYPE_BOOLEAN:
-        case TYPE_INTEGER:
-            assert(false);
-            return null;
-
         case TYPE_STRING:
             size = HeapGetObjectSize(&state->heap, value);
             memcpy(dst, HeapGetObjectData(&state->heap, value), size);
@@ -430,8 +434,12 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
             }
             *dst++ = ']';
             return dst;
+
+        case TYPE_BOOLEAN:
+        case TYPE_INTEGER:
+        case TYPE_ITERATOR:
+            break;
         }
-        assert(false);
         break;
     }
     assert(false);
@@ -483,6 +491,7 @@ static void execute(RunState *state, functionref target)
     size_t size1;
     size_t size2;
     byte *objectData;
+    Iterator *iter;
     functionref function;
     nativefunctionref nativeFunction;
 
@@ -694,6 +703,30 @@ static void execute(RunState *state, functionref target)
                 return;
             }
             InterpreterPush(state, TYPE_OBJECT, value);
+            break;
+
+        case OP_ITER_INIT:
+            pop(state, &type, &value);
+            assert(type == TYPE_OBJECT);
+            value = createIterator(state, value);
+            if (!value)
+            {
+                return;
+            }
+            InterpreterPush(state, TYPE_OBJECT, value);
+            break;
+
+        case OP_ITER_NEXT:
+            pop(state, &type, &value);
+            assert(type == TYPE_OBJECT);
+            assert(HeapGetObjectType(&state->heap, value) == TYPE_ITERATOR);
+            assert(HeapGetObjectSize(&state->heap, value) == sizeof(Iterator));
+            iter = (Iterator*)HeapGetObjectData(&state->heap, value);
+            type = TYPE_NULL_LITERAL;
+            value = 0;
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL,
+                            HeapIteratorNext(iter, &type, &value));
+            InterpreterPush(state, type, value);
             break;
 
         case OP_JUMP:

@@ -21,6 +21,7 @@ static boolean isCollectionType(ObjectType type)
     case TYPE_BOOLEAN:
     case TYPE_INTEGER:
     case TYPE_STRING:
+    case TYPE_ITERATOR:
         return false;
 
     case TYPE_EMPTY_LIST:
@@ -114,6 +115,7 @@ size_t HeapCollectionSize(Heap *heap, uint object)
     case TYPE_BOOLEAN:
     case TYPE_INTEGER:
     case TYPE_STRING:
+    case TYPE_ITERATOR:
     default:
         assert(false);
         return 0;
@@ -148,6 +150,7 @@ void HeapCollectionIteratorInit(Heap *heap, Iterator *iter, uint object)
     case TYPE_BOOLEAN:
     case TYPE_INTEGER:
     case TYPE_STRING:
+    case TYPE_ITERATOR:
     default:
         assert(false);
         return;

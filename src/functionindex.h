@@ -47,4 +47,5 @@ extern pure uint FunctionIndexGetLocalsCount(functionref function);
 extern pure stringref FunctionIndexGetLocalName(functionref function,
                                                 uint16 local);
 extern nonnull ErrorCode FunctionIndexSetLocals(functionref function,
-                                                const inthashmap *locals);
+                                                const inthashmap *locals,
+                                                uint count);

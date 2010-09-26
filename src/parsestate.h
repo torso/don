@@ -18,6 +18,7 @@ typedef struct
 
     intvector blockStack;
     inthashmap locals;
+    uint unnamedVariables;
 
     bytevector *bytecode;
 } ParseState;
@@ -43,6 +44,11 @@ extern nonnull uint ParseStateBlockIndent(ParseState *state);
 
 extern nonnull boolean ParseStateGetVariable(ParseState *state, stringref name);
 extern nonnull boolean ParseStateSetVariable(ParseState *state, stringref name);
+extern nonnull uint16 ParseStateCreateUnnamedVariable(ParseState *state);
+extern nonnull boolean ParseStateGetUnnamedVariable(ParseState *state,
+                                                    uint16 variable);
+extern nonnull boolean ParseStateSetUnnamedVariable(ParseState *state,
+                                                    uint16 variable);
 
 extern nonnull boolean ParseStateWriteInstruction(ParseState *state,
                                                   Instruction instruction);

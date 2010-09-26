@@ -14,7 +14,8 @@ typedef enum
     TYPE_STRING,
     TYPE_EMPTY_LIST,
     TYPE_ARRAY,
-    TYPE_INTEGER_RANGE
+    TYPE_INTEGER_RANGE,
+    TYPE_ITERATOR
 } ObjectType;
 
 typedef enum
