@@ -1,5 +1,6 @@
 extern void FileIndexDispose(void);
-extern nonnull fileref FileIndexAdd(const char *filename);
-extern pure stringref FileIndexGetName(fileref file);
+extern nonnull fileref FileIndexOpen(const char *filename);
+extern void FileIndexClose(fileref file);
+extern pure const char *FileIndexGetName(fileref file);
 extern pure const byte *FileIndexGetContents(fileref file);
 extern pure size_t FileIndexGetSize(fileref file);

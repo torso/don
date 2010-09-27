@@ -155,7 +155,7 @@ int main(int argc, const char **argv)
         return 1;
     }
 
-    inputFile = FileIndexAdd(inputFilename);
+    inputFile = FileIndexOpen(inputFilename);
     assert(inputFile);
     if (handleError(ParseFile(inputFile)) || !FunctionIndexBuildIndex())
     {
@@ -185,6 +185,7 @@ int main(int argc, const char **argv)
         }
     }
 
+    FileIndexClose(inputFile);
     bytecode = ByteVectorDisposeContainer(&parsed);
     function = getTarget("default");
     if (!function || parseFailed)

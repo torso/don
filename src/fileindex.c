@@ -7,26 +7,43 @@
 
 typedef struct
 {
-    const byte *data;
-    stringref name;
+    const char *name;
+    byte *data;
     size_t size;
+    uint refCount;
 } FileEntry;
 
 static FileEntry fileIndex[16];
-static uint fileCount = 0;
+
+static void checkFile(fileref file)
+{
+    assert(file);
+    assert(file <= sizeof(fileIndex) / sizeof(fileIndex[0]));
+    assert(fileIndex[file - 1].refCount);
+}
+
+static FileEntry *getFile(fileref file)
+{
+    checkFile(file);
+    return &fileIndex[file - 1];
+}
 
 void FileIndexDispose(void)
 {
-    while (fileCount > 0)
+    uint i = sizeof(fileIndex) / sizeof(fileIndex[0]);
+    while (--i)
     {
-        assert(fileIndex[fileCount].data);
-        free((byte*)fileIndex[fileCount].data);
-        fileCount--;
+        if (fileIndex[i].refCount)
+        {
+            fileIndex[i].refCount = 1;
+            FileIndexClose(i + 1);
+        }
     }
 }
 
-fileref FileIndexAdd(const char *filename)
+fileref FileIndexOpen(const char *filename)
 {
+    uint file;
     FILE *f;
     int status;
     long l;
@@ -34,8 +51,16 @@ fileref FileIndexAdd(const char *filename)
     size_t read;
     byte *data;
 
-    fileCount++;
-    assert(fileCount < INITIAL_FILE_SIZE); /* TODO: grow file index */
+    file = sizeof(fileIndex) / sizeof(fileIndex[0]);
+    for (;;)
+    {
+        assert(file); /* TODO: grow file index */
+        file--;
+        if (!fileIndex[file].refCount)
+        {
+            break;
+        }
+    }
 
     f = fopen(filename, "rb");
     assert(f); /* TODO: handle file error */
@@ -53,26 +78,33 @@ fileref FileIndexAdd(const char *filename)
     read = fread(data, 1, size, f);
     assert(read == size); /* TODO: handle file error */
     fclose(f);
-    fileIndex[fileCount].size = size;
-    fileIndex[fileCount].data = data;
-    fileIndex[fileCount].name = StringPoolAdd(filename);
-    return fileCount;
+    fileIndex[file].name = filename;
+    fileIndex[file].data = data;
+    fileIndex[file].size = size;
+    fileIndex[file].refCount = 1;
+    return file + 1;
 }
 
-stringref FileIndexGetName(fileref file)
+void FileIndexClose(fileref file)
 {
-    assert(file >= 1 && file <= fileCount);
-    return fileIndex[file].name;
+    FileEntry *fe = getFile(file);
+    if (!--fe->refCount)
+    {
+        free(fe->data);
+    }
+}
+
+const char *FileIndexGetName(fileref file)
+{
+    return getFile(file)->name;
 }
 
 const byte *FileIndexGetContents(fileref file)
 {
-    assert(file >= 1 && file <= fileCount);
-    return fileIndex[file].data;
+    return getFile(file)->data;
 }
 
 size_t FileIndexGetSize(fileref file)
 {
-    assert(file >= 1 && file <= fileCount);
-    return fileIndex[file].size;
+    return getFile(file)->size;
 }

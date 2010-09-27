@@ -6,6 +6,5 @@
 
 void LogParseError(fileref file, uint line, const char *message)
 {
-    printf("%s:%d: %s\n",
-           StringPoolGetString(FileIndexGetName(file)), line, message);
+    printf("%s:%d: %s\n", FileIndexGetName(file), line, message);
 }
