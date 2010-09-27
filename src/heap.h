@@ -62,6 +62,15 @@ extern nonnull int HeapGetInteger(Heap *heap, uint object);
 
 extern nonnull boolean HeapIsCollection(Heap *heap, uint object);
 extern nonnull size_t HeapCollectionSize(Heap *heap, uint object);
+
+/*
+  Reads one value from the collection and returns it. The key is stored in
+  [*type, *value], and the read value will overwrite them.
+
+  Returns true if successful.
+*/
+extern nonnull boolean HeapCollectionGet(Heap *heap, uint object,
+                                         ValueType *type, uint *value);
 extern nonnull void HeapCollectionIteratorInit(Heap *heap, Iterator *iter,
                                                uint object);
 extern nonnull boolean HeapIteratorNext(Iterator *iter,

@@ -32,6 +32,7 @@ typedef enum
     OP_DIV,
     OP_REM,
     OP_CONCAT,
+    OP_INDEXED_ACCESS,
     OP_RANGE,
     OP_ITER_INIT,
     OP_ITER_NEXT,

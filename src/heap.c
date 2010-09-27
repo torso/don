@@ -122,6 +122,41 @@ size_t HeapCollectionSize(Heap *heap, uint object)
     }
 }
 
+boolean HeapCollectionGet(Heap *heap, uint object, ValueType *type,
+                          uint *restrict value)
+{
+    const uint *restrict data;
+    const int *restrict intData;
+    assert(*type == TYPE_INTEGER_LITERAL);
+    assert((int)*value >= 0);
+    assert(*value < HeapCollectionSize(heap, object));
+    switch (HeapGetObjectType(heap, object))
+    {
+    case TYPE_EMPTY_LIST:
+        return false;
+
+    case TYPE_ARRAY:
+        data = (const uint*)HeapGetObjectData(heap, object);
+        *value = data[*value];
+        *type = *value ? TYPE_OBJECT : TYPE_NULL_LITERAL;
+        return true;
+
+    case TYPE_INTEGER_RANGE:
+        intData = (const int *)HeapGetObjectData(heap, object);
+        assert(!addOverflow((int)*value, intData[0]));
+        *value += (uint)intData[0];
+        return true;
+
+    case TYPE_BOOLEAN:
+    case TYPE_INTEGER:
+    case TYPE_STRING:
+    case TYPE_ITERATOR:
+    default:
+        assert(false);
+        return false;
+    }
+}
+
 void HeapCollectionIteratorInit(Heap *heap, Iterator *iter, uint object)
 {
     const int *data;

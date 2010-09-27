@@ -693,6 +693,17 @@ static void execute(RunState *state, functionref target)
                             HeapFinishAlloc(&state->heap, objectData));
             break;
 
+        case OP_INDEXED_ACCESS:
+            pop2(state, &type, &value, &type2, &value2);
+            assert(type == TYPE_INTEGER_LITERAL);
+            assert(type2 == TYPE_OBJECT);
+            if (!HeapCollectionGet(&state->heap, value2, &type, &value))
+            {
+                return;
+            }
+            InterpreterPush(state, type, value);
+            break;
+
         case OP_RANGE:
             pop2(state, &type, &value, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);

@@ -141,6 +141,10 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: concat\n", ip);
         break;
 
+    case OP_INDEXED_ACCESS:
+        printf(" %u: indexed_access\n", ip);
+        break;
+
     case OP_RANGE:
         printf(" %u: range\n", ip);
         break;

@@ -600,10 +600,31 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
     {
         return false;
     }
-    if (!peekOperator2(state, '.', '.') &&
-        readOperator(state, '.'))
+    for (;;)
     {
-        assert(false); /* TODO: handle namespace */
+        if (readOperator(state, '['))
+        {
+            skipWhitespace(state);
+            if (!finishRValue(state, estate) ||
+                !parseRValue(state))
+            {
+                return false;
+            }
+            skipWhitespace(state);
+            if (!readExpectedOperator(state, ']') ||
+                !ParseStateWriteInstruction(state, OP_INDEXED_ACCESS))
+            {
+                return false;
+            }
+            estate->valueType = VALUE_SIMPLE;
+            continue;
+        }
+        if (!peekOperator2(state, '.', '.') &&
+            readOperator(state, '.'))
+        {
+            assert(false); /* TODO: handle namespace */
+        }
+        break;
     }
     skipWhitespace(state);
     return true;
