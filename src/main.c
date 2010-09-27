@@ -187,17 +187,26 @@ int main(int argc, const char **argv)
 
     FileIndexClose(inputFile);
     bytecode = ByteVectorDisposeContainer(&parsed);
+
+    if (disassemble)
+    {
+        for (function = FunctionIndexGetFirstFunction();
+             function;
+             function = FunctionIndexGetNextFunction(function))
+        {
+            printf("Function %s:\n",
+                   StringPoolGetString(FunctionIndexGetName(function)));
+            BytecodeDisassembleFunction(
+                bytecode + FunctionIndexGetBytecodeOffset(function));
+        }
+    }
+
     function = getTarget("default");
     if (!function || parseFailed)
     {
         free(bytecode);
         cleanup();
         return 1;
-    }
-
-    if (disassemble)
-    {
-        BytecodeDisassembleFunction(bytecode);
     }
 
     if (handleError(InterpreterExecute(bytecode, function)))
