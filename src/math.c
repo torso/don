@@ -21,3 +21,14 @@ uint roundToPow2(uint value)
     }
     return i;
 }
+
+size_t roundSizeToPow2(size_t value)
+{
+    size_t i = 1;
+    assert(value <= (SIZE_MAX >> 1) + 1);
+    while (i < value)
+    {
+        i <<= 1;
+    }
+    return i;
+}

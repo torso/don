@@ -45,7 +45,7 @@ static boolean writeBackwardsJump(ParseState *state, uint target)
 static uint getLocalsCount(ParseState *state)
 {
     ParseStateCheck(state);
-    return IntHashMapSize(&state->locals) + state->unnamedVariables;
+    return (uint)(IntHashMapSize(&state->locals) + state->unnamedVariables);
 }
 
 static uint16 getFreeLocalIndex(ParseState *state)

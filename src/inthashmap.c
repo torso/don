@@ -6,37 +6,37 @@
 #define TABLE_ENTRY_VALUE 1
 #define TABLE_ENTRY_SIZE 2
 
-static void checkSlot(const inthashmap *map, uint slot)
+static void checkSlot(const inthashmap *map, size_t slot)
 {
     assert(map->tableSize > slot);
 }
 
-static uint getSlotForKey(const inthashmap *map, uint key)
+static size_t getSlotForKey(const inthashmap *map, uint key)
 {
     return key & (map->tableSize - 1);
 }
 
-static uint getSlotKey(const inthashmap *map, uint slot)
+static uint getSlotKey(const inthashmap *map, size_t slot)
 {
     checkSlot(map, slot);
     return map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_KEY];
 }
 
-static uint getSlotValue(const inthashmap *map, uint slot)
+static uint getSlotValue(const inthashmap *map, size_t slot)
 {
     checkSlot(map, slot);
     return map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE];
 }
 
-static boolean isSlotEmpty(const inthashmap *map, uint slot)
+static boolean isSlotEmpty(const inthashmap *map, size_t slot)
 {
     checkSlot(map, slot);
-    return getSlotKey(map, slot) ? false : true;
+    return !getSlotKey(map, slot);
 }
 
-ErrorCode IntHashMapInit(inthashmap *map, uint capacity)
+ErrorCode IntHashMapInit(inthashmap *map, size_t capacity)
 {
-    map->tableSize = max(roundToPow2(capacity * 4 / 3), capacity + 1);
+    map->tableSize = max(roundSizeToPow2(capacity * 4 / 3), capacity + 1);
     map->size = 0;
     map->table = (uint*)calloc(map->tableSize * 2, sizeof(uint));
     return map->table ? NO_ERROR : OUT_OF_MEMORY;
@@ -49,7 +49,7 @@ void IntHashMapDispose(inthashmap *map)
 
 ErrorCode IntHashMapAdd(inthashmap *map, uint key, uint value)
 {
-    uint slot = getSlotForKey(map, key);
+    size_t slot = getSlotForKey(map, key);
     assert(key);
     assert(map->size < map->tableSize);
     while (!isSlotEmpty(map, slot))
@@ -69,7 +69,7 @@ ErrorCode IntHashMapAdd(inthashmap *map, uint key, uint value)
 
 uint IntHashMapGet(const inthashmap *map, uint key)
 {
-    uint slot = getSlotForKey(map, key);
+    size_t slot = getSlotForKey(map, key);
     assert(key);
     for (;;)
     {
@@ -90,7 +90,7 @@ uint IntHashMapGet(const inthashmap *map, uint key)
     return 0;
 }
 
-uint IntHashMapSize(const inthashmap *map)
+size_t IntHashMapSize(const inthashmap *map)
 {
     return map->size;
 }
@@ -101,7 +101,8 @@ void IntHashMapIteratorInit(const inthashmap *map, inthashmapiterator *iterator)
     iterator->position = 0;
 }
 
-boolean IntHashMapIteratorNext(inthashmapiterator *iterator, uint *key, uint *value)
+boolean IntHashMapIteratorNext(inthashmapiterator *iterator,
+                               uint *key, uint *value)
 {
     uint slotKey;
 
