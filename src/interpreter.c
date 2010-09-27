@@ -268,6 +268,11 @@ static boolean equals(RunState *state, ValueType type1, uint value1,
     return false;
 }
 
+Heap *InterpreterGetHeap(RunState *state)
+{
+    return &state->heap;
+}
+
 const char *InterpreterGetString(RunState *state, ValueType type, uint value)
 {
     size_t size = InterpreterGetStringSize(state, type, value);

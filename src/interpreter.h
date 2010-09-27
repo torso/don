@@ -1,3 +1,5 @@
+extern nonnull Heap *InterpreterGetHeap(RunState *state);
+
 /*
   Converts the value to a string of the default form. The returned memory must
   be freed with InterpreterFreeStringBuffer.
