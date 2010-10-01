@@ -118,8 +118,9 @@ boolean ParseStateSetError(ParseState *state, ErrorCode error)
 
 static boolean beginBlock(ParseState *state, BlockType type, size_t loopOffset)
 {
-    assert(ByteVectorSize(state->bytecode) <= MAX_UINT);
-    assert(loopOffset <= MAX_UINT);
+    /* MAX_UINT - 1 doesn't produce any warning when uint == size_t. */
+    assert(ByteVectorSize(state->bytecode) <= MAX_UINT - 1);
+    assert(loopOffset <= MAX_UINT - 1);
     IntVectorAdd(&state->blockStack, (uint)ByteVectorSize(state->bytecode));
     IntVectorAdd(&state->blockStack, state->indent);
     IntVectorAdd(&state->blockStack, type);
