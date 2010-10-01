@@ -79,6 +79,9 @@ static uint16 getLocalIndex(ParseState *state, stringref name)
 void ParseStateInit(ParseState *state, bytevector *bytecode,
                     functionref function, fileref file, uint line, uint offset)
 {
+    const stringref *parameterNames;
+    uint parameterCount;
+
     assert(file);
     assert(line == 1 || line <= offset);
     state->start = FileIndexGetContents(file);
@@ -98,6 +101,19 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
     if (state->error)
     {
         IntVectorDispose(&state->blockStack);
+        return;
+    }
+    if (function)
+    {
+        parameterCount = FunctionIndexGetParameterCount(function);
+        if (parameterCount)
+        {
+            parameterNames = FunctionIndexGetParameterNames(function);
+            while (parameterCount--)
+            {
+                getLocalIndex(state, *parameterNames++);
+            }
+        }
     }
 }
 

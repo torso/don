@@ -208,16 +208,22 @@ functionref FunctionIndexGet(stringref name)
 functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset)
 {
     functionref function;
+    functionref lastFunction;
     for (function = FunctionIndexGetFirstFunction();
          function;
          function = FunctionIndexGetNextFunction(function))
     {
-        if (FunctionIndexGetBytecodeOffset(function) == bytecodeOffset)
+        if (FunctionIndexGetBytecodeOffset(function) >= bytecodeOffset)
         {
-            return function;
+            if (FunctionIndexGetBytecodeOffset(function) == bytecodeOffset)
+            {
+                return function;
+            }
+            return lastFunction;
         }
+        lastFunction = function;
     }
-    return 0;
+    return lastFunction;
 }
 
 stringref FunctionIndexGetName(functionref function)

@@ -451,12 +451,18 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
     return null;
 }
 
-static void pushStackFrame(RunState *state, const byte *ip, uint bp,
-                           uint returnValues)
+static void pushStackFrame(RunState *state, const byte **ip, uint *bp,
+                           functionref function, uint returnValues)
 {
-    IntVectorAdd(&state->callStack, (uint)(ip - state->bytecode));
-    IntVectorAdd(&state->callStack, bp);
+    uint localsCount;
+    IntVectorAdd(&state->callStack, (uint)(*ip - state->bytecode));
+    IntVectorAdd(&state->callStack, *bp);
     IntVectorAdd(&state->callStack, returnValues);
+    *ip = state->bytecode + FunctionIndexGetBytecodeOffset(function);
+    *bp = (uint)IntVectorSize(&state->stack) - FunctionIndexGetParameterCount(function);
+    localsCount = FunctionIndexGetLocalsCount(function);
+    ByteVectorSetSize(&state->typeStack, *bp + localsCount);
+    IntVectorSetSize(&state->stack, *bp + localsCount);
 }
 
 static void popStackFrame(RunState *state, const byte **ip, uint *bp,
@@ -484,7 +490,7 @@ static void popStackFrame(RunState *state, const byte **ip, uint *bp,
 static void execute(RunState *state, functionref target)
 {
     const byte *ip = state->bytecode + FunctionIndexGetBytecodeOffset(target);
-    const byte *const baseIP = ip;
+    const byte *baseIP = ip;
     uint bp = 0;
     uint argumentCount;
     int jumpOffset;
@@ -599,6 +605,8 @@ static void execute(RunState *state, functionref target)
 
         case OP_LESS_EQUALS:
             pop2(state, &type, &value, &type2, &value2);
+            unbox(state, &type, &value);
+            unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 <= (int)value);
@@ -606,6 +614,8 @@ static void execute(RunState *state, functionref target)
 
         case OP_GREATER_EQUALS:
             pop2(state, &type, &value, &type2, &value2);
+            unbox(state, &type, &value);
+            unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 >= (int)value);
@@ -613,6 +623,8 @@ static void execute(RunState *state, functionref target)
 
         case OP_LESS:
             pop2(state, &type, &value, &type2, &value2);
+            unbox(state, &type, &value);
+            unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 < (int)value);
@@ -620,6 +632,8 @@ static void execute(RunState *state, functionref target)
 
         case OP_GREATER:
             pop2(state, &type, &value, &type2, &value2);
+            unbox(state, &type, &value);
+            unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 > (int)value);
@@ -627,12 +641,14 @@ static void execute(RunState *state, functionref target)
 
         case OP_NOT:
             pop(state, &type, &value);
+            unbox(state, &type, &value);
             assert(type == TYPE_BOOLEAN_LITERAL);
             InterpreterPush(state, TYPE_BOOLEAN_LITERAL, !value);
             break;
 
         case OP_NEG:
             pop(state, &type, &value);
+            unbox(state, &type, &value);
             assert(type == TYPE_INTEGER_LITERAL);
             assert((int)value != MIN_INT);
             InterpreterPush(state, TYPE_INTEGER_LITERAL, -value);
@@ -640,12 +656,15 @@ static void execute(RunState *state, functionref target)
 
         case OP_INV:
             pop(state, &type, &value);
+            unbox(state, &type, &value);
             assert(type == TYPE_INTEGER_LITERAL);
             InterpreterPush(state, TYPE_INTEGER_LITERAL, ~value);
             break;
 
         case OP_ADD:
             pop2(state, &type, &value, &type2, &value2);
+            unbox(state, &type, &value);
+            unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             assert(!addOverflow((int)value, (int)value2));
@@ -654,6 +673,8 @@ static void execute(RunState *state, functionref target)
 
         case OP_SUB:
             pop2(state, &type, &value, &type2, &value2);
+            unbox(state, &type, &value);
+            unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             assert(!subOverflow((int)value2, (int)value));
@@ -662,6 +683,8 @@ static void execute(RunState *state, functionref target)
 
         case OP_MUL:
             pop2(state, &type, &value, &type2, &value2);
+            unbox(state, &type, &value);
+            unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             InterpreterPush(state, TYPE_INTEGER_LITERAL, value * value2);
@@ -669,6 +692,8 @@ static void execute(RunState *state, functionref target)
 
         case OP_DIV:
             pop2(state, &type, &value, &type2, &value2);
+            unbox(state, &type, &value);
+            unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             assert(((int)value2 / (int)value) * (int)value == (int)value2); /* TODO: fraction */
@@ -677,6 +702,8 @@ static void execute(RunState *state, functionref target)
 
         case OP_REM:
             pop2(state, &type, &value, &type2, &value2);
+            unbox(state, &type, &value);
+            unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             InterpreterPush(state, TYPE_INTEGER_LITERAL, value2 % value);
@@ -771,6 +798,7 @@ static void execute(RunState *state, functionref target)
         case OP_RETURN:
             assert(IntVectorSize(&state->callStack));
             popStackFrame(state, &ip, &bp, *ip++);
+            baseIP = state->bytecode + FunctionIndexGetBytecodeOffset(FunctionIndexGetFunctionFromBytecode((uint)(ip - state->bytecode)));
             break;
 
         case OP_RETURN_VOID:
@@ -781,17 +809,16 @@ static void execute(RunState *state, functionref target)
                 return;
             }
             popStackFrame(state, &ip, &bp, 0);
+            baseIP = state->bytecode + FunctionIndexGetBytecodeOffset(FunctionIndexGetFunctionFromBytecode((uint)(ip - state->bytecode)));
             break;
 
         case OP_INVOKE:
             function = (functionref)BytecodeReadUint(&ip);
             argumentCount = BytecodeReadUint16(&ip);
-            value = FunctionIndexGetLocalsCount(function);
-            assert(argumentCount == value); /* TODO */
-            value2 = *ip++;
-            pushStackFrame(state, ip, bp, value2);
-            ip = state->bytecode + FunctionIndexGetBytecodeOffset(function);
-            bp = (uint)IntVectorSize(&state->stack) - value;
+            assert(argumentCount == FunctionIndexGetParameterCount(function)); /* TODO */
+            value = *ip++;
+            pushStackFrame(state, &ip, &bp, function, value);
+            baseIP = ip;
             break;
 
         case OP_INVOKE_NATIVE:
