@@ -62,6 +62,14 @@ static boolean isIdentifierCharacter(byte c)
         (c >= '0' && c <= '9');
 }
 
+static boolean isFilenameCharacter(byte c)
+{
+    return (c >= 'a' && c <= 'z') ||
+        (c >= 'A' && c <= 'Z') ||
+        (c >= '0' && c <= '9') ||
+        c == '/' || c == '.' || c == '*';
+}
+
 static void error(ParseState *state, const char *message)
 {
     ParseStateSetError(state, BUILD_ERROR);
@@ -229,6 +237,7 @@ static stringref readString(ParseState *state)
 {
     const byte *begin;
     stringref s;
+
     ParseStateCheck(state);
     assert(peekString(state));
     begin = ++state->current;
@@ -245,6 +254,35 @@ static stringref readString(ParseState *state)
         return 0;
     }
     state->current++;
+    return s;
+}
+
+static stringref readFilename(ParseState *state)
+{
+    const byte *begin;
+    stringref s;
+
+    /* TODO: Quoted filenames. */
+    /* TODO: Escape sequences in filenames. */
+    ParseStateCheck(state);
+    begin = state->current;
+    while (isFilenameCharacter(state->current[0]))
+    {
+        assert(!eof(state)); /* TODO: error handling */
+        assert(!peekNewline(state)); /* TODO: error handling */
+        state->current++;
+    }
+    if (begin == state->current)
+    {
+        error(state, "Expected filename.");
+        return 0;
+    }
+    s = StringPoolAdd2((const char*)begin, getOffset(state, begin));
+    if (!s)
+    {
+        ParseStateSetError(state, OUT_OF_MEMORY);
+        return 0;
+    }
     return s;
 }
 
@@ -605,6 +643,17 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         }
         skipWhitespace(state);
         return ParseStateWriteList(state, size);
+    }
+    if (readOperator(state, '@'))
+    {
+        string = readFilename(state);
+        if (state->error)
+        {
+            return false;
+        }
+        /* TODO: Single file shouldn't be a set. */
+        /* TODO: @{} syntax */
+        return ParseStateWriteFileset(state, string);
     }
     statementError(state, "Invalid expression.");
     return false;

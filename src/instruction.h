@@ -9,6 +9,7 @@ typedef enum
     OP_STRING,
     OP_EMPTY_LIST,
     OP_LIST,
+    OP_FILESET,
 
     OP_POP,
     OP_DUP,

@@ -392,6 +392,14 @@ boolean ParseStateWriteList(ParseState *state, uint size)
         !ParseStateSetError(state, ByteVectorAddUint(state->bytecode, size));
 }
 
+boolean ParseStateWriteFileset(ParseState *state, stringref pattern)
+{
+    ParseStateCheck(state);
+    return ParseStateWriteInstruction(state, OP_FILESET) &&
+        !ParseStateSetError(state,
+                            ByteVectorAddUint(state->bytecode, (uint)pattern));
+}
+
 boolean ParseStateWriteBeginCondition(ParseState *state)
 {
     ParseStateCheck(state);

@@ -4,6 +4,7 @@
 #include "bytecode.h"
 #include "bytevector.h"
 #include "fieldindex.h"
+#include "fileindex.h"
 #include "functionindex.h"
 #include "heap.h"
 #include "instruction.h"
@@ -77,6 +78,19 @@ boolean InterpreterPush(RunState *state, ValueType type, uint value)
         !setError(state, IntVectorAdd(&state->stack, value));
 }
 
+static boolean boxInt(RunState *state, ObjectType type, uint *value)
+{
+    byte *objectData = HeapAlloc(&state->heap, type, sizeof(int));
+    if (!objectData)
+    {
+        state->error = OUT_OF_MEMORY;
+        return false;
+    }
+    *(uint*)objectData = *value;
+    *value = HeapFinishAlloc(&state->heap, objectData);
+    return true;
+}
+
 static boolean box(RunState *state, ValueType type, uint *value)
 {
     size_t size;
@@ -100,15 +114,7 @@ static boolean box(RunState *state, ValueType type, uint *value)
         return true;
 
     case TYPE_INTEGER_LITERAL:
-        objectData = HeapAlloc(&state->heap, TYPE_INTEGER, sizeof(int));
-        if (!objectData)
-        {
-            state->error = OUT_OF_MEMORY;
-            return false;
-        }
-        *(uint*)objectData = *value;
-        *value = HeapFinishAlloc(&state->heap, objectData);
-        return true;
+        return boxInt(state, TYPE_INTEGER, value);
 
     case TYPE_STRING_LITERAL:
         size = InterpreterGetStringSize(state, type, *value);
@@ -121,6 +127,9 @@ static boolean box(RunState *state, ValueType type, uint *value)
         InterpreterCopyString(state, type, *value, objectData);
         *value = HeapFinishAlloc(&state->heap, objectData);
         return true;
+
+    case TYPE_FILE_LITERAL:
+        return boxInt(state, TYPE_FILE, value);
 
     case TYPE_OBJECT:
         return true;
@@ -147,10 +156,16 @@ static void unbox(RunState *state, ValueType *type, uint *value)
         *value = *(uint*)HeapGetObjectData(&state->heap, *value);
         return;
 
+    case TYPE_FILE:
+        *type = TYPE_FILE_LITERAL;
+        *value = *(uint*)HeapGetObjectData(&state->heap, *value);
+        return;
+
     case TYPE_STRING:
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+    case TYPE_FILESET:
     case TYPE_ITERATOR:
         return;
 
@@ -223,6 +238,7 @@ static boolean equals(RunState *state, ValueType type1, uint value1,
     {
     case TYPE_BOOLEAN:
     case TYPE_INTEGER:
+    case TYPE_FILE:
     case TYPE_ITERATOR:
         assert(false);
         return false;
@@ -247,6 +263,7 @@ static boolean equals(RunState *state, ValueType type1, uint value1,
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+    case TYPE_FILESET:
         if (type2 != TYPE_OBJECT ||
             !HeapIsCollection(&state->heap, value2) ||
             HeapCollectionSize(&state->heap, value1) !=
@@ -322,6 +339,9 @@ size_t InterpreterGetStringSize(RunState *state, ValueType type, uint value)
     case TYPE_STRING_LITERAL:
         return StringPoolGetStringLength((stringref)value);
 
+    case TYPE_FILE_LITERAL:
+        return strlen(FileIndexGetName((fileref)value));
+
     case TYPE_OBJECT:
         switch (HeapGetObjectType(&state->heap, value))
         {
@@ -331,6 +351,7 @@ size_t InterpreterGetStringSize(RunState *state, ValueType type, uint value)
         case TYPE_EMPTY_LIST:
         case TYPE_ARRAY:
         case TYPE_INTEGER_RANGE:
+        case TYPE_FILESET:
             size = HeapCollectionSize(&state->heap, value);
             if (size)
             {
@@ -346,6 +367,7 @@ size_t InterpreterGetStringSize(RunState *state, ValueType type, uint value)
 
         case TYPE_BOOLEAN:
         case TYPE_INTEGER:
+        case TYPE_FILE:
         case TYPE_ITERATOR:
             break;
         }
@@ -416,6 +438,11 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
         memcpy(dst, StringPoolGetString((stringref)value), size);
         return dst + size;
 
+    case TYPE_FILE_LITERAL:
+        size = strlen(FileIndexGetName((fileref)value));
+        memcpy(dst, FileIndexGetName((fileref)value), size);
+        return dst + size;
+
     case TYPE_OBJECT:
         switch (HeapGetObjectType(&state->heap, value))
         {
@@ -427,6 +454,7 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
         case TYPE_EMPTY_LIST:
         case TYPE_ARRAY:
         case TYPE_INTEGER_RANGE:
+        case TYPE_FILESET:
             *dst++ = '[';
             first = true;
             HeapCollectionIteratorInit(&state->heap, &iter, value);
@@ -445,6 +473,7 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
 
         case TYPE_BOOLEAN:
         case TYPE_INTEGER:
+        case TYPE_FILE:
         case TYPE_ITERATOR:
             break;
         }
@@ -566,6 +595,18 @@ static void execute(RunState *state, functionref target)
             }
             InterpreterPush(state, TYPE_OBJECT,
                             HeapFinishAlloc(&state->heap, objectData));
+            break;
+
+        case OP_FILESET:
+            state->error = HeapCreateFilesetGlob(
+                &state->heap,
+                StringPoolGetString((stringref)BytecodeReadUint(&ip)),
+                &type, &value);
+            if (state->error)
+            {
+                return;
+            }
+            InterpreterPush(state, type, value);
             break;
 
         case OP_POP:

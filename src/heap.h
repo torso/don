@@ -4,6 +4,7 @@ typedef enum
     TYPE_BOOLEAN_LITERAL,
     TYPE_INTEGER_LITERAL,
     TYPE_STRING_LITERAL,
+    TYPE_FILE_LITERAL,
     TYPE_OBJECT
 } ValueType;
 
@@ -12,9 +13,11 @@ typedef enum
     TYPE_BOOLEAN,
     TYPE_INTEGER,
     TYPE_STRING,
+    TYPE_FILE,
     TYPE_EMPTY_LIST,
     TYPE_ARRAY,
     TYPE_INTEGER_RANGE,
+    TYPE_FILESET,
     TYPE_ITERATOR
 } ObjectType;
 
@@ -22,7 +25,8 @@ typedef enum
 {
     ITER_EMPTY,
     ITER_OBJECT_ARRAY,
-    ITER_INTEGER_RANGE
+    ITER_INTEGER_RANGE,
+    ITER_FILESET
 } IteratorType;
 
 typedef struct
@@ -75,3 +79,7 @@ extern nonnull void HeapCollectionIteratorInit(Heap *heap, Iterator *iter,
                                                uint object);
 extern nonnull boolean HeapIteratorNext(Iterator *iter,
                                         ValueType *type, uint *value);
+
+extern nonnull ErrorCode HeapCreateFilesetGlob(Heap *heap, const char *pattern,
+                                               ValueType *restrict type,
+                                               uint *restrict value);

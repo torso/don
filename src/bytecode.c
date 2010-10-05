@@ -61,6 +61,11 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: new list %u\n", ip, BytecodeReadUint(&bytecode));
         break;
 
+    case OP_FILESET:
+        printf(" %u: fileset %s\n", ip,
+               StringPoolGetString((stringref)BytecodeReadUint(&bytecode)));
+        break;
+
     case OP_POP:
         printf(" %u: pop\n", ip);
         break;
