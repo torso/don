@@ -154,7 +154,7 @@ ErrorCode ByteVectorAddUnpackedUint(bytevector *v, uint value)
     return NO_ERROR;
 }
 
-ErrorCode ByteVectorAddData(bytevector *v, byte *value, size_t size)
+ErrorCode ByteVectorAddData(bytevector *v, const byte *value, size_t size)
 {
     checkByteVector(v);
     assert(ByteVectorSize(v) + size < SEGMENT_SIZE); /* TODO: grow byte vector */
