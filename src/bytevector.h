@@ -11,6 +11,7 @@ extern nonnull void ByteVectorDispose(bytevector *v);
 extern nonnull byte *ByteVectorDisposeContainer(bytevector *v);
 extern nonnull pure size_t ByteVectorSize(const bytevector *v);
 extern nonnull ErrorCode ByteVectorSetSize(bytevector *v, size_t size);
+extern nonnull ErrorCode ByteVectorGrowZero(bytevector *v, size_t size);
 extern nonnull void ByteVectorCopy(
     const bytevector *restrict src, size_t srcOffset,
     bytevector *restrict dst, size_t dstOffset, size_t size);

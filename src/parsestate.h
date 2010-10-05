@@ -50,6 +50,9 @@ extern nonnull boolean ParseStateGetUnnamedVariable(ParseState *state,
 extern nonnull boolean ParseStateSetUnnamedVariable(ParseState *state,
                                                     uint16 variable);
 
+extern nonnull boolean ParseStateGetField(ParseState *state, fieldref field);
+extern nonnull boolean ParseStateSetField(ParseState *state, fieldref field);
+
 extern nonnull boolean ParseStateWriteInstruction(ParseState *state,
                                                   Instruction instruction);
 extern nonnull boolean ParseStateWriteNullLiteral(ParseState *state);

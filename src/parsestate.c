@@ -1,12 +1,13 @@
 #include "builder.h"
 #include "bytevector.h"
+#include "fieldindex.h"
 #include "fileindex.h"
+#include "functionindex.h"
 #include "instruction.h"
 #include "inthashmap.h"
 #include "intvector.h"
 #include "log.h"
 #include "parsestate.h"
-#include "functionindex.h"
 
 typedef enum
 {
@@ -317,6 +318,27 @@ boolean ParseStateSetUnnamedVariable(ParseState *state, uint16 variable)
                                ByteVectorAdd(state->bytecode, OP_STORE)) &&
         !ParseStateSetError(state,
                             ByteVectorAddUint16(state->bytecode, variable));
+}
+
+
+boolean ParseStateGetField(ParseState *state, fieldref field)
+{
+    ParseStateCheck(state);
+    return !ParseStateSetError(
+        state, ByteVectorAdd(state->bytecode, OP_LOAD_FIELD)) &&
+        !ParseStateSetError(
+            state, ByteVectorAddUint(state->bytecode,
+                                     FieldIndexGetIndex(field)));
+}
+
+boolean ParseStateSetField(ParseState *state, fieldref field)
+{
+    ParseStateCheck(state);
+    return !ParseStateSetError(
+        state, ByteVectorAdd(state->bytecode, OP_STORE_FIELD)) &&
+        !ParseStateSetError(
+            state, ByteVectorAddUint(state->bytecode,
+                                     FieldIndexGetIndex(field)));
 }
 
 

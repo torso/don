@@ -2,13 +2,15 @@
 #include "builder.h"
 #include "bytecode.h"
 #include "bytevector.h"
+#include "fieldindex.h"
 #include "fileindex.h"
+#include "functionindex.h"
 #include "heap.h"
 #include "interpreter.h"
+#include "namespace.h"
 #include "native.h"
 #include "parser.h"
 #include "stringpool.h"
-#include "functionindex.h"
 
 #ifdef DEBUG
 #include <execinfo.h>
@@ -45,6 +47,8 @@ static boolean handleError(ErrorCode error)
 
 static void cleanup(void)
 {
+    NamespaceDispose();
+    FieldIndexDispose();
     FunctionIndexDispose();
     FileIndexDispose();
     StringPoolDispose();
@@ -59,8 +63,8 @@ static functionref getTarget(const char *name)
         handleError(OUT_OF_MEMORY);
         return 0;
     }
-    function = FunctionIndexGet(string);
-    if (!function || !FunctionIndexIsTarget(function))
+    function = NamespaceGetTarget(string);
+    if (!function)
     {
         printf("'%s' is not a target.\n", name);
         return 0;
@@ -74,6 +78,8 @@ int main(int argc, const char **argv)
     const char *options;
     const char *inputFilename = null;
     fileref inputFile;
+    stringref initFunctionName;
+    fieldref field;
     functionref function;
     boolean parseOptions = true;
     boolean disassemble = false;
@@ -147,24 +153,75 @@ int main(int argc, const char **argv)
 
     if (handleError(StringPoolInit()) ||
         handleError(ParserAddKeywords()) ||
-        handleError(FunctionIndexInit()) ||
+        handleError(FunctionIndexInit()))
+    {
+        cleanup();
+        return 1;
+    }
+    initFunctionName = StringPoolAdd("");
+    if (handleError(initFunctionName ? NO_ERROR : OUT_OF_MEMORY) ||
+        handleError(FunctionIndexBeginFunction(initFunctionName)) ||
+        handleError(FieldIndexInit()) ||
+        handleError(NamespaceInit()) ||
         handleError(NativeInit()) ||
         handleError(ByteVectorInit(&parsed)))
     {
         cleanup();
         return 1;
     }
+    FunctionIndexFinishFunction(0, 0, 0);
 
     inputFile = FileIndexOpen(inputFilename);
     assert(inputFile);
-    if (handleError(ParseFile(inputFile)) || !FunctionIndexBuildIndex())
+    if (handleError(ParseFile(inputFile)))
     {
         ByteVectorDispose(&parsed);
         cleanup();
         return 1;
     }
 
-    for (function = FunctionIndexGetFirstFunction();
+    for (field = FieldIndexGetFirstField();
+         field;
+         field = FieldIndexGetNextField(field))
+    {
+        error = ParseField(field, &parsed);
+        if (error)
+        {
+            if (error == BUILD_ERROR)
+            {
+                parseFailed = true;
+            }
+            else
+            {
+                handleError(error);
+                ByteVectorDispose(&parsed);
+                cleanup();
+                return 1;
+            }
+        }
+    }
+
+    bytecode = ByteVectorDisposeContainer(&parsed);
+    if (handleError(ByteVectorInit(&parsed)))
+    {
+        free(bytecode);
+        cleanup();
+        return 1;
+    }
+    if (!parseFailed)
+    {
+        if (handleError(FieldIndexFinishBytecode(bytecode, &parsed)))
+        {
+            free(bytecode);
+            ByteVectorDispose(&parsed);
+            cleanup();
+            return 1;
+        }
+    }
+    free(bytecode);
+
+    for (function = FunctionIndexGetNextFunction(
+             FunctionIndexGetFirstFunction());
          function;
          function = FunctionIndexGetNextFunction(function))
     {
@@ -194,8 +251,15 @@ int main(int argc, const char **argv)
              function;
              function = FunctionIndexGetNextFunction(function))
         {
-            printf("Function %s:\n",
-                   StringPoolGetString(FunctionIndexGetName(function)));
+            if (function == FunctionIndexGetFirstFunction())
+            {
+                printf("Init:\n");
+            }
+            else
+            {
+                printf("Function %s:\n",
+                       StringPoolGetString(FunctionIndexGetName(function)));
+            }
             BytecodeDisassembleFunction(
                 bytecode + FunctionIndexGetBytecodeOffset(function));
         }

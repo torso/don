@@ -59,6 +59,18 @@ ErrorCode ByteVectorSetSize(bytevector *v, size_t size)
     return NO_ERROR;
 }
 
+ErrorCode ByteVectorGrowZero(bytevector *v, size_t size)
+{
+    size_t oldSize = ByteVectorSize(v);
+    ErrorCode error = ByteVectorSetSize(v, oldSize + size);
+    if (error)
+    {
+        return error;
+    }
+    memset((void*)ByteVectorGetPointer(v, oldSize), 0, size);
+    return NO_ERROR;
+}
+
 void ByteVectorCopy(const bytevector *restrict src, size_t srcOffset,
                     bytevector *restrict dst, size_t dstOffset, size_t size)
 {

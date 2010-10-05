@@ -3,6 +3,7 @@
 #include "builder.h"
 #include "bytecode.h"
 #include "bytevector.h"
+#include "fieldindex.h"
 #include "functionindex.h"
 #include "heap.h"
 #include "instruction.h"
@@ -20,6 +21,8 @@ struct RunState
     const byte *restrict bytecode;
 
     Heap heap;
+    ValueType *fieldTypes;
+    uint *fields;
     intvector callStack;
     bytevector typeStack;
     intvector stack;
@@ -587,6 +590,17 @@ static void execute(RunState *state, functionref target)
             IntVectorSet(&state->stack, bp + local, value);
             break;
 
+        case OP_LOAD_FIELD:
+            value = BytecodeReadUint(&ip);
+            InterpreterPush(state,
+                            state->fieldTypes[value], state->fields[value]);
+            break;
+
+        case OP_STORE_FIELD:
+            value = BytecodeReadUint(&ip);
+            pop(state, &state->fieldTypes[value], &state->fields[value]);
+            break;
+
         case OP_CAST_BOOLEAN:
             assert(InterpreterPeekType(state) == TYPE_BOOLEAN_LITERAL);
             break;
@@ -831,44 +845,52 @@ static void execute(RunState *state, functionref target)
     }
 }
 
-ErrorCode InterpreterExecute(const byte *bytecode, functionref target)
+static void disposeState(RunState *state)
+{
+    HeapDispose(&state->heap);
+    free(state->fields);
+    IntVectorDispose(&state->callStack);
+    ByteVectorDispose(&state->typeStack);
+    IntVectorDispose(&state->stack);
+}
+
+static boolean handleError(RunState *state, ErrorCode error)
+{
+    state->error = error;
+    if (error)
+    {
+        disposeState(state);
+        return true;
+    }
+    return false;
+}
+
+ErrorCode InterpreterExecute(const byte *restrict bytecode, functionref target)
 {
     RunState state;
+    uint fieldCount = FieldIndexGetCount();
 
+    memset(&state, 0, sizeof(state));
     state.bytecode = bytecode;
-    state.error = HeapInit(&state.heap);
-    if (state.error)
+    state.fields = (uint*)malloc(fieldCount * (sizeof(int) +
+                                               sizeof(ValueType)));
+    if (handleError(&state, state.fields ? NO_ERROR : OUT_OF_MEMORY) ||
+        handleError(&state, HeapInit(&state.heap)) ||
+        handleError(&state, IntVectorInit(&state.callStack)) ||
+        handleError(&state, ByteVectorInit(&state.typeStack)) ||
+        handleError(&state, IntVectorInit(&state.stack)))
     {
         return state.error;
     }
-    state.error = IntVectorInit(&state.callStack);
-    if (state.error)
+    state.fieldTypes = (ValueType*)&state.fields[fieldCount];
+
+    execute(&state, FunctionIndexGetFirstFunction());
+    if (!state.error)
     {
-        HeapDispose(&state.heap);
-        return state.error;
-    }
-    state.error = ByteVectorInit(&state.typeStack);
-    if (state.error)
-    {
-        HeapDispose(&state.heap);
-        IntVectorDispose(&state.callStack);
-        return state.error;
-    }
-    state.error = IntVectorInit(&state.stack);
-    if (state.error)
-    {
-        HeapDispose(&state.heap);
-        IntVectorDispose(&state.callStack);
-        ByteVectorDispose(&state.typeStack);
-        return state.error;
+        execute(&state, target);
     }
 
-    execute(&state, target);
-
-    HeapDispose(&state.heap);
-    IntVectorDispose(&state.callStack);
-    ByteVectorDispose(&state.typeStack);
-    IntVectorDispose(&state.stack);
+    disposeState(&state);
 
     return state.error;
 }

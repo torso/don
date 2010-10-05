@@ -21,17 +21,15 @@
 
 extern ErrorCode FunctionIndexInit(void);
 extern void FunctionIndexDispose(void);
-extern boolean FunctionIndexBuildIndex(void);
-extern functionref FunctionIndexGetFirstFunction(void);
-extern functionref FunctionIndexGetNextFunction(functionref function);
 
 extern ErrorCode FunctionIndexBeginFunction(stringref name);
 extern ErrorCode FunctionIndexAddParameter(stringref name, boolean required);
-extern void FunctionIndexFinishFunction(fileref file, uint line, uint fileOffset,
-                                        boolean isTarget);
+extern functionref FunctionIndexFinishFunction(fileref file, uint line,
+                                               uint fileOffset);
 
-extern pure uint FunctionIndexGetFunctionCount(void);
-extern pure functionref FunctionIndexGet(stringref name);
+extern pure functionref FunctionIndexGetFirstFunction(void);
+extern pure functionref FunctionIndexGetNextFunction(functionref function);
+
 extern pure functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset);
 extern pure stringref FunctionIndexGetName(functionref function);
 extern pure fileref FunctionIndexGetFile(functionref function);

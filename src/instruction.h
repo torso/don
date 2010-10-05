@@ -14,6 +14,8 @@ typedef enum
     OP_DUP,
     OP_LOAD,
     OP_STORE,
+    OP_LOAD_FIELD,
+    OP_STORE_FIELD,
 
     OP_CAST_BOOLEAN,
 

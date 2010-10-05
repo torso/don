@@ -77,6 +77,14 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: store %u\n", ip, BytecodeReadUint16(&bytecode));
         break;
 
+    case OP_LOAD_FIELD:
+        printf(" %u: load_field %u\n", ip, BytecodeReadUint(&bytecode));
+        break;
+
+    case OP_STORE_FIELD:
+        printf(" %u: store_field %u\n", ip, BytecodeReadUint(&bytecode));
+        break;
+
     case OP_CAST_BOOLEAN:
         printf(" %u: cast_boolean\n", ip);
         break;

@@ -1,28 +1,26 @@
 #include <memory.h>
 #include "builder.h"
-#include "intvector.h"
+#include "bytevector.h"
 #include "inthashmap.h"
+#include "intvector.h"
 #include "functionindex.h"
 
-#define TABLE_ENTRY_NAME 0
-#define TABLE_ENTRY_FILE 1
-#define TABLE_ENTRY_LINE 2
-#define TABLE_ENTRY_FILE_OFFSET 3
-#define TABLE_ENTRY_FLAGS 4
-#define TABLE_ENTRY_BYTECODE_OFFSET 5
-#define TABLE_ENTRY_PARAMETER_COUNT 6
-#define TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT 7
-#define TABLE_ENTRY_LOCALS 8
-#define TABLE_ENTRY_LOCAL_NAMES_OFFSET 9
-#define TABLE_ENTRY_SIZE 10
+typedef struct
+{
+    stringref name;
+    fileref file;
+    uint line;
+    uint fileOffset;
 
-#define FUNCTION_FLAG_FUNCTION 1
-#define FUNCTION_FLAG_QUEUED 2
+    uint bytecodeOffset;
+    uint parameterNamesOffset;
+    uint parameterCount;
+    uint minArgumentCount;
+    uint localCount;
+    uint localNamesOffset;
+} FunctionInfo;
 
-static intvector functionInfo;
-static inthashmap functionIndex;
-static uint functionCount;
-static boolean hasIndex;
+static bytevector functionTable;
 static intvector localNames;
 
 /*
@@ -32,178 +30,118 @@ static intvector localNames;
 static functionref currentFunction;
 
 
-static uint getFunctionSize(functionref function)
+static uint getFunctionInfoSize(functionref function)
 {
-    return TABLE_ENTRY_SIZE +
-        IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_PARAMETER_COUNT);
+    return (uint)sizeof(FunctionInfo) +
+        ((FunctionInfo*)ByteVectorGetPointer(
+            &functionTable, function))->parameterCount * (uint)sizeof(int);
 }
 
 static boolean isValidFunction(functionref function)
 {
-    uint offset;
-    if (!function || !functionCount || (uint)function >= IntVectorSize(&functionInfo))
+    uint f;
+    if (function + sizeof(FunctionInfo) > ByteVectorSize(&functionTable))
     {
         return false;
     }
-    for (offset = 1;
-         offset < IntVectorSize(&functionInfo);
-         offset += getFunctionSize((functionref)offset))
+    for (f = FunctionIndexGetFirstFunction(); f; f += getFunctionInfoSize(f))
     {
-        if (offset >= (uint)function)
+        if (f == function)
         {
-            return offset == (uint)function ? true : false;
+            return true;
         }
     }
     return false;
 }
 
-static uint getFlag(functionref function, uint flag)
+static FunctionInfo *getFunctionInfo(functionref function)
 {
-    return IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_FLAGS) & flag;
+    assert(isValidFunction(function));
+    return (FunctionInfo*)ByteVectorGetPointer(&functionTable, function);
 }
 
-static void setFlag(functionref function, uint flag)
-{
-    IntVectorSet(
-        &functionInfo,
-        (uint)function + TABLE_ENTRY_FLAGS,
-        IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_FLAGS) | flag);
-}
 
 ErrorCode FunctionIndexInit(void)
 {
     ErrorCode error;
 
-    error = IntVectorInit(&functionInfo);
+    error = ByteVectorInit(&functionTable);
     if (error)
     {
         return error;
     }
     /* Position 0 is reserved to mean invalid function. */
-    error = IntVectorAdd(&functionInfo, 0);
+    error = ByteVectorSetSize(&functionTable, sizeof(int));
     if (error)
     {
         return error;
     }
-
-    error = IntVectorInit(&localNames);
-
-    functionCount = 0;
-    hasIndex = false;
-    return error;
+    return IntVectorInit(&localNames);
 }
 
 void FunctionIndexDispose(void)
 {
-    IntVectorDispose(&functionInfo);
+    ByteVectorDispose(&functionTable);
     IntVectorDispose(&localNames);
-    if (hasIndex)
-    {
-        IntHashMapDispose(&functionIndex);
-    }
 }
 
-boolean FunctionIndexBuildIndex(void)
-{
-    /* uint tableSize; */
-    functionref function;
-
-    assert(!hasIndex);
-    if (IntHashMapInit(&functionIndex, FunctionIndexGetFunctionCount()))
-    {
-        return false;
-    }
-    hasIndex = true;
-
-    for (function = FunctionIndexGetFirstFunction();
-         function;
-         function = FunctionIndexGetNextFunction(function))
-    {
-        IntHashMapAdd(&functionIndex, (uint)FunctionIndexGetName(function), (uint)function);
-    }
-    return true;
-}
-
-functionref FunctionIndexGetFirstFunction(void)
-{
-    return functionCount ? 1 : 0;
-}
-
-functionref FunctionIndexGetNextFunction(functionref function)
-{
-    assert(isValidFunction(function));
-    function = (functionref)((uint)function + getFunctionSize(function));
-    return (uint)function < IntVectorSize(&functionInfo) ? function : 0;
-}
 
 ErrorCode FunctionIndexBeginFunction(stringref name)
 {
     ErrorCode error;
-
-    assert(!hasIndex);
-    currentFunction = (functionref)IntVectorSize(&functionInfo);
-    error = IntVectorAdd(&functionInfo, (uint)name);
+    currentFunction = (functionref)ByteVectorSize(&functionTable);
+    error = ByteVectorGrowZero(&functionTable, sizeof(FunctionInfo));
     if (error)
     {
         return error;
     }
-    error = IntVectorGrowZero(&functionInfo, TABLE_ENTRY_SIZE - 1);
-    if (error)
-    {
-        return error;
-    }
-    functionCount++;
+    getFunctionInfo(currentFunction)->name = name;
     return NO_ERROR;
 }
 
 ErrorCode FunctionIndexAddParameter(stringref name, boolean required)
 {
-    uint parameterCount =
-        IntVectorGet(&functionInfo,
-                     (uint)currentFunction + TABLE_ENTRY_PARAMETER_COUNT);
-    uint minArgumentCount =
-        IntVectorGet(&functionInfo,
-                     (uint)currentFunction + TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT);
+    FunctionInfo *info = getFunctionInfo(currentFunction);
 
-    assert(!hasIndex);
-    assert(!required || parameterCount == minArgumentCount);
-    IntVectorSet(&functionInfo, (uint)currentFunction + TABLE_ENTRY_PARAMETER_COUNT,
-                 parameterCount + 1);
+    assert(!required || info->parameterCount == info->minArgumentCount);
+    info->parameterCount++;
     if (required)
     {
-        IntVectorSet(&functionInfo,
-                     (uint)currentFunction + TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT,
-                     minArgumentCount + 1);
+        info->minArgumentCount++;
     }
-    return IntVectorAdd(&functionInfo, (uint)name);
+    return ByteVectorAddUint(&functionTable, (uint)name);
 }
 
-void FunctionIndexFinishFunction(fileref file, uint line, uint fileOffset,
-                                 boolean isTarget)
+functionref FunctionIndexFinishFunction(fileref file, uint line, uint fileOffset)
 {
-    assert(!isTarget ||
-           !IntVectorGet(&functionInfo,
-                         (uint)currentFunction + TABLE_ENTRY_PARAMETER_COUNT));
-    IntVectorSet(&functionInfo, (uint)currentFunction + TABLE_ENTRY_FILE, file);
-    IntVectorSet(&functionInfo, (uint)currentFunction + TABLE_ENTRY_LINE, line);
-    IntVectorSet(&functionInfo, (uint)currentFunction + TABLE_ENTRY_FILE_OFFSET,
-                 fileOffset);
-    if (isTarget)
+    FunctionInfo *info = getFunctionInfo(currentFunction);
+    info->file = file;
+    info->line = line;
+    info->fileOffset = fileOffset;
+    return currentFunction;
+}
+
+
+functionref FunctionIndexGetFirstFunction(void)
+{
+    if (ByteVectorSize(&functionTable) == sizeof(int))
     {
-        setFlag(currentFunction, FUNCTION_FLAG_FUNCTION);
+        return 0;
     }
+    return sizeof(int);
 }
 
-uint FunctionIndexGetFunctionCount(void)
+functionref FunctionIndexGetNextFunction(functionref function)
 {
-    return functionCount;
+    function = (functionref)((uint)function + getFunctionInfoSize(function));
+    assert((uint)function <= ByteVectorSize(&functionTable));
+    if ((uint)function == ByteVectorSize(&functionTable))
+    {
+        return 0;
+    }
+    return function;
 }
 
-functionref FunctionIndexGet(stringref name)
-{
-    assert(hasIndex);
-    return (functionref)IntHashMapGet(&functionIndex, (uint)name);
-}
 
 functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset)
 {
@@ -228,91 +166,61 @@ functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset)
 
 stringref FunctionIndexGetName(functionref function)
 {
-    assert(hasIndex);
-    assert(isValidFunction(function));
-    return (stringref)IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_NAME);
+    return getFunctionInfo(function)->name;
 }
 
 fileref FunctionIndexGetFile(functionref function)
 {
-    assert(hasIndex);
-    assert(isValidFunction(function));
-    return IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_FILE);
+    return getFunctionInfo(function)->file;
 }
 
 uint FunctionIndexGetLine(functionref function)
 {
-    assert(hasIndex);
-    assert(isValidFunction(function));
-    return IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_LINE);
+    return getFunctionInfo(function)->line;
 }
 
 uint FunctionIndexGetFileOffset(functionref function)
 {
-    assert(hasIndex);
-    assert(isValidFunction(function));
-    return IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_FILE_OFFSET);
-}
-
-boolean FunctionIndexIsTarget(functionref function)
-{
-    assert(hasIndex);
-    assert(isValidFunction(function));
-    return getFlag(function, FUNCTION_FLAG_FUNCTION) ? true : false;
+    return getFunctionInfo(function)->fileOffset;
 }
 
 uint FunctionIndexGetBytecodeOffset(functionref function)
 {
-    assert(hasIndex);
-    assert(isValidFunction(function));
-    return IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_BYTECODE_OFFSET);
+    return getFunctionInfo(function)->bytecodeOffset;
 }
 
 void FunctionIndexSetBytecodeOffset(functionref function, uint offset)
 {
-    assert(hasIndex);
-    assert(isValidFunction(function));
-    IntVectorSet(&functionInfo, (uint)function + TABLE_ENTRY_BYTECODE_OFFSET,
-                 offset);
+    getFunctionInfo(function)->bytecodeOffset = offset;
 }
 
 uint FunctionIndexGetParameterCount(functionref function)
 {
-    assert(hasIndex);
-    assert(isValidFunction(function));
-    return IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_PARAMETER_COUNT);
+    return getFunctionInfo(function)->parameterCount;
 }
 
 const stringref *FunctionIndexGetParameterNames(functionref function)
 {
-    assert(hasIndex);
     assert(isValidFunction(function));
-    return (stringref*)IntVectorGetPointer(&functionInfo, (uint)function + TABLE_ENTRY_SIZE);
+    return (stringref*)ByteVectorGetPointer(&functionTable,
+                                            function + sizeof(FunctionInfo));
 }
 
 uint FunctionIndexGetMinimumArgumentCount(functionref function)
 {
-    assert(hasIndex);
-    assert(isValidFunction(function));
-    return IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_MINIMUM_ARGUMENT_COUNT);
+    return getFunctionInfo(function)->minArgumentCount;
 }
 
 uint FunctionIndexGetLocalsCount(functionref function)
 {
-    assert(hasIndex);
-    assert(isValidFunction(function));
-    return IntVectorGet(&functionInfo, (uint)function + TABLE_ENTRY_LOCALS);
+    return getFunctionInfo(function)->localCount;
 }
 
 stringref FunctionIndexGetLocalName(functionref function, uint16 local)
 {
-    assert(hasIndex);
-    assert(isValidFunction(function));
     assert(local < FunctionIndexGetLocalsCount(function));
-    return (stringref)IntVectorGet(
-        &localNames,
-        IntVectorGet(&functionInfo,
-                     (uint)function + TABLE_ENTRY_LOCAL_NAMES_OFFSET));
+    return (stringref)IntVectorGet(&localNames,
+                                   getFunctionInfo(function)->localNamesOffset);
 }
 
 ErrorCode FunctionIndexSetLocals(functionref function, const inthashmap *locals,
@@ -322,18 +230,19 @@ ErrorCode FunctionIndexSetLocals(functionref function, const inthashmap *locals,
     inthashmapiterator iter;
     uint name;
     uint index;
+    FunctionInfo *info = getFunctionInfo(function);
     ErrorCode error;
 
-    assert(hasIndex);
     assert(isValidFunction(function));
     assert(count >= IntHashMapSize(locals));
 
-    error = IntVectorSetSize(&localNames, IntVectorSize(&localNames) + count);
+    error = IntVectorSetSize(&localNames, offset + count);
     if (error)
     {
         return error;
     }
-    IntVectorSet(&functionInfo, (uint)function + TABLE_ENTRY_LOCALS, count);
+    info->localCount = count;
+    info->localNamesOffset = offset;
     IntHashMapIteratorInit(locals, &iter);
     while (IntHashMapIteratorNext(&iter, &name, &index))
     {
