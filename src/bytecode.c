@@ -238,10 +238,11 @@ const byte *BytecodeDisassembleInstruction(const byte *bytecode,
 void BytecodeDisassembleFunction(const byte *bytecode)
 {
     const byte *start = bytecode;
-    const byte *limit = bytecode + 1;
+    const byte *limit = bytecode;
 
-    while (bytecode <= limit)
+    do
     {
         bytecode = disassemble(bytecode, start, &limit);
     }
+    while (bytecode <= limit);
 }
