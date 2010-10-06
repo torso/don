@@ -4,7 +4,7 @@ test:
    hasOutput = false
    for f in @test/*
       pipe out, err
-         exitcode = exec(["./builder", "-i", f])
+         exitcode = exec(["./don", "-i", f])
       if exitcode || out != "PASS\n" || err != ""
          fail = fail + 1
          if hasOutput
@@ -21,4 +21,4 @@ test:
    echo("fail:  " . fail)
 
 default:
-   exec(["valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "./builder", "-i", "input", "-d"])
+   exec(["valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "./don", "-i", "input", "-d"])
