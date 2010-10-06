@@ -7,6 +7,7 @@
 #include "functionindex.h"
 #include "heap.h"
 #include "interpreter.h"
+#include "intvector.h"
 #include "namespace.h"
 #include "native.h"
 #include "parser.h"
@@ -54,31 +55,15 @@ static void cleanup(void)
     StringPoolDispose();
 }
 
-static functionref getTarget(const char *name)
-{
-    stringref string = StringPoolAdd(name);
-    functionref function;
-    if (!string)
-    {
-        handleError(OUT_OF_MEMORY);
-        return 0;
-    }
-    function = NamespaceGetTarget(string);
-    if (!function)
-    {
-        printf("'%s' is not a target.\n", name);
-        return 0;
-    }
-    return function;
-}
-
 int main(int argc, const char **argv)
 {
     int i;
+    uint j;
     const char *options;
     const char *inputFilename = null;
     fileref inputFile;
-    stringref initFunctionName;
+    intvector targets;
+    stringref name;
     fieldref field;
     functionref function;
     boolean parseOptions = true;
@@ -89,6 +74,14 @@ int main(int argc, const char **argv)
     byte *bytecode;
     const byte *bytecodeLimit;
     size_t bytecodeSize;
+
+    if (handleError(IntVectorInit(&targets)) ||
+        handleError(StringPoolInit()) ||
+        handleError(ParserAddKeywords()) ||
+        handleError(StringPoolAdd("") ? NO_ERROR : OUT_OF_MEMORY))
+    {
+        return 1;
+    }
 
     for (i = 1; i < argc; i++)
     {
@@ -144,25 +137,30 @@ int main(int argc, const char **argv)
         }
         else
         {
-            printf("TODO: target=%s\n", argv[i]);
-            return 1;
+            name = StringPoolAdd(argv[i]);
+            if (handleError(name ? NO_ERROR : OUT_OF_MEMORY) ||
+                handleError(IntVectorAdd(&targets, (uint)name)))
+            {
+                return 1;
+            }
         }
     }
     if (!inputFilename)
     {
         inputFilename = "build.don";
     }
-
-    if (handleError(StringPoolInit()) ||
-        handleError(ParserAddKeywords()) ||
-        handleError(FunctionIndexInit()))
+    if (!IntVectorSize(&targets))
     {
-        cleanup();
-        return 1;
+        name = StringPoolAdd("default");
+        if (handleError(name ? NO_ERROR : OUT_OF_MEMORY) ||
+            handleError(IntVectorAdd(&targets, (uint)name)))
+        {
+            return 1;
+        }
     }
-    initFunctionName = StringPoolAdd("");
-    if (handleError(initFunctionName ? NO_ERROR : OUT_OF_MEMORY) ||
-        handleError(FunctionIndexBeginFunction(initFunctionName)) ||
+
+    if (handleError(FunctionIndexInit()) ||
+        handleError(FunctionIndexBeginFunction(StringPoolAdd(""))) ||
         handleError(FieldIndexInit()) ||
         handleError(NamespaceInit()) ||
         handleError(NativeInit()) ||
@@ -270,21 +268,35 @@ int main(int argc, const char **argv)
         }
     }
 
-    function = getTarget("default");
-    if (!function || parseFailed)
+    for (j = 0; j < IntVectorSize(&targets); j++)
+    {
+        name = (stringref)IntVectorGet(&targets, j);
+        if (!NamespaceGetTarget(name))
+        {
+            printf("'%s' is not a target.\n", StringPoolGetString(name));
+            parseFailed = true;
+        }
+    }
+    if (parseFailed)
     {
         free(bytecode);
         cleanup();
         return 1;
     }
 
-    if (handleError(InterpreterExecute(bytecode, function)))
+    for (j = 0; j < IntVectorSize(&targets); j++)
     {
-        cleanup();
-        return 1;
+        function = NamespaceGetTarget((stringref)IntVectorGet(&targets, j));
+        assert(function);
+        if (handleError(InterpreterExecute(bytecode, function)))
+        {
+            cleanup();
+            return 1;
+        }
     }
 
     free(bytecode);
+    IntVectorDispose(&targets);
     cleanup();
     return 0;
 }
