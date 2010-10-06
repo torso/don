@@ -1396,7 +1396,7 @@ static void parseScript(ParseState *state)
                         {
                             return;
                         }
-                        if (!parameterName)
+                        if (!parameterName || isKeyword(parameterName))
                         {
                             error(state, "Expected parameter name or ')'.");
                             return;
