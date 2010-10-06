@@ -159,7 +159,8 @@ int main(int argc, const char **argv)
         }
     }
 
-    if (handleError(FunctionIndexInit()) ||
+    if (handleError(FileIndexInit()) ||
+        handleError(FunctionIndexInit()) ||
         handleError(FunctionIndexBeginFunction(StringPoolAdd(""))) ||
         handleError(FieldIndexInit()) ||
         handleError(NamespaceInit()) ||

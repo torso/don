@@ -1,8 +1,9 @@
 typedef ErrorCode (*TraverseCallback)(fileref, void*);
 
+extern ErrorCode FileIndexInit(void);
 extern void FileIndexDispose(void);
+
 extern nonnull fileref FileIndexOpen(const char *filename);
-extern nonnull fileref FileIndexAdd(const char *filename);
 extern void FileIndexClose(fileref file);
 extern pure const char *FileIndexGetName(fileref file);
 extern pure const byte *FileIndexGetContents(fileref file);
