@@ -1286,7 +1286,8 @@ static boolean parseFunctionBody(ParseState *state)
                     {
                         prevIndent = currentIndent;
                         currentIndent = 0;
-                        if (!parseRValue(state, false))
+                        if (!parseRValue(state, false) ||
+                            !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN))
                         {
                             return false;
                         }
@@ -1380,7 +1381,8 @@ static boolean parseFunctionBody(ParseState *state)
                         prevIndent = currentIndent;
                         currentIndent = 0;
                         target = ParseStateGetJumpTarget(state);
-                        if (!parseRValue(state, false))
+                        if (!parseRValue(state, false) ||
+                            !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN))
                         {
                             return false;
                         }

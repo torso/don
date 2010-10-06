@@ -1,0 +1,6 @@
+default:
+   a = 5
+   while a
+      a = a - 1
+   if a == 0
+      echo("PASS")
