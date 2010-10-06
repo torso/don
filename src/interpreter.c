@@ -687,7 +687,26 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_CAST_BOOLEAN:
-            assert(InterpreterPeekType(state) == TYPE_BOOLEAN_LITERAL);
+            pop(state, &type, &value);
+            unbox(state, &type, &value);
+            switch (type)
+            {
+            case TYPE_NULL_LITERAL:
+                assert(!value);
+            case TYPE_BOOLEAN_LITERAL:
+                break;
+
+            case TYPE_INTEGER_LITERAL:
+                value = value != 0;
+                break;
+
+            case TYPE_STRING_LITERAL:
+            case TYPE_FILE_LITERAL:
+            case TYPE_OBJECT:
+                value = 1;
+                break;
+            }
+            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, value);
             break;
 
         case OP_EQUALS:
