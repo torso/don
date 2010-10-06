@@ -28,6 +28,9 @@ struct RunState
     bytevector typeStack;
     intvector stack;
     ErrorCode error;
+
+    bytevector *pipeOut;
+    bytevector *pipeErr;
 };
 
 
@@ -76,6 +79,13 @@ boolean InterpreterPush(RunState *state, ValueType type, uint value)
 {
     return !setError(state, ByteVectorAdd(&state->typeStack, type)) &&
         !setError(state, IntVectorAdd(&state->stack, value));
+}
+
+static void storeLocal(RunState *state, uint bp, uint16 local,
+                       ValueType type, uint value)
+{
+    ByteVectorSet(&state->typeStack, bp + local, type);
+    IntVectorSet(&state->stack, bp + local, value);
 }
 
 static boolean boxInt(RunState *state, ObjectType type, uint *value)
@@ -293,6 +303,16 @@ Heap *InterpreterGetHeap(RunState *state)
     return &state->heap;
 }
 
+bytevector *InterpreterGetPipeOut(RunState *state)
+{
+    return state->pipeOut;
+}
+
+bytevector *InterpreterGetPipeErr(RunState *state)
+{
+    return state->pipeErr;
+}
+
 const char *InterpreterGetString(RunState *state, ValueType type, uint value)
 {
     size_t size = InterpreterGetStringSize(state, type, value);
@@ -483,6 +503,32 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
     return null;
 }
 
+static void createString(RunState *state, bytevector *data,
+                         ValueType *type, uint *value)
+{
+    /* TODO: Avoid copying data. */
+    size_t size = ByteVectorSize(data);
+    byte *objectData;
+
+    if (!size)
+    {
+        *type = TYPE_STRING_LITERAL;
+        *value = (uint)StringPoolAdd("");
+        assert(*value);
+        return;
+    }
+
+    objectData = HeapAlloc(&state->heap, TYPE_STRING, size);
+    if (!objectData)
+    {
+        state->error = OUT_OF_MEMORY;
+        return;
+    }
+    memcpy(objectData, ByteVectorGetPointer(data, 0), size);
+    *type = TYPE_OBJECT;
+    *value = HeapFinishAlloc(&state->heap, objectData);
+}
+
 static void pushStackFrame(RunState *state, const byte **ip, uint *bp,
                            functionref function, uint returnValues)
 {
@@ -625,10 +671,8 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_STORE:
-            local = BytecodeReadUint16(&ip);
             pop(state, &type, &value);
-            ByteVectorSet(&state->typeStack, bp + local, type);
-            IntVectorSet(&state->stack, bp + local, value);
+            storeLocal(state, bp, BytecodeReadUint16(&ip), type, value);
             break;
 
         case OP_LOAD_FIELD:
@@ -881,6 +925,39 @@ static void execute(RunState *state, functionref target)
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == NativeGetParameterCount(nativeFunction)); /* TODO */
             state->error = NativeInvoke(state, nativeFunction, *ip++);
+            if (state->error)
+            {
+                return;
+            }
+            break;
+
+        case OP_PIPE_BEGIN:
+            assert(!state->pipeOut);
+            assert(!state->pipeErr);
+            state->pipeOut = ByteVectorCreate();
+            state->pipeErr = ByteVectorCreate();
+            if (!state->pipeOut || !state->pipeErr)
+            {
+                state->error = OUT_OF_MEMORY;
+                return;
+            }
+            break;
+
+        case OP_PIPE_END:
+            assert(state->pipeOut);
+            createString(state, state->pipeOut, &type, &value);
+            storeLocal(state, bp, BytecodeReadUint16(&ip), type, value);
+            ByteVectorDispose(state->pipeOut);
+            free(state->pipeOut);
+            state->pipeOut = null;
+
+            assert(state->pipeErr);
+            createString(state, state->pipeErr, &type, &value);
+            storeLocal(state, bp, BytecodeReadUint16(&ip), type, value);
+            ByteVectorDispose(state->pipeErr);
+            free(state->pipeErr);
+            state->pipeErr = null;
+
             if (state->error)
             {
                 return;

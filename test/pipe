@@ -1,0 +1,5 @@
+default:
+   pipe out, err
+      exec(["echo", "-n", "teststring"])
+   if out == "teststring" && err == ""
+      echo("PASS")

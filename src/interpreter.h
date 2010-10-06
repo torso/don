@@ -1,4 +1,6 @@
 extern nonnull Heap *InterpreterGetHeap(RunState *state);
+extern nonnull bytevector *InterpreterGetPipeOut(RunState *state);
+extern nonnull bytevector *InterpreterGetPipeErr(RunState *state);
 
 /*
   Converts the value to a string of the default form. The returned memory must

@@ -15,7 +15,8 @@ typedef enum
     BLOCK_ELSE,
     BLOCK_CONDITION1,
     BLOCK_CONDITION2,
-    BLOCK_WHILE
+    BLOCK_WHILE,
+    BLOCK_PIPE
 } BlockType;
 
 
@@ -133,24 +134,43 @@ boolean ParseStateSetError(ParseState *state, ErrorCode error)
 }
 
 
-static boolean beginBlock(ParseState *state, BlockType type, size_t loopOffset)
+static boolean beginBlock(ParseState *state, BlockType type)
+{
+    IntVectorAdd(&state->blockStack, state->indent);
+    IntVectorAdd(&state->blockStack, type);
+    state->indent = 0;
+    return true;
+}
+
+static boolean beginJumpBlock(ParseState *state, BlockType type)
 {
     /* MAX_UINT - 1 doesn't produce any warning when uint == size_t. */
     assert(ByteVectorSize(state->bytecode) <= MAX_UINT - 1);
-    assert(loopOffset <= MAX_UINT - 1);
     IntVectorAdd(&state->blockStack, (uint)ByteVectorSize(state->bytecode));
-    IntVectorAdd(&state->blockStack, state->indent);
-    IntVectorAdd(&state->blockStack, type);
+    return beginBlock(state, type);
+}
+
+static boolean beginLoopBlock(ParseState *state, BlockType type,
+                              size_t loopOffset)
+{
+    /* MAX_UINT - 1 doesn't produce any warning when uint == size_t. */
+    assert(loopOffset <= MAX_UINT - 1);
     IntVectorAdd(&state->blockStack, (uint)loopOffset);
-    state->indent = 0;
-    return true;
+    return beginJumpBlock(state, type);
+}
+
+static boolean beginPipeBlock(ParseState *state, uint16 out, uint16 err)
+{
+    IntVectorAdd(&state->blockStack, out);
+    IntVectorAdd(&state->blockStack, err);
+    return beginBlock(state, BLOCK_PIPE);
 }
 
 static boolean writeElse(ParseState *state, BlockType type)
 {
     return !ParseStateSetError(state,
                                ByteVectorAdd(state->bytecode, OP_JUMP)) &&
-        beginBlock(state, type, 0) &&
+        beginJumpBlock(state, type) &&
         !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
 }
 
@@ -158,9 +178,11 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
                               uint indent, boolean trailingElse)
 {
     uint prevIndent;
-    uint jumpOffset;
+    uint jumpOffset = 0;
     BlockType type;
     uint loopOffset;
+    uint16 out;
+    uint16 err;
 
     ParseStateCheck(state);
 
@@ -179,10 +201,8 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         return !state->error && ParseStateWriteReturnVoid(state);
     }
 
-    loopOffset = IntVectorPop(&state->blockStack);
     type = IntVectorPop(&state->blockStack);
     prevIndent = IntVectorPop(&state->blockStack);
-    jumpOffset = IntVectorPop(&state->blockStack);
     if (indent > prevIndent)
     {
         setError(state, "Mismatched indentation level.");
@@ -199,6 +219,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
             return false;
         }
 
+        jumpOffset = IntVectorPop(&state->blockStack);
         if (indent == prevIndent)
         {
             state->indent = indent;
@@ -215,9 +236,11 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         {
         case BLOCK_IF:
         case BLOCK_ELSE:
+            jumpOffset = IntVectorPop(&state->blockStack);
             break;
 
         case BLOCK_CONDITION1:
+            jumpOffset = IntVectorPop(&state->blockStack);
             if (!writeElse(state, BLOCK_CONDITION2))
             {
                 return false;
@@ -225,10 +248,27 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
             break;
 
         case BLOCK_CONDITION2:
+            jumpOffset = IntVectorPop(&state->blockStack);
             break;
 
         case BLOCK_WHILE:
+            jumpOffset = IntVectorPop(&state->blockStack);
+            loopOffset = IntVectorPop(&state->blockStack);
             if (!writeBackwardsJump(state, loopOffset))
+            {
+                return false;
+            }
+            break;
+
+        case BLOCK_PIPE:
+            err = (uint16)IntVectorPop(&state->blockStack);
+            out = (uint16)IntVectorPop(&state->blockStack);
+            if (ParseStateSetError(
+                    state, ByteVectorAdd(state->bytecode, OP_PIPE_END)) ||
+                ParseStateSetError(
+                    state, ByteVectorAddUint16(state->bytecode, out)) ||
+                ParseStateSetError(
+                    state, ByteVectorAddUint16(state->bytecode, err)))
             {
                 return false;
             }
@@ -236,9 +276,12 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         }
     }
 
-    ByteVectorSetInt(
-        state->bytecode, jumpOffset,
-        (int)(ByteVectorSize(state->bytecode) - jumpOffset - sizeof(int)));
+    if (jumpOffset)
+    {
+        ByteVectorSetInt(
+            state->bytecode, jumpOffset,
+            (int)(ByteVectorSize(state->bytecode) - jumpOffset - sizeof(int)));
+    }
     return true;
 }
 
@@ -405,7 +448,7 @@ boolean ParseStateWriteBeginCondition(ParseState *state)
     ParseStateCheck(state);
     return !ParseStateSetError(
         state, ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE)) &&
-        beginBlock(state, BLOCK_CONDITION1, 0) &&
+        beginJumpBlock(state, BLOCK_CONDITION1) &&
         !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
 }
 
@@ -427,7 +470,7 @@ boolean ParseStateWriteIf(ParseState *state)
     ParseStateCheck(state);
     return !ParseStateSetError(
         state, ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE)) &&
-        beginBlock(state, BLOCK_IF, 0) &&
+        beginJumpBlock(state, BLOCK_IF) &&
         !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
 }
 
@@ -436,8 +479,17 @@ boolean ParseStateWriteWhile(ParseState *state, size_t loopTarget)
     ParseStateCheck(state);
     return !ParseStateSetError(
         state, ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE)) &&
-        beginBlock(state, BLOCK_WHILE, loopTarget) &&
+        beginLoopBlock(state, BLOCK_WHILE, loopTarget) &&
         !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
+}
+
+boolean ParseStateWritePipe(ParseState *state, stringref out, stringref err)
+{
+    ParseStateCheck(state);
+    return !ParseStateSetError(state,
+                               ByteVectorAdd(state->bytecode, OP_PIPE_BEGIN)) &&
+        beginPipeBlock(state, getLocalIndex(state, out),
+                          getLocalIndex(state, err));
 }
 
 boolean ParseStateWriteReturn(ParseState *state, uint values)

@@ -23,6 +23,22 @@ static void checkByteVectorRange(const bytevector *v, size_t index, size_t size)
     assert(ByteVectorSize(v) >= index + size);
 }
 
+
+bytevector *ByteVectorCreate(void)
+{
+    bytevector *v = (bytevector*)malloc(sizeof(bytevector));
+    if (!v)
+    {
+        return null;
+    }
+    if (ByteVectorInit(v))
+    {
+        free(v);
+        return null;
+    }
+    return v;
+}
+
 ErrorCode ByteVectorInit(bytevector *v)
 {
     v->data = (byte*)malloc(SEGMENT_SIZE);
@@ -57,6 +73,11 @@ ErrorCode ByteVectorSetSize(bytevector *v, size_t size)
     assert(size <= SEGMENT_SIZE); /* TODO: grow byte vector */
     v->size = size;
     return NO_ERROR;
+}
+
+ErrorCode ByteVectorGrow(bytevector *v, size_t size)
+{
+    return ByteVectorSetSize(v, ByteVectorSize(v) + size);
 }
 
 ErrorCode ByteVectorGrowZero(bytevector *v, size_t size)
@@ -267,6 +288,17 @@ const byte *ByteVectorGetPointer(const bytevector *v, size_t index)
 {
     checkByteVectorIndex(v, index);
     return &v->data[index];
+}
+
+byte *ByteVectorGetAppendPointer(bytevector *v)
+{
+    checkByteVector(v);
+    return &v->data[v->size];
+}
+
+size_t ByteVectorGetAvailableSize(const bytevector *v)
+{
+    return SEGMENT_SIZE - ByteVectorSize(v);
 }
 
 byte ByteVectorPeek(const bytevector *v)

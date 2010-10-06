@@ -40,6 +40,7 @@ static stringref keywordFor;
 static stringref keywordIf;
 static stringref keywordIn;
 static stringref keywordNull;
+static stringref keywordPipe;
 static stringref keywordReturn;
 static stringref keywordTrue;
 static stringref keywordWhile;
@@ -168,6 +169,11 @@ static boolean peekComment(const ParseState *state)
     return state->current[0] == ';';
 }
 
+static boolean isKeyword(stringref identifier)
+{
+    return identifier <= maxKeyword;
+}
+
 static boolean peekIdentifier(const ParseState *state)
 {
     ParseStateCheck(state);
@@ -196,9 +202,18 @@ static stringref peekReadIdentifier(ParseState *state)
     return peekIdentifier(state) ? readIdentifier(state) : 0;
 }
 
-static boolean isKeyword(stringref identifier)
+static stringref readVariableName(ParseState *state)
 {
-    return identifier <= maxKeyword;
+    stringref identifier = peekReadIdentifier(state);
+    if (!identifier || isKeyword(identifier))
+    {
+        if (!state->error)
+        {
+            error(state, "Expected variable name.");
+        }
+        return 0;
+    }
+    return identifier;
 }
 
 static boolean readExpectedKeyword(ParseState *state, stringref keyword)
@@ -1133,6 +1148,7 @@ static boolean parseFunctionBody(ParseState *state)
     uint currentIndent = 0;
     uint prevIndent = 0;
     stringref identifier;
+    stringref identifier2;
     size_t target;
     uint16 iterVariable;
 
@@ -1244,13 +1260,9 @@ static boolean parseFunctionBody(ParseState *state)
                     {
                         prevIndent = currentIndent;
                         currentIndent = 0;
-                        identifier = peekReadIdentifier(state);
-                        if (!identifier)
+                        identifier = readVariableName(state);
+                        if (state->error)
                         {
-                            if (!state->error)
-                            {
-                                statementError(state, "Expected variable name.");
-                            }
                             return false;
                         }
                         iterVariable = ParseStateCreateUnnamedVariable(state);
@@ -1279,6 +1291,30 @@ static boolean parseFunctionBody(ParseState *state)
                             !ParseStateSetVariable(state, identifier) ||
                             !ParseStateWriteWhile(state, target))
                         {
+                            return false;
+                        }
+                    }
+                    else if (identifier == keywordPipe)
+                    {
+                        prevIndent = currentIndent;
+                        currentIndent = 0;
+                        identifier = readVariableName(state);
+                        if (state->error ||
+                            !readExpectedOperator(state, ','))
+                        {
+                            return false;
+                        }
+                        skipWhitespace(state);
+                        identifier2 = readVariableName(state);
+                        if (state->error ||
+                            !ParseStateWritePipe(state,
+                                                 identifier, identifier2))
+                        {
+                            return false;
+                        }
+                        if (!peekNewline(state))
+                        {
+                            error(state, "Garbage after pipe statement.");
                             return false;
                         }
                     }
@@ -1481,6 +1517,7 @@ ErrorCode ParserAddKeywords(void)
         !(keywordIf = StringPoolAdd("if")) ||
         !(keywordIn = StringPoolAdd("in")) ||
         !(keywordNull = StringPoolAdd("null")) ||
+        !(keywordPipe = StringPoolAdd("pipe")) ||
         !(keywordReturn = StringPoolAdd("return")) ||
         !(keywordTrue = StringPoolAdd("true")) ||
         !(keywordWhile = StringPoolAdd("while")))

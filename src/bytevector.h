@@ -6,11 +6,13 @@ struct bytevector
     byte *data;
 };
 
+extern nonnull bytevector *ByteVectorCreate(void);
 extern nonnull ErrorCode ByteVectorInit(bytevector *v);
 extern nonnull void ByteVectorDispose(bytevector *v);
 extern nonnull byte *ByteVectorDisposeContainer(bytevector *v);
 extern nonnull pure size_t ByteVectorSize(const bytevector *v);
 extern nonnull ErrorCode ByteVectorSetSize(bytevector *v, size_t size);
+extern nonnull ErrorCode ByteVectorGrow(bytevector *v, size_t size);
 extern nonnull ErrorCode ByteVectorGrowZero(bytevector *v, size_t size);
 extern nonnull void ByteVectorCopy(
     const bytevector *restrict src, size_t srcOffset,
@@ -51,6 +53,8 @@ extern nonnull pure uint ByteVectorGetPackUintSize(const bytevector *v,
                                                    size_t index);
 extern nonnull pure const byte *ByteVectorGetPointer(const bytevector *v,
                                                      size_t index);
+extern nonnull byte *ByteVectorGetAppendPointer(bytevector *v);
+extern nonnull size_t ByteVectorGetAvailableSize(const bytevector *v);
 extern nonnull pure byte ByteVectorPeek(const bytevector *v);
 extern nonnull byte ByteVectorPop(bytevector *v);
 extern nonnull void ByteVectorPopData(bytevector *v, byte *value, size_t size);

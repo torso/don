@@ -72,6 +72,8 @@ extern nonnull boolean ParseStateWriteFinishCondition(ParseState *state);
 extern nonnull boolean ParseStateWriteIf(ParseState *state);
 extern nonnull boolean ParseStateWriteWhile(ParseState *state,
                                             size_t loopTarget);
+extern nonnull boolean ParseStateWritePipe(ParseState *state,
+                                           stringref out, stringref err);
 extern nonnull boolean ParseStateWriteReturn(ParseState *state, uint values);
 extern nonnull boolean ParseStateWriteReturnVoid(ParseState *state);
 extern nonnull boolean ParseStateWriteInvocation(
