@@ -1,0 +1,24 @@
+test:
+   pass = 0
+   fail = 0
+   hasOutput = false
+   for f in @test/*
+      pipe out, err
+         exitcode = exec(["./builder", "-i", f])
+      if exitcode || out != "PASS\n" || err != ""
+         fail = fail + 1
+         if hasOutput
+            echo("")
+         echo("FAIL: " . f)
+         hasOutput = out != "" || err != ""
+         if hasOutput
+            echo(out . err)
+      else
+         pass = pass + 1
+   if fail
+      echo("")
+   echo("pass:  " . pass)
+   echo("fail:  " . fail)
+
+default:
+   exec(["valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "./builder", "-i", "input", "-d"])
