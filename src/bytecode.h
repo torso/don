@@ -13,4 +13,5 @@ extern nonnull const byte *BytecodeDisassembleInstruction(const byte *bytecode,
   Disassembles an entire function. The end of the function is automatically
   detected through reachability.
 */
-extern nonnull void BytecodeDisassembleFunction(const byte *bytecode);
+extern nonnull void BytecodeDisassembleFunction(const byte *bytecode,
+                                                const byte *bytecodeLimit);

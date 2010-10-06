@@ -87,6 +87,8 @@ int main(int argc, const char **argv)
     boolean parseFailed = false;
     bytevector parsed;
     byte *bytecode;
+    const byte *bytecodeLimit;
+    size_t bytecodeSize;
 
     for (i = 1; i < argc; i++)
     {
@@ -243,7 +245,9 @@ int main(int argc, const char **argv)
     }
 
     FileIndexClose(inputFile);
+    bytecodeSize = ByteVectorSize(&parsed);
     bytecode = ByteVectorDisposeContainer(&parsed);
+    bytecodeLimit = bytecode + bytecodeSize;
 
     if (disassemble)
     {
@@ -261,7 +265,8 @@ int main(int argc, const char **argv)
                        StringPoolGetString(FunctionIndexGetName(function)));
             }
             BytecodeDisassembleFunction(
-                bytecode + FunctionIndexGetBytecodeOffset(function));
+                bytecode + FunctionIndexGetBytecodeOffset(function),
+                bytecodeLimit);
         }
     }
 

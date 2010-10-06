@@ -246,7 +246,8 @@ const byte *BytecodeDisassembleInstruction(const byte *bytecode,
     return disassemble(bytecode, base, &limit);
 }
 
-void BytecodeDisassembleFunction(const byte *bytecode)
+void BytecodeDisassembleFunction(const byte *bytecode,
+                                 const byte *bytecodeLimit)
 {
     const byte *start = bytecode;
     const byte *limit = bytecode;
@@ -255,5 +256,5 @@ void BytecodeDisassembleFunction(const byte *bytecode)
     {
         bytecode = disassemble(bytecode, start, &limit);
     }
-    while (bytecode <= limit);
+    while (bytecode <= limit && bytecode < bytecodeLimit);
 }
