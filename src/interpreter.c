@@ -812,6 +812,12 @@ static void execute(RunState *state, functionref target)
             pop2(state, &type, &value, &type2, &value2);
             size1 = InterpreterGetStringSize(state, type2, value2);
             size2 = InterpreterGetStringSize(state, type, value);
+            if (!size1 && !size2)
+            {
+                InterpreterPush(state, TYPE_STRING_LITERAL,
+                                (uint)StringPoolAdd(""));
+                break;
+            }
             objectData = HeapAlloc(&state->heap, TYPE_STRING, size1 + size2);
             if (!objectData)
             {
