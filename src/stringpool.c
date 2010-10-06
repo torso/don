@@ -1,5 +1,5 @@
 #include <string.h>
-#include "builder.h"
+#include "common.h"
 #include "stringpool.h"
 
 #define TABLE_SIZE 0

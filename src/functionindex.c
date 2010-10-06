@@ -1,5 +1,5 @@
 #include <memory.h>
-#include "builder.h"
+#include "common.h"
 #include "bytevector.h"
 #include "inthashmap.h"
 #include "intvector.h"

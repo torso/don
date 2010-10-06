@@ -1,5 +1,5 @@
 #include <memory.h>
-#include "builder.h"
+#include "common.h"
 #include "intvector.h"
 
 #define SEGMENT_SIZE (size_t)1024

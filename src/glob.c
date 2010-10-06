@@ -1,5 +1,5 @@
 #include <memory.h>
-#include "builder.h"
+#include "common.h"
 #include "glob.h"
 
 boolean GlobMatch(const char *pattern, const char *string)

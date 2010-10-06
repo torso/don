@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "builder.h"
+#include "common.h"
 #include "bytecode.h"
 #include "bytevector.h"
 #include "fieldindex.h"

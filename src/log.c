@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "builder.h"
+#include "common.h"
 #include "fileindex.h"
 #include "log.h"
 #include "stringpool.h"

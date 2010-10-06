@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include "builder.h"
+#include "common.h"
 #include "bytevector.h"
 #include "heap.h"
 #include "interpreter.h"

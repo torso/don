@@ -2,7 +2,7 @@
 #include <memory.h>
 #include <sys/stat.h>
 #include <stdio.h>
-#include "builder.h"
+#include "common.h"
 #include "glob.h"
 #include "stringpool.h"
 #include "fileindex.h"
