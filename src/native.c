@@ -1,14 +1,18 @@
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include "builder.h"
 #include "heap.h"
 #include "interpreter.h"
 #include "native.h"
 #include "stringpool.h"
 
-#define TOTAL_PARAMETER_COUNT 2
+#define TOTAL_PARAMETER_COUNT 3
 
 typedef enum
 {
     NATIVE_ECHO,
+    NATIVE_EXEC,
     NATIVE_SIZE,
 
     NATIVE_FUNCTION_COUNT
@@ -75,22 +79,69 @@ static pure const FunctionInfo *getFunctionInfo(nativefunctionref function)
     return (FunctionInfo*)&functionInfo[functionIndex[function]];
 }
 
+static char **createStringArray(RunState *state, uint collection)
+{
+    Heap *heap = InterpreterGetHeap(state);
+    Iterator iter;
+    ValueType type;
+    uint value;
+    size_t size = sizeof(char*);
+    uint count = 1;
+    char **strings;
+    char **table;
+    byte *stringData;
+
+    assert(HeapIsCollection(heap, collection));
+    assert(HeapCollectionSize(heap, collection));
+
+    HeapCollectionIteratorInit(heap, &iter, collection);
+    while (HeapIteratorNext(&iter, &type, &value))
+    {
+        size += InterpreterGetStringSize(state, type, value) + 1 +
+            sizeof(char*);
+        count++;
+    }
+
+    strings = (char**)malloc(size);
+    if (!strings)
+    {
+        return null;
+    }
+
+    table = strings;
+    stringData = (byte*)&strings[count];
+    HeapCollectionIteratorInit(heap, &iter, collection);
+    while (HeapIteratorNext(&iter, &type, &value))
+    {
+        *table++ = (char*)stringData;
+        stringData = InterpreterCopyString(state, type, value, stringData);
+        *stringData++ = 0;
+    }
+    *table = null;
+    return strings;
+}
+
 ErrorCode NativeInit(void)
 {
     static const char *echoParameters[] = {"message"};
+    static const char *execParameters[] = {"command"};
     static const char *sizeParameters[] = {"collection"};
     addFunctionInfo("echo", 1, 1, echoParameters);
+    addFunctionInfo("exec", 1, 1, execParameters);
     addFunctionInfo("size", 1, 1, sizeParameters);
     return initFunctionInfo ? NO_ERROR : OUT_OF_MEMORY;
 }
 
-void NativeInvoke(RunState *state, nativefunctionref function,
-                  uint returnValues)
+ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
+                       uint returnValues)
 {
     Heap *heap;
     ValueType type;
     uint value;
     const char *buffer;
+    pid_t pid;
+    int status;
+    char **argv;
 
     switch ((NativeFunction)function)
     {
@@ -100,7 +151,41 @@ void NativeInvoke(RunState *state, nativefunctionref function,
         buffer = InterpreterGetString(state, type, value);
         printf("%s\n", buffer);
         InterpreterFreeStringBuffer(state, buffer);
-        return;
+        return NO_ERROR;
+
+    case NATIVE_EXEC:
+        assert(returnValues <= 1);
+        InterpreterPop(state, &type, &value);
+        assert(type == TYPE_OBJECT);
+        argv = createStringArray(state, value);
+        if (!argv)
+        {
+            return OUT_OF_MEMORY;
+        }
+
+        pid = fork();
+        if (!pid)
+        {
+            execvp(argv[0], argv);
+            _exit(EXIT_FAILURE);
+        }
+        free(argv);
+        if (pid < 0)
+        {
+            /* TODO: Error handling. */
+            return OUT_OF_MEMORY;
+        }
+        pid = waitpid(pid, &status, 0);
+        if (pid < 0)
+        {
+            /* TODO: Error handling. */
+            return OUT_OF_MEMORY;
+        }
+        if (returnValues)
+        {
+            InterpreterPush(state, TYPE_INTEGER_LITERAL, (uint)status);
+        }
+        return NO_ERROR;
 
     case NATIVE_SIZE:
         InterpreterPop(state, &type, &value);
@@ -113,12 +198,13 @@ void NativeInvoke(RunState *state, nativefunctionref function,
             InterpreterPush(state, TYPE_INTEGER_LITERAL,
                             (uint)HeapCollectionSize(heap, value));
         }
-        return;
+        return NO_ERROR;
 
     case NATIVE_FUNCTION_COUNT:
         break;
     }
     assert(false);
+    return NO_ERROR;
 }
 
 nativefunctionref NativeFindFunction(stringref name)

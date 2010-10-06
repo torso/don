@@ -880,7 +880,11 @@ static void execute(RunState *state, functionref target)
             nativeFunction = (nativefunctionref)*ip++;
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == NativeGetParameterCount(nativeFunction)); /* TODO */
-            NativeInvoke(state, nativeFunction, *ip++);
+            state->error = NativeInvoke(state, nativeFunction, *ip++);
+            if (state->error)
+            {
+                return;
+            }
             break;
         }
     }

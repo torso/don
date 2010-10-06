@@ -1,0 +1,3 @@
+default:
+   if exec(["echo", "-n"]) == 0
+      echo("PASS")
