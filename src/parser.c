@@ -250,26 +250,76 @@ static boolean peekString(const ParseState *state)
 
 static stringref readString(ParseState *state)
 {
+    bytevector string;
+    boolean copied = false;
     const byte *begin;
     stringref s;
 
     ParseStateCheck(state);
     assert(peekString(state));
     begin = ++state->current;
-    while (state->current[0] != '"')
+    for (;;)
     {
         assert(!eof(state)); /* TODO: error handling */
-        assert(!peekNewline(state)); /* TODO: error handling */
-        state->current++;
+        switch (state->current[0])
+        {
+        case '\"':
+            if (copied)
+            {
+                ByteVectorAddData(&string, begin, getOffset(state, begin));
+                s = StringPoolAdd2(
+                    (const char*)ByteVectorGetPointer(&string, 0),
+                    ByteVectorSize(&string));
+                ByteVectorDispose(&string);
+            }
+            else
+            {
+                s = StringPoolAdd2((const char*)begin, getOffset(state, begin));
+            }
+            if (!s)
+            {
+                ParseStateSetError(state, OUT_OF_MEMORY);
+                return 0;
+            }
+            state->current++;
+            return s;
+
+        case  '\\':
+            if (!copied)
+            {
+                ByteVectorInit(&string);
+                copied = true;
+            }
+            ByteVectorAddData(&string, begin, getOffset(state, begin));
+            state->current++;
+            switch (state->current[0])
+            {
+            case 'n':
+                ByteVectorAdd(&string, '\n');
+                break;
+
+            default:
+                error(state, "Invalid escape sequence.");
+                break;
+            }
+            state->current++;
+            begin = state->current;
+            break;
+
+        case '\r':
+        case '\n':
+            error(state, "Newline in string literal.");
+            if (copied)
+            {
+                ByteVectorDispose(&string);
+            }
+            return 0;
+
+        default:
+            state->current++;
+            break;
+        }
     }
-    s = StringPoolAdd2((const char*)begin, getOffset(state, begin));
-    if (!s)
-    {
-        ParseStateSetError(state, OUT_OF_MEMORY);
-        return 0;
-    }
-    state->current++;
-    return s;
 }
 
 static stringref readFilename(ParseState *state)
