@@ -18,6 +18,7 @@
 typedef enum
 {
     VALUE_SIMPLE,
+    VALUE_NONNUMBER,
     VALUE_VARIABLE,
     VALUE_INVOCATION
 } ValueType;
@@ -49,6 +50,7 @@ static stringref keywordWhile;
 static stringref maxStatementKeyword;
 static stringref maxKeyword;
 
+static boolean parseExpression(ParseState *state, ExpressionState *estate);
 static boolean parseRValue(ParseState *state, boolean constant);
 
 static boolean isInitialIdentifierCharacter(byte c)
@@ -468,6 +470,7 @@ static boolean finishLValue(ParseState *state, ExpressionState *estate)
     switch (estate->valueType)
     {
     case VALUE_SIMPLE:
+    case VALUE_NONNUMBER:
     case VALUE_INVOCATION:
         statementError(state, "Invalid target for assignment.");
         return false;
@@ -488,6 +491,7 @@ static boolean finishRValue(ParseState *state, ExpressionState *estate)
     switch (estate->valueType)
     {
     case VALUE_SIMPLE:
+    case VALUE_NONNUMBER:
         return true;
 
     case VALUE_VARIABLE:
@@ -510,6 +514,7 @@ static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
     switch (estate->valueType)
     {
     case VALUE_SIMPLE:
+    case VALUE_NONNUMBER:
     case VALUE_VARIABLE:
         statementError(state, "Not a statement.");
         return false;
@@ -611,12 +616,12 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
 
 static boolean parseBinaryOperationRest(
     ParseState *state, ExpressionState *estate,
-    boolean (*parseExpression)(ParseState*, ExpressionState*),
+    boolean (*parseExpressionRest)(ParseState*, ExpressionState*),
     Instruction instruction)
 {
     skipWhitespace(state);
     if (!finishRValue(state, estate) ||
-        !parseExpression(state, estate) ||
+        !parseExpressionRest(state, estate) ||
         !finishRValue(state, estate) ||
         !ParseStateWriteInstruction(state, instruction))
     {
@@ -634,7 +639,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     uint size;
 
     ParseStateCheck(state);
-    estate->valueType = VALUE_SIMPLE;
+    estate->valueType = VALUE_NONNUMBER;
     estate->identifier = 0;
     if (!identifier && peekIdentifier(state))
     {
@@ -646,6 +651,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     }
     if (identifier)
     {
+        estate->valueType = VALUE_SIMPLE;
         if (isKeyword(identifier))
         {
             if (identifier == keywordTrue)
@@ -680,6 +686,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     }
     if (peekNumber(state))
     {
+        estate->valueType = VALUE_SIMPLE;
         return parseNumber(state);
     }
     if (peekString(state))
@@ -694,8 +701,16 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '('))
     {
         skipWhitespace(state);
-        return parseRValue(state, estate->constant) &&
-            readExpectedOperator(state, ')');
+        if (!parseExpression(state, estate) ||
+            !finishRValue(state, estate))
+        {
+            return false;
+        }
+        if (estate->valueType != VALUE_NONNUMBER)
+        {
+            estate->valueType = VALUE_SIMPLE;
+        }
+        return readExpectedOperator(state, ')');
     }
     if (readOperator(state, '['))
     {
@@ -903,7 +918,8 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
             }
             continue;
         }
-        else if (readOperator(state, '-'))
+        else if (estate->valueType != VALUE_NONNUMBER &&
+                 readOperator(state, '-'))
         {
             if (reverseIfOperator(state, '='))
             {
@@ -1011,7 +1027,7 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
         {
             return false;
         }
-        estate->valueType = VALUE_SIMPLE;
+        estate->valueType = VALUE_NONNUMBER;
         skipWhitespace(state);
     }
 }
