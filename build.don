@@ -9,16 +9,16 @@ test:
          fail += 1
          if hasOutput
             echo("")
-         echo("FAIL: " . filename(f))
+         echo("FAIL: " filename(f))
          hasOutput = out != "" || err != ""
          if hasOutput
-            echo(out . err)
+            echo(out err)
       else
          pass += 1
    if fail
       echo("")
-   echo("pass:  " . pass)
-   echo("fail:  " . fail)
+   echo("pass:  " pass)
+   echo("fail:  " fail)
 
 default:
    exec(["valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "./don", "-i", "input", "-d"])

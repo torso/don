@@ -980,18 +980,40 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        if (readOperator(state, '.'))
+        switch (state->current[0])
         {
-            if (!parseBinaryOperationRest(state, estate,
-                                          parseExpression5, OP_CONCAT))
-            {
-                return false;
-            }
-            continue;
+        case ',':
+        case ':':
+        case ')':
+        case ']':
+        case '=':
+        case '<':
+        case '>':
+        case '&':
+        case '|':
+        case '?':
+            return true;
         }
-        break;
+        if (peekNewline(state) ||
+            peekOperator2(state, '!', '=') ||
+            peekOperator2(state, '+', '=') ||
+            peekOperator2(state, '-', '=') ||
+            peekOperator2(state, '*', '=') ||
+            peekOperator2(state, '/', '=') ||
+            peekOperator2(state, '%', '='))
+        {
+            return true;;
+        }
+        if (!finishRValue(state, estate) ||
+            !parseExpression5(state, estate) ||
+            !finishRValue(state, estate) ||
+            !ParseStateWriteInstruction(state, OP_CONCAT))
+        {
+            return false;
+        }
+        estate->valueType = VALUE_SIMPLE;
+        skipWhitespace(state);
     }
-    return true;
 }
 
 static boolean parseExpression3(ParseState *state, ExpressionState *estate)
