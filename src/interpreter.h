@@ -24,6 +24,8 @@ extern nonnull byte *InterpreterCopyString(RunState *restrict state,
 extern nonnull ValueType InterpreterPeekType(RunState *state);
 extern nonnull void InterpreterPop(RunState *state,
                                    ValueType *type, uint *value);
+extern nonnull void InterpreterPopUnboxed(RunState *state,
+                                          ValueType *type, uint *value);
 extern nonnull boolean InterpreterPush(RunState *state,
                                        ValueType type, uint value);
 

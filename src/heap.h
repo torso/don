@@ -62,7 +62,8 @@ extern nonnull const byte *HeapGetObjectData(Heap *heap, uint object);
 extern nonnull byte *HeapAlloc(Heap *heap, ObjectType type, size_t size);
 extern nonnull uint HeapFinishAlloc(Heap *heap, byte *objectData);
 
-extern nonnull int HeapGetInteger(Heap *heap, uint object);
+extern nonnull uint HeapAllocString(Heap *heap, const char *string,
+                                    size_t length);
 
 extern nonnull boolean HeapIsCollection(Heap *heap, uint object);
 extern nonnull size_t HeapCollectionSize(Heap *heap, uint object);

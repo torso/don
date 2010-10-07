@@ -275,6 +275,17 @@ static int globTraverse(const char *filename, const struct stat *info unused,
     return globalCallback(file, globalUserdata);
 }
 
+const char *FileIndexFilename(const char *path, size_t *length)
+{
+    const char *current = path + *length;
+    while (current > path && current[-1] != '/')
+    {
+        current--;
+    }
+    *length = (size_t)(path + *length - current);
+    return current;
+}
+
 ErrorCode FileIndexTraverseGlob(const char *pattern,
                                 TraverseCallback callback, void *userdata)
 {

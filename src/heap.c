@@ -1,3 +1,4 @@
+#include <memory.h>
 #include "common.h"
 #include "heap.h"
 #include "fileindex.h"
@@ -142,6 +143,17 @@ uint HeapFinishAlloc(Heap *heap, byte *objectData)
 {
     checkObject(heap, (uint)(objectData - OBJECT_OVERHEAD - heap->base));
     return (uint)(objectData - OBJECT_OVERHEAD - heap->base);
+}
+
+uint HeapAllocString(Heap *heap, const char *restrict string, size_t length)
+{
+    byte *restrict objectData = HeapAlloc(heap, TYPE_STRING, length);
+    if (!objectData)
+    {
+        return 0;
+    }
+    memcpy(objectData, string, length);
+    return HeapFinishAlloc(heap, objectData);
 }
 
 boolean HeapIsCollection(Heap *heap, uint object)

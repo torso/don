@@ -1,4 +1,5 @@
 #define _POSIX_SOURCE
+#include <memory.h>
 #include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -8,16 +9,18 @@
 #include "common.h"
 #include "bytevector.h"
 #include "heap.h"
+#include "fileindex.h"
 #include "interpreter.h"
 #include "native.h"
 #include "stringpool.h"
 
-#define TOTAL_PARAMETER_COUNT 3
+#define TOTAL_PARAMETER_COUNT 4
 
 typedef enum
 {
     NATIVE_ECHO,
     NATIVE_EXEC,
+    NATIVE_FILENAME,
     NATIVE_SIZE,
 
     NATIVE_FUNCTION_COUNT
@@ -130,9 +133,11 @@ ErrorCode NativeInit(void)
 {
     static const char *echoParameters[] = {"message"};
     static const char *execParameters[] = {"command"};
+    static const char *filenameParameters[] = {"path"};
     static const char *sizeParameters[] = {"collection"};
     addFunctionInfo("echo", 1, 1, echoParameters);
     addFunctionInfo("exec", 1, 1, execParameters);
+    addFunctionInfo("filename", 1, 1, filenameParameters);
     addFunctionInfo("size", 1, 1, sizeParameters);
     return initFunctionInfo ? NO_ERROR : OUT_OF_MEMORY;
 }
@@ -153,6 +158,7 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
     int pipeOut[2];
     int pipeErr[2];
     ssize_t ssize;
+    const char *filename;
     ErrorCode error;
 
     switch ((NativeFunction)function)
@@ -327,6 +333,27 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
         if (returnValues)
         {
             InterpreterPush(state, TYPE_INTEGER_LITERAL, (uint)status);
+        }
+        return NO_ERROR;
+
+    case NATIVE_FILENAME:
+        assert(returnValues <= 1);
+        InterpreterPopUnboxed(state, &type, &value);
+        assert(type == TYPE_FILE_LITERAL);
+        if (returnValues)
+        {
+            size = strlen(FileIndexGetName(value));
+            filename = FileIndexFilename(FileIndexGetName(value), &size);
+            if (!filename)
+            {
+                return OUT_OF_MEMORY;
+            }
+            value = HeapAllocString(InterpreterGetHeap(state), filename, size);
+            if (!value)
+            {
+                return OUT_OF_MEMORY;
+            }
+            InterpreterPush(state, TYPE_OBJECT, value);
         }
         return NO_ERROR;
 

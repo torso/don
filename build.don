@@ -9,7 +9,7 @@ test:
          fail = fail + 1
          if hasOutput
             echo("")
-         echo("FAIL: " . f)
+         echo("FAIL: " . filename(f))
          hasOutput = out != "" || err != ""
          if hasOutput
             echo(out . err)

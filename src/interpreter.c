@@ -40,53 +40,6 @@ static boolean setError(RunState *state, ErrorCode error)
     return error ? true : false;
 }
 
-ValueType InterpreterPeekType(RunState *state)
-{
-    return ByteVectorPeek(&state->typeStack);
-}
-
-static void peek(RunState *state, ValueType *type, uint *value)
-{
-    *type = ByteVectorPeek(&state->typeStack);
-    *value = IntVectorPeek(&state->stack);
-}
-
-void InterpreterPop(RunState *state, ValueType *type, uint *value)
-{
-    *type = ByteVectorPop(&state->typeStack);
-    *value = IntVectorPop(&state->stack);
-}
-
-static uint popValue(RunState *state)
-{
-    ByteVectorPop(&state->typeStack);
-    return IntVectorPop(&state->stack);
-}
-
-static void pop(RunState *state, ValueType *type, uint *value)
-{
-    InterpreterPop(state, type, value);
-}
-
-static void pop2(RunState *state, ValueType *type1, uint *value1,
-                 ValueType *type2, uint *value2)
-{
-    InterpreterPop(state, type1, value1);
-    InterpreterPop(state, type2, value2);
-}
-
-boolean InterpreterPush(RunState *state, ValueType type, uint value)
-{
-    return !setError(state, ByteVectorAdd(&state->typeStack, type)) &&
-        !setError(state, IntVectorAdd(&state->stack, value));
-}
-
-static void storeLocal(RunState *state, uint bp, uint16 local,
-                       ValueType type, uint value)
-{
-    ByteVectorSet(&state->typeStack, bp + local, type);
-    IntVectorSet(&state->stack, bp + local, value);
-}
 
 static boolean boxInt(RunState *state, ObjectType type, uint *value)
 {
@@ -103,7 +56,6 @@ static boolean boxInt(RunState *state, ObjectType type, uint *value)
 
 static boolean box(RunState *state, ValueType type, uint *value)
 {
-    size_t size;
     byte *objectData;
 
     switch (type)
@@ -127,16 +79,11 @@ static boolean box(RunState *state, ValueType type, uint *value)
         return boxInt(state, TYPE_INTEGER, value);
 
     case TYPE_STRING_LITERAL:
-        size = InterpreterGetStringSize(state, type, *value);
-        objectData = HeapAlloc(&state->heap, TYPE_STRING, size);
-        if (!objectData)
-        {
-            state->error = OUT_OF_MEMORY;
-            return false;
-        }
-        InterpreterCopyString(state, type, *value, objectData);
-        *value = HeapFinishAlloc(&state->heap, objectData);
-        return true;
+        /* TODO: Avoid copying data. */
+        *value = HeapAllocString(&state->heap,
+                                 StringPoolGetString((stringref)*value),
+                                 StringPoolGetStringLength((stringref)*value));
+        return *value != 0;
 
     case TYPE_FILE_LITERAL:
         return boxInt(state, TYPE_FILE, value);
@@ -183,6 +130,61 @@ static void unbox(RunState *state, ValueType *type, uint *value)
         assert(false);
         return;
     }
+}
+
+
+ValueType InterpreterPeekType(RunState *state)
+{
+    return ByteVectorPeek(&state->typeStack);
+}
+
+static void peek(RunState *state, ValueType *type, uint *value)
+{
+    *type = ByteVectorPeek(&state->typeStack);
+    *value = IntVectorPeek(&state->stack);
+}
+
+void InterpreterPop(RunState *state, ValueType *type, uint *value)
+{
+    *type = ByteVectorPop(&state->typeStack);
+    *value = IntVectorPop(&state->stack);
+}
+
+static void pop(RunState *state, ValueType *type, uint *value)
+{
+    InterpreterPop(state, type, value);
+}
+
+void InterpreterPopUnboxed(RunState *state, ValueType *type, uint *value)
+{
+    pop(state, type, value);
+    unbox(state, type, value);
+}
+
+static uint popValue(RunState *state)
+{
+    ByteVectorPop(&state->typeStack);
+    return IntVectorPop(&state->stack);
+}
+
+static void pop2(RunState *state, ValueType *type1, uint *value1,
+                 ValueType *type2, uint *value2)
+{
+    InterpreterPop(state, type1, value1);
+    InterpreterPop(state, type2, value2);
+}
+
+boolean InterpreterPush(RunState *state, ValueType type, uint value)
+{
+    return !setError(state, ByteVectorAdd(&state->typeStack, type)) &&
+        !setError(state, IntVectorAdd(&state->stack, value));
+}
+
+static void storeLocal(RunState *state, uint bp, uint16 local,
+                       ValueType type, uint value)
+{
+    ByteVectorSet(&state->typeStack, bp + local, type);
+    IntVectorSet(&state->stack, bp + local, value);
 }
 
 static uint createRange(RunState *state, int low, int high)
@@ -508,7 +510,6 @@ static void createString(RunState *state, bytevector *data,
 {
     /* TODO: Avoid copying data. */
     size_t size = ByteVectorSize(data);
-    byte *objectData;
 
     if (!size)
     {
@@ -518,15 +519,13 @@ static void createString(RunState *state, bytevector *data,
         return;
     }
 
-    objectData = HeapAlloc(&state->heap, TYPE_STRING, size);
-    if (!objectData)
+    *type = TYPE_OBJECT;
+    *value = HeapAllocString(&state->heap,
+                             (const char*)ByteVectorGetPointer(data, 0), size);
+    if (!*value)
     {
         state->error = OUT_OF_MEMORY;
-        return;
     }
-    memcpy(objectData, ByteVectorGetPointer(data, 0), size);
-    *type = TYPE_OBJECT;
-    *value = HeapFinishAlloc(&state->heap, objectData);
 }
 
 static void pushStackFrame(RunState *state, const byte **ip, uint *bp,
