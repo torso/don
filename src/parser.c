@@ -915,11 +915,13 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
             }
             continue;
         }
-        else if (estate->valueType != VALUE_NONNUMBER &&
-                 readOperator(state, '-'))
+        else if (readOperator(state, '-'))
         {
-            if (reverseIfOperator(state, '='))
+            if (peekOperator(state, '=') ||
+                (estate->valueType == VALUE_NONNUMBER &&
+                 state->current[0] != ' '))
             {
+                state->current--;
                 return true;
             }
             assert(!readOperator(state, '-')); /* TODO: -- operator */
