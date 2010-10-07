@@ -76,19 +76,19 @@ static boolean isFilenameCharacter(byte c)
 
 static void error(ParseState *state, const char *message)
 {
-    ParseStateSetError(state, BUILD_ERROR);
+    ParseStateSetError(state, ERROR_FAIL);
     LogParseError(state->file, state->line, message);
 }
 
 static void errorOnLine(ParseState *state, uint line, const char *message)
 {
-    ParseStateSetError(state, BUILD_ERROR);
+    ParseStateSetError(state, ERROR_FAIL);
     LogParseError(state->file, line, message);
 }
 
 static void statementError(ParseState *state, const char *message)
 {
-    ParseStateSetError(state, BUILD_ERROR);
+    ParseStateSetError(state, ERROR_FAIL);
     LogParseError(state->file, state->statementLine, message);
 }
 

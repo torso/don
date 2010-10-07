@@ -14,12 +14,13 @@
 #include "native.h"
 #include "stringpool.h"
 
-#define TOTAL_PARAMETER_COUNT 4
+#define TOTAL_PARAMETER_COUNT 5
 
 typedef enum
 {
     NATIVE_ECHO,
     NATIVE_EXEC,
+    NATIVE_FAIL,
     NATIVE_FILENAME,
     NATIVE_SIZE,
 
@@ -133,10 +134,12 @@ ErrorCode NativeInit(void)
 {
     static const char *echoParameters[] = {"message"};
     static const char *execParameters[] = {"command"};
+    static const char *failParameters[] = {"message"};
     static const char *filenameParameters[] = {"path"};
     static const char *sizeParameters[] = {"collection"};
     addFunctionInfo("echo", 1, 1, echoParameters);
     addFunctionInfo("exec", 1, 1, execParameters);
+    addFunctionInfo("fail", 1, 1, failParameters);
     addFunctionInfo("filename", 1, 1, filenameParameters);
     addFunctionInfo("size", 1, 1, sizeParameters);
     return initFunctionInfo ? NO_ERROR : OUT_OF_MEMORY;
@@ -335,6 +338,36 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
             InterpreterPush(state, TYPE_INTEGER_LITERAL, (uint)status);
         }
         return NO_ERROR;
+
+    case NATIVE_FAIL:
+        assert(!returnValues);
+        InterpreterPopUnboxed(state, &type, &value);
+        if (type == TYPE_NULL_LITERAL)
+        {
+            size = 0;
+        }
+        else
+        {
+            size = InterpreterGetStringSize(state, type, value);
+            if (size)
+            {
+                buffer = InterpreterGetString(state, type, value);
+                if (buffer[size - 1] == '\n')
+                {
+                    printf("BUILD FAILED: %s", buffer);
+                }
+                else
+                {
+                    printf("BUILD FAILED: %s\n", buffer);
+                }
+                InterpreterFreeStringBuffer(state, buffer);
+            }
+        }
+        if (!size)
+        {
+            printf("BUILD FAILED\n");
+        }
+        return ERROR_FAIL;
 
     case NATIVE_FILENAME:
         assert(returnValues <= 1);

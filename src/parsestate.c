@@ -29,7 +29,7 @@ void ParseStateCheck(const ParseState *state)
 
 static void setError(ParseState *state, const char *message)
 {
-    ParseStateSetError(state, BUILD_ERROR);
+    ParseStateSetError(state, ERROR_FAIL);
     LogParseError(state->file, state->line, message);
 }
 

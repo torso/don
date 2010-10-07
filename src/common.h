@@ -49,7 +49,7 @@ typedef enum
 {
     NO_ERROR = 0,
     OUT_OF_MEMORY,
-    BUILD_ERROR
+    ERROR_FAIL
 } ErrorCode;
 
 

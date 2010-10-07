@@ -40,7 +40,7 @@ static boolean handleError(ErrorCode error)
         printf("Out of memory\n");
         break;
 
-    case BUILD_ERROR:
+    case ERROR_FAIL:
         break;
     }
     return true;
@@ -188,7 +188,7 @@ int main(int argc, const char **argv)
         error = ParseField(field, &parsed);
         if (error)
         {
-            if (error == BUILD_ERROR)
+            if (error == ERROR_FAIL)
             {
                 parseFailed = true;
             }
@@ -229,7 +229,7 @@ int main(int argc, const char **argv)
         error = ParseFunction(function, &parsed);
         if (error)
         {
-            if (error == BUILD_ERROR)
+            if (error == ERROR_FAIL)
             {
                 parseFailed = true;
             }
@@ -292,13 +292,15 @@ int main(int argc, const char **argv)
         assert(function);
         if (handleError(InterpreterExecute(bytecode, function)))
         {
+            IntVectorDispose(&targets);
+            free(bytecode);
             cleanup();
             return 1;
         }
     }
 
-    free(bytecode);
     IntVectorDispose(&targets);
+    free(bytecode);
     cleanup();
     return 0;
 }
