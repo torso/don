@@ -36,10 +36,13 @@ typedef struct
     uint emptyList;
 } Heap;
 
-typedef struct
+typedef struct IteratorState IteratorState;
+
+struct IteratorState
 {
-    Heap *heap;
+    IteratorState *nextState;
     IteratorType type;
+    boolean flatten;
     union
     {
         const uint *objectArray;
@@ -50,6 +53,12 @@ typedef struct
         const uint *objectArray;
         int value;
     } limit;
+};
+
+typedef struct
+{
+    Heap *heap;
+    IteratorState state;
 } Iterator;
 
 extern nonnull ErrorCode HeapInit(Heap *heap);
@@ -77,7 +86,7 @@ extern nonnull size_t HeapCollectionSize(Heap *heap, uint object);
 extern nonnull boolean HeapCollectionGet(Heap *heap, uint object,
                                          ValueType *type, uint *value);
 extern nonnull void HeapCollectionIteratorInit(Heap *heap, Iterator *iter,
-                                               uint object);
+                                               uint object, boolean flatten);
 extern nonnull boolean HeapIteratorNext(Iterator *iter,
                                         ValueType *type, uint *value);
 

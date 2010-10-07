@@ -70,35 +70,73 @@ static void arrayGet(Heap *heap, uint object,
     }
 }
 
-static void iterArrayInit(Heap *heap, Iterator *iter,
+static void iterArrayInit(Heap *heap, IteratorState *state,
                           IteratorType type, uint object)
 {
     size_t size = HeapCollectionSize(heap, object);
 
     if (!size)
     {
-        iter->type = ITER_EMPTY;
+        state->type = ITER_EMPTY;
         return;
     }
-    iter->type = type;
-    iter->current.objectArray =
+    state->type = type;
+    state->current.objectArray =
         (const uint*)HeapGetObjectData(heap, object);
-    iter->limit.objectArray = iter->current.objectArray + size - 1;
+    state->limit.objectArray = state->current.objectArray + size - 1;
 }
 
-static void iterArrayNext(Iterator *iter,
+static void iterArrayNext(IteratorState *state,
                           ValueType *restrict type, uint *restrict value)
 {
-    *value = *iter->current.objectArray;
+    *value = *state->current.objectArray;
     if (!*value)
     {
         *type = TYPE_NULL_LITERAL;
     }
-    if (iter->current.objectArray == iter->limit.objectArray)
+    if (state->current.objectArray == state->limit.objectArray)
     {
-        iter->type = ITER_EMPTY;
+        state->type = ITER_EMPTY;
     }
-    iter->current.objectArray++;
+    state->current.objectArray++;
+}
+
+static void iterStateInit(Heap *heap, IteratorState *state, uint object,
+                          boolean flatten)
+{
+    const int *data;
+
+    state->flatten = flatten;
+    switch (HeapGetObjectType(heap, object))
+    {
+    case TYPE_EMPTY_LIST:
+        state->type = ITER_EMPTY;
+        return;
+
+    case TYPE_ARRAY:
+        iterArrayInit(heap, state, ITER_OBJECT_ARRAY, object);
+        return;
+
+    case TYPE_INTEGER_RANGE:
+        data = (const int*)HeapGetObjectData(heap, object);
+        state->type = ITER_INTEGER_RANGE;
+        state->current.value = data[0];
+        state->limit.value = data[1];
+        return;
+
+    case TYPE_FILESET:
+        iterArrayInit(heap, state, ITER_FILESET, object);
+        return;
+
+    case TYPE_BOOLEAN:
+    case TYPE_INTEGER:
+    case TYPE_STRING:
+    case TYPE_FILE:
+    case TYPE_ITERATOR:
+    default:
+        assert(false);
+        return;
+    }
 }
 
 
@@ -229,71 +267,70 @@ boolean HeapCollectionGet(Heap *heap, uint object, ValueType *type,
     }
 }
 
-void HeapCollectionIteratorInit(Heap *heap, Iterator *iter, uint object)
+void HeapCollectionIteratorInit(Heap *heap, Iterator *iter, uint object,
+                                boolean flatten)
 {
-    const int *data;
     iter->heap = heap;
-    switch (HeapGetObjectType(heap, object))
-    {
-    case TYPE_EMPTY_LIST:
-        iter->type = ITER_EMPTY;
-        return;
-
-    case TYPE_ARRAY:
-        iterArrayInit(heap, iter, ITER_OBJECT_ARRAY, object);
-        return;
-
-    case TYPE_INTEGER_RANGE:
-        data = (const int*)HeapGetObjectData(heap, object);
-        iter->type = ITER_INTEGER_RANGE;
-        iter->current.value = data[0];
-        iter->limit.value = data[1];
-        return;
-
-    case TYPE_FILESET:
-        iterArrayInit(heap, iter, ITER_FILESET, object);
-        return;
-
-    case TYPE_BOOLEAN:
-    case TYPE_INTEGER:
-    case TYPE_STRING:
-    case TYPE_FILE:
-    case TYPE_ITERATOR:
-    default:
-        assert(false);
-        return;
-    }
+    iter->state.nextState = &iter->state;
+    iterStateInit(heap, &iter->state, object, flatten);
 }
 
 boolean HeapIteratorNext(Iterator *iter, ValueType *type, uint *value)
 {
-    switch (iter->type)
+    IteratorState *currentState;
+    IteratorState *nextState;
+
+    for (;;)
     {
-    case ITER_EMPTY:
-        return false;
-
-    case ITER_OBJECT_ARRAY:
-        *type = TYPE_OBJECT;
-        iterArrayNext(iter, type, value);
-        return true;
-
-    case ITER_INTEGER_RANGE:
-        *value = (uint)iter->current.value;
-        *type = TYPE_INTEGER_LITERAL;
-        if (iter->current.value == iter->limit.value)
+        currentState = iter->state.nextState;
+        switch (currentState->type)
         {
-            iter->type = ITER_EMPTY;
-        }
-        iter->current.value++;
-        return true;
+        case ITER_EMPTY:
+            if (currentState == &iter->state)
+            {
+                return false;
+            }
+            nextState = currentState->nextState;
+            free(currentState);
+            iter->state.nextState = nextState;
+            continue;
 
-    case ITER_FILESET:
-        *type = TYPE_FILE_LITERAL;
-        iterArrayNext(iter, type, value);
+        case ITER_OBJECT_ARRAY:
+            *type = TYPE_OBJECT;
+            iterArrayNext(currentState, type, value);
+            break;
+
+        case ITER_INTEGER_RANGE:
+            *value = (uint)currentState->current.value;
+            *type = TYPE_INTEGER_LITERAL;
+            if (currentState->current.value == currentState->limit.value)
+            {
+                currentState->type = ITER_EMPTY;
+            }
+            currentState->current.value++;
+            break;
+
+        case ITER_FILESET:
+            *type = TYPE_FILE_LITERAL;
+            iterArrayNext(currentState, type, value);
+            break;
+
+        default:
+            assert(false);
+            break;
+        }
+        if (currentState->flatten && *type == TYPE_OBJECT &&
+            HeapIsCollection(iter->heap, *value))
+        {
+            nextState = (IteratorState*)malloc(sizeof(IteratorState));
+            assert(nextState); /* TODO: Error handling. */
+            nextState->nextState = currentState;
+            iter->state.nextState = nextState;
+            iterStateInit(iter->heap, nextState, *value, true);
+            continue;
+        }
         return true;
     }
-    assert(false);
-    return false;
 }
 
 

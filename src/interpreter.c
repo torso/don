@@ -209,7 +209,7 @@ static uint createIterator(RunState *state, uint object)
 {
     Iterator *iter = (Iterator *)HeapAlloc(&state->heap, TYPE_ITERATOR,
                                            sizeof(Iterator));
-    HeapCollectionIteratorInit(&state->heap, iter, object);
+    HeapCollectionIteratorInit(&state->heap, iter, object, false);
     return HeapFinishAlloc(&state->heap, (byte*)iter);
 }
 
@@ -282,8 +282,8 @@ static boolean equals(RunState *state, ValueType type1, uint value1,
         {
             return false;
         }
-        HeapCollectionIteratorInit(&state->heap, &iter1, value1);
-        HeapCollectionIteratorInit(&state->heap, &iter2, value2);
+        HeapCollectionIteratorInit(&state->heap, &iter1, value1, false);
+        HeapCollectionIteratorInit(&state->heap, &iter2, value2, false);
         while (HeapIteratorNext(&iter1, &type1, &value1))
         {
             success = HeapIteratorNext(&iter2, &type2, &value2);
@@ -379,7 +379,7 @@ size_t InterpreterGetStringSize(RunState *state, ValueType type, uint value)
                 size--;
             }
             size = size * 2 + 2;
-            HeapCollectionIteratorInit(&state->heap, &iter, value);
+            HeapCollectionIteratorInit(&state->heap, &iter, value, false);
             while (HeapIteratorNext(&iter, &type, &value))
             {
                 size += InterpreterGetStringSize(state, type, value);
@@ -478,7 +478,7 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
         case TYPE_FILESET:
             *dst++ = '[';
             first = true;
-            HeapCollectionIteratorInit(&state->heap, &iter, value);
+            HeapCollectionIteratorInit(&state->heap, &iter, value, false);
             while (HeapIteratorNext(&iter, &type, &value))
             {
                 if (!first)

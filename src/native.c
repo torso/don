@@ -103,7 +103,7 @@ static char **createStringArray(RunState *state, uint collection)
     assert(HeapIsCollection(heap, collection));
     assert(HeapCollectionSize(heap, collection));
 
-    HeapCollectionIteratorInit(heap, &iter, collection);
+    HeapCollectionIteratorInit(heap, &iter, collection, true);
     while (HeapIteratorNext(&iter, &type, &value))
     {
         size += InterpreterGetStringSize(state, type, value) + 1 +
@@ -119,7 +119,7 @@ static char **createStringArray(RunState *state, uint collection)
 
     table = strings;
     stringData = (byte*)&strings[count];
-    HeapCollectionIteratorInit(heap, &iter, collection);
+    HeapCollectionIteratorInit(heap, &iter, collection, true);
     while (HeapIteratorNext(&iter, &type, &value))
     {
         *table++ = (char*)stringData;
