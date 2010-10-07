@@ -362,6 +362,21 @@ static boolean readOperator(ParseState *state, byte op)
     return false;
 }
 
+static boolean peekOperator(ParseState *state, byte op)
+{
+    return state->current[0] == op;
+}
+
+static boolean reverseIfOperator(ParseState *state, byte op)
+{
+    if (peekOperator(state, op))
+    {
+        state->current--;
+        return true;
+    }
+    return false;
+}
+
 static boolean readOperator2(ParseState *state, byte op1, byte op2)
 {
     if (state->current[0] == op1 && state->current[1] == op2)
@@ -824,6 +839,10 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
     {
         if (readOperator(state, '*'))
         {
+            if (reverseIfOperator(state, '='))
+            {
+                return true;
+            }
             if (!parseBinaryOperationRest(state, estate,
                                           parseExpression10, OP_MUL))
             {
@@ -833,6 +852,10 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
         }
         if (readOperator(state, '/'))
         {
+            if (reverseIfOperator(state, '='))
+            {
+                return true;
+            }
             if (!parseBinaryOperationRest(state, estate,
                                           parseExpression10, OP_DIV))
             {
@@ -842,6 +865,10 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
         }
         if (readOperator(state, '%'))
         {
+            if (reverseIfOperator(state, '='))
+            {
+                return true;
+            }
             if (!parseBinaryOperationRest(state, estate,
                                           parseExpression10, OP_REM))
             {
@@ -864,6 +891,10 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
     {
         if (readOperator(state, '+'))
         {
+            if (reverseIfOperator(state, '='))
+            {
+                return true;
+            }
             assert(!readOperator(state, '+')); /* TODO: ++ operator */
             if (!parseBinaryOperationRest(state, estate,
                                           parseExpression9, OP_ADD))
@@ -874,6 +905,10 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
         }
         else if (readOperator(state, '-'))
         {
+            if (reverseIfOperator(state, '='))
+            {
+                return true;
+            }
             assert(!readOperator(state, '-')); /* TODO: -- operator */
             if (!parseBinaryOperationRest(state, estate,
                                           parseExpression9, OP_SUB))
@@ -1119,6 +1154,21 @@ static boolean parseRValue(ParseState *state, boolean constant)
         finishRValue(state, &estate);
 }
 
+static boolean parseAssignmentExpressionRest(ParseState *state,
+                                             ExpressionState *estate,
+                                             Instruction instruction)
+{
+    skipWhitespace(state);
+    if (!finishRValue(state, estate) ||
+        !parseRValue(state, false) ||
+        !ParseStateWriteInstruction(state, instruction) ||
+        !finishLValue(state, estate))
+    {
+        return false;
+    }
+    return true;
+}
+
 static boolean parseMultiAssignmentRest(ParseState *state)
 {
     ExpressionState estate;
@@ -1188,6 +1238,26 @@ static boolean parseExpressionStatement(ParseState *state,
     {
         skipWhitespace(state);
         return parseRValue(state, false) && finishLValue(state, &estate);
+    }
+    else if (readOperator2(state, '+', '='))
+    {
+        return parseAssignmentExpressionRest(state, &estate, OP_ADD);
+    }
+    else if (readOperator2(state, '-', '='))
+    {
+        return parseAssignmentExpressionRest(state, &estate, OP_SUB);
+    }
+    else if (readOperator2(state, '*', '='))
+    {
+        return parseAssignmentExpressionRest(state, &estate, OP_MUL);
+    }
+    else if (readOperator2(state, '/', '='))
+    {
+        return parseAssignmentExpressionRest(state, &estate, OP_DIV);
+    }
+    else if (readOperator2(state, '%', '='))
+    {
+        return parseAssignmentExpressionRest(state, &estate, OP_REM);
     }
     else if (readOperator(state, ','))
     {

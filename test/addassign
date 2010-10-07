@@ -1,0 +1,7 @@
+default:
+   a = 1
+   a += 2
+   if a == 3
+      a += 4 + 5
+      if a == 12
+         echo("PASS")

@@ -6,7 +6,7 @@ test:
       pipe out, err
          exitcode = exec(["./don", "-i", f])
       if exitcode || out != "PASS\n" || err != ""
-         fail = fail + 1
+         fail += 1
          if hasOutput
             echo("")
          echo("FAIL: " . filename(f))
@@ -14,7 +14,7 @@ test:
          if hasOutput
             echo(out . err)
       else
-         pass = pass + 1
+         pass += 1
    if fail
       echo("")
    echo("pass:  " . pass)
