@@ -799,7 +799,6 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '-'))
     {
         assert(!readOperator(state, '-')); /* TODO: -- operator */
-        skipWhitespace(state);
         if (!parseExpression11(state, estate) ||
             !finishRValue(state, estate) ||
             !ParseStateWriteInstruction(state, OP_NEG))
@@ -812,7 +811,6 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '!'))
     {
-        skipWhitespace(state);
         if (!parseExpression11(state, estate) ||
             !finishRValue(state, estate) ||
             !ParseStateWriteInstruction(state, OP_NOT))
@@ -825,7 +823,6 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '~'))
     {
-        skipWhitespace(state);
         if (!parseExpression11(state, estate) ||
             !finishRValue(state, estate) ||
             !ParseStateWriteInstruction(state, OP_INV))
