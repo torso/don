@@ -505,27 +505,35 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
     return null;
 }
 
-static void createString(RunState *state, bytevector *data,
-                         ValueType *type, uint *value)
+ErrorCode InterpreterCreateString(RunState *state,
+                                  const char *string, size_t length,
+                                  ValueType *type, uint *value)
 {
-    /* TODO: Avoid copying data. */
-    size_t size = ByteVectorSize(data);
-
-    if (!size)
+    if (!length)
     {
         *type = TYPE_STRING_LITERAL;
         *value = (uint)StringPoolAdd("");
         assert(*value);
-        return;
+        return NO_ERROR;
     }
 
     *type = TYPE_OBJECT;
-    *value = HeapAllocString(&state->heap,
-                             (const char*)ByteVectorGetPointer(data, 0), size);
+    *value = HeapAllocString(InterpreterGetHeap(state), string, length);
     if (!*value)
     {
-        state->error = OUT_OF_MEMORY;
+        return OUT_OF_MEMORY;
     }
+    return NO_ERROR;
+}
+
+static void createString(RunState *state, bytevector *data,
+                         ValueType *type, uint *value)
+{
+    /* TODO: Avoid copying data. */
+    state->error = InterpreterCreateString(
+        state,
+        (const char*)ByteVectorGetPointer(data, 0), ByteVectorSize(data),
+        type, value);
 }
 
 static void pushStackFrame(RunState *state, const byte **ip, uint *bp,
@@ -578,6 +586,7 @@ static void execute(RunState *state, functionref target)
     uint value2;
     size_t size1;
     size_t size2;
+    stringref string;
     byte *objectData;
     Iterator *iter;
     functionref function;
@@ -640,6 +649,18 @@ static void execute(RunState *state, functionref target)
             }
             InterpreterPush(state, TYPE_OBJECT,
                             HeapFinishAlloc(&state->heap, objectData));
+            break;
+
+        case OP_FILE:
+            string = (stringref)BytecodeReadUint(&ip);
+            value = FileIndexAdd(StringPoolGetString(string),
+                                 StringPoolGetStringLength(string));
+            if (!value)
+            {
+                state->error = OUT_OF_MEMORY;
+                return;
+            }
+            InterpreterPush(state, TYPE_FILE_LITERAL, value);
             break;
 
         case OP_FILESET:
@@ -970,6 +991,10 @@ static void execute(RunState *state, functionref target)
         case OP_PIPE_END:
             assert(state->pipeOut);
             createString(state, state->pipeOut, &type, &value);
+            if (state->error)
+            {
+                return;
+            }
             storeLocal(state, bp, BytecodeReadUint16(&ip), type, value);
             ByteVectorDispose(state->pipeOut);
             free(state->pipeOut);
@@ -977,6 +1002,10 @@ static void execute(RunState *state, functionref target)
 
             assert(state->pipeErr);
             createString(state, state->pipeErr, &type, &value);
+            if (state->error)
+            {
+                return;
+            }
             storeLocal(state, bp, BytecodeReadUint16(&ip), type, value);
             ByteVectorDispose(state->pipeErr);
             free(state->pipeErr);

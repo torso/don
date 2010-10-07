@@ -348,12 +348,13 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
             {
                 return OUT_OF_MEMORY;
             }
-            value = HeapAllocString(InterpreterGetHeap(state), filename, size);
-            if (!value)
+            error = InterpreterCreateString(state, filename, size,
+                                            &type, &value);
+            if (error)
             {
-                return OUT_OF_MEMORY;
+                return error;
             }
-            InterpreterPush(state, TYPE_OBJECT, value);
+            InterpreterPush(state, type, value);
         }
         return NO_ERROR;
 

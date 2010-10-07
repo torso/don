@@ -286,7 +286,14 @@ uint ByteVectorGetPackUintSize(const bytevector *v, size_t index)
 
 const byte *ByteVectorGetPointer(const bytevector *v, size_t index)
 {
-    checkByteVectorIndex(v, index);
+    if (index)
+    {
+        checkByteVectorIndex(v, index);
+    }
+    else
+    {
+        checkByteVector(v);
+    }
     return &v->data[index];
 }
 

@@ -141,6 +141,40 @@ void FileIndexDispose(void)
     free(cwd);
 }
 
+
+static fileref addFile(const char *filename, boolean filenameOwner)
+{
+    uint file;
+
+    if (!filename)
+    {
+        return 0;
+    }
+
+    file = sizeof(fileIndex) / sizeof(fileIndex[0]);
+    for (;;)
+    {
+        assert(file); /* TODO: grow file index */
+        file--;
+        if (!fileIndex[file].refCount)
+        {
+            break;
+        }
+    }
+
+    fileIndex[file].flags = filenameOwner ? FLAG_FREE_FILENAME : 0;
+    fileIndex[file].name = (const char*)filename;
+    fileIndex[file].data = null;
+    fileIndex[file].size = 0;
+    fileIndex[file].refCount = 1;
+    return file + 1;
+}
+
+fileref FileIndexAdd(const char *filename, size_t length)
+{
+    return addFile(getAbsoluteFilename(null, 0, filename, length), true);
+}
+
 fileref FileIndexOpen(const char *filename)
 {
     uint file;
@@ -186,45 +220,6 @@ fileref FileIndexOpen(const char *filename)
     return file + 1;
 }
 
-static fileref FileIndexAdd(const char *filename, boolean copyFilename,
-                            boolean filenameOwner)
-{
-    uint file;
-    void *filenameBuffer;
-    size_t length;
-
-    file = sizeof(fileIndex) / sizeof(fileIndex[0]);
-    for (;;)
-    {
-        assert(file); /* TODO: grow file index */
-        file--;
-        if (!fileIndex[file].refCount)
-        {
-            break;
-        }
-    }
-
-    if (copyFilename)
-    {
-        length = strlen(filename);
-        filenameBuffer = malloc(length + 1);
-        if (!filenameBuffer)
-        {
-            return 0;
-        }
-        memcpy(filenameBuffer, filename, length + 1);
-        filename = (const char*)filenameBuffer;
-        filenameOwner = true;
-    }
-
-    fileIndex[file].flags = filenameOwner ? FLAG_FREE_FILENAME : 0;
-    fileIndex[file].name = (const char*)filename;
-    fileIndex[file].data = null;
-    fileIndex[file].size = 0;
-    fileIndex[file].refCount = 1;
-    return file + 1;
-}
-
 void FileIndexClose(fileref file)
 {
     FileEntry *fe = getFile(file);
@@ -258,8 +253,9 @@ static int globTraverse(const char *filename, const struct stat *info unused,
                         int flags unused)
 {
     fileref file;
+    size_t length = strlen(filename);
 
-    if (strlen(filename) < globalFilenamePrefixLength)
+    if (length < globalFilenamePrefixLength)
     {
         return 0;
     }
@@ -267,7 +263,7 @@ static int globTraverse(const char *filename, const struct stat *info unused,
     {
         return 0;
     }
-    file = FileIndexAdd(filename, true, false);
+    file = addFile(copyString(filename, length), true);
     if (!file)
     {
         return OUT_OF_MEMORY;
@@ -314,15 +310,9 @@ ErrorCode FileIndexTraverseGlob(const char *pattern,
 
     if (!asterisk)
     {
-        filename = getAbsoluteFilename(null, 0, pattern, length);
-        if (!filename)
-        {
-            return OUT_OF_MEMORY;
-        }
-        file = FileIndexAdd(filename, false, true);
+        file = FileIndexAdd(pattern, length);
         if (!file)
         {
-            free(filename);
             return OUT_OF_MEMORY;
         }
         return callback(file, userdata);

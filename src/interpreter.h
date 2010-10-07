@@ -21,6 +21,11 @@ extern nonnull byte *InterpreterCopyString(RunState *restrict state,
                                            ValueType type, uint value,
                                            byte *restrict dst);
 
+extern nonnull ErrorCode InterpreterCreateString(RunState *state,
+                                                 const char *string,
+                                                 size_t length,
+                                                 ValueType *type, uint *value);
+
 extern nonnull ValueType InterpreterPeekType(RunState *state);
 extern nonnull void InterpreterPop(RunState *state,
                                    ValueType *type, uint *value);

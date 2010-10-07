@@ -1,3 +1,4 @@
+#include <memory.h>
 #include <stdio.h>
 #include "common.h"
 #include "bytevector.h"
@@ -716,7 +717,10 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         {
             return false;
         }
-        /* TODO: Single file shouldn't be a set. */
+        if (!strchr(StringPoolGetString(string), '*'))
+        {
+            return ParseStateWriteFile(state, string);
+        }
         /* TODO: @{} syntax */
         return ParseStateWriteFileset(state, string);
     }
