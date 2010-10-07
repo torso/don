@@ -280,6 +280,7 @@ int main(int argc, const char **argv)
     }
     if (parseFailed)
     {
+        IntVectorDispose(&targets);
         free(bytecode);
         cleanup();
         return 1;
