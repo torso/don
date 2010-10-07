@@ -133,6 +133,9 @@ static void unbox(RunState *state, ValueType *type, uint *value)
 }
 
 
+#define pop InterpreterPop
+#define push InterpreterPush
+
 ValueType InterpreterPeekType(RunState *state)
 {
     return ByteVectorPeek(&state->typeStack);
@@ -150,11 +153,6 @@ void InterpreterPop(RunState *state, ValueType *type, uint *value)
     *value = IntVectorPop(&state->stack);
 }
 
-static void pop(RunState *state, ValueType *type, uint *value)
-{
-    InterpreterPop(state, type, value);
-}
-
 void InterpreterPopUnboxed(RunState *state, ValueType *type, uint *value)
 {
     pop(state, type, value);
@@ -170,8 +168,8 @@ static uint popValue(RunState *state)
 static void pop2(RunState *state, ValueType *type1, uint *value1,
                  ValueType *type2, uint *value2)
 {
-    InterpreterPop(state, type1, value1);
-    InterpreterPop(state, type2, value2);
+    pop(state, type1, value1);
+    pop(state, type2, value2);
 }
 
 boolean InterpreterPush(RunState *state, ValueType type, uint value)
@@ -179,6 +177,7 @@ boolean InterpreterPush(RunState *state, ValueType type, uint value)
     return !setError(state, ByteVectorAdd(&state->typeStack, type)) &&
         !setError(state, IntVectorAdd(&state->stack, value));
 }
+
 
 static void storeLocal(RunState *state, uint bp, uint16 local,
                        ValueType type, uint value)
@@ -604,27 +603,27 @@ static void execute(RunState *state, functionref target)
         switch ((Instruction)*ip++)
         {
         case OP_NULL:
-            InterpreterPush(state, TYPE_NULL_LITERAL, 0);
+            push(state, TYPE_NULL_LITERAL, 0);
             break;
 
         case OP_TRUE:
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, 1);
+            push(state, TYPE_BOOLEAN_LITERAL, 1);
             break;
 
         case OP_FALSE:
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, 0);
+            push(state, TYPE_BOOLEAN_LITERAL, 0);
             break;
 
         case OP_INTEGER:
-            InterpreterPush(state, TYPE_INTEGER_LITERAL, BytecodeReadUint(&ip));
+            push(state, TYPE_INTEGER_LITERAL, BytecodeReadUint(&ip));
             break;
 
         case OP_STRING:
-            InterpreterPush(state, TYPE_STRING_LITERAL, BytecodeReadUint(&ip));
+            push(state, TYPE_STRING_LITERAL, BytecodeReadUint(&ip));
             break;
 
         case OP_EMPTY_LIST:
-            InterpreterPush(state, TYPE_OBJECT, state->heap.emptyList);
+            push(state, TYPE_OBJECT, state->heap.emptyList);
             break;
 
         case OP_LIST:
@@ -647,8 +646,7 @@ static void execute(RunState *state, functionref target)
                 objectData -= sizeof(uint);
                 *(uint*)objectData = value;
             }
-            InterpreterPush(state, TYPE_OBJECT,
-                            HeapFinishAlloc(&state->heap, objectData));
+            push(state, TYPE_OBJECT, HeapFinishAlloc(&state->heap, objectData));
             break;
 
         case OP_FILE:
@@ -660,7 +658,7 @@ static void execute(RunState *state, functionref target)
                 state->error = OUT_OF_MEMORY;
                 return;
             }
-            InterpreterPush(state, TYPE_FILE_LITERAL, value);
+            push(state, TYPE_FILE_LITERAL, value);
             break;
 
         case OP_FILESET:
@@ -672,7 +670,7 @@ static void execute(RunState *state, functionref target)
             {
                 return;
             }
-            InterpreterPush(state, type, value);
+            push(state, type, value);
             break;
 
         case OP_POP:
@@ -681,13 +679,13 @@ static void execute(RunState *state, functionref target)
 
         case OP_DUP:
             peek(state, &type, &value);
-            InterpreterPush(state, type, value);
+            push(state, type, value);
             break;
 
         case OP_LOAD:
             local = BytecodeReadUint16(&ip);
-            InterpreterPush(state, ByteVectorGet(&state->typeStack, bp + local),
-                            IntVectorGet(&state->stack, bp + local));
+            push(state, ByteVectorGet(&state->typeStack, bp + local),
+                 IntVectorGet(&state->stack, bp + local));
             break;
 
         case OP_STORE:
@@ -697,8 +695,7 @@ static void execute(RunState *state, functionref target)
 
         case OP_LOAD_FIELD:
             value = BytecodeReadUint(&ip);
-            InterpreterPush(state,
-                            state->fieldTypes[value], state->fields[value]);
+            push(state, state->fieldTypes[value], state->fields[value]);
             break;
 
         case OP_STORE_FIELD:
@@ -726,19 +723,19 @@ static void execute(RunState *state, functionref target)
                 value = 1;
                 break;
             }
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, value);
+            push(state, TYPE_BOOLEAN_LITERAL, value);
             break;
 
         case OP_EQUALS:
             pop2(state, &type, &value, &type2, &value2);
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL,
-                            equals(state, type, value, type2, value2));
+            push(state, TYPE_BOOLEAN_LITERAL,
+                 equals(state, type, value, type2, value2));
             break;
 
         case OP_NOT_EQUALS:
             pop2(state, &type, &value, &type2, &value2);
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL,
-                            !equals(state, type, value, type2, value2));
+            push(state, TYPE_BOOLEAN_LITERAL,
+                 !equals(state, type, value, type2, value2));
             break;
 
         case OP_LESS_EQUALS:
@@ -747,7 +744,7 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 <= (int)value);
+            push(state, TYPE_BOOLEAN_LITERAL, (int)value2 <= (int)value);
             break;
 
         case OP_GREATER_EQUALS:
@@ -756,7 +753,7 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 >= (int)value);
+            push(state, TYPE_BOOLEAN_LITERAL, (int)value2 >= (int)value);
             break;
 
         case OP_LESS:
@@ -765,7 +762,7 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 < (int)value);
+            push(state, TYPE_BOOLEAN_LITERAL, (int)value2 < (int)value);
             break;
 
         case OP_GREATER:
@@ -774,14 +771,14 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, (int)value2 > (int)value);
+            push(state, TYPE_BOOLEAN_LITERAL, (int)value2 > (int)value);
             break;
 
         case OP_NOT:
             pop(state, &type, &value);
             unbox(state, &type, &value);
             assert(type == TYPE_BOOLEAN_LITERAL);
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL, !value);
+            push(state, TYPE_BOOLEAN_LITERAL, !value);
             break;
 
         case OP_NEG:
@@ -789,14 +786,14 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type, &value);
             assert(type == TYPE_INTEGER_LITERAL);
             assert((int)value != MIN_INT);
-            InterpreterPush(state, TYPE_INTEGER_LITERAL, -value);
+            push(state, TYPE_INTEGER_LITERAL, -value);
             break;
 
         case OP_INV:
             pop(state, &type, &value);
             unbox(state, &type, &value);
             assert(type == TYPE_INTEGER_LITERAL);
-            InterpreterPush(state, TYPE_INTEGER_LITERAL, ~value);
+            push(state, TYPE_INTEGER_LITERAL, ~value);
             break;
 
         case OP_ADD:
@@ -806,7 +803,7 @@ static void execute(RunState *state, functionref target)
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             assert(!addOverflow((int)value, (int)value2));
-            InterpreterPush(state, TYPE_INTEGER_LITERAL, value + value2);
+            push(state, TYPE_INTEGER_LITERAL, value + value2);
             break;
 
         case OP_SUB:
@@ -816,7 +813,7 @@ static void execute(RunState *state, functionref target)
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             assert(!subOverflow((int)value2, (int)value));
-            InterpreterPush(state, TYPE_INTEGER_LITERAL, value2 - value);
+            push(state, TYPE_INTEGER_LITERAL, value2 - value);
             break;
 
         case OP_MUL:
@@ -825,7 +822,7 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
-            InterpreterPush(state, TYPE_INTEGER_LITERAL, value * value2);
+            push(state, TYPE_INTEGER_LITERAL, value * value2);
             break;
 
         case OP_DIV:
@@ -835,7 +832,7 @@ static void execute(RunState *state, functionref target)
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
             assert(((int)value2 / (int)value) * (int)value == (int)value2); /* TODO: fraction */
-            InterpreterPush(state, TYPE_INTEGER_LITERAL, (uint)((int)value2 / (int)value));
+            push(state, TYPE_INTEGER_LITERAL, (uint)((int)value2 / (int)value));
             break;
 
         case OP_REM:
@@ -844,7 +841,7 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
-            InterpreterPush(state, TYPE_INTEGER_LITERAL, value2 % value);
+            push(state, TYPE_INTEGER_LITERAL, value2 % value);
             break;
 
         case OP_CONCAT:
@@ -853,8 +850,7 @@ static void execute(RunState *state, functionref target)
             size2 = InterpreterGetStringSize(state, type, value);
             if (!size1 && !size2)
             {
-                InterpreterPush(state, TYPE_STRING_LITERAL,
-                                (uint)StringPoolAdd(""));
+                push(state, TYPE_STRING_LITERAL, (uint)StringPoolAdd(""));
                 break;
             }
             objectData = HeapAlloc(&state->heap, TYPE_STRING, size1 + size2);
@@ -865,8 +861,7 @@ static void execute(RunState *state, functionref target)
             }
             InterpreterCopyString(state, type2, value2, objectData);
             InterpreterCopyString(state, type, value, objectData + size1);
-            InterpreterPush(state, TYPE_OBJECT,
-                            HeapFinishAlloc(&state->heap, objectData));
+            push(state, TYPE_OBJECT, HeapFinishAlloc(&state->heap, objectData));
             break;
 
         case OP_INDEXED_ACCESS:
@@ -877,7 +872,7 @@ static void execute(RunState *state, functionref target)
             {
                 return;
             }
-            InterpreterPush(state, type, value);
+            push(state, type, value);
             break;
 
         case OP_RANGE:
@@ -889,7 +884,7 @@ static void execute(RunState *state, functionref target)
             {
                 return;
             }
-            InterpreterPush(state, TYPE_OBJECT, value);
+            push(state, TYPE_OBJECT, value);
             break;
 
         case OP_ITER_INIT:
@@ -900,7 +895,7 @@ static void execute(RunState *state, functionref target)
             {
                 return;
             }
-            InterpreterPush(state, TYPE_OBJECT, value);
+            push(state, TYPE_OBJECT, value);
             break;
 
         case OP_ITER_NEXT:
@@ -911,9 +906,9 @@ static void execute(RunState *state, functionref target)
             iter = (Iterator*)HeapGetObjectData(&state->heap, value);
             type = TYPE_NULL_LITERAL;
             value = 0;
-            InterpreterPush(state, TYPE_BOOLEAN_LITERAL,
-                            HeapIteratorNext(iter, &type, &value));
-            InterpreterPush(state, type, value);
+            push(state, TYPE_BOOLEAN_LITERAL,
+                 HeapIteratorNext(iter, &type, &value));
+            push(state, type, value);
             break;
 
         case OP_JUMP:
