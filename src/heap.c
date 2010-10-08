@@ -3,6 +3,7 @@
 #include "heap.h"
 #include "fileindex.h"
 #include "math.h"
+#include "stringpool.h"
 
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))
 
@@ -20,9 +21,11 @@ static boolean isCollectionType(ObjectType type)
 {
     switch (type)
     {
-    case TYPE_BOOLEAN:
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_STRING:
+    case TYPE_STRING_POOLED:
     case TYPE_FILE:
     case TYPE_ITERATOR:
         return false;
@@ -30,7 +33,6 @@ static boolean isCollectionType(ObjectType type)
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
-    case TYPE_FILESET:
         return true;
     }
     assert(false);
@@ -63,11 +65,8 @@ static void arrayGet(Heap *heap, uint object,
                      ValueType *restrict type, uint *restrict value)
 {
     const uint *restrict data = (const uint*)HeapGetObjectData(heap, object);
+    *type = TYPE_OBJECT;
     *value = data[*value];
-    if (!*value)
-    {
-        *type = TYPE_NULL_LITERAL;
-    }
 }
 
 static void iterArrayInit(Heap *heap, IteratorState *state,
@@ -89,11 +88,8 @@ static void iterArrayInit(Heap *heap, IteratorState *state,
 static void iterArrayNext(IteratorState *state,
                           ValueType *restrict type, uint *restrict value)
 {
+    *type = TYPE_OBJECT;
     *value = *state->current.objectArray;
-    if (!*value)
-    {
-        *type = TYPE_NULL_LITERAL;
-    }
     if (state->current.objectArray == state->limit.objectArray)
     {
         state->type = ITER_EMPTY;
@@ -124,13 +120,11 @@ static void iterStateInit(Heap *heap, IteratorState *state, uint object,
         state->limit.value = data[1];
         return;
 
-    case TYPE_FILESET:
-        iterArrayInit(heap, state, ITER_FILESET, object);
-        return;
-
-    case TYPE_BOOLEAN:
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_STRING:
+    case TYPE_STRING_POOLED:
     case TYPE_FILE:
     case TYPE_ITERATOR:
     default:
@@ -144,6 +138,9 @@ ErrorCode HeapInit(Heap *heap)
 {
     heap->base = (byte*)malloc(PAGE_SIZE);
     heap->free = heap->base + sizeof(uint);
+    heap->booleanTrue = HeapFinishAlloc(heap, heapAlloc(heap, TYPE_BOOLEAN_TRUE, 0));
+    heap->booleanFalse = HeapFinishAlloc(heap, heapAlloc(heap, TYPE_BOOLEAN_FALSE, 0));
+    heap->emptyString = HeapFinishAlloc(heap, heapAlloc(heap, TYPE_STRING, 0));
     heap->emptyList = HeapFinishAlloc(heap, heapAlloc(heap, TYPE_EMPTY_LIST, 0));
     return heap->base ? NO_ERROR : OUT_OF_MEMORY;
 }
@@ -171,6 +168,22 @@ const byte *HeapGetObjectData(Heap *heap, uint object)
     return heap->base + object + OBJECT_OVERHEAD;
 }
 
+uint HeapBoxInt(Heap *heap, ObjectType type, uint value)
+{
+    byte *objectData = HeapAlloc(heap, type, sizeof(int));
+    if (!objectData)
+    {
+        return 0;
+    }
+    *(uint*)objectData = value;
+    return HeapFinishAlloc(heap, objectData);
+}
+
+uint HeapUnboxInt(Heap *heap, uint object)
+{
+    return *(uint*)HeapGetObjectData(heap, object);
+}
+
 byte *HeapAlloc(Heap *heap, ObjectType type, size_t size)
 {
     assert(size);
@@ -183,6 +196,7 @@ uint HeapFinishAlloc(Heap *heap, byte *objectData)
     return (uint)(objectData - OBJECT_OVERHEAD - heap->base);
 }
 
+
 uint HeapAllocString(Heap *heap, const char *restrict string, size_t length)
 {
     byte *restrict objectData = HeapAlloc(heap, TYPE_STRING, length);
@@ -193,6 +207,55 @@ uint HeapAllocString(Heap *heap, const char *restrict string, size_t length)
     memcpy(objectData, string, length);
     return HeapFinishAlloc(heap, objectData);
 }
+
+const char *HeapGetString(Heap *heap, uint object)
+{
+    switch (HeapGetObjectType(heap, object))
+    {
+    case TYPE_STRING:
+        return (const char*)HeapGetObjectData(heap, object);
+
+    case TYPE_STRING_POOLED:
+        return StringPoolGetString((stringref)HeapUnboxInt(heap, object));
+
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_FILE:
+    case TYPE_EMPTY_LIST:
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+    case TYPE_ITERATOR:
+        break;
+    }
+    assert(false);
+    return null;
+}
+
+size_t HeapGetStringLength(Heap *heap, uint object)
+{
+    switch (HeapGetObjectType(heap, object))
+    {
+    case TYPE_STRING:
+        return HeapGetObjectSize(heap, object);
+
+    case TYPE_STRING_POOLED:
+        return StringPoolGetStringLength((stringref)HeapUnboxInt(heap, object));
+
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_FILE:
+    case TYPE_EMPTY_LIST:
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+    case TYPE_ITERATOR:
+        break;
+    }
+    assert(false);
+    return null;
+}
+
 
 boolean HeapIsCollection(Heap *heap, uint object)
 {
@@ -208,7 +271,6 @@ size_t HeapCollectionSize(Heap *heap, uint object)
         return 0;
 
     case TYPE_ARRAY:
-    case TYPE_FILESET:
         return HeapGetObjectSize(heap, object) / sizeof(uint);
 
     case TYPE_INTEGER_RANGE:
@@ -216,9 +278,11 @@ size_t HeapCollectionSize(Heap *heap, uint object)
         assert(!subOverflow(data[1], data[0]));
         return (size_t)(data[1] - data[0]) + 1;
 
-    case TYPE_BOOLEAN:
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_STRING:
+    case TYPE_STRING_POOLED:
     case TYPE_FILE:
     case TYPE_ITERATOR:
     default:
@@ -251,14 +315,11 @@ boolean HeapCollectionGet(Heap *heap, uint object, ValueType *type,
         *value += (uint)intData[0];
         return true;
 
-    case TYPE_FILESET:
-        *type = TYPE_FILE_LITERAL;
-        arrayGet(heap, object, type, value);
-        return true;
-
-    case TYPE_BOOLEAN:
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_STRING:
+    case TYPE_STRING_POOLED:
     case TYPE_FILE:
     case TYPE_ITERATOR:
     default:
@@ -310,11 +371,6 @@ boolean HeapIteratorNext(Iterator *iter, ValueType *type, uint *value)
             currentState->current.value++;
             break;
 
-        case ITER_FILESET:
-            *type = TYPE_FILE_LITERAL;
-            iterArrayNext(currentState, type, value);
-            break;
-
         default:
             assert(false);
             break;
@@ -346,7 +402,9 @@ static ErrorCode addFile(fileref file, void *userdata)
 ErrorCode HeapCreateFilesetGlob(Heap *heap, const char *pattern,
                                 ValueType *restrict type, uint *restrict value)
 {
-    byte *restrict objectData = heapAlloc(heap, TYPE_FILESET, 0);
+    byte *restrict objectData = heapAlloc(heap, TYPE_ARRAY, 0);
+    fileref *restrict files = (fileref*)objectData;
+    size_t count;
     ErrorCode error;
 
     if (!objectData)
@@ -361,5 +419,13 @@ ErrorCode HeapCreateFilesetGlob(Heap *heap, const char *pattern,
     *type = TYPE_OBJECT;
     *value = finishAllocResize(heap, objectData,
                                (uint32)(heap->free - objectData));
+    for (count = HeapCollectionSize(heap, *value); count; count--, files++)
+    {
+        *files = HeapBoxInt(heap, TYPE_FILE, *files);
+        if (!*files)
+        {
+            return OUT_OF_MEMORY;
+        }
+    }
     return NO_ERROR;
 }

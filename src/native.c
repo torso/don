@@ -342,7 +342,7 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
     case NATIVE_FAIL:
         assert(!returnValues);
         InterpreterPopUnboxed(state, &type, &value);
-        if (type == TYPE_NULL_LITERAL)
+        if (!value)
         {
             size = 0;
         }
@@ -372,9 +372,12 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
     case NATIVE_FILENAME:
         assert(returnValues <= 1);
         InterpreterPopUnboxed(state, &type, &value);
-        assert(type == TYPE_FILE_LITERAL);
+        heap = InterpreterGetHeap(state);
+        assert(type == TYPE_OBJECT);
+        assert(HeapGetObjectType(heap, value) == TYPE_FILE);
         if (returnValues)
         {
+            value = HeapUnboxInt(heap, value);
             size = strlen(FileIndexGetName(value));
             filename = FileIndexFilename(FileIndexGetName(value), &size);
             if (!filename)

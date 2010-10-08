@@ -56,37 +56,10 @@ static boolean boxInt(RunState *state, ObjectType type, uint *value)
 
 static boolean box(RunState *state, ValueType type, uint *value)
 {
-    byte *objectData;
-
     switch (type)
     {
-    case TYPE_NULL_LITERAL:
-        assert(!*value);
-        return true;
-
-    case TYPE_BOOLEAN_LITERAL:
-        objectData = HeapAlloc(&state->heap, TYPE_BOOLEAN, sizeof(boolean));
-        if (!objectData)
-        {
-            state->error = OUT_OF_MEMORY;
-            return false;
-        }
-        *(boolean*)objectData = (boolean)*value;
-        *value = HeapFinishAlloc(&state->heap, objectData);
-        return true;
-
     case TYPE_INTEGER_LITERAL:
         return boxInt(state, TYPE_INTEGER, value);
-
-    case TYPE_STRING_LITERAL:
-        /* TODO: Avoid copying data. */
-        *value = HeapAllocString(&state->heap,
-                                 StringPoolGetString((stringref)*value),
-                                 StringPoolGetStringLength((stringref)*value));
-        return *value != 0;
-
-    case TYPE_FILE_LITERAL:
-        return boxInt(state, TYPE_FILE, value);
 
     case TYPE_OBJECT:
         return true;
@@ -97,32 +70,25 @@ static boolean box(RunState *state, ValueType type, uint *value)
 
 static void unbox(RunState *state, ValueType *type, uint *value)
 {
-    if (*type != TYPE_OBJECT)
+    if (*type != TYPE_OBJECT || !*value)
     {
         return;
     }
     switch (HeapGetObjectType(&state->heap, *value))
     {
-    case TYPE_BOOLEAN:
-        *type = TYPE_BOOLEAN_LITERAL;
-        *value = *(boolean*)HeapGetObjectData(&state->heap, *value);
-        return;
-
     case TYPE_INTEGER:
         *type = TYPE_INTEGER_LITERAL;
         *value = *(uint*)HeapGetObjectData(&state->heap, *value);
         return;
 
-    case TYPE_FILE:
-        *type = TYPE_FILE_LITERAL;
-        *value = *(uint*)HeapGetObjectData(&state->heap, *value);
-        return;
-
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
     case TYPE_STRING:
+    case TYPE_STRING_POOLED:
+    case TYPE_FILE:
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
-    case TYPE_FILESET:
     case TYPE_ITERATOR:
         return;
 
@@ -139,6 +105,11 @@ static void unbox(RunState *state, ValueType *type, uint *value)
 ValueType InterpreterPeekType(RunState *state)
 {
     return ByteVectorPeek(&state->typeStack);
+}
+
+static uint InterpreterPeekValue(RunState *state)
+{
+    return IntVectorPeek(&state->stack);
 }
 
 static void peek(RunState *state, ValueType *type, uint *value)
@@ -176,6 +147,12 @@ boolean InterpreterPush(RunState *state, ValueType type, uint value)
 {
     return !setError(state, ByteVectorAdd(&state->typeStack, type)) &&
         !setError(state, IntVectorAdd(&state->stack, value));
+}
+
+static boolean pushBoolean(RunState *state, boolean value)
+{
+    return push(state, TYPE_OBJECT,
+                value ? state->heap.booleanTrue : state->heap.booleanFalse);
 }
 
 
@@ -220,7 +197,8 @@ static boolean equals(RunState *state, ValueType type1, uint value1,
     Iterator iter2;
     ValueType tempType;
     uint tempValue;
-    size_t size;
+    size_t size1;
+    size_t size2;
     boolean success;
 
     unbox(state, &type1, &value1);
@@ -247,7 +225,8 @@ static boolean equals(RunState *state, ValueType type1, uint value1,
     }
     switch (HeapGetObjectType(&state->heap, value1))
     {
-    case TYPE_BOOLEAN:
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_FILE:
     case TYPE_ITERATOR:
@@ -255,26 +234,16 @@ static boolean equals(RunState *state, ValueType type1, uint value1,
         return false;
 
     case TYPE_STRING:
-        size = HeapGetObjectSize(&state->heap, value1);
-        if (type2 == TYPE_STRING_LITERAL)
-        {
-            return size == StringPoolGetStringLength((stringref)value2) &&
-                !memcmp(HeapGetObjectData(&state->heap, value1),
-                        StringPoolGetString((stringref)value2), size);
-        }
-        if (type2 != TYPE_OBJECT ||
-            HeapGetObjectType(&state->heap, value2) != TYPE_STRING)
-        {
-            return false;
-        }
-        return size == HeapGetObjectSize(&state->heap, value2) &&
-            !memcmp(HeapGetObjectData(&state->heap, value1),
-                    HeapGetObjectData(&state->heap, value2), size);
+    case TYPE_STRING_POOLED:
+        size1 = HeapGetStringLength(&state->heap, value1);
+        size2 = HeapGetStringLength(&state->heap, value2);
+        return size1 == size2 &&
+            !memcmp(HeapGetString(&state->heap, value1),
+                    HeapGetString(&state->heap, value2), size1);
 
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
-    case TYPE_FILESET:
         if (type2 != TYPE_OBJECT ||
             !HeapIsCollection(&state->heap, value2) ||
             HeapCollectionSize(&state->heap, value1) !=
@@ -337,12 +306,6 @@ size_t InterpreterGetStringSize(RunState *state, ValueType type, uint value)
     unbox(state, &type, &value);
     switch (type)
     {
-    case TYPE_NULL_LITERAL:
-        return 4;
-
-    case TYPE_BOOLEAN_LITERAL:
-        return value ? 4 : 5;
-
     case TYPE_INTEGER_LITERAL:
         size = 1;
         if ((int)value < 0)
@@ -357,22 +320,30 @@ size_t InterpreterGetStringSize(RunState *state, ValueType type, uint value)
         }
         return size;
 
-    case TYPE_STRING_LITERAL:
-        return StringPoolGetStringLength((stringref)value);
-
-    case TYPE_FILE_LITERAL:
-        return strlen(FileIndexGetName((fileref)value));
-
     case TYPE_OBJECT:
+        if (!value)
+        {
+            return 4;
+        }
         switch (HeapGetObjectType(&state->heap, value))
         {
+        case TYPE_BOOLEAN_TRUE:
+            return 4;
+
+        case TYPE_BOOLEAN_FALSE:
+            return 5;
+
         case TYPE_STRING:
-            return HeapGetObjectSize(&state->heap, value);
+        case TYPE_STRING_POOLED:
+            return HeapGetStringLength(&state->heap, value);
+
+        case TYPE_FILE:
+            return strlen(FileIndexGetName((fileref)HeapUnboxInt(&state->heap,
+                                                                 value)));
 
         case TYPE_EMPTY_LIST:
         case TYPE_ARRAY:
         case TYPE_INTEGER_RANGE:
-        case TYPE_FILESET:
             size = HeapCollectionSize(&state->heap, value);
             if (size)
             {
@@ -386,9 +357,7 @@ size_t InterpreterGetStringSize(RunState *state, ValueType type, uint value)
             }
             return size;
 
-        case TYPE_BOOLEAN:
         case TYPE_INTEGER:
-        case TYPE_FILE:
         case TYPE_ITERATOR:
             break;
         }
@@ -403,36 +372,12 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
 {
     Iterator iter;
     size_t size;
+    fileref file;
     boolean first;
 
     unbox(state, &type, &value);
     switch (type)
     {
-    case TYPE_NULL_LITERAL:
-        *dst++ = 'n';
-        *dst++ = 'u';
-        *dst++ = 'l';
-        *dst++ = 'l';
-        return dst;
-
-    case TYPE_BOOLEAN_LITERAL:
-        if (value)
-        {
-            *dst++ = 't';
-            *dst++ = 'r';
-            *dst++ = 'u';
-            *dst++ = 'e';
-        }
-        else
-        {
-            *dst++ = 'f';
-            *dst++ = 'a';
-            *dst++ = 'l';
-            *dst++ = 's';
-            *dst++ = 'e';
-        }
-        return dst;
-
     case TYPE_INTEGER_LITERAL:
         if (!value)
         {
@@ -454,28 +399,32 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
         }
         return dst + size + 1;
 
-    case TYPE_STRING_LITERAL:
-        size = StringPoolGetStringLength((stringref)value);
-        memcpy(dst, StringPoolGetString((stringref)value), size);
-        return dst + size;
-
-    case TYPE_FILE_LITERAL:
-        size = strlen(FileIndexGetName((fileref)value));
-        memcpy(dst, FileIndexGetName((fileref)value), size);
-        return dst + size;
-
     case TYPE_OBJECT:
+        if (!value)
+        {
+            *dst++ = 'n';
+            *dst++ = 'u';
+            *dst++ = 'l';
+            *dst++ = 'l';
+            return dst;
+        }
         switch (HeapGetObjectType(&state->heap, value))
         {
         case TYPE_STRING:
-            size = HeapGetObjectSize(&state->heap, value);
-            memcpy(dst, HeapGetObjectData(&state->heap, value), size);
+        case TYPE_STRING_POOLED:
+            size = HeapGetStringLength(&state->heap, value);
+            memcpy(dst, HeapGetString(&state->heap, value), size);
+            return dst + size;
+
+        case TYPE_FILE:
+            file = (fileref)HeapUnboxInt(&state->heap, value);
+            size = strlen(FileIndexGetName(file));
+            memcpy(dst, FileIndexGetName(file), size);
             return dst + size;
 
         case TYPE_EMPTY_LIST:
         case TYPE_ARRAY:
         case TYPE_INTEGER_RANGE:
-        case TYPE_FILESET:
             *dst++ = '[';
             first = true;
             HeapCollectionIteratorInit(&state->heap, &iter, value, false);
@@ -492,9 +441,22 @@ byte *InterpreterCopyString(RunState *state, ValueType type, uint value,
             *dst++ = ']';
             return dst;
 
-        case TYPE_BOOLEAN:
+        case TYPE_BOOLEAN_TRUE:
+            *dst++ = 't';
+            *dst++ = 'r';
+            *dst++ = 'u';
+            *dst++ = 'e';
+            return dst;
+
+        case TYPE_BOOLEAN_FALSE:
+            *dst++ = 'f';
+            *dst++ = 'a';
+            *dst++ = 'l';
+            *dst++ = 's';
+            *dst++ = 'e';
+            return dst;
+
         case TYPE_INTEGER:
-        case TYPE_FILE:
         case TYPE_ITERATOR:
             break;
         }
@@ -510,9 +472,8 @@ ErrorCode InterpreterCreateString(RunState *state,
 {
     if (!length)
     {
-        *type = TYPE_STRING_LITERAL;
-        *value = (uint)StringPoolAdd("");
-        assert(*value);
+        *type = TYPE_OBJECT;
+        *value = state->heap.emptyString;
         return NO_ERROR;
     }
 
@@ -603,15 +564,15 @@ static void execute(RunState *state, functionref target)
         switch ((Instruction)*ip++)
         {
         case OP_NULL:
-            push(state, TYPE_NULL_LITERAL, 0);
+            push(state, TYPE_OBJECT, 0);
             break;
 
         case OP_TRUE:
-            push(state, TYPE_BOOLEAN_LITERAL, 1);
+            push(state, TYPE_OBJECT, state->heap.booleanTrue);
             break;
 
         case OP_FALSE:
-            push(state, TYPE_BOOLEAN_LITERAL, 0);
+            push(state, TYPE_OBJECT, state->heap.booleanFalse);
             break;
 
         case OP_INTEGER:
@@ -619,7 +580,13 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_STRING:
-            push(state, TYPE_STRING_LITERAL, BytecodeReadUint(&ip));
+            value = HeapBoxInt(&state->heap, TYPE_STRING_POOLED, BytecodeReadUint(&ip));
+            if (!value)
+            {
+                state->error = OUT_OF_MEMORY;
+                return;
+            }
+            push(state, TYPE_OBJECT, value);
             break;
 
         case OP_EMPTY_LIST:
@@ -658,7 +625,12 @@ static void execute(RunState *state, functionref target)
                 state->error = OUT_OF_MEMORY;
                 return;
             }
-            push(state, TYPE_FILE_LITERAL, value);
+            boxInt(state, TYPE_FILE, &value);
+            if (!value)
+            {
+                return;
+            }
+            push(state, TYPE_OBJECT, value);
             break;
 
         case OP_FILESET:
@@ -708,34 +680,26 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type, &value);
             switch (type)
             {
-            case TYPE_NULL_LITERAL:
-                assert(!value);
-            case TYPE_BOOLEAN_LITERAL:
-                break;
-
             case TYPE_INTEGER_LITERAL:
                 value = value != 0;
                 break;
 
-            case TYPE_STRING_LITERAL:
-            case TYPE_FILE_LITERAL:
             case TYPE_OBJECT:
-                value = 1;
+                value = value != state->heap.booleanFalse;
                 break;
             }
-            push(state, TYPE_BOOLEAN_LITERAL, value);
+            push(state, TYPE_OBJECT,
+                 value ? state->heap.booleanTrue : state->heap.booleanFalse);
             break;
 
         case OP_EQUALS:
             pop2(state, &type, &value, &type2, &value2);
-            push(state, TYPE_BOOLEAN_LITERAL,
-                 equals(state, type, value, type2, value2));
+            pushBoolean(state, equals(state, type, value, type2, value2));
             break;
 
         case OP_NOT_EQUALS:
             pop2(state, &type, &value, &type2, &value2);
-            push(state, TYPE_BOOLEAN_LITERAL,
-                 !equals(state, type, value, type2, value2));
+            pushBoolean(state, !equals(state, type, value, type2, value2));
             break;
 
         case OP_LESS_EQUALS:
@@ -744,7 +708,7 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
-            push(state, TYPE_BOOLEAN_LITERAL, (int)value2 <= (int)value);
+            pushBoolean(state, (int)value2 <= (int)value);
             break;
 
         case OP_GREATER_EQUALS:
@@ -753,7 +717,7 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
-            push(state, TYPE_BOOLEAN_LITERAL, (int)value2 >= (int)value);
+            pushBoolean(state, (int)value2 >= (int)value);
             break;
 
         case OP_LESS:
@@ -762,7 +726,7 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
-            push(state, TYPE_BOOLEAN_LITERAL, (int)value2 < (int)value);
+            pushBoolean(state, (int)value2 < (int)value);
             break;
 
         case OP_GREATER:
@@ -771,14 +735,15 @@ static void execute(RunState *state, functionref target)
             unbox(state, &type2, &value2);
             assert(type == TYPE_INTEGER_LITERAL);
             assert(type2 == TYPE_INTEGER_LITERAL);
-            push(state, TYPE_BOOLEAN_LITERAL, (int)value2 > (int)value);
+            pushBoolean(state, (int)value2 > (int)value);
             break;
 
         case OP_NOT:
             pop(state, &type, &value);
-            unbox(state, &type, &value);
-            assert(type == TYPE_BOOLEAN_LITERAL);
-            push(state, TYPE_BOOLEAN_LITERAL, !value);
+            assert(type == TYPE_OBJECT);
+            assert(value == state->heap.booleanTrue ||
+                   value == state->heap.booleanFalse);
+            pushBoolean(state, value == state->heap.booleanFalse);
             break;
 
         case OP_NEG:
@@ -850,7 +815,7 @@ static void execute(RunState *state, functionref target)
             size2 = InterpreterGetStringSize(state, type, value);
             if (!size1 && !size2)
             {
-                push(state, TYPE_STRING_LITERAL, (uint)StringPoolAdd(""));
+                push(state, TYPE_OBJECT, state->heap.emptyString);
                 break;
             }
             objectData = HeapAlloc(&state->heap, TYPE_STRING, size1 + size2);
@@ -904,10 +869,9 @@ static void execute(RunState *state, functionref target)
             assert(HeapGetObjectType(&state->heap, value) == TYPE_ITERATOR);
             assert(HeapGetObjectSize(&state->heap, value) == sizeof(Iterator));
             iter = (Iterator*)HeapGetObjectData(&state->heap, value);
-            type = TYPE_NULL_LITERAL;
+            type = TYPE_OBJECT;
             value = 0;
-            push(state, TYPE_BOOLEAN_LITERAL,
-                 HeapIteratorNext(iter, &type, &value));
+            pushBoolean(state, HeapIteratorNext(iter, &type, &value));
             push(state, type, value);
             break;
 
@@ -917,18 +881,22 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_BRANCH_TRUE:
-            assert(InterpreterPeekType(state) == TYPE_BOOLEAN_LITERAL);
+            assert(InterpreterPeekType(state) == TYPE_OBJECT);
+            assert(InterpreterPeekValue(state) == state->heap.booleanTrue ||
+                   InterpreterPeekValue(state) == state->heap.booleanFalse);
             jumpOffset = BytecodeReadInt(&ip);
-            if (popValue(state))
+            if (popValue(state) == state->heap.booleanTrue)
             {
                 ip += jumpOffset;
             }
             break;
 
         case OP_BRANCH_FALSE:
-            assert(InterpreterPeekType(state) == TYPE_BOOLEAN_LITERAL);
+            assert(InterpreterPeekType(state) == TYPE_OBJECT);
+            assert(InterpreterPeekValue(state) == state->heap.booleanTrue ||
+                   InterpreterPeekValue(state) == state->heap.booleanFalse);
             jumpOffset = BytecodeReadInt(&ip);
-            if (!popValue(state))
+            if (popValue(state) != state->heap.booleanTrue)
             {
                 ip += jumpOffset;
             }
