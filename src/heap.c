@@ -465,19 +465,28 @@ static ErrorCode addFile(fileref file, void *userdata)
 ErrorCode HeapCreateFilesetGlob(Heap *heap, const char *pattern,
                                 uint *restrict value)
 {
-    byte *restrict objectData = heapAlloc(heap, TYPE_ARRAY, 0);
-    uint *restrict files = (uint*)objectData;
+    byte *restrict oldFree = heap->free;
+    byte *restrict objectData;
+    uint *restrict files;
     size_t count;
     ErrorCode error;
 
+    objectData = heapAlloc(heap, TYPE_ARRAY, 0);
     if (!objectData)
     {
         return OUT_OF_MEMORY;
     }
+    files = (uint*)objectData;
     error = FileIndexTraverseGlob(pattern, addFile, heap);
     if (error)
     {
         return error;
+    }
+    if (heap->free == objectData)
+    {
+        heap->free = oldFree;
+        *value = heap->emptyList;
+        return NO_ERROR;
     }
     *value = finishAllocResize(heap, objectData,
                                (uint32)(heap->free - objectData));
