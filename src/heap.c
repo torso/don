@@ -7,6 +7,8 @@
 
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))
 
+#define INTEGER_LITERAL_MARK ((uint)(1 << (sizeof(int) * 8 - 1)))
+
 #define OBJECT_OVERHEAD 8
 #define HEADER_SIZE 0
 #define HEADER_TYPE 4
@@ -16,6 +18,35 @@ static void checkObject(Heap *heap, uint object)
     assert(heap);
     assert(object);
 }
+
+static pure boolean isInteger(uint value)
+{
+    return (value & INTEGER_LITERAL_MARK) != 0;
+}
+
+static pure int getInteger(uint value)
+{
+    assert(isInteger(value));
+    return ((int)value << 1) >> 1;
+}
+
+static uint boxReference(Heap *heap, ObjectType type, uint value)
+{
+    byte *objectData = HeapAlloc(heap, type, sizeof(int));
+    if (!objectData)
+    {
+        return 0;
+    }
+    *(uint*)objectData = value;
+    return HeapFinishAlloc(heap, objectData);
+}
+
+static uint unboxReference(Heap *heap, ObjectType type, uint object)
+{
+    assert(HeapGetObjectType(heap, object) == type);
+    return *(uint*)HeapGetObjectData(heap, object);
+}
+
 
 static boolean isCollectionType(ObjectType type)
 {
@@ -61,46 +92,11 @@ static uint finishAllocResize(Heap *heap, byte *objectData, uint32 newSize)
     return (uint)(objectData - OBJECT_OVERHEAD - heap->base);
 }
 
-static void arrayGet(Heap *heap, uint object,
-                     ValueType *restrict type, uint *restrict value)
-{
-    const uint *restrict data = (const uint*)HeapGetObjectData(heap, object);
-    *type = TYPE_OBJECT;
-    *value = data[*value];
-}
-
-static void iterArrayInit(Heap *heap, IteratorState *state,
-                          IteratorType type, uint object)
-{
-    size_t size = HeapCollectionSize(heap, object);
-
-    if (!size)
-    {
-        state->type = ITER_EMPTY;
-        return;
-    }
-    state->type = type;
-    state->current.objectArray =
-        (const uint*)HeapGetObjectData(heap, object);
-    state->limit.objectArray = state->current.objectArray + size - 1;
-}
-
-static void iterArrayNext(IteratorState *state,
-                          ValueType *restrict type, uint *restrict value)
-{
-    *type = TYPE_OBJECT;
-    *value = *state->current.objectArray;
-    if (state->current.objectArray == state->limit.objectArray)
-    {
-        state->type = ITER_EMPTY;
-    }
-    state->current.objectArray++;
-}
-
 static void iterStateInit(Heap *heap, IteratorState *state, uint object,
                           boolean flatten)
 {
     const int *data;
+    size_t size;
 
     state->flatten = flatten;
     switch (HeapGetObjectType(heap, object))
@@ -110,7 +106,16 @@ static void iterStateInit(Heap *heap, IteratorState *state, uint object,
         return;
 
     case TYPE_ARRAY:
-        iterArrayInit(heap, state, ITER_OBJECT_ARRAY, object);
+        size = HeapCollectionSize(heap, object);
+        if (!size)
+        {
+            state->type = ITER_EMPTY;
+            return;
+        }
+        state->type = ITER_OBJECT_ARRAY;
+        state->current.objectArray =
+            (const uint*)HeapGetObjectData(heap, object);
+        state->limit.objectArray = state->current.objectArray + size - 1;
         return;
 
     case TYPE_INTEGER_RANGE:
@@ -153,7 +158,8 @@ void HeapDispose(Heap *heap)
 ObjectType HeapGetObjectType(Heap *heap, uint object)
 {
     checkObject(heap, object);
-    return *(uint32*)(heap->base + object + HEADER_TYPE);
+    return isInteger(object) ? TYPE_INTEGER :
+        *(uint32*)(heap->base + object + HEADER_TYPE);
 }
 
 size_t HeapGetObjectSize(Heap *heap, uint object)
@@ -166,22 +172,6 @@ const byte *HeapGetObjectData(Heap *heap, uint object)
 {
     checkObject(heap, object);
     return heap->base + object + OBJECT_OVERHEAD;
-}
-
-uint HeapBoxInt(Heap *heap, ObjectType type, uint value)
-{
-    byte *objectData = HeapAlloc(heap, type, sizeof(int));
-    if (!objectData)
-    {
-        return 0;
-    }
-    *(uint*)objectData = value;
-    return HeapFinishAlloc(heap, objectData);
-}
-
-uint HeapUnboxInt(Heap *heap, uint object)
-{
-    return *(uint*)HeapGetObjectData(heap, object);
 }
 
 byte *HeapAlloc(Heap *heap, ObjectType type, size_t size)
@@ -197,15 +187,45 @@ uint HeapFinishAlloc(Heap *heap, byte *objectData)
 }
 
 
-uint HeapAllocString(Heap *heap, const char *restrict string, size_t length)
+uint HeapBoxInteger(Heap *heap unused, int value)
 {
-    byte *restrict objectData = HeapAlloc(heap, TYPE_STRING, length);
+    assert(value == getInteger((uint)value | INTEGER_LITERAL_MARK));
+    return (uint)value | INTEGER_LITERAL_MARK;
+}
+
+uint HeapBoxSize(Heap *heap unused, size_t value)
+{
+    assert(value <= MAX_INT);
+    return HeapBoxInteger(heap, (int)value);
+}
+
+int HeapUnboxInteger(Heap *heap unused, uint value)
+{
+    return getInteger(value);
+}
+
+
+uint HeapCreateString(Heap *heap, const char *restrict string, size_t length)
+{
+    byte *restrict objectData;
+
+    if (!length)
+    {
+        return heap->emptyString;
+    }
+
+    objectData = HeapAlloc(heap, TYPE_STRING, length);
     if (!objectData)
     {
         return 0;
     }
     memcpy(objectData, string, length);
     return HeapFinishAlloc(heap, objectData);
+}
+
+uint HeapCreatePooledString(Heap *heap, stringref string)
+{
+    return boxReference(heap, TYPE_STRING_POOLED, (uint)string);
 }
 
 const char *HeapGetString(Heap *heap, uint object)
@@ -216,7 +236,8 @@ const char *HeapGetString(Heap *heap, uint object)
         return (const char*)HeapGetObjectData(heap, object);
 
     case TYPE_STRING_POOLED:
-        return StringPoolGetString((stringref)HeapUnboxInt(heap, object));
+        return StringPoolGetString(
+            (stringref)unboxReference(heap, TYPE_STRING_POOLED, object));
 
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
@@ -240,7 +261,8 @@ size_t HeapGetStringLength(Heap *heap, uint object)
         return HeapGetObjectSize(heap, object);
 
     case TYPE_STRING_POOLED:
-        return StringPoolGetStringLength((stringref)HeapUnboxInt(heap, object));
+        return StringPoolGetStringLength(
+            (stringref)unboxReference(heap, TYPE_STRING_POOLED, object));
 
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
@@ -254,6 +276,38 @@ size_t HeapGetStringLength(Heap *heap, uint object)
     }
     assert(false);
     return null;
+}
+
+
+uint HeapCreateFile(Heap *heap, fileref file)
+{
+    return boxReference(heap, TYPE_FILE, (uint)file);
+}
+
+fileref HeapGetFile(Heap *heap, uint object)
+{
+    return (fileref)unboxReference(heap, TYPE_FILE, object);
+}
+
+
+uint HeapCreateRange(Heap *heap, uint lowObject, uint highObject)
+{
+    byte *objectData;
+    int *p;
+    int low = HeapUnboxInteger(heap, lowObject);
+    int high = HeapUnboxInteger(heap, highObject);
+
+    assert(low <= high); /* TODO: Reverse range */
+    assert(!subOverflow(high, low));
+    objectData = HeapAlloc(heap, TYPE_INTEGER_RANGE, 2 * sizeof(int));
+    if (!objectData)
+    {
+        return 0;
+    }
+    p = (int*)objectData;
+    p[0] = low;
+    p[1] = high;
+    return HeapFinishAlloc(heap, objectData);
 }
 
 
@@ -291,28 +345,34 @@ size_t HeapCollectionSize(Heap *heap, uint object)
     }
 }
 
-boolean HeapCollectionGet(Heap *heap, uint object, ValueType *type,
+boolean HeapCollectionGet(Heap *heap, uint object, uint indexObject,
                           uint *restrict value)
 {
+    const uint *restrict data;
     const int *restrict intData;
+    int i = HeapUnboxInteger(heap, indexObject);
+    uint index;
 
-    assert(*type == TYPE_INTEGER_LITERAL);
-    assert((int)*value >= 0);
-    assert(*value < HeapCollectionSize(heap, object));
+    if (i < 0)
+    {
+        return false;
+    }
+    index = (uint)i;
+    assert(index < HeapCollectionSize(heap, object));
     switch (HeapGetObjectType(heap, object))
     {
     case TYPE_EMPTY_LIST:
         return false;
 
     case TYPE_ARRAY:
-        *type = TYPE_OBJECT;
-        arrayGet(heap, object, type, value);
+        data = (const uint*)HeapGetObjectData(heap, object);
+        *value = data[index];
         return true;
 
     case TYPE_INTEGER_RANGE:
         intData = (const int *)HeapGetObjectData(heap, object);
-        assert(!addOverflow((int)*value, intData[0]));
-        *value += (uint)intData[0];
+        assert(!addOverflow(i, intData[0]));
+        *value = HeapBoxInteger(heap, i + intData[0]);
         return true;
 
     case TYPE_BOOLEAN_TRUE:
@@ -336,7 +396,7 @@ void HeapCollectionIteratorInit(Heap *heap, Iterator *iter, uint object,
     iterStateInit(heap, &iter->state, object, flatten);
 }
 
-boolean HeapIteratorNext(Iterator *iter, ValueType *type, uint *value)
+boolean HeapIteratorNext(Iterator *iter, uint *value)
 {
     IteratorState *currentState;
     IteratorState *nextState;
@@ -357,13 +417,16 @@ boolean HeapIteratorNext(Iterator *iter, ValueType *type, uint *value)
             continue;
 
         case ITER_OBJECT_ARRAY:
-            *type = TYPE_OBJECT;
-            iterArrayNext(currentState, type, value);
+            *value = *currentState->current.objectArray;
+            if (currentState->current.objectArray == currentState->limit.objectArray)
+            {
+                currentState->type = ITER_EMPTY;
+            }
+            currentState->current.objectArray++;
             break;
 
         case ITER_INTEGER_RANGE:
-            *value = (uint)currentState->current.value;
-            *type = TYPE_INTEGER_LITERAL;
+            *value = HeapBoxInteger(iter->heap, currentState->current.value);
             if (currentState->current.value == currentState->limit.value)
             {
                 currentState->type = ITER_EMPTY;
@@ -375,7 +438,7 @@ boolean HeapIteratorNext(Iterator *iter, ValueType *type, uint *value)
             assert(false);
             break;
         }
-        if (currentState->flatten && *type == TYPE_OBJECT &&
+        if (currentState->flatten &&
             HeapIsCollection(iter->heap, *value))
         {
             nextState = (IteratorState*)malloc(sizeof(IteratorState));
@@ -400,10 +463,10 @@ static ErrorCode addFile(fileref file, void *userdata)
 }
 
 ErrorCode HeapCreateFilesetGlob(Heap *heap, const char *pattern,
-                                ValueType *restrict type, uint *restrict value)
+                                uint *restrict value)
 {
     byte *restrict objectData = heapAlloc(heap, TYPE_ARRAY, 0);
-    fileref *restrict files = (fileref*)objectData;
+    uint *restrict files = (uint*)objectData;
     size_t count;
     ErrorCode error;
 
@@ -416,12 +479,11 @@ ErrorCode HeapCreateFilesetGlob(Heap *heap, const char *pattern,
     {
         return error;
     }
-    *type = TYPE_OBJECT;
     *value = finishAllocResize(heap, objectData,
                                (uint32)(heap->free - objectData));
     for (count = HeapCollectionSize(heap, *value); count; count--, files++)
     {
-        *files = HeapBoxInt(heap, TYPE_FILE, *files);
+        *files = HeapCreateFile(heap, *(fileref*)files);
         if (!*files)
         {
             return OUT_OF_MEMORY;

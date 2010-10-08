@@ -92,7 +92,6 @@ static char **createStringArray(RunState *state, uint collection)
 {
     Heap *heap = InterpreterGetHeap(state);
     Iterator iter;
-    ValueType type;
     uint value;
     size_t size = sizeof(char*);
     uint count = 1;
@@ -104,9 +103,9 @@ static char **createStringArray(RunState *state, uint collection)
     assert(HeapCollectionSize(heap, collection));
 
     HeapCollectionIteratorInit(heap, &iter, collection, true);
-    while (HeapIteratorNext(&iter, &type, &value))
+    while (HeapIteratorNext(&iter, &value))
     {
-        size += InterpreterGetStringSize(state, type, value) + 1 +
+        size += InterpreterGetStringSize(state, value) + 1 +
             sizeof(char*);
         count++;
     }
@@ -120,10 +119,10 @@ static char **createStringArray(RunState *state, uint collection)
     table = strings;
     stringData = (byte*)&strings[count];
     HeapCollectionIteratorInit(heap, &iter, collection, true);
-    while (HeapIteratorNext(&iter, &type, &value))
+    while (HeapIteratorNext(&iter, &value))
     {
         *table++ = (char*)stringData;
-        stringData = InterpreterCopyString(state, type, value, stringData);
+        stringData = InterpreterCopyString(state, value, stringData);
         *stringData++ = 0;
     }
     *table = null;
@@ -149,7 +148,6 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
                        uint returnValues)
 {
     Heap *heap;
-    ValueType type;
     uint value;
     size_t size;
     const char *buffer;
@@ -161,6 +159,7 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
     int pipeOut[2];
     int pipeErr[2];
     ssize_t ssize;
+    fileref file;
     const char *filename;
     ErrorCode error;
 
@@ -168,14 +167,14 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
     {
     case NATIVE_ECHO:
         assert(!returnValues);
-        InterpreterPop(state, &type, &value);
-        size = InterpreterGetStringSize(state, type, value);
-        buffer = InterpreterGetString(state, type, value);
+        value = InterpreterPop(state);
+        size = InterpreterGetStringSize(state, value);
+        buffer = InterpreterGetString(state, value);
         out = InterpreterGetPipeOut(state);
         error = NO_ERROR;
         if (out)
         {
-            error = ByteVectorAddData( out, (byte*)buffer, size);
+            error = ByteVectorAddData(out, (byte*)buffer, size);
             if (!error)
             {
                 error = ByteVectorAdd(out, '\n');
@@ -201,8 +200,7 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
 
     case NATIVE_EXEC:
         assert(returnValues <= 1);
-        InterpreterPop(state, &type, &value);
-        assert(type == TYPE_OBJECT);
+        value = InterpreterPop(state);
         argv = createStringArray(state, value);
         if (!argv)
         {
@@ -335,23 +333,24 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
         }
         if (returnValues)
         {
-            InterpreterPush(state, TYPE_INTEGER_LITERAL, (uint)status);
+            InterpreterPush(state, HeapBoxInteger(InterpreterGetHeap(state),
+                                                  status));
         }
         return NO_ERROR;
 
     case NATIVE_FAIL:
         assert(!returnValues);
-        InterpreterPopUnboxed(state, &type, &value);
+        value = InterpreterPop(state);
         if (!value)
         {
             size = 0;
         }
         else
         {
-            size = InterpreterGetStringSize(state, type, value);
+            size = InterpreterGetStringSize(state, value);
             if (size)
             {
-                buffer = InterpreterGetString(state, type, value);
+                buffer = InterpreterGetString(state, value);
                 if (buffer[size - 1] == '\n')
                 {
                     printf("BUILD FAILED: %s", buffer);
@@ -371,39 +370,36 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
 
     case NATIVE_FILENAME:
         assert(returnValues <= 1);
-        InterpreterPopUnboxed(state, &type, &value);
+        value = InterpreterPop(state);
         heap = InterpreterGetHeap(state);
-        assert(type == TYPE_OBJECT);
         assert(HeapGetObjectType(heap, value) == TYPE_FILE);
         if (returnValues)
         {
-            value = HeapUnboxInt(heap, value);
-            size = strlen(FileIndexGetName(value));
-            filename = FileIndexFilename(FileIndexGetName(value), &size);
+            file = HeapGetFile(heap, value);
+            size = strlen(FileIndexGetName(file));
+            filename = FileIndexFilename(FileIndexGetName(file), &size);
             if (!filename)
             {
                 return OUT_OF_MEMORY;
             }
-            error = InterpreterCreateString(state, filename, size,
-                                            &type, &value);
-            if (error)
+            value = HeapCreateString(heap, filename, size);
+            if (!value)
             {
-                return error;
+                return OUT_OF_MEMORY;
             }
-            InterpreterPush(state, type, value);
+            InterpreterPush(state, value);
         }
         return NO_ERROR;
 
     case NATIVE_SIZE:
-        InterpreterPop(state, &type, &value);
+        value = InterpreterPop(state);
         if (returnValues)
         {
             assert(returnValues == 1);
             heap = InterpreterGetHeap(state);
-            assert(type == TYPE_OBJECT);
             assert(HeapCollectionSize(heap, value) <= MAX_INT);
-            InterpreterPush(state, TYPE_INTEGER_LITERAL,
-                            (uint)HeapCollectionSize(heap, value));
+            InterpreterPush(
+                state, HeapBoxSize(heap, HeapCollectionSize(heap, value)));
         }
         return NO_ERROR;
 

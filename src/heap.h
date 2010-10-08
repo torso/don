@@ -1,11 +1,5 @@
 typedef enum
 {
-    TYPE_INTEGER_LITERAL,
-    TYPE_OBJECT
-} ValueType;
-
-typedef enum
-{
     TYPE_BOOLEAN_TRUE,
     TYPE_BOOLEAN_FALSE,
     TYPE_INTEGER,
@@ -66,16 +60,25 @@ extern nonnull void HeapDispose(Heap *heap);
 extern nonnull ObjectType HeapGetObjectType(Heap *heap, uint object);
 extern nonnull size_t HeapGetObjectSize(Heap *heap, uint object);
 extern nonnull const byte *HeapGetObjectData(Heap *heap, uint object);
-extern nonnull uint HeapBoxInt(Heap *heap, ObjectType type, uint value);
-extern nonnull uint HeapUnboxInt(Heap *heap, uint object);
 
 extern nonnull byte *HeapAlloc(Heap *heap, ObjectType type, size_t size);
 extern nonnull uint HeapFinishAlloc(Heap *heap, byte *objectData);
 
-extern nonnull uint HeapAllocString(Heap *heap, const char *string,
-                                    size_t length);
+extern nonnull uint HeapBoxInteger(Heap *heap, int value);
+extern nonnull uint HeapBoxSize(Heap *heap, size_t value);
+extern nonnull int HeapUnboxInteger(Heap *heap, uint value);
+
+extern nonnull uint HeapCreateString(Heap *heap, const char *string,
+                                     size_t length);
+extern nonnull uint HeapCreatePooledString(Heap *heap, stringref string);
 extern nonnull const char *HeapGetString(Heap *heap, uint object);
 extern nonnull size_t HeapGetStringLength(Heap *heap, uint object);
+
+extern nonnull uint HeapCreateFile(Heap *heap, fileref file);
+extern nonnull fileref HeapGetFile(Heap *heap, uint object);
+
+extern nonnull uint HeapCreateRange(Heap *heap,
+                                    uint lowObject, uint highObject);
 
 extern nonnull boolean HeapIsCollection(Heap *heap, uint object);
 extern nonnull size_t HeapCollectionSize(Heap *heap, uint object);
@@ -87,12 +90,10 @@ extern nonnull size_t HeapCollectionSize(Heap *heap, uint object);
   Returns true if successful.
 */
 extern nonnull boolean HeapCollectionGet(Heap *heap, uint object,
-                                         ValueType *type, uint *value);
+                                         uint indexObject, uint *value);
 extern nonnull void HeapCollectionIteratorInit(Heap *heap, Iterator *iter,
                                                uint object, boolean flatten);
-extern nonnull boolean HeapIteratorNext(Iterator *iter,
-                                        ValueType *type, uint *value);
+extern nonnull boolean HeapIteratorNext(Iterator *iter, uint *value);
 
 extern nonnull ErrorCode HeapCreateFilesetGlob(Heap *heap, const char *pattern,
-                                               ValueType *restrict type,
-                                               uint *restrict value);
+                                               uint *value);
