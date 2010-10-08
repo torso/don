@@ -71,6 +71,7 @@ extern nonnull int HeapUnboxInteger(Heap *heap, uint value);
 extern nonnull uint HeapCreateString(Heap *heap, const char *string,
                                      size_t length);
 extern nonnull uint HeapCreatePooledString(Heap *heap, stringref string);
+extern nonnull boolean HeapIsString(Heap *heap, uint object);
 extern nonnull const char *HeapGetString(Heap *heap, uint object);
 extern nonnull size_t HeapGetStringLength(Heap *heap, uint object);
 

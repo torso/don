@@ -228,6 +228,28 @@ uint HeapCreatePooledString(Heap *heap, stringref string)
     return boxReference(heap, TYPE_STRING_POOLED, (uint)string);
 }
 
+boolean HeapIsString(Heap *heap, uint object)
+{
+    switch (HeapGetObjectType(heap, object))
+    {
+    case TYPE_STRING:
+    case TYPE_STRING_POOLED:
+        return true;
+
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_FILE:
+    case TYPE_EMPTY_LIST:
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+    case TYPE_ITERATOR:
+        return false;
+    }
+    assert(false);
+    return false;
+}
+
 const char *HeapGetString(Heap *heap, uint object)
 {
     switch (HeapGetObjectType(heap, object))

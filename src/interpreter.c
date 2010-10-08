@@ -503,6 +503,18 @@ static void execute(RunState *state, functionref target)
             {
                 pushBoolean(state, HeapUnboxInteger(&state->heap, value) != 0);
             }
+            else if (HeapIsString(&state->heap, value))
+            {
+                pushBoolean(state, HeapGetStringLength(&state->heap, value) != 0);
+            }
+            else if (HeapIsCollection(&state->heap, value))
+            {
+                pushBoolean(state, HeapCollectionSize(&state->heap, value) != 0);
+            }
+            else
+            {
+                push(state, state->heap.booleanTrue);
+            }
             break;
 
         case OP_EQUALS:
