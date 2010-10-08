@@ -318,7 +318,14 @@ ErrorCode FileIndexTraverseGlob(const char *pattern,
         return callback(file, userdata);
     }
 
-    filename = getAbsoluteFilename(null, 0, pattern, (size_t)(slash - pattern));
+    if (slash)
+    {
+        filename = getAbsoluteFilename(null, 0, pattern, (size_t)(slash - pattern));
+    }
+    else
+    {
+        filename = cwd;
+    }
     if (!filename)
     {
         return OUT_OF_MEMORY;
@@ -326,10 +333,21 @@ ErrorCode FileIndexTraverseGlob(const char *pattern,
 
     globalCallback = callback;
     globalUserdata = userdata;
-    globalPattern = slash + 1;
-    globalFilenamePrefixLength = strlen(filename) + 1;
+    if (slash)
+    {
+        globalPattern = slash + 1;
+        globalFilenamePrefixLength = strlen(filename) + 1;
+    }
+    else
+    {
+        globalPattern = pattern;
+        globalFilenamePrefixLength = cwdLength + 1;
+    }
     error = ftw(filename, globTraverse, 10);
-    free(filename);
+    if (slash)
+    {
+        free(filename);
+    }
     if (error < 0)
     {
         /* TODO: Error handling. */
