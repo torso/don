@@ -26,19 +26,19 @@ static boolean setError(VM *vm, ErrorCode error)
 #define pop InterpreterPop
 #define push InterpreterPush
 
-uint InterpreterPeek(VM *vm)
+objectref InterpreterPeek(VM *vm)
 {
-    return IntVectorPeek(&vm->stack);
+    return (objectref)IntVectorPeek(&vm->stack);
 }
 
-uint InterpreterPop(VM *vm)
+objectref InterpreterPop(VM *vm)
 {
-    return IntVectorPop(&vm->stack);
+    return (objectref)IntVectorPop(&vm->stack);
 }
 
-boolean InterpreterPush(VM *vm, uint value)
+boolean InterpreterPush(VM *vm, objectref value)
 {
-    return !setError(vm, IntVectorAdd(&vm->stack, value));
+    return !setError(vm, IntVectorAdd(&vm->stack, (uint)value));
 }
 
 static boolean pushBoolean(VM *vm, boolean value)
@@ -47,19 +47,25 @@ static boolean pushBoolean(VM *vm, boolean value)
 }
 
 
-static void storeLocal(VM *vm, uint bp, uint16 local, uint value)
+static objectref getLocal(VM *vm, uint bp, uint16 local)
 {
-    IntVectorSet(&vm->stack, bp + local, value);
+    return (objectref)IntVectorGet(&vm->stack, bp + local);
 }
 
-static uint createIterator(VM *vm, uint object)
+static void storeLocal(VM *vm, uint bp, uint16 local, objectref value)
+{
+    IntVectorSet(&vm->stack, bp + local, (uint)value);
+}
+
+
+static objectref createIterator(VM *vm, objectref object)
 {
     Iterator *iter = (Iterator *)HeapAlloc(vm, TYPE_ITERATOR, sizeof(Iterator));
     HeapCollectionIteratorInit(vm, iter, object, false);
     return HeapFinishAlloc(vm, (byte*)iter);
 }
 
-static boolean equals(VM *vm, uint value1, uint value2)
+static boolean equals(VM *vm, objectref value1, objectref value2)
 {
     Iterator iter1;
     Iterator iter2;
@@ -114,7 +120,7 @@ static boolean equals(VM *vm, uint value1, uint value2)
     return false;
 }
 
-static int compare(VM *vm, uint value1, uint value2)
+static int compare(VM *vm, objectref value1, objectref value2)
 {
     int i1 = HeapUnboxInteger(vm, value1);
     int i2 = HeapUnboxInteger(vm, value2);
@@ -131,7 +137,7 @@ bytevector *InterpreterGetPipeErr(VM *vm)
     return vm->pipeErr;
 }
 
-const char *InterpreterGetString(VM *vm, uint value)
+const char *InterpreterGetString(VM *vm, objectref value)
 {
     size_t size = InterpreterGetStringSize(vm, value);
     byte *buffer = (byte*)malloc(size + 1); /* TODO: Avoid malloc */
@@ -146,9 +152,10 @@ void InterpreterFreeStringBuffer(VM *vm unused, const char *buffer)
     free((void*)buffer);
 }
 
-size_t InterpreterGetStringSize(VM *vm, uint value)
+size_t InterpreterGetStringSize(VM *vm, objectref value)
 {
     Iterator iter;
+    uint i;
     size_t size;
 
     if (!value)
@@ -164,16 +171,16 @@ size_t InterpreterGetStringSize(VM *vm, uint value)
         return 5;
 
     case TYPE_INTEGER:
-        value = (uint)HeapUnboxInteger(vm, value);
+        i = (uint)HeapUnboxInteger(vm, value);
         size = 1;
-        if ((int)value < 0)
+        if ((int)i < 0)
         {
             size = 2;
-            value = -value;
+            i = -i;
         }
-        while (value > 9)
+        while (i > 9)
         {
-            value /= 10;
+            i /= 10;
             size++;
         }
         return size;
@@ -208,7 +215,7 @@ size_t InterpreterGetStringSize(VM *vm, uint value)
     return 0;
 }
 
-byte *InterpreterCopyString(VM *vm, uint value, byte *dst)
+byte *InterpreterCopyString(VM *vm, objectref value, byte *dst)
 {
     Iterator iter;
     size_t size;
@@ -337,10 +344,11 @@ static void execute(VM *vm, functionref target)
     const byte *baseIP = ip;
     uint bp = 0;
     uint argumentCount;
+    uint returnValueCount;
     int jumpOffset;
     uint local;
-    uint value;
-    uint value2;
+    objectref value;
+    objectref value2;
     size_t size1;
     size_t size2;
     stringref string;
@@ -392,17 +400,17 @@ static void execute(VM *vm, functionref target)
         case OP_LIST:
             size1 = BytecodeReadUint(&ip);
             objectData = HeapAlloc(vm, TYPE_ARRAY,
-                                   size1 * sizeof(uint));
+                                   size1 * sizeof(objectref));
             if (!objectData)
             {
                 vm->error = OUT_OF_MEMORY;
                 return;
             }
-            objectData += size1 * sizeof(uint);
+            objectData += size1 * sizeof(objectref);
             while (size1--)
             {
-                objectData -= sizeof(uint);
-                *(uint*)objectData = pop(vm);
+                objectData -= sizeof(objectref);
+                *(objectref*)objectData = pop(vm);
             }
             push(vm, HeapFinishAlloc(vm, objectData));
             break;
@@ -443,8 +451,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_LOAD:
-            local = BytecodeReadUint16(&ip);
-            push(vm, IntVectorGet(&vm->stack, bp + local));
+            push(vm, getLocal(vm, bp, BytecodeReadUint16(&ip)));
             break;
 
         case OP_STORE:
@@ -452,8 +459,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_LOAD_FIELD:
-            value = BytecodeReadUint(&ip);
-            push(vm, vm->fields[value]);
+            push(vm, vm->fields[BytecodeReadUint(&ip)]);
             break;
 
         case OP_STORE_FIELD:
@@ -698,8 +704,8 @@ static void execute(VM *vm, functionref target)
             function = (functionref)BytecodeReadUint(&ip);
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == FunctionIndexGetParameterCount(function)); /* TODO */
-            value = *ip++;
-            pushStackFrame(vm, &ip, &bp, function, value);
+            returnValueCount = *ip++;
+            pushStackFrame(vm, &ip, &bp, function, returnValueCount);
             baseIP = ip;
             break;
 
@@ -792,7 +798,7 @@ ErrorCode InterpreterExecute(const byte *restrict bytecode, functionref target)
 
     memset(&vm, 0, sizeof(vm));
     vm.bytecode = bytecode;
-    vm.fields = (uint*)malloc(fieldCount * sizeof(int));
+    vm.fields = (objectref*)malloc(fieldCount * sizeof(int));
     if (handleError(&vm, vm.fields ? NO_ERROR : OUT_OF_MEMORY) ||
         handleError(&vm, HeapInit(&vm)) ||
         handleError(&vm, IntVectorInit(&vm.callStack)) ||

@@ -1,13 +1,15 @@
 #include "bytevector.h"
 #include "intvector.h"
 
+typedef uint objectref;
+
 struct VM
 {
     const byte *restrict bytecode;
 
     ErrorCode error;
 
-    uint *fields;
+    objectref *fields;
     intvector callStack;
     intvector stack;
     byte *heapBase;
@@ -16,10 +18,10 @@ struct VM
     bytevector *pipeOut;
     bytevector *pipeErr;
 
-    uint booleanTrue;
-    uint booleanFalse;
-    uint emptyString;
-    uint emptyList;
+    objectref booleanTrue;
+    objectref booleanFalse;
+    objectref emptyString;
+    objectref emptyList;
 };
 
 #include "heap.h"

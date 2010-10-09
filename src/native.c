@@ -87,10 +87,10 @@ static pure const FunctionInfo *getFunctionInfo(nativefunctionref function)
     return (FunctionInfo*)&functionInfo[functionIndex[function]];
 }
 
-static char **createStringArray(VM *vm, uint collection)
+static char **createStringArray(VM *vm, objectref collection)
 {
     Iterator iter;
-    uint value;
+    objectref value;
     size_t size = sizeof(char*);
     uint count = 1;
     char **strings;
@@ -144,7 +144,7 @@ ErrorCode NativeInit(void)
 
 ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
 {
-    uint value;
+    objectref value;
     size_t size;
     const char *buffer;
     pid_t pid;
