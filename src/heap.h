@@ -85,5 +85,4 @@ extern nonnull void HeapCollectionIteratorInit(VM *vm, Iterator *iter,
                                                uint object, boolean flatten);
 extern nonnull boolean HeapIteratorNext(Iterator *iter, uint *value);
 
-extern nonnull ErrorCode HeapCreateFilesetGlob(VM *vm, const char *pattern,
-                                               uint *value);
+extern nonnull uint HeapCreateFilesetGlob(VM *vm, const char *pattern);

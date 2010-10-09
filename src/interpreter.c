@@ -380,7 +380,6 @@ static void execute(VM *vm, functionref target)
             value = HeapCreatePooledString(vm, (stringref)BytecodeReadUint(&ip));
             if (!value)
             {
-                vm->error = OUT_OF_MEMORY;
                 return;
             }
             push(vm, value);
@@ -420,18 +419,15 @@ static void execute(VM *vm, functionref target)
             value = HeapCreateFile(vm, file);
             if (!value)
             {
-                vm->error = OUT_OF_MEMORY;
                 return;
             }
             push(vm, value);
             break;
 
         case OP_FILESET:
-            vm->error = HeapCreateFilesetGlob(
-                vm,
-                StringPoolGetString((stringref)BytecodeReadUint(&ip)),
-                &value);
-            if (vm->error)
+            value = HeapCreateFilesetGlob(
+                vm, StringPoolGetString((stringref)BytecodeReadUint(&ip)));
+            if (!value)
             {
                 return;
             }

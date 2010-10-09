@@ -147,6 +147,7 @@ ErrorCode HeapInit(VM *vm)
     vm->booleanFalse = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_BOOLEAN_FALSE, 0));
     vm->emptyString = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_STRING, 0));
     vm->emptyList = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_EMPTY_LIST, 0));
+    assert(!vm->error);
     return vm->heapBase ? NO_ERROR : OUT_OF_MEMORY;
 }
 
@@ -485,41 +486,39 @@ static ErrorCode addFile(fileref file, void *userdata)
     return NO_ERROR;
 }
 
-ErrorCode HeapCreateFilesetGlob(VM *vm, const char *pattern,
-                                uint *restrict value)
+uint HeapCreateFilesetGlob(VM *vm, const char *pattern)
 {
     byte *restrict oldFree = vm->heapFree;
     byte *restrict objectData;
     uint *restrict files;
+    uint object;
     size_t count;
-    ErrorCode error;
 
     objectData = heapAlloc(vm, TYPE_ARRAY, 0);
     if (!objectData)
     {
-        return OUT_OF_MEMORY;
+        return 0;
     }
     files = (uint*)objectData;
-    error = FileIndexTraverseGlob(pattern, addFile, vm);
-    if (error)
+    vm->error = FileIndexTraverseGlob(pattern, addFile, vm);
+    if (vm->error)
     {
-        return error;
+        return 0;
     }
     if (vm->heapFree == objectData)
     {
         vm->heapFree = oldFree;
-        *value = vm->emptyList;
-        return NO_ERROR;
+        return vm->emptyList;
     }
-    *value = finishAllocResize(vm, objectData,
+    object = finishAllocResize(vm, objectData,
                                (uint32)(vm->heapFree - objectData));
-    for (count = HeapCollectionSize(vm, *value); count; count--, files++)
+    for (count = HeapCollectionSize(vm, object); count; count--, files++)
     {
         *files = HeapCreateFile(vm, *(fileref*)files);
         if (!*files)
         {
-            return OUT_OF_MEMORY;
+            return 0;
         }
     }
-    return NO_ERROR;
+    return object;
 }
