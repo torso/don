@@ -293,7 +293,7 @@ const byte *ByteVectorGetPointer(const bytevector *v, size_t index)
 {
     if (index)
     {
-        checkByteVectorIndex(v, index);
+        checkByteVectorIndex(v, index - 1);
     }
     else
     {
