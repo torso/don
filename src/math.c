@@ -3,18 +3,18 @@
 
 boolean addOverflow(int a, int b)
 {
-    return (boolean)(b < 1 ? MIN_INT - b > a : MAX_INT - b < a);
+    return (boolean)(b < 1 ? INT_MIN - b > a : INT_MAX - b < a);
 }
 
 boolean subOverflow(int a, int b)
 {
-    return (boolean)(b < 1 ? MAX_INT + b < a : MIN_INT + b > a);
+    return (boolean)(b < 1 ? INT_MAX + b < a : INT_MIN + b > a);
 }
 
 uint roundToPow2(uint value)
 {
     uint i = 1;
-    assert(value <= (MAX_UINT >> 1) + 1);
+    assert(value <= (UINT_MAX >> 1) + 1);
     while (i < value)
     {
         i <<= 1;

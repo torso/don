@@ -14,12 +14,12 @@
 
 ref_t refFromUint(uint i)
 {
-    return (ref_t)(uintptr_t)i;
+    return (ref_t)i;
 }
 
 ref_t refFromSize(size_t i)
 {
-    assert(i <= MAX_UINT);
+    assert(i <= UINT_MAX);
     return refFromUint((uint)i);
 }
 
@@ -30,7 +30,7 @@ size_t sizeFromRef(ref_t r)
 
 uint uintFromRef(ref_t r)
 {
-    return (uint)(uintptr_t)r;
+    return (uint)r;
 }
 
 

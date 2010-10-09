@@ -391,7 +391,7 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         if (returnValues)
         {
             assert(returnValues == 1);
-            assert(HeapCollectionSize(vm, value) <= MAX_INT);
+            assert(HeapCollectionSize(vm, value) <= INT_MAX);
             InterpreterPush(vm, HeapBoxSize(vm, HeapCollectionSize(vm, value)));
         }
         return NO_ERROR;

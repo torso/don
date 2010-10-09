@@ -1,25 +1,22 @@
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 
-typedef signed char int8;
-typedef unsigned char uint8;
-typedef unsigned short uint16;
-typedef unsigned int uint32;
+typedef int8_t int8;
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
 
 typedef unsigned int uint;
-typedef unsigned long ulong;
-typedef uint8 boolean;
+typedef _Bool boolean;
 typedef uint8 byte;
 
 #define null (0)
 #define false 0
 #define true 1
-#define MAX_UINT ((uint)-1)
-#define MAX_UINT8 ((uint8)-1)
-#define MAX_UINT16 ((uint16)-1)
-#define MAX_UINT32 ((uint32)-1)
-#define MIN_INT (1 << (sizeof(int) * 8 - 1))
-#define MAX_INT (-1 - MIN_INT)
+#define UINT_MAX ((uint)-1)
+#define INT_MIN (1 << (sizeof(int) * 8 - 1))
+#define INT_MAX (-1 - INT_MIN)
 #ifndef SIZE_MAX
 #define SIZE_MAX ((size_t)-1)
 #endif

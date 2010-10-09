@@ -172,7 +172,7 @@ const byte *HeapGetObjectData(VM *vm, objectref object)
 byte *HeapAlloc(VM *vm, ObjectType type, size_t size)
 {
     assert(size);
-    assert(size <= MAX_UINT32 - 1);
+    assert(size <= UINT32_MAX - 1);
     return heapAlloc(vm, type, (uint32)size);
 }
 
@@ -192,7 +192,7 @@ objectref HeapBoxInteger(VM *vm, int value)
 
 objectref HeapBoxSize(VM *vm unused, size_t value)
 {
-    assert(value <= MAX_INT);
+    assert(value <= INT_MAX);
     return HeapBoxInteger(vm, (int)value);
 }
 

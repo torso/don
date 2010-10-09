@@ -539,7 +539,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_NEG:
-            assert(HeapUnboxInteger(vm, peek(vm)) != MIN_INT);
+            assert(HeapUnboxInteger(vm, peek(vm)) != INT_MIN);
             push(vm,
                  HeapBoxInteger(vm,
                                 -HeapUnboxInteger(vm, pop(vm))));

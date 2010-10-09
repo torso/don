@@ -53,7 +53,7 @@ static uint getLocalsCount(ParseState *state)
 static uint16 getFreeLocalIndex(ParseState *state)
 {
     uint count = getLocalsCount(state);
-    if (count == MAX_UINT16)
+    if (count == UINT16_MAX)
     {
         setError(state, "Too many local variables.");
     }
@@ -145,7 +145,7 @@ static boolean beginBlock(ParseState *state, BlockType type)
 static boolean beginJumpBlock(ParseState *state, BlockType type)
 {
     /* MAX_UINT - 1 doesn't produce any warning when uint == size_t. */
-    assert(ByteVectorSize(state->bytecode) <= MAX_UINT - 1);
+    assert(ByteVectorSize(state->bytecode) <= UINT_MAX - 1);
     IntVectorAdd(&state->blockStack, (uint)ByteVectorSize(state->bytecode));
     return beginBlock(state, type);
 }
@@ -154,7 +154,7 @@ static boolean beginLoopBlock(ParseState *state, BlockType type,
                               size_t loopOffset)
 {
     /* MAX_UINT - 1 doesn't produce any warning when uint == size_t. */
-    assert(loopOffset <= MAX_UINT - 1);
+    assert(loopOffset <= UINT_MAX - 1);
     IntVectorAdd(&state->blockStack, (uint)loopOffset);
     return beginJumpBlock(state, type);
 }
@@ -503,7 +503,7 @@ boolean ParseStateWritePipe(ParseState *state, stringref out, stringref err)
 boolean ParseStateWriteReturn(ParseState *state, uint values)
 {
     assert(values);
-    assert(values <= MAX_UINT8); /* TODO: report error */
+    assert(values <= UINT8_MAX); /* TODO: report error */
     ParseStateCheck(state);
     return !ParseStateSetError(state,
                                ByteVectorAdd(state->bytecode, OP_RETURN)) &&
@@ -523,8 +523,8 @@ boolean ParseStateWriteInvocation(ParseState *state,
                                   functionref function, uint argumentCount,
                                   uint returnValues)
 {
-    assert(argumentCount <= MAX_UINT16); /* TODO: report error */
-    assert(returnValues <= MAX_UINT8); /* TODO: report error */
+    assert(argumentCount <= UINT16_MAX); /* TODO: report error */
+    assert(returnValues <= UINT8_MAX); /* TODO: report error */
     ParseStateCheck(state);
     if (nativeFunction)
     {
