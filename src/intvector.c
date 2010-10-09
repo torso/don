@@ -122,26 +122,6 @@ ErrorCode IntVectorAdd(intvector *v, uint value)
     return NO_ERROR;
 }
 
-ErrorCode IntVectorAdd4(intvector *v, uint value1, uint value2, uint value3,
-                        uint value4)
-{
-    size_t size = IntVectorSize(v);
-    uint *p;
-    ErrorCode error;
-    checkIntVector(v);
-    error = IntVectorSetSize(v, size + 4);
-    if (error)
-    {
-        return error;
-    }
-    p = &v->data[size];
-    *p++ = value1;
-    *p++ = value2;
-    *p++ = value3;
-    *p++ = value4;
-    return NO_ERROR;
-}
-
 uint IntVectorGet(const intvector *v, size_t index)
 {
     checkIntVectorIndex(v, index);

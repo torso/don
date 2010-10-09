@@ -24,8 +24,6 @@ extern nonnull ErrorCode IntVectorAppendAll(const intvector *restrict src,
 extern nonnull void IntVectorMove(intvector *v, size_t src, size_t dst,
                                   size_t size);
 extern nonnull ErrorCode IntVectorAdd(intvector *v, uint value);
-extern nonnull ErrorCode IntVectorAdd4(intvector *v, uint value1, uint value2,
-                                       uint value3, uint value4);
 extern nonnull pure uint IntVectorGet(const intvector *v, size_t index);
 extern nonnull pure const uint *IntVectorGetPointer(const intvector *v,
                                                     size_t index);
