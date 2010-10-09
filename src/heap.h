@@ -69,7 +69,6 @@ extern nonnull objectref HeapCreateString(VM *vm, const char *string,
                                           size_t length);
 extern nonnull objectref HeapCreatePooledString(VM *vm, stringref string);
 extern nonnull boolean HeapIsString(VM *vm, objectref object);
-extern nonnull const char *HeapGetString(VM *vm, objectref object);
 
 /*
   Returns the size of the string in bytes. If the value isn't a string, the

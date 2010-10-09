@@ -41,6 +41,31 @@ static ref_t unboxReference(VM *vm, ObjectType type, objectref object)
     return *(ref_t*)HeapGetObjectData(vm, object);
 }
 
+static const char *getString(VM *vm, objectref object)
+{
+    switch (HeapGetObjectType(vm, object))
+    {
+    case TYPE_STRING:
+        return (const char*)HeapGetObjectData(vm, object);
+
+    case TYPE_STRING_POOLED:
+        return StringPoolGetString(
+            unboxReference(vm, TYPE_STRING_POOLED, object));
+
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_FILE:
+    case TYPE_EMPTY_LIST:
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+    case TYPE_ITERATOR:
+        break;
+    }
+    assert(false);
+    return null;
+}
+
 
 static boolean isCollectionType(ObjectType type)
 {
@@ -197,8 +222,7 @@ boolean HeapEquals(VM *vm, objectref object1, objectref object2)
         size1 = HeapStringLength(vm, object1);
         size2 = HeapStringLength(vm, object2);
         return size1 == size2 &&
-            !memcmp(HeapGetString(vm, object1),
-                    HeapGetString(vm, object2), size1);
+            !memcmp(getString(vm, object1), getString(vm, object2), size1);
 
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
@@ -311,31 +335,6 @@ boolean HeapIsString(VM *vm, objectref object)
     }
     assert(false);
     return false;
-}
-
-const char *HeapGetString(VM *vm, objectref object)
-{
-    switch (HeapGetObjectType(vm, object))
-    {
-    case TYPE_STRING:
-        return (const char*)HeapGetObjectData(vm, object);
-
-    case TYPE_STRING_POOLED:
-        return StringPoolGetString(
-            unboxReference(vm, TYPE_STRING_POOLED, object));
-
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_FILE:
-    case TYPE_EMPTY_LIST:
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-    case TYPE_ITERATOR:
-        break;
-    }
-    assert(false);
-    return null;
 }
 
 size_t HeapStringLength(VM *vm, objectref object)
@@ -462,7 +461,7 @@ char *HeapWriteString(VM *vm, objectref object, char *dst)
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
         size = HeapStringLength(vm, object);
-        memcpy(dst, HeapGetString(vm, object), size);
+        memcpy(dst, getString(vm, object), size);
         return dst + size;
 
     case TYPE_FILE:
