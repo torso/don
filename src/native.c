@@ -97,7 +97,7 @@ static char **createStringArray(VM *vm, objectref collection)
     uint count = 1;
     char **strings;
     char **table;
-    byte *stringData;
+    char *stringData;
 
     assert(HeapIsCollection(vm, collection));
     assert(HeapCollectionSize(vm, collection));
@@ -105,7 +105,7 @@ static char **createStringArray(VM *vm, objectref collection)
     HeapIteratorInit(vm, &iter, collection, true);
     while (HeapIteratorNext(&iter, &value))
     {
-        size += InterpreterGetStringSize(vm, value) + 1 + sizeof(char*);
+        size += HeapStringLength(vm, value) + 1 + sizeof(char*);
         count++;
     }
 
@@ -116,12 +116,12 @@ static char **createStringArray(VM *vm, objectref collection)
     }
 
     table = strings;
-    stringData = (byte*)&strings[count];
+    stringData = (char*)&strings[count];
     HeapIteratorInit(vm, &iter, collection, true);
     while (HeapIteratorNext(&iter, &value))
     {
-        *table++ = (char*)stringData;
-        stringData = InterpreterCopyString(vm, value, stringData);
+        *table++ = stringData;
+        stringData = HeapWriteString(vm, value, stringData);
         *stringData++ = 0;
     }
     *table = null;
@@ -165,7 +165,7 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
     case NATIVE_ECHO:
         assert(!returnValues);
         value = InterpreterPop(vm);
-        size = InterpreterGetStringSize(vm, value);
+        size = HeapStringLength(vm, value);
         buffer = InterpreterGetString(vm, value);
         out = InterpreterGetPipeOut(vm);
         error = NO_ERROR;
@@ -342,7 +342,7 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         }
         else
         {
-            size = InterpreterGetStringSize(vm, value);
+            size = HeapStringLength(vm, value);
             if (size)
             {
                 buffer = InterpreterGetString(vm, value);

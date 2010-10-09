@@ -273,10 +273,39 @@ const char *HeapGetString(VM *vm, objectref object)
     return null;
 }
 
-size_t HeapGetStringLength(VM *vm, objectref object)
+size_t HeapStringLength(VM *vm, objectref object)
 {
+    Iterator iter;
+    uint i;
+    size_t size;
+
+    if (!object)
+    {
+        return 4;
+    }
     switch (HeapGetObjectType(vm, object))
     {
+    case TYPE_BOOLEAN_TRUE:
+        return 4;
+
+    case TYPE_BOOLEAN_FALSE:
+        return 5;
+
+    case TYPE_INTEGER:
+        i = (uint)HeapUnboxInteger(vm, object);
+        size = 1;
+        if ((int)i < 0)
+        {
+            size = 2;
+            i = -i;
+        }
+        while (i > 9)
+        {
+            i /= 10;
+            size++;
+        }
+        return size;
+
     case TYPE_STRING:
         return HeapGetObjectSize(vm, object);
 
@@ -284,13 +313,118 @@ size_t HeapGetStringLength(VM *vm, objectref object)
         return StringPoolGetStringLength(
             unboxReference(vm, TYPE_STRING_POOLED, object));
 
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
     case TYPE_FILE:
+        return strlen(FileIndexGetName(HeapGetFile(vm, object)));
+
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+        size = HeapCollectionSize(vm, object);
+        if (size)
+        {
+            size--;
+        }
+        size = size * 2 + 2;
+        HeapIteratorInit(vm, &iter, object, false);
+        while (HeapIteratorNext(&iter, &object))
+        {
+            size += HeapStringLength(vm, object);
+        }
+        return size;
+
+    case TYPE_ITERATOR:
+        break;
+    }
+    assert(false);
+    return 0;
+}
+
+char *HeapWriteString(VM *vm, objectref object, char *dst)
+{
+    Iterator iter;
+    size_t size;
+    fileref file;
+    uint i;
+    boolean first;
+
+    if (!object)
+    {
+        *dst++ = 'n';
+        *dst++ = 'u';
+        *dst++ = 'l';
+        *dst++ = 'l';
+        return dst;
+    }
+    switch (HeapGetObjectType(vm, object))
+    {
+    case TYPE_BOOLEAN_TRUE:
+        *dst++ = 't';
+        *dst++ = 'r';
+        *dst++ = 'u';
+        *dst++ = 'e';
+        return dst;
+
+    case TYPE_BOOLEAN_FALSE:
+        *dst++ = 'f';
+        *dst++ = 'a';
+        *dst++ = 'l';
+        *dst++ = 's';
+        *dst++ = 'e';
+        return dst;
+
+    case TYPE_INTEGER:
+        i = (uint)HeapUnboxInteger(vm, object);
+        if (!i)
+        {
+            *dst++ = '0';
+            return dst;
+        }
+        size = HeapStringLength(vm, object);
+        if ((int)i < 0)
+        {
+            *dst++ = '-';
+            size--;
+            i = -i;
+        }
+        dst += size - 1;
+        while (i)
+        {
+            *dst-- = (char)('0' + i % 10);
+            i /= 10;
+        }
+        return dst + size + 1;
+
+    case TYPE_STRING:
+    case TYPE_STRING_POOLED:
+        size = HeapStringLength(vm, object);
+        memcpy(dst, HeapGetString(vm, object), size);
+        return dst + size;
+
+    case TYPE_FILE:
+        file = HeapGetFile(vm, object);
+        size = strlen(FileIndexGetName(file));
+        memcpy(dst, FileIndexGetName(file), size);
+        return dst + size;
+
+    case TYPE_EMPTY_LIST:
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+        *dst++ = '[';
+        first = true;
+        HeapIteratorInit(vm, &iter, object, false);
+        while (HeapIteratorNext(&iter, &object))
+        {
+            if (!first)
+            {
+                *dst++ = ',';
+                *dst++ = ' ';
+            }
+            first = false;
+            dst = HeapWriteString(vm, object, dst);
+        }
+        *dst++ = ']';
+        return dst;
+
     case TYPE_ITERATOR:
         break;
     }

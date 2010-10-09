@@ -92,8 +92,8 @@ static boolean equals(VM *vm, objectref value1, objectref value2)
 
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
-        size1 = HeapGetStringLength(vm, value1);
-        size2 = HeapGetStringLength(vm, value2);
+        size1 = HeapStringLength(vm, value1);
+        size2 = HeapStringLength(vm, value2);
         return size1 == size2 &&
             !memcmp(HeapGetString(vm, value1),
                     HeapGetString(vm, value2), size1);
@@ -143,173 +143,17 @@ bytevector *InterpreterGetPipeErr(VM *vm)
 
 const char *InterpreterGetString(VM *vm, objectref value)
 {
-    size_t size = InterpreterGetStringSize(vm, value);
-    byte *buffer = (byte*)malloc(size + 1); /* TODO: Avoid malloc */
+    size_t size = HeapStringLength(vm, value);
+    char *buffer = (char*)malloc(size + 1); /* TODO: Avoid malloc */
     assert(buffer); /* TODO: Error handling */
-    InterpreterCopyString(vm, value, buffer);
+    HeapWriteString(vm, value, buffer);
     buffer[size] = 0;
-    return (char*)buffer;
+    return buffer;
 }
 
 void InterpreterFreeStringBuffer(VM *vm unused, const char *buffer)
 {
     free((void*)buffer);
-}
-
-size_t InterpreterGetStringSize(VM *vm, objectref value)
-{
-    Iterator iter;
-    uint i;
-    size_t size;
-
-    if (!value)
-    {
-        return 4;
-    }
-    switch (HeapGetObjectType(vm, value))
-    {
-    case TYPE_BOOLEAN_TRUE:
-        return 4;
-
-    case TYPE_BOOLEAN_FALSE:
-        return 5;
-
-    case TYPE_INTEGER:
-        i = (uint)HeapUnboxInteger(vm, value);
-        size = 1;
-        if ((int)i < 0)
-        {
-            size = 2;
-            i = -i;
-        }
-        while (i > 9)
-        {
-            i /= 10;
-            size++;
-        }
-        return size;
-
-    case TYPE_STRING:
-    case TYPE_STRING_POOLED:
-        return HeapGetStringLength(vm, value);
-
-    case TYPE_FILE:
-        return strlen(FileIndexGetName(HeapGetFile(vm, value)));
-
-    case TYPE_EMPTY_LIST:
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-        size = HeapCollectionSize(vm, value);
-        if (size)
-        {
-            size--;
-        }
-        size = size * 2 + 2;
-        HeapIteratorInit(vm, &iter, value, false);
-        while (HeapIteratorNext(&iter, &value))
-        {
-            size += InterpreterGetStringSize(vm, value);
-        }
-        return size;
-
-    case TYPE_ITERATOR:
-        break;
-    }
-    assert(false);
-    return 0;
-}
-
-byte *InterpreterCopyString(VM *vm, objectref value, byte *dst)
-{
-    Iterator iter;
-    size_t size;
-    fileref file;
-    uint i;
-    boolean first;
-
-    if (!value)
-    {
-        *dst++ = 'n';
-        *dst++ = 'u';
-        *dst++ = 'l';
-        *dst++ = 'l';
-        return dst;
-    }
-    switch (HeapGetObjectType(vm, value))
-    {
-    case TYPE_BOOLEAN_TRUE:
-        *dst++ = 't';
-        *dst++ = 'r';
-        *dst++ = 'u';
-        *dst++ = 'e';
-        return dst;
-
-    case TYPE_BOOLEAN_FALSE:
-        *dst++ = 'f';
-        *dst++ = 'a';
-        *dst++ = 'l';
-        *dst++ = 's';
-        *dst++ = 'e';
-        return dst;
-
-    case TYPE_INTEGER:
-        i = (uint)HeapUnboxInteger(vm, value);
-        if (!i)
-        {
-            *dst++ = '0';
-            return dst;
-        }
-        size = InterpreterGetStringSize(vm, value);
-        if ((int)i < 0)
-        {
-            *dst++ = '-';
-            size--;
-            i = -i;
-        }
-        dst += size - 1;
-        while (i)
-        {
-            *dst-- = (byte)('0' + i % 10);
-            i /= 10;
-        }
-        return dst + size + 1;
-
-    case TYPE_STRING:
-    case TYPE_STRING_POOLED:
-        size = HeapGetStringLength(vm, value);
-        memcpy(dst, HeapGetString(vm, value), size);
-        return dst + size;
-
-    case TYPE_FILE:
-        file = HeapGetFile(vm, value);
-        size = strlen(FileIndexGetName(file));
-        memcpy(dst, FileIndexGetName(file), size);
-        return dst + size;
-
-    case TYPE_EMPTY_LIST:
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-        *dst++ = '[';
-        first = true;
-        HeapIteratorInit(vm, &iter, value, false);
-        while (HeapIteratorNext(&iter, &value))
-        {
-            if (!first)
-            {
-                *dst++ = ',';
-                *dst++ = ' ';
-            }
-            first = false;
-            dst = InterpreterCopyString(vm, value, dst);
-        }
-        *dst++ = ']';
-        return dst;
-
-    case TYPE_ITERATOR:
-        break;
-    }
-    assert(false);
-    return null;
 }
 
 static void pushStackFrame(VM *vm, const byte **ip, uint *bp,
@@ -486,7 +330,7 @@ static void execute(VM *vm, functionref target)
             }
             else if (HeapIsString(vm, value))
             {
-                pushBoolean(vm, HeapGetStringLength(vm, value) != 0);
+                pushBoolean(vm, HeapStringLength(vm, value) != 0);
             }
             else if (HeapIsCollection(vm, value))
             {
@@ -593,8 +437,8 @@ static void execute(VM *vm, functionref target)
         case OP_CONCAT:
             value = pop(vm);
             value2 = pop(vm);
-            size1 = InterpreterGetStringSize(vm, value2);
-            size2 = InterpreterGetStringSize(vm, value);
+            size1 = HeapStringLength(vm, value2);
+            size2 = HeapStringLength(vm, value);
             if (!size1 && !size2)
             {
                 push(vm, vm->emptyString);
@@ -606,8 +450,8 @@ static void execute(VM *vm, functionref target)
                 vm->error = OUT_OF_MEMORY;
                 return;
             }
-            InterpreterCopyString(vm, value2, objectData);
-            InterpreterCopyString(vm, value, objectData + size1);
+            HeapWriteString(vm, value2, (char*)objectData);
+            HeapWriteString(vm, value, (char*)objectData + size1);
             push(vm, HeapFinishAlloc(vm, objectData));
             break;
 

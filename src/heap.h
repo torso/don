@@ -55,19 +55,40 @@ extern nonnull const byte *HeapGetObjectData(VM *vm, objectref object);
 extern nonnull byte *HeapAlloc(VM *vm, ObjectType type, size_t size);
 extern nonnull objectref HeapFinishAlloc(VM *vm, byte *objectData);
 
+
+
 extern nonnull objectref HeapBoxInteger(VM *vm, int value);
 extern nonnull objectref HeapBoxSize(VM *vm, size_t value);
 extern nonnull int HeapUnboxInteger(VM *vm, objectref value);
+
+
 
 extern nonnull objectref HeapCreateString(VM *vm, const char *string,
                                           size_t length);
 extern nonnull objectref HeapCreatePooledString(VM *vm, stringref string);
 extern nonnull boolean HeapIsString(VM *vm, objectref object);
 extern nonnull const char *HeapGetString(VM *vm, objectref object);
-extern nonnull size_t HeapGetStringLength(VM *vm, objectref object);
+
+/*
+  Returns the size of the string in bytes. If the value isn't a string, the
+  length of the value converted to a string (of the default form) is returned.
+*/
+extern nonnull size_t HeapStringLength(VM *vm, objectref object);
+
+/*
+  Converts the object to a string and writes it to dst. The written string will
+  be exactly as long as HeapStringLength returned. The string will not be zero
+  terminated. A pointer just past the end of the written string is returned.
+*/
+extern nonnull char *HeapWriteString(VM *restrict vm, objectref value,
+                                     char *restrict dst);
+
+
 
 extern nonnull objectref HeapCreateFile(VM *vm, fileref file);
 extern nonnull fileref HeapGetFile(VM *vm, objectref object);
+
+
 
 extern nonnull objectref HeapCreateRange(VM *vm, objectref lowObject,
                                          objectref highObject);
@@ -84,6 +105,8 @@ extern nonnull size_t HeapCollectionSize(VM *vm, objectref object);
 extern nonnull boolean HeapCollectionGet(VM *vm, objectref object,
                                          objectref indexObject,
                                          objectref *value);
+
+
 
 extern nonnull void HeapIteratorInit(VM *vm, Iterator *iter, objectref object,
                                      boolean flatten);
