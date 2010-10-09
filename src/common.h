@@ -32,14 +32,6 @@ typedef uint8 byte;
 #ifdef DEBUG
 extern void _assert(const char *expression, const char *file, int line);
 #define assert(e) do { if (!(e)) { _assert(#e, __FILE__, __LINE__); } } while (false)
-
-#ifndef _STDIO_H
-extern int printf(__const char *__restrict __format, ...);
-#endif
-
-#define log(v) printf(#v"=%d\n", v);
-#define logs(s) printf("%s\n", s);
-#define logp(p) printf(#p"=%p\n", (void*)p);
 #else
 #define assert(e) do { (void)sizeof(e); } while(0)
 #endif
