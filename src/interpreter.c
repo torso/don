@@ -62,13 +62,6 @@ static void storeLocal(VM *vm, uint bp, uint16 local, objectref value)
 }
 
 
-static objectref createIterator(VM *vm, objectref object)
-{
-    Iterator *iter = (Iterator *)HeapAlloc(vm, TYPE_ITERATOR, sizeof(Iterator));
-    HeapIteratorInit(vm, iter, object, false);
-    return HeapFinishAlloc(vm, (byte*)iter);
-}
-
 bytevector *InterpreterGetPipeOut(VM *vm)
 {
     return vm->pipeOut;
@@ -415,7 +408,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_ITER_INIT:
-            value = createIterator(vm, pop(vm));
+            value = HeapCreateIterator(vm, pop(vm));
             if (!value)
             {
                 return;

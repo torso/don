@@ -607,6 +607,18 @@ boolean HeapCollectionGet(VM *vm, objectref object, objectref indexObject,
     }
 }
 
+
+objectref HeapCreateIterator(VM *vm, objectref object)
+{
+    byte *objectData = HeapAlloc(vm, TYPE_ITERATOR, sizeof(Iterator));
+    if (!objectData)
+    {
+        return 0;
+    }
+    HeapIteratorInit(vm, (Iterator*)objectData, object, false);
+    return HeapFinishAlloc(vm, objectData);
+}
+
 void HeapIteratorInit(VM *vm, Iterator *iter, objectref object, boolean flatten)
 {
     iter->vm = vm;

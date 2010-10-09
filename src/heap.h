@@ -110,6 +110,7 @@ extern nonnull boolean HeapCollectionGet(VM *vm, objectref object,
 
 
 
+extern nonnull objectref HeapCreateIterator(VM *vm, objectref object);
 extern nonnull void HeapIteratorInit(VM *vm, Iterator *iter, objectref object,
                                      boolean flatten);
 extern nonnull boolean HeapIteratorNext(Iterator *iter, objectref *value);
