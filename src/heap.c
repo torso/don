@@ -408,8 +408,7 @@ boolean HeapCollectionGet(VM *vm, objectref object, objectref indexObject,
     }
 }
 
-void HeapCollectionIteratorInit(VM *vm, Iterator *iter, objectref object,
-                                boolean flatten)
+void HeapIteratorInit(VM *vm, Iterator *iter, objectref object, boolean flatten)
 {
     iter->vm = vm;
     iter->state.nextState = &iter->state;

@@ -54,7 +54,8 @@ static void addFunctionInfo(const char *name,
     {
         return;
     }
-    functionIndex[initFunctionIndex++] = (uint)(initFunctionInfo - functionInfo);
+    functionIndex[initFunctionIndex++] =
+        (uint)(initFunctionInfo - functionInfo);
     pnames = info->parameterNames;
     initFunctionInfo += sizeof(FunctionInfo) - sizeof(stringref) +
         sizeof(stringref) * parameterCount;
@@ -101,11 +102,10 @@ static char **createStringArray(VM *vm, objectref collection)
     assert(HeapIsCollection(vm, collection));
     assert(HeapCollectionSize(vm, collection));
 
-    HeapCollectionIteratorInit(vm, &iter, collection, true);
+    HeapIteratorInit(vm, &iter, collection, true);
     while (HeapIteratorNext(&iter, &value))
     {
-        size += InterpreterGetStringSize(vm, value) + 1 +
-            sizeof(char*);
+        size += InterpreterGetStringSize(vm, value) + 1 + sizeof(char*);
         count++;
     }
 
@@ -117,7 +117,7 @@ static char **createStringArray(VM *vm, objectref collection)
 
     table = strings;
     stringData = (byte*)&strings[count];
-    HeapCollectionIteratorInit(vm, &iter, collection, true);
+    HeapIteratorInit(vm, &iter, collection, true);
     while (HeapIteratorNext(&iter, &value))
     {
         *table++ = (char*)stringData;
@@ -278,8 +278,7 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         {
             if (out)
             {
-                ssize = read(pipeOut[0], ByteVectorGetAppendPointer(out),
-                             50);
+                ssize = read(pipeOut[0], ByteVectorGetAppendPointer(out), 50);
                 if (ssize)
                 {
                     if (ssize > 0)

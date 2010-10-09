@@ -65,7 +65,7 @@ static void storeLocal(VM *vm, uint bp, uint16 local, objectref value)
 static objectref createIterator(VM *vm, objectref object)
 {
     Iterator *iter = (Iterator *)HeapAlloc(vm, TYPE_ITERATOR, sizeof(Iterator));
-    HeapCollectionIteratorInit(vm, iter, object, false);
+    HeapIteratorInit(vm, iter, object, false);
     return HeapFinishAlloc(vm, (byte*)iter);
 }
 
@@ -107,8 +107,8 @@ static boolean equals(VM *vm, objectref value1, objectref value2)
         {
             return false;
         }
-        HeapCollectionIteratorInit(vm, &iter1, value1, false);
-        HeapCollectionIteratorInit(vm, &iter2, value2, false);
+        HeapIteratorInit(vm, &iter1, value1, false);
+        HeapIteratorInit(vm, &iter2, value2, false);
         while (HeapIteratorNext(&iter1, &value1))
         {
             success = HeapIteratorNext(&iter2, &value2);
@@ -205,7 +205,7 @@ size_t InterpreterGetStringSize(VM *vm, objectref value)
             size--;
         }
         size = size * 2 + 2;
-        HeapCollectionIteratorInit(vm, &iter, value, false);
+        HeapIteratorInit(vm, &iter, value, false);
         while (HeapIteratorNext(&iter, &value))
         {
             size += InterpreterGetStringSize(vm, value);
@@ -291,7 +291,7 @@ byte *InterpreterCopyString(VM *vm, objectref value, byte *dst)
     case TYPE_INTEGER_RANGE:
         *dst++ = '[';
         first = true;
-        HeapCollectionIteratorInit(vm, &iter, value, false);
+        HeapIteratorInit(vm, &iter, value, false);
         while (HeapIteratorNext(&iter, &value))
         {
             if (!first)
@@ -403,8 +403,7 @@ static void execute(VM *vm, functionref target)
 
         case OP_LIST:
             size1 = BytecodeReadUint(&ip);
-            objectData = HeapAlloc(vm, TYPE_ARRAY,
-                                   size1 * sizeof(objectref));
+            objectData = HeapAlloc(vm, TYPE_ARRAY, size1 * sizeof(objectref));
             if (!objectData)
             {
                 vm->error = OUT_OF_MEMORY;
@@ -422,7 +421,7 @@ static void execute(VM *vm, functionref target)
         case OP_FILE:
             string = BytecodeReadRef(&ip);
             file = FileIndexAdd(StringPoolGetString(string),
-                                 StringPoolGetStringLength(string));
+                                StringPoolGetStringLength(string));
             if (!file)
             {
                 vm->error = OUT_OF_MEMORY;
@@ -540,39 +539,35 @@ static void execute(VM *vm, functionref target)
 
         case OP_NEG:
             assert(HeapUnboxInteger(vm, peek(vm)) != INT_MIN);
-            push(vm,
-                 HeapBoxInteger(vm,
-                                -HeapUnboxInteger(vm, pop(vm))));
+            push(vm, HeapBoxInteger(vm, -HeapUnboxInteger(vm, pop(vm))));
             break;
 
         case OP_INV:
-            push(vm,
-                 HeapBoxInteger(vm,
-                                ~HeapUnboxInteger(vm, pop(vm))));
+            push(vm, HeapBoxInteger(vm, ~HeapUnboxInteger(vm, pop(vm))));
             break;
 
         case OP_ADD:
             value = pop(vm);
             value2 = pop(vm);
             push(vm, HeapBoxInteger(vm,
-                                       HeapUnboxInteger(vm, value2) +
-                                       HeapUnboxInteger(vm, value)));
+                                    HeapUnboxInteger(vm, value2) +
+                                    HeapUnboxInteger(vm, value)));
             break;
 
         case OP_SUB:
             value = pop(vm);
             value2 = pop(vm);
             push(vm, HeapBoxInteger(vm,
-                                       HeapUnboxInteger(vm, value2) -
-                                       HeapUnboxInteger(vm, value)));
+                                    HeapUnboxInteger(vm, value2) -
+                                    HeapUnboxInteger(vm, value)));
             break;
 
         case OP_MUL:
             value = pop(vm);
             value2 = pop(vm);
             push(vm, HeapBoxInteger(vm,
-                                       HeapUnboxInteger(vm, value2) *
-                                       HeapUnboxInteger(vm, value)));
+                                    HeapUnboxInteger(vm, value2) *
+                                    HeapUnboxInteger(vm, value)));
             break;
 
         case OP_DIV:
@@ -583,16 +578,16 @@ static void execute(VM *vm, functionref target)
                    HeapUnboxInteger(vm, value) ==
                    HeapUnboxInteger(vm, value2)); /* TODO: fraction */
             push(vm, HeapBoxInteger(vm,
-                                       HeapUnboxInteger(vm, value2) /
-                                       HeapUnboxInteger(vm, value)));
+                                    HeapUnboxInteger(vm, value2) /
+                                    HeapUnboxInteger(vm, value)));
             break;
 
         case OP_REM:
             value = pop(vm);
             value2 = pop(vm);
             push(vm, HeapBoxInteger(vm,
-                                       HeapUnboxInteger(vm, value2) %
-                                       HeapUnboxInteger(vm, value)));
+                                    HeapUnboxInteger(vm, value2) %
+                                    HeapUnboxInteger(vm, value)));
             break;
 
         case OP_CONCAT:
@@ -776,7 +771,7 @@ static void execute(VM *vm, functionref target)
     }
 }
 
-static void disposeVm(VM *vm)
+static void disposeVM(VM *vm)
 {
     HeapDispose(vm);
     free(vm->fields);
@@ -789,7 +784,7 @@ static boolean handleError(VM *vm, ErrorCode error)
     vm->error = error;
     if (error)
     {
-        disposeVm(vm);
+        disposeVM(vm);
         return true;
     }
     return false;
@@ -817,7 +812,6 @@ ErrorCode InterpreterExecute(const byte *restrict bytecode, functionref target)
         execute(&vm, target);
     }
 
-    disposeVm(&vm);
-
+    disposeVM(&vm);
     return vm.error;
 }
