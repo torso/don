@@ -177,6 +177,7 @@ const byte *HeapGetObjectData(VM *vm, uint object)
 byte *HeapAlloc(VM *vm, ObjectType type, size_t size)
 {
     assert(size);
+    assert(size <= MAX_UINT32 - 1);
     return heapAlloc(vm, type, (uint32)size);
 }
 
