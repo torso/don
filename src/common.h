@@ -53,10 +53,10 @@ typedef enum
 } ErrorCode;
 
 
-typedef struct RunState RunState;
 typedef struct bytevector bytevector;
 typedef struct inthashmap inthashmap;
 typedef struct intvector intvector;
+typedef struct VM VM;
 typedef int nativefunctionref;
 typedef int stringref;
 typedef uint fieldref;

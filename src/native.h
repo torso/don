@@ -1,6 +1,5 @@
 extern ErrorCode NativeInit(void);
-extern nonnull ErrorCode NativeInvoke(RunState *state,
-                                      nativefunctionref function,
+extern nonnull ErrorCode NativeInvoke(VM *vm, nativefunctionref function,
                                       uint returnValues);
 extern pure nativefunctionref NativeFindFunction(stringref name);
 extern pure stringref NativeGetName(nativefunctionref function);

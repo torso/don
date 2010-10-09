@@ -7,8 +7,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include "common.h"
-#include "bytevector.h"
-#include "heap.h"
+#include "vm.h"
 #include "fileindex.h"
 #include "interpreter.h"
 #include "native.h"
@@ -88,9 +87,8 @@ static pure const FunctionInfo *getFunctionInfo(nativefunctionref function)
     return (FunctionInfo*)&functionInfo[functionIndex[function]];
 }
 
-static char **createStringArray(RunState *state, uint collection)
+static char **createStringArray(VM *vm, uint collection)
 {
-    Heap *heap = InterpreterGetHeap(state);
     Iterator iter;
     uint value;
     size_t size = sizeof(char*);
@@ -99,13 +97,13 @@ static char **createStringArray(RunState *state, uint collection)
     char **table;
     byte *stringData;
 
-    assert(HeapIsCollection(heap, collection));
-    assert(HeapCollectionSize(heap, collection));
+    assert(HeapIsCollection(vm, collection));
+    assert(HeapCollectionSize(vm, collection));
 
-    HeapCollectionIteratorInit(heap, &iter, collection, true);
+    HeapCollectionIteratorInit(vm, &iter, collection, true);
     while (HeapIteratorNext(&iter, &value))
     {
-        size += InterpreterGetStringSize(state, value) + 1 +
+        size += InterpreterGetStringSize(vm, value) + 1 +
             sizeof(char*);
         count++;
     }
@@ -118,11 +116,11 @@ static char **createStringArray(RunState *state, uint collection)
 
     table = strings;
     stringData = (byte*)&strings[count];
-    HeapCollectionIteratorInit(heap, &iter, collection, true);
+    HeapCollectionIteratorInit(vm, &iter, collection, true);
     while (HeapIteratorNext(&iter, &value))
     {
         *table++ = (char*)stringData;
-        stringData = InterpreterCopyString(state, value, stringData);
+        stringData = InterpreterCopyString(vm, value, stringData);
         *stringData++ = 0;
     }
     *table = null;
@@ -144,10 +142,8 @@ ErrorCode NativeInit(void)
     return initFunctionInfo ? NO_ERROR : OUT_OF_MEMORY;
 }
 
-ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
-                       uint returnValues)
+ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
 {
-    Heap *heap;
     uint value;
     size_t size;
     const char *buffer;
@@ -167,10 +163,10 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
     {
     case NATIVE_ECHO:
         assert(!returnValues);
-        value = InterpreterPop(state);
-        size = InterpreterGetStringSize(state, value);
-        buffer = InterpreterGetString(state, value);
-        out = InterpreterGetPipeOut(state);
+        value = InterpreterPop(vm);
+        size = InterpreterGetStringSize(vm, value);
+        buffer = InterpreterGetString(vm, value);
+        out = InterpreterGetPipeOut(vm);
         error = NO_ERROR;
         if (out)
         {
@@ -195,19 +191,19 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
         {
             printf("\n");
         }
-        InterpreterFreeStringBuffer(state, buffer);
+        InterpreterFreeStringBuffer(vm, buffer);
         return error;
 
     case NATIVE_EXEC:
         assert(returnValues <= 1);
-        value = InterpreterPop(state);
-        argv = createStringArray(state, value);
+        value = InterpreterPop(vm);
+        argv = createStringArray(vm, value);
         if (!argv)
         {
             return OUT_OF_MEMORY;
         }
 
-        out = InterpreterGetPipeOut(state);
+        out = InterpreterGetPipeOut(vm);
         if (out)
         {
             status = pipe(pipeOut);
@@ -217,7 +213,7 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
                 return OUT_OF_MEMORY;
             }
         }
-        err = InterpreterGetPipeErr(state);
+        err = InterpreterGetPipeErr(vm);
         if (err)
         {
             status = pipe(pipeErr);
@@ -333,24 +329,23 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
         }
         if (returnValues)
         {
-            InterpreterPush(state, HeapBoxInteger(InterpreterGetHeap(state),
-                                                  status));
+            InterpreterPush(vm, HeapBoxInteger(vm, status));
         }
         return NO_ERROR;
 
     case NATIVE_FAIL:
         assert(!returnValues);
-        value = InterpreterPop(state);
+        value = InterpreterPop(vm);
         if (!value)
         {
             size = 0;
         }
         else
         {
-            size = InterpreterGetStringSize(state, value);
+            size = InterpreterGetStringSize(vm, value);
             if (size)
             {
-                buffer = InterpreterGetString(state, value);
+                buffer = InterpreterGetString(vm, value);
                 if (buffer[size - 1] == '\n')
                 {
                     printf("BUILD FAILED: %s", buffer);
@@ -359,7 +354,7 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
                 {
                     printf("BUILD FAILED: %s\n", buffer);
                 }
-                InterpreterFreeStringBuffer(state, buffer);
+                InterpreterFreeStringBuffer(vm, buffer);
             }
         }
         if (!size)
@@ -370,36 +365,33 @@ ErrorCode NativeInvoke(RunState *state, nativefunctionref function,
 
     case NATIVE_FILENAME:
         assert(returnValues <= 1);
-        value = InterpreterPop(state);
-        heap = InterpreterGetHeap(state);
-        assert(HeapGetObjectType(heap, value) == TYPE_FILE);
+        value = InterpreterPop(vm);
+        assert(HeapGetObjectType(vm, value) == TYPE_FILE);
         if (returnValues)
         {
-            file = HeapGetFile(heap, value);
+            file = HeapGetFile(vm, value);
             size = strlen(FileIndexGetName(file));
             filename = FileIndexFilename(FileIndexGetName(file), &size);
             if (!filename)
             {
                 return OUT_OF_MEMORY;
             }
-            value = HeapCreateString(heap, filename, size);
+            value = HeapCreateString(vm, filename, size);
             if (!value)
             {
                 return OUT_OF_MEMORY;
             }
-            InterpreterPush(state, value);
+            InterpreterPush(vm, value);
         }
         return NO_ERROR;
 
     case NATIVE_SIZE:
-        value = InterpreterPop(state);
+        value = InterpreterPop(vm);
         if (returnValues)
         {
             assert(returnValues == 1);
-            heap = InterpreterGetHeap(state);
-            assert(HeapCollectionSize(heap, value) <= MAX_INT);
-            InterpreterPush(
-                state, HeapBoxSize(heap, HeapCollectionSize(heap, value)));
+            assert(HeapCollectionSize(vm, value) <= MAX_INT);
+            InterpreterPush(vm, HeapBoxSize(vm, HeapCollectionSize(vm, value)));
         }
         return NO_ERROR;
 

@@ -19,16 +19,6 @@ typedef enum
     ITER_INTEGER_RANGE
 } IteratorType;
 
-typedef struct
-{
-    byte *base;
-    byte *free;
-    uint booleanTrue;
-    uint booleanFalse;
-    uint emptyString;
-    uint emptyList;
-} Heap;
-
 typedef struct IteratorState IteratorState;
 
 struct IteratorState
@@ -50,39 +40,38 @@ struct IteratorState
 
 typedef struct
 {
-    Heap *heap;
+    VM *vm;
     IteratorState state;
 } Iterator;
 
-extern nonnull ErrorCode HeapInit(Heap *heap);
-extern nonnull void HeapDispose(Heap *heap);
 
-extern nonnull ObjectType HeapGetObjectType(Heap *heap, uint object);
-extern nonnull size_t HeapGetObjectSize(Heap *heap, uint object);
-extern nonnull const byte *HeapGetObjectData(Heap *heap, uint object);
+extern nonnull ErrorCode HeapInit(VM *vm);
+extern nonnull void HeapDispose(VM *vm);
 
-extern nonnull byte *HeapAlloc(Heap *heap, ObjectType type, size_t size);
-extern nonnull uint HeapFinishAlloc(Heap *heap, byte *objectData);
+extern nonnull ObjectType HeapGetObjectType(VM *vm, uint object);
+extern nonnull size_t HeapGetObjectSize(VM *vm, uint object);
+extern nonnull const byte *HeapGetObjectData(VM *vm, uint object);
 
-extern nonnull uint HeapBoxInteger(Heap *heap, int value);
-extern nonnull uint HeapBoxSize(Heap *heap, size_t value);
-extern nonnull int HeapUnboxInteger(Heap *heap, uint value);
+extern nonnull byte *HeapAlloc(VM *vm, ObjectType type, size_t size);
+extern nonnull uint HeapFinishAlloc(VM *vm, byte *objectData);
 
-extern nonnull uint HeapCreateString(Heap *heap, const char *string,
-                                     size_t length);
-extern nonnull uint HeapCreatePooledString(Heap *heap, stringref string);
-extern nonnull boolean HeapIsString(Heap *heap, uint object);
-extern nonnull const char *HeapGetString(Heap *heap, uint object);
-extern nonnull size_t HeapGetStringLength(Heap *heap, uint object);
+extern nonnull uint HeapBoxInteger(VM *vm, int value);
+extern nonnull uint HeapBoxSize(VM *vm, size_t value);
+extern nonnull int HeapUnboxInteger(VM *vm, uint value);
 
-extern nonnull uint HeapCreateFile(Heap *heap, fileref file);
-extern nonnull fileref HeapGetFile(Heap *heap, uint object);
+extern nonnull uint HeapCreateString(VM *vm, const char *string, size_t length);
+extern nonnull uint HeapCreatePooledString(VM *vm, stringref string);
+extern nonnull boolean HeapIsString(VM *vm, uint object);
+extern nonnull const char *HeapGetString(VM *vm, uint object);
+extern nonnull size_t HeapGetStringLength(VM *vm, uint object);
 
-extern nonnull uint HeapCreateRange(Heap *heap,
-                                    uint lowObject, uint highObject);
+extern nonnull uint HeapCreateFile(VM *vm, fileref file);
+extern nonnull fileref HeapGetFile(VM *vm, uint object);
 
-extern nonnull boolean HeapIsCollection(Heap *heap, uint object);
-extern nonnull size_t HeapCollectionSize(Heap *heap, uint object);
+extern nonnull uint HeapCreateRange(VM *vm, uint lowObject, uint highObject);
+
+extern nonnull boolean HeapIsCollection(VM *vm, uint object);
+extern nonnull size_t HeapCollectionSize(VM *vm, uint object);
 
 /*
   Reads one value from the collection and returns it. The key is stored in
@@ -90,11 +79,11 @@ extern nonnull size_t HeapCollectionSize(Heap *heap, uint object);
 
   Returns true if successful.
 */
-extern nonnull boolean HeapCollectionGet(Heap *heap, uint object,
-                                         uint indexObject, uint *value);
-extern nonnull void HeapCollectionIteratorInit(Heap *heap, Iterator *iter,
+extern nonnull boolean HeapCollectionGet(VM *vm, uint object, uint indexObject,
+                                         uint *value);
+extern nonnull void HeapCollectionIteratorInit(VM *vm, Iterator *iter,
                                                uint object, boolean flatten);
 extern nonnull boolean HeapIteratorNext(Iterator *iter, uint *value);
 
-extern nonnull ErrorCode HeapCreateFilesetGlob(Heap *heap, const char *pattern,
+extern nonnull ErrorCode HeapCreateFilesetGlob(VM *vm, const char *pattern,
                                                uint *value);

@@ -1,15 +1,13 @@
 #include <stdio.h>
 #include <memory.h>
 #include "common.h"
+#include "vm.h"
 #include "bytecode.h"
-#include "bytevector.h"
 #include "fieldindex.h"
 #include "fileindex.h"
 #include "functionindex.h"
-#include "heap.h"
 #include "instruction.h"
 #include "interpreter.h"
-#include "intvector.h"
 #include "math.h"
 #include "native.h"
 #include "stringpool.h"
@@ -17,24 +15,9 @@
 static const boolean TRACE = false;
 
 
-struct RunState
+static boolean setError(VM *vm, ErrorCode error)
 {
-    const byte *restrict bytecode;
-
-    Heap heap;
-    uint *fields;
-    intvector callStack;
-    intvector stack;
-    ErrorCode error;
-
-    bytevector *pipeOut;
-    bytevector *pipeErr;
-};
-
-
-static boolean setError(RunState *state, ErrorCode error)
-{
-    state->error = error;
+    vm->error = error;
     return error ? true : false;
 }
 
@@ -43,42 +26,40 @@ static boolean setError(RunState *state, ErrorCode error)
 #define pop InterpreterPop
 #define push InterpreterPush
 
-uint InterpreterPeek(RunState *state)
+uint InterpreterPeek(VM *vm)
 {
-    return IntVectorPeek(&state->stack);
+    return IntVectorPeek(&vm->stack);
 }
 
-uint InterpreterPop(RunState *state)
+uint InterpreterPop(VM *vm)
 {
-    return IntVectorPop(&state->stack);
+    return IntVectorPop(&vm->stack);
 }
 
-boolean InterpreterPush(RunState *state, uint value)
+boolean InterpreterPush(VM *vm, uint value)
 {
-    return !setError(state, IntVectorAdd(&state->stack, value));
+    return !setError(vm, IntVectorAdd(&vm->stack, value));
 }
 
-static boolean pushBoolean(RunState *state, boolean value)
+static boolean pushBoolean(VM *vm, boolean value)
 {
-    return push(state,
-                value ? state->heap.booleanTrue : state->heap.booleanFalse);
+    return push(vm, value ? vm->booleanTrue : vm->booleanFalse);
 }
 
 
-static void storeLocal(RunState *state, uint bp, uint16 local, uint value)
+static void storeLocal(VM *vm, uint bp, uint16 local, uint value)
 {
-    IntVectorSet(&state->stack, bp + local, value);
+    IntVectorSet(&vm->stack, bp + local, value);
 }
 
-static uint createIterator(RunState *state, uint object)
+static uint createIterator(VM *vm, uint object)
 {
-    Iterator *iter = (Iterator *)HeapAlloc(&state->heap, TYPE_ITERATOR,
-                                           sizeof(Iterator));
-    HeapCollectionIteratorInit(&state->heap, iter, object, false);
-    return HeapFinishAlloc(&state->heap, (byte*)iter);
+    Iterator *iter = (Iterator *)HeapAlloc(vm, TYPE_ITERATOR, sizeof(Iterator));
+    HeapCollectionIteratorInit(vm, iter, object, false);
+    return HeapFinishAlloc(vm, (byte*)iter);
 }
 
-static boolean equals(RunState *state, uint value1, uint value2)
+static boolean equals(VM *vm, uint value1, uint value2)
 {
     Iterator iter1;
     Iterator iter2;
@@ -90,7 +71,7 @@ static boolean equals(RunState *state, uint value1, uint value2)
     {
         return true;
     }
-    switch (HeapGetObjectType(&state->heap, value1))
+    switch (HeapGetObjectType(vm, value1))
     {
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
@@ -101,28 +82,28 @@ static boolean equals(RunState *state, uint value1, uint value2)
 
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
-        size1 = HeapGetStringLength(&state->heap, value1);
-        size2 = HeapGetStringLength(&state->heap, value2);
+        size1 = HeapGetStringLength(vm, value1);
+        size2 = HeapGetStringLength(vm, value2);
         return size1 == size2 &&
-            !memcmp(HeapGetString(&state->heap, value1),
-                    HeapGetString(&state->heap, value2), size1);
+            !memcmp(HeapGetString(vm, value1),
+                    HeapGetString(vm, value2), size1);
 
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
-        if (!HeapIsCollection(&state->heap, value2) ||
-            HeapCollectionSize(&state->heap, value1) !=
-            HeapCollectionSize(&state->heap, value2))
+        if (!HeapIsCollection(vm, value2) ||
+            HeapCollectionSize(vm, value1) !=
+            HeapCollectionSize(vm, value2))
         {
             return false;
         }
-        HeapCollectionIteratorInit(&state->heap, &iter1, value1, false);
-        HeapCollectionIteratorInit(&state->heap, &iter2, value2, false);
+        HeapCollectionIteratorInit(vm, &iter1, value1, false);
+        HeapCollectionIteratorInit(vm, &iter2, value2, false);
         while (HeapIteratorNext(&iter1, &value1))
         {
             success = HeapIteratorNext(&iter2, &value2);
             assert(success);
-            if (!equals(state, value1, value2))
+            if (!equals(vm, value1, value2))
             {
                 return false;
             }
@@ -133,44 +114,39 @@ static boolean equals(RunState *state, uint value1, uint value2)
     return false;
 }
 
-static int compare(RunState *state, uint value1, uint value2)
+static int compare(VM *vm, uint value1, uint value2)
 {
-    int i1 = HeapUnboxInteger(&state->heap, value1);
-    int i2 = HeapUnboxInteger(&state->heap, value2);
+    int i1 = HeapUnboxInteger(vm, value1);
+    int i2 = HeapUnboxInteger(vm, value2);
     return i1 == i2 ? 0 : i1 < i2 ? -1 : 1;
 }
 
-Heap *InterpreterGetHeap(RunState *state)
+bytevector *InterpreterGetPipeOut(VM *vm)
 {
-    return &state->heap;
+    return vm->pipeOut;
 }
 
-bytevector *InterpreterGetPipeOut(RunState *state)
+bytevector *InterpreterGetPipeErr(VM *vm)
 {
-    return state->pipeOut;
+    return vm->pipeErr;
 }
 
-bytevector *InterpreterGetPipeErr(RunState *state)
+const char *InterpreterGetString(VM *vm, uint value)
 {
-    return state->pipeErr;
-}
-
-const char *InterpreterGetString(RunState *state, uint value)
-{
-    size_t size = InterpreterGetStringSize(state, value);
+    size_t size = InterpreterGetStringSize(vm, value);
     byte *buffer = (byte*)malloc(size + 1); /* TODO: Avoid malloc */
     assert(buffer); /* TODO: Error handling */
-    InterpreterCopyString(state, value, buffer);
+    InterpreterCopyString(vm, value, buffer);
     buffer[size] = 0;
     return (char*)buffer;
 }
 
-void InterpreterFreeStringBuffer(RunState *state unused, const char *buffer)
+void InterpreterFreeStringBuffer(VM *vm unused, const char *buffer)
 {
     free((void*)buffer);
 }
 
-size_t InterpreterGetStringSize(RunState *state, uint value)
+size_t InterpreterGetStringSize(VM *vm, uint value)
 {
     Iterator iter;
     size_t size;
@@ -179,7 +155,7 @@ size_t InterpreterGetStringSize(RunState *state, uint value)
     {
         return 4;
     }
-    switch (HeapGetObjectType(&state->heap, value))
+    switch (HeapGetObjectType(vm, value))
     {
     case TYPE_BOOLEAN_TRUE:
         return 4;
@@ -188,7 +164,7 @@ size_t InterpreterGetStringSize(RunState *state, uint value)
         return 5;
 
     case TYPE_INTEGER:
-        value = (uint)HeapUnboxInteger(&state->heap, value);
+        value = (uint)HeapUnboxInteger(vm, value);
         size = 1;
         if ((int)value < 0)
         {
@@ -204,24 +180,24 @@ size_t InterpreterGetStringSize(RunState *state, uint value)
 
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
-        return HeapGetStringLength(&state->heap, value);
+        return HeapGetStringLength(vm, value);
 
     case TYPE_FILE:
-        return strlen(FileIndexGetName(HeapGetFile(&state->heap, value)));
+        return strlen(FileIndexGetName(HeapGetFile(vm, value)));
 
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
-        size = HeapCollectionSize(&state->heap, value);
+        size = HeapCollectionSize(vm, value);
         if (size)
         {
             size--;
         }
         size = size * 2 + 2;
-        HeapCollectionIteratorInit(&state->heap, &iter, value, false);
+        HeapCollectionIteratorInit(vm, &iter, value, false);
         while (HeapIteratorNext(&iter, &value))
         {
-            size += InterpreterGetStringSize(state, value);
+            size += InterpreterGetStringSize(vm, value);
         }
         return size;
 
@@ -232,7 +208,7 @@ size_t InterpreterGetStringSize(RunState *state, uint value)
     return 0;
 }
 
-byte *InterpreterCopyString(RunState *state, uint value, byte *dst)
+byte *InterpreterCopyString(VM *vm, uint value, byte *dst)
 {
     Iterator iter;
     size_t size;
@@ -248,7 +224,7 @@ byte *InterpreterCopyString(RunState *state, uint value, byte *dst)
         *dst++ = 'l';
         return dst;
     }
-    switch (HeapGetObjectType(&state->heap, value))
+    switch (HeapGetObjectType(vm, value))
     {
     case TYPE_BOOLEAN_TRUE:
         *dst++ = 't';
@@ -266,13 +242,13 @@ byte *InterpreterCopyString(RunState *state, uint value, byte *dst)
         return dst;
 
     case TYPE_INTEGER:
-        i = (uint)HeapUnboxInteger(&state->heap, value);
+        i = (uint)HeapUnboxInteger(vm, value);
         if (!i)
         {
             *dst++ = '0';
             return dst;
         }
-        size = InterpreterGetStringSize(state, value);
+        size = InterpreterGetStringSize(vm, value);
         if ((int)i < 0)
         {
             *dst++ = '-';
@@ -289,12 +265,12 @@ byte *InterpreterCopyString(RunState *state, uint value, byte *dst)
 
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
-        size = HeapGetStringLength(&state->heap, value);
-        memcpy(dst, HeapGetString(&state->heap, value), size);
+        size = HeapGetStringLength(vm, value);
+        memcpy(dst, HeapGetString(vm, value), size);
         return dst + size;
 
     case TYPE_FILE:
-        file = HeapGetFile(&state->heap, value);
+        file = HeapGetFile(vm, value);
         size = strlen(FileIndexGetName(file));
         memcpy(dst, FileIndexGetName(file), size);
         return dst + size;
@@ -304,7 +280,7 @@ byte *InterpreterCopyString(RunState *state, uint value, byte *dst)
     case TYPE_INTEGER_RANGE:
         *dst++ = '[';
         first = true;
-        HeapCollectionIteratorInit(&state->heap, &iter, value, false);
+        HeapCollectionIteratorInit(vm, &iter, value, false);
         while (HeapIteratorNext(&iter, &value))
         {
             if (!first)
@@ -313,7 +289,7 @@ byte *InterpreterCopyString(RunState *state, uint value, byte *dst)
                 *dst++ = ' ';
             }
             first = false;
-            dst = InterpreterCopyString(state, value, dst);
+            dst = InterpreterCopyString(vm, value, dst);
         }
         *dst++ = ']';
         return dst;
@@ -325,39 +301,39 @@ byte *InterpreterCopyString(RunState *state, uint value, byte *dst)
     return null;
 }
 
-static void pushStackFrame(RunState *state, const byte **ip, uint *bp,
+static void pushStackFrame(VM *vm, const byte **ip, uint *bp,
                            functionref function, uint returnValues)
 {
     uint localsCount;
-    IntVectorAdd(&state->callStack, (uint)(*ip - state->bytecode));
-    IntVectorAdd(&state->callStack, *bp);
-    IntVectorAdd(&state->callStack, returnValues);
-    *ip = state->bytecode + FunctionIndexGetBytecodeOffset(function);
-    *bp = (uint)IntVectorSize(&state->stack) -
+    IntVectorAdd(&vm->callStack, (uint)(*ip - vm->bytecode));
+    IntVectorAdd(&vm->callStack, *bp);
+    IntVectorAdd(&vm->callStack, returnValues);
+    *ip = vm->bytecode + FunctionIndexGetBytecodeOffset(function);
+    *bp = (uint)IntVectorSize(&vm->stack) -
         FunctionIndexGetParameterCount(function);
     localsCount = FunctionIndexGetLocalsCount(function);
-    IntVectorSetSize(&state->stack, *bp + localsCount);
+    IntVectorSetSize(&vm->stack, *bp + localsCount);
 }
 
-static void popStackFrame(RunState *state, const byte **ip, uint *bp,
+static void popStackFrame(VM *vm, const byte **ip, uint *bp,
                           uint returnValues)
 {
-    uint expectedReturnValues = IntVectorPop(&state->callStack);
+    uint expectedReturnValues = IntVectorPop(&vm->callStack);
 
-    IntVectorCopy(&state->stack,
-                  IntVectorSize(&state->stack) - returnValues,
-                  &state->stack,
+    IntVectorCopy(&vm->stack,
+                  IntVectorSize(&vm->stack) - returnValues,
+                  &vm->stack,
                   *bp,
                   expectedReturnValues);
-    IntVectorSetSize(&state->stack, *bp + expectedReturnValues);
+    IntVectorSetSize(&vm->stack, *bp + expectedReturnValues);
 
-    *bp = IntVectorPop(&state->callStack);
-    *ip = state->bytecode + IntVectorPop(&state->callStack);
+    *bp = IntVectorPop(&vm->callStack);
+    *ip = vm->bytecode + IntVectorPop(&vm->callStack);
 }
 
-static void execute(RunState *state, functionref target)
+static void execute(VM *vm, functionref target)
 {
-    const byte *ip = state->bytecode + FunctionIndexGetBytecodeOffset(target);
+    const byte *ip = vm->bytecode + FunctionIndexGetBytecodeOffset(target);
     const byte *baseIP = ip;
     uint bp = 0;
     uint argumentCount;
@@ -375,7 +351,7 @@ static void execute(RunState *state, functionref target)
     fileref file;
 
     local = FunctionIndexGetLocalsCount(target);
-    IntVectorSetSize(&state->stack, local);
+    IntVectorSetSize(&vm->stack, local);
     for (;;)
     {
         if (TRACE)
@@ -385,51 +361,51 @@ static void execute(RunState *state, functionref target)
         switch ((Instruction)*ip++)
         {
         case OP_NULL:
-            push(state, 0);
+            push(vm, 0);
             break;
 
         case OP_TRUE:
-            push(state, state->heap.booleanTrue);
+            push(vm, vm->booleanTrue);
             break;
 
         case OP_FALSE:
-            push(state, state->heap.booleanFalse);
+            push(vm, vm->booleanFalse);
             break;
 
         case OP_INTEGER:
-            push(state, HeapBoxInteger(&state->heap, BytecodeReadInt(&ip)));
+            push(vm, HeapBoxInteger(vm, BytecodeReadInt(&ip)));
             break;
 
         case OP_STRING:
-            value = HeapCreatePooledString(&state->heap, (stringref)BytecodeReadUint(&ip));
+            value = HeapCreatePooledString(vm, (stringref)BytecodeReadUint(&ip));
             if (!value)
             {
-                state->error = OUT_OF_MEMORY;
+                vm->error = OUT_OF_MEMORY;
                 return;
             }
-            push(state, value);
+            push(vm, value);
             break;
 
         case OP_EMPTY_LIST:
-            push(state, state->heap.emptyList);
+            push(vm, vm->emptyList);
             break;
 
         case OP_LIST:
             size1 = BytecodeReadUint(&ip);
-            objectData = HeapAlloc(&state->heap, TYPE_ARRAY,
+            objectData = HeapAlloc(vm, TYPE_ARRAY,
                                    size1 * sizeof(uint));
             if (!objectData)
             {
-                state->error = OUT_OF_MEMORY;
+                vm->error = OUT_OF_MEMORY;
                 return;
             }
             objectData += size1 * sizeof(uint);
             while (size1--)
             {
                 objectData -= sizeof(uint);
-                *(uint*)objectData = pop(state);
+                *(uint*)objectData = pop(vm);
             }
-            push(state, HeapFinishAlloc(&state->heap, objectData));
+            push(vm, HeapFinishAlloc(vm, objectData));
             break;
 
         case OP_FILE:
@@ -438,240 +414,240 @@ static void execute(RunState *state, functionref target)
                                  StringPoolGetStringLength(string));
             if (!file)
             {
-                state->error = OUT_OF_MEMORY;
+                vm->error = OUT_OF_MEMORY;
                 return;
             }
-            value = HeapCreateFile(&state->heap, file);
+            value = HeapCreateFile(vm, file);
             if (!value)
             {
-                state->error = OUT_OF_MEMORY;
+                vm->error = OUT_OF_MEMORY;
                 return;
             }
-            push(state, value);
+            push(vm, value);
             break;
 
         case OP_FILESET:
-            state->error = HeapCreateFilesetGlob(
-                &state->heap,
+            vm->error = HeapCreateFilesetGlob(
+                vm,
                 StringPoolGetString((stringref)BytecodeReadUint(&ip)),
                 &value);
-            if (state->error)
+            if (vm->error)
             {
                 return;
             }
-            push(state, value);
+            push(vm, value);
             break;
 
         case OP_POP:
-            pop(state);
+            pop(vm);
             break;
 
         case OP_DUP:
-            push(state, peek(state));
+            push(vm, peek(vm));
             break;
 
         case OP_LOAD:
             local = BytecodeReadUint16(&ip);
-            push(state, IntVectorGet(&state->stack, bp + local));
+            push(vm, IntVectorGet(&vm->stack, bp + local));
             break;
 
         case OP_STORE:
-            storeLocal(state, bp, BytecodeReadUint16(&ip), pop(state));
+            storeLocal(vm, bp, BytecodeReadUint16(&ip), pop(vm));
             break;
 
         case OP_LOAD_FIELD:
             value = BytecodeReadUint(&ip);
-            push(state, state->fields[value]);
+            push(vm, vm->fields[value]);
             break;
 
         case OP_STORE_FIELD:
-            state->fields[BytecodeReadUint(&ip)] = pop(state);
+            vm->fields[BytecodeReadUint(&ip)] = pop(vm);
             break;
 
         case OP_CAST_BOOLEAN:
-            value = pop(state);
-            if (value == state->heap.booleanTrue ||
-                value == state->heap.booleanFalse)
+            value = pop(vm);
+            if (value == vm->booleanTrue ||
+                value == vm->booleanFalse)
             {
-                push(state, value);
+                push(vm, value);
             }
             else if (!value)
             {
-                push(state, state->heap.booleanFalse);
+                push(vm, vm->booleanFalse);
             }
-            else if (HeapGetObjectType(&state->heap, value) == TYPE_INTEGER)
+            else if (HeapGetObjectType(vm, value) == TYPE_INTEGER)
             {
-                pushBoolean(state, HeapUnboxInteger(&state->heap, value) != 0);
+                pushBoolean(vm, HeapUnboxInteger(vm, value) != 0);
             }
-            else if (HeapIsString(&state->heap, value))
+            else if (HeapIsString(vm, value))
             {
-                pushBoolean(state, HeapGetStringLength(&state->heap, value) != 0);
+                pushBoolean(vm, HeapGetStringLength(vm, value) != 0);
             }
-            else if (HeapIsCollection(&state->heap, value))
+            else if (HeapIsCollection(vm, value))
             {
-                pushBoolean(state, HeapCollectionSize(&state->heap, value) != 0);
+                pushBoolean(vm, HeapCollectionSize(vm, value) != 0);
             }
             else
             {
-                push(state, state->heap.booleanTrue);
+                push(vm, vm->booleanTrue);
             }
             break;
 
         case OP_EQUALS:
-            pushBoolean(state, equals(state, pop(state), pop(state)));
+            pushBoolean(vm, equals(vm, pop(vm), pop(vm)));
             break;
 
         case OP_NOT_EQUALS:
-            pushBoolean(state, !equals(state, pop(state), pop(state)));
+            pushBoolean(vm, !equals(vm, pop(vm), pop(vm)));
             break;
 
         case OP_LESS_EQUALS:
-            value = pop(state);
-            value2 = pop(state);
-            pushBoolean(state, compare(state, value2, value) <= 0);
+            value = pop(vm);
+            value2 = pop(vm);
+            pushBoolean(vm, compare(vm, value2, value) <= 0);
             break;
 
         case OP_GREATER_EQUALS:
-            value = pop(state);
-            value2 = pop(state);
-            pushBoolean(state, compare(state, value2, value) >= 0);
+            value = pop(vm);
+            value2 = pop(vm);
+            pushBoolean(vm, compare(vm, value2, value) >= 0);
             break;
 
         case OP_LESS:
-            value = pop(state);
-            value2 = pop(state);
-            pushBoolean(state, compare(state, value2, value) < 0);
+            value = pop(vm);
+            value2 = pop(vm);
+            pushBoolean(vm, compare(vm, value2, value) < 0);
             break;
 
         case OP_GREATER:
-            value = pop(state);
-            value2 = pop(state);
-            pushBoolean(state, compare(state, value2, value) > 0);
+            value = pop(vm);
+            value2 = pop(vm);
+            pushBoolean(vm, compare(vm, value2, value) > 0);
             break;
 
         case OP_NOT:
-            value = pop(state);
-            assert(value == state->heap.booleanTrue ||
-                   value == state->heap.booleanFalse);
-            pushBoolean(state, value == state->heap.booleanFalse);
+            value = pop(vm);
+            assert(value == vm->booleanTrue ||
+                   value == vm->booleanFalse);
+            pushBoolean(vm, value == vm->booleanFalse);
             break;
 
         case OP_NEG:
-            assert(HeapUnboxInteger(&state->heap, peek(state)) != MIN_INT);
-            push(state,
-                 HeapBoxInteger(&state->heap,
-                                -HeapUnboxInteger(&state->heap, pop(state))));
+            assert(HeapUnboxInteger(vm, peek(vm)) != MIN_INT);
+            push(vm,
+                 HeapBoxInteger(vm,
+                                -HeapUnboxInteger(vm, pop(vm))));
             break;
 
         case OP_INV:
-            push(state,
-                 HeapBoxInteger(&state->heap,
-                                ~HeapUnboxInteger(&state->heap, pop(state))));
+            push(vm,
+                 HeapBoxInteger(vm,
+                                ~HeapUnboxInteger(vm, pop(vm))));
             break;
 
         case OP_ADD:
-            value = pop(state);
-            value2 = pop(state);
-            push(state, HeapBoxInteger(&state->heap,
-                                       HeapUnboxInteger(&state->heap, value2) +
-                                       HeapUnboxInteger(&state->heap, value)));
+            value = pop(vm);
+            value2 = pop(vm);
+            push(vm, HeapBoxInteger(vm,
+                                       HeapUnboxInteger(vm, value2) +
+                                       HeapUnboxInteger(vm, value)));
             break;
 
         case OP_SUB:
-            value = pop(state);
-            value2 = pop(state);
-            push(state, HeapBoxInteger(&state->heap,
-                                       HeapUnboxInteger(&state->heap, value2) -
-                                       HeapUnboxInteger(&state->heap, value)));
+            value = pop(vm);
+            value2 = pop(vm);
+            push(vm, HeapBoxInteger(vm,
+                                       HeapUnboxInteger(vm, value2) -
+                                       HeapUnboxInteger(vm, value)));
             break;
 
         case OP_MUL:
-            value = pop(state);
-            value2 = pop(state);
-            push(state, HeapBoxInteger(&state->heap,
-                                       HeapUnboxInteger(&state->heap, value2) *
-                                       HeapUnboxInteger(&state->heap, value)));
+            value = pop(vm);
+            value2 = pop(vm);
+            push(vm, HeapBoxInteger(vm,
+                                       HeapUnboxInteger(vm, value2) *
+                                       HeapUnboxInteger(vm, value)));
             break;
 
         case OP_DIV:
-            value = pop(state);
-            value2 = pop(state);
-            assert((HeapUnboxInteger(&state->heap, value2) /
-                    HeapUnboxInteger(&state->heap, value)) *
-                   HeapUnboxInteger(&state->heap, value) ==
-                   HeapUnboxInteger(&state->heap, value2)); /* TODO: fraction */
-            push(state, HeapBoxInteger(&state->heap,
-                                       HeapUnboxInteger(&state->heap, value2) /
-                                       HeapUnboxInteger(&state->heap, value)));
+            value = pop(vm);
+            value2 = pop(vm);
+            assert((HeapUnboxInteger(vm, value2) /
+                    HeapUnboxInteger(vm, value)) *
+                   HeapUnboxInteger(vm, value) ==
+                   HeapUnboxInteger(vm, value2)); /* TODO: fraction */
+            push(vm, HeapBoxInteger(vm,
+                                       HeapUnboxInteger(vm, value2) /
+                                       HeapUnboxInteger(vm, value)));
             break;
 
         case OP_REM:
-            value = pop(state);
-            value2 = pop(state);
-            push(state, HeapBoxInteger(&state->heap,
-                                       HeapUnboxInteger(&state->heap, value2) %
-                                       HeapUnboxInteger(&state->heap, value)));
+            value = pop(vm);
+            value2 = pop(vm);
+            push(vm, HeapBoxInteger(vm,
+                                       HeapUnboxInteger(vm, value2) %
+                                       HeapUnboxInteger(vm, value)));
             break;
 
         case OP_CONCAT:
-            value = pop(state);
-            value2 = pop(state);
-            size1 = InterpreterGetStringSize(state, value2);
-            size2 = InterpreterGetStringSize(state, value);
+            value = pop(vm);
+            value2 = pop(vm);
+            size1 = InterpreterGetStringSize(vm, value2);
+            size2 = InterpreterGetStringSize(vm, value);
             if (!size1 && !size2)
             {
-                push(state, state->heap.emptyString);
+                push(vm, vm->emptyString);
                 break;
             }
-            objectData = HeapAlloc(&state->heap, TYPE_STRING, size1 + size2);
+            objectData = HeapAlloc(vm, TYPE_STRING, size1 + size2);
             if (!objectData)
             {
-                state->error = OUT_OF_MEMORY;
+                vm->error = OUT_OF_MEMORY;
                 return;
             }
-            InterpreterCopyString(state, value2, objectData);
-            InterpreterCopyString(state, value, objectData + size1);
-            push(state, HeapFinishAlloc(&state->heap, objectData));
+            InterpreterCopyString(vm, value2, objectData);
+            InterpreterCopyString(vm, value, objectData + size1);
+            push(vm, HeapFinishAlloc(vm, objectData));
             break;
 
         case OP_INDEXED_ACCESS:
-            value = pop(state);
-            value2 = pop(state);
-            if (!HeapCollectionGet(&state->heap, value2, value, &value))
+            value = pop(vm);
+            value2 = pop(vm);
+            if (!HeapCollectionGet(vm, value2, value, &value))
             {
                 return;
             }
-            push(state, value);
+            push(vm, value);
             break;
 
         case OP_RANGE:
-            value = pop(state);
-            value2 = pop(state);
-            value = HeapCreateRange(&state->heap, value2, value);
+            value = pop(vm);
+            value2 = pop(vm);
+            value = HeapCreateRange(vm, value2, value);
             if (!value)
             {
                 return;
             }
-            push(state, value);
+            push(vm, value);
             break;
 
         case OP_ITER_INIT:
-            value = createIterator(state, pop(state));
+            value = createIterator(vm, pop(vm));
             if (!value)
             {
                 return;
             }
-            push(state, value);
+            push(vm, value);
             break;
 
         case OP_ITER_NEXT:
-            value = pop(state);
-            assert(HeapGetObjectType(&state->heap, value) == TYPE_ITERATOR);
-            assert(HeapGetObjectSize(&state->heap, value) == sizeof(Iterator));
-            iter = (Iterator*)HeapGetObjectData(&state->heap, value);
+            value = pop(vm);
+            assert(HeapGetObjectType(vm, value) == TYPE_ITERATOR);
+            assert(HeapGetObjectSize(vm, value) == sizeof(Iterator));
+            iter = (Iterator*)HeapGetObjectData(vm, value);
             value = 0;
-            pushBoolean(state, HeapIteratorNext(iter, &value));
-            push(state, value);
+            pushBoolean(vm, HeapIteratorNext(iter, &value));
+            push(vm, value);
             break;
 
         case OP_JUMP:
@@ -680,46 +656,46 @@ static void execute(RunState *state, functionref target)
             break;
 
         case OP_BRANCH_TRUE:
-            assert(peek(state) == state->heap.booleanTrue ||
-                   peek(state) == state->heap.booleanFalse);
+            assert(peek(vm) == vm->booleanTrue ||
+                   peek(vm) == vm->booleanFalse);
             jumpOffset = BytecodeReadInt(&ip);
-            if (pop(state) == state->heap.booleanTrue)
+            if (pop(vm) == vm->booleanTrue)
             {
                 ip += jumpOffset;
             }
             break;
 
         case OP_BRANCH_FALSE:
-            assert(peek(state) == state->heap.booleanTrue ||
-                   peek(state) == state->heap.booleanFalse);
+            assert(peek(vm) == vm->booleanTrue ||
+                   peek(vm) == vm->booleanFalse);
             jumpOffset = BytecodeReadInt(&ip);
-            if (pop(state) != state->heap.booleanTrue)
+            if (pop(vm) != vm->booleanTrue)
             {
                 ip += jumpOffset;
             }
             break;
 
         case OP_RETURN:
-            assert(IntVectorSize(&state->callStack));
-            popStackFrame(state, &ip, &bp, *ip++);
-            baseIP = state->bytecode +
+            assert(IntVectorSize(&vm->callStack));
+            popStackFrame(vm, &ip, &bp, *ip++);
+            baseIP = vm->bytecode +
                 FunctionIndexGetBytecodeOffset(
                     FunctionIndexGetFunctionFromBytecode(
-                        (uint)(ip - state->bytecode)));
+                        (uint)(ip - vm->bytecode)));
             break;
 
         case OP_RETURN_VOID:
-            if (!IntVectorSize(&state->callStack))
+            if (!IntVectorSize(&vm->callStack))
             {
-                assert(IntVectorSize(&state->stack) ==
+                assert(IntVectorSize(&vm->stack) ==
                        FunctionIndexGetLocalsCount(target));
                 return;
             }
-            popStackFrame(state, &ip, &bp, 0);
-            baseIP = state->bytecode +
+            popStackFrame(vm, &ip, &bp, 0);
+            baseIP = vm->bytecode +
                 FunctionIndexGetBytecodeOffset(
                     FunctionIndexGetFunctionFromBytecode(
-                        (uint)(ip - state->bytecode)));
+                        (uint)(ip - vm->bytecode)));
             break;
 
         case OP_INVOKE:
@@ -727,7 +703,7 @@ static void execute(RunState *state, functionref target)
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == FunctionIndexGetParameterCount(function)); /* TODO */
             value = *ip++;
-            pushStackFrame(state, &ip, &bp, function, value);
+            pushStackFrame(vm, &ip, &bp, function, value);
             baseIP = ip;
             break;
 
@@ -735,57 +711,57 @@ static void execute(RunState *state, functionref target)
             nativeFunction = (nativefunctionref)*ip++;
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == NativeGetParameterCount(nativeFunction)); /* TODO */
-            state->error = NativeInvoke(state, nativeFunction, *ip++);
-            if (state->error)
+            vm->error = NativeInvoke(vm, nativeFunction, *ip++);
+            if (vm->error)
             {
                 return;
             }
             break;
 
         case OP_PIPE_BEGIN:
-            assert(!state->pipeOut);
-            assert(!state->pipeErr);
-            state->pipeOut = ByteVectorCreate();
-            state->pipeErr = ByteVectorCreate();
-            if (!state->pipeOut || !state->pipeErr)
+            assert(!vm->pipeOut);
+            assert(!vm->pipeErr);
+            vm->pipeOut = ByteVectorCreate();
+            vm->pipeErr = ByteVectorCreate();
+            if (!vm->pipeOut || !vm->pipeErr)
             {
-                state->error = OUT_OF_MEMORY;
+                vm->error = OUT_OF_MEMORY;
                 return;
             }
             break;
 
         case OP_PIPE_END:
-            assert(state->pipeOut);
+            assert(vm->pipeOut);
             value = HeapCreateString(
-                &state->heap,
-                (const char*)ByteVectorGetPointer(state->pipeOut, 0),
-                ByteVectorSize(state->pipeOut));
+                vm,
+                (const char*)ByteVectorGetPointer(vm->pipeOut, 0),
+                ByteVectorSize(vm->pipeOut));
             if (!value)
             {
-                state->error = OUT_OF_MEMORY;
+                vm->error = OUT_OF_MEMORY;
                 return;
             }
-            storeLocal(state, bp, BytecodeReadUint16(&ip), value);
-            ByteVectorDispose(state->pipeOut);
-            free(state->pipeOut);
-            state->pipeOut = null;
+            storeLocal(vm, bp, BytecodeReadUint16(&ip), value);
+            ByteVectorDispose(vm->pipeOut);
+            free(vm->pipeOut);
+            vm->pipeOut = null;
 
-            assert(state->pipeErr);
+            assert(vm->pipeErr);
             value = HeapCreateString(
-                &state->heap,
-                (const char*)ByteVectorGetPointer(state->pipeErr, 0),
-                ByteVectorSize(state->pipeErr));
+                vm,
+                (const char*)ByteVectorGetPointer(vm->pipeErr, 0),
+                ByteVectorSize(vm->pipeErr));
             if (!value)
             {
-                state->error = OUT_OF_MEMORY;
+                vm->error = OUT_OF_MEMORY;
                 return;
             }
-            storeLocal(state, bp, BytecodeReadUint16(&ip), value);
-            ByteVectorDispose(state->pipeErr);
-            free(state->pipeErr);
-            state->pipeErr = null;
+            storeLocal(vm, bp, BytecodeReadUint16(&ip), value);
+            ByteVectorDispose(vm->pipeErr);
+            free(vm->pipeErr);
+            vm->pipeErr = null;
 
-            if (state->error)
+            if (vm->error)
             {
                 return;
             }
@@ -794,20 +770,20 @@ static void execute(RunState *state, functionref target)
     }
 }
 
-static void disposeState(RunState *state)
+static void disposeVm(VM *vm)
 {
-    HeapDispose(&state->heap);
-    free(state->fields);
-    IntVectorDispose(&state->callStack);
-    IntVectorDispose(&state->stack);
+    HeapDispose(vm);
+    free(vm->fields);
+    IntVectorDispose(&vm->callStack);
+    IntVectorDispose(&vm->stack);
 }
 
-static boolean handleError(RunState *state, ErrorCode error)
+static boolean handleError(VM *vm, ErrorCode error)
 {
-    state->error = error;
+    vm->error = error;
     if (error)
     {
-        disposeState(state);
+        disposeVm(vm);
         return true;
     }
     return false;
@@ -815,27 +791,27 @@ static boolean handleError(RunState *state, ErrorCode error)
 
 ErrorCode InterpreterExecute(const byte *restrict bytecode, functionref target)
 {
-    RunState state;
+    VM vm;
     uint fieldCount = FieldIndexGetCount();
 
-    memset(&state, 0, sizeof(state));
-    state.bytecode = bytecode;
-    state.fields = (uint*)malloc(fieldCount * sizeof(int));
-    if (handleError(&state, state.fields ? NO_ERROR : OUT_OF_MEMORY) ||
-        handleError(&state, HeapInit(&state.heap)) ||
-        handleError(&state, IntVectorInit(&state.callStack)) ||
-        handleError(&state, IntVectorInit(&state.stack)))
+    memset(&vm, 0, sizeof(vm));
+    vm.bytecode = bytecode;
+    vm.fields = (uint*)malloc(fieldCount * sizeof(int));
+    if (handleError(&vm, vm.fields ? NO_ERROR : OUT_OF_MEMORY) ||
+        handleError(&vm, HeapInit(&vm)) ||
+        handleError(&vm, IntVectorInit(&vm.callStack)) ||
+        handleError(&vm, IntVectorInit(&vm.stack)))
     {
-        return state.error;
+        return vm.error;
     }
 
-    execute(&state, FunctionIndexGetFirstFunction());
-    if (!state.error)
+    execute(&vm, FunctionIndexGetFirstFunction());
+    if (!vm.error)
     {
-        execute(&state, target);
+        execute(&vm, target);
     }
 
-    disposeState(&state);
+    disposeVm(&vm);
 
-    return state.error;
+    return vm.error;
 }
