@@ -187,6 +187,11 @@ ErrorCode ByteVectorAddUnpackedUint(bytevector *v, uint value)
     return NO_ERROR;
 }
 
+ErrorCode ByteVectorAddRef(bytevector *v, ref_t value)
+{
+    return ByteVectorAddUint(v, uintFromRef(value));
+}
+
 ErrorCode ByteVectorAddData(bytevector *v, const byte *value, size_t size)
 {
     checkByteVector(v);

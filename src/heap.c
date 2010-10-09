@@ -24,27 +24,21 @@ static pure boolean isInteger(objectref value)
     return (value & INTEGER_LITERAL_MARK) != 0;
 }
 
-static pure int getInteger(objectref value)
+static objectref boxReference(VM *vm, ObjectType type, ref_t value)
 {
-    assert(isInteger(value));
-    return ((int)value << 1) >> 1;
-}
-
-static objectref boxReference(VM *vm, ObjectType type, uint value)
-{
-    byte *objectData = HeapAlloc(vm, type, sizeof(int));
+    byte *objectData = HeapAlloc(vm, type, sizeof(ref_t));
     if (!objectData)
     {
         return 0;
     }
-    *(uint*)objectData = value;
+    *(ref_t*)objectData = value;
     return HeapFinishAlloc(vm, objectData);
 }
 
-static uint unboxReference(VM *vm, ObjectType type, objectref object)
+static ref_t unboxReference(VM *vm, ObjectType type, objectref object)
 {
     assert(HeapGetObjectType(vm, object) == type);
-    return *(uint*)HeapGetObjectData(vm, object);
+    return *(ref_t*)HeapGetObjectData(vm, object);
 }
 
 
@@ -160,19 +154,19 @@ ObjectType HeapGetObjectType(VM *vm, objectref object)
 {
     checkObject(vm, object);
     return isInteger(object) ? TYPE_INTEGER :
-        *(uint32*)(vm->heapBase + object + HEADER_TYPE);
+        *(uint32*)(vm->heapBase + sizeFromRef(object) + HEADER_TYPE);
 }
 
 size_t HeapGetObjectSize(VM *vm, objectref object)
 {
     checkObject(vm, object);
-    return *(uint32*)(vm->heapBase + object + HEADER_SIZE);
+    return *(uint32*)(vm->heapBase + sizeFromRef(object) + HEADER_SIZE);
 }
 
 const byte *HeapGetObjectData(VM *vm, objectref object)
 {
     checkObject(vm, object);
-    return vm->heapBase + object + OBJECT_OVERHEAD;
+    return vm->heapBase + sizeFromRef(object) + OBJECT_OVERHEAD;
 }
 
 byte *HeapAlloc(VM *vm, ObjectType type, size_t size)
@@ -189,10 +183,11 @@ objectref HeapFinishAlloc(VM *vm, byte *objectData)
 }
 
 
-objectref HeapBoxInteger(VM *vm unused, int value)
+objectref HeapBoxInteger(VM *vm, int value)
 {
-    assert(value == getInteger((objectref)value | INTEGER_LITERAL_MARK));
-    return (objectref)value | INTEGER_LITERAL_MARK;
+    assert(value == HeapUnboxInteger(vm, refFromUint((uint)value |
+                                                     INTEGER_LITERAL_MARK)));
+    return refFromUint((uint)value | INTEGER_LITERAL_MARK);
 }
 
 objectref HeapBoxSize(VM *vm unused, size_t value)
@@ -203,7 +198,8 @@ objectref HeapBoxSize(VM *vm unused, size_t value)
 
 int HeapUnboxInteger(VM *vm unused, objectref value)
 {
-    return getInteger(value);
+    assert(isInteger(value));
+    return ((signed)uintFromRef(value) << 1) >> 1;
 }
 
 
@@ -227,7 +223,7 @@ objectref HeapCreateString(VM *vm, const char *restrict string, size_t length)
 
 objectref HeapCreatePooledString(VM *vm, stringref string)
 {
-    return boxReference(vm, TYPE_STRING_POOLED, (uint)string);
+    return boxReference(vm, TYPE_STRING_POOLED, string);
 }
 
 boolean HeapIsString(VM *vm, objectref object)
@@ -261,7 +257,7 @@ const char *HeapGetString(VM *vm, objectref object)
 
     case TYPE_STRING_POOLED:
         return StringPoolGetString(
-            (stringref)unboxReference(vm, TYPE_STRING_POOLED, object));
+            unboxReference(vm, TYPE_STRING_POOLED, object));
 
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
@@ -286,7 +282,7 @@ size_t HeapGetStringLength(VM *vm, objectref object)
 
     case TYPE_STRING_POOLED:
         return StringPoolGetStringLength(
-            (stringref)unboxReference(vm, TYPE_STRING_POOLED, object));
+            unboxReference(vm, TYPE_STRING_POOLED, object));
 
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
@@ -305,12 +301,12 @@ size_t HeapGetStringLength(VM *vm, objectref object)
 
 objectref HeapCreateFile(VM *vm, fileref file)
 {
-    return boxReference(vm, TYPE_FILE, (uint)file);
+    return boxReference(vm, TYPE_FILE, file);
 }
 
 fileref HeapGetFile(VM *vm, objectref object)
 {
-    return (fileref)unboxReference(vm, TYPE_FILE, object);
+    return unboxReference(vm, TYPE_FILE, object);
 }
 
 
@@ -490,7 +486,7 @@ objectref HeapCreateFilesetGlob(VM *vm, const char *pattern)
 {
     byte *restrict oldFree = vm->heapFree;
     byte *restrict objectData;
-    uint *restrict files;
+    ref_t *restrict files;
     objectref object;
     size_t count;
 
@@ -499,7 +495,7 @@ objectref HeapCreateFilesetGlob(VM *vm, const char *pattern)
     {
         return 0;
     }
-    files = (uint*)objectData;
+    files = (ref_t*)objectData;
     vm->error = FileIndexTraverseGlob(pattern, addFile, vm);
     if (vm->error)
     {
@@ -514,7 +510,7 @@ objectref HeapCreateFilesetGlob(VM *vm, const char *pattern)
                                (uint32)(vm->heapFree - objectData));
     for (count = HeapCollectionSize(vm, object); count; count--, files++)
     {
-        *files = (uint)HeapCreateFile(vm, *(fileref*)files);
+        *files = HeapCreateFile(vm, *files);
         if (!*files)
         {
             return 0;

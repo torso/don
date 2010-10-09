@@ -32,12 +32,13 @@ void NamespaceDispose(void)
 
 ErrorCode NamespaceAddField(stringref name, fieldref field)
 {
-    return IntHashMapAdd(&fieldIndex, (uint)name, (uint)field);
+    return IntHashMapAdd(&fieldIndex, uintFromRef(name), uintFromRef(field));
 }
 
 ErrorCode NamespaceAddFunction(stringref name, functionref function)
 {
-    return IntHashMapAdd(&functionIndex, (uint)name, (uint)function);
+    return IntHashMapAdd(&functionIndex,
+                         uintFromRef(name), uintFromRef(function));
 }
 
 ErrorCode NamespaceAddTarget(stringref name, functionref target)
@@ -47,21 +48,21 @@ ErrorCode NamespaceAddTarget(stringref name, functionref target)
     {
         return error;
     }
-    return IntHashMapAdd(&targetIndex, (uint)name, (uint)target);
+    return IntHashMapAdd(&targetIndex, uintFromRef(name), uintFromRef(target));
 }
 
 
 fieldref NamespaceGetField(stringref name)
 {
-    return (fieldref)IntHashMapGet(&fieldIndex, (uint)name);
+    return refFromUint(IntHashMapGet(&fieldIndex, uintFromRef(name)));
 }
 
 functionref NamespaceGetFunction(stringref name)
 {
-    return (functionref)IntHashMapGet(&functionIndex, (uint)name);
+    return refFromUint(IntHashMapGet(&functionIndex, uintFromRef(name)));
 }
 
 functionref NamespaceGetTarget(stringref name)
 {
-    return (functionref)IntHashMapGet(&targetIndex, (uint)name);
+    return refFromUint(IntHashMapGet(&targetIndex, uintFromRef(name)));
 }

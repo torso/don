@@ -24,9 +24,14 @@ extern nonnull ErrorCode IntVectorAppendAll(const intvector *restrict src,
 extern nonnull void IntVectorMove(intvector *v, size_t src, size_t dst,
                                   size_t size);
 extern nonnull ErrorCode IntVectorAdd(intvector *v, uint value);
+extern nonnull ErrorCode IntVectorAddRef(intvector *v, ref_t value);
 extern nonnull pure uint IntVectorGet(const intvector *v, size_t index);
+extern nonnull ref_t IntVectorGetRef(const intvector *v, size_t index);
 extern nonnull pure const uint *IntVectorGetPointer(const intvector *v,
                                                     size_t index);
 extern nonnull pure uint IntVectorPeek(const intvector *v);
+extern nonnull ref_t IntVectorPeekRef(const intvector *v);
 extern nonnull uint IntVectorPop(intvector *v);
+extern nonnull ref_t IntVectorPopRef(intvector *v);
 extern nonnull void IntVectorSet(intvector *v, size_t index, uint value);
+extern nonnull void IntVectorSetRef(intvector *v, size_t index, ref_t value);

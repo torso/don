@@ -64,7 +64,7 @@ static uint16 getLocalIndex(ParseState *state, stringref name)
 {
     uint local;
     ParseStateCheck(state);
-    local = IntHashMapGet(&state->locals, (uint)name);
+    local = IntHashMapGet(&state->locals, uintFromRef(name));
     if (!local)
     {
         local = (uint)getFreeLocalIndex(state) + 1;
@@ -72,7 +72,7 @@ static uint16 getLocalIndex(ParseState *state, stringref name)
         {
             return 0;
         }
-        state->error = IntHashMapAdd(&state->locals, (uint)name, local);
+        state->error = IntHashMapAdd(&state->locals, uintFromRef(name), local);
     }
     return (uint16)(local - 1);
 }
@@ -425,7 +425,7 @@ boolean ParseStateWriteStringLiteral(ParseState *state, stringref value)
     return !ParseStateSetError(
         state, ByteVectorAdd(state->bytecode, OP_STRING)) &&
         !ParseStateSetError(
-            state, ByteVectorAddUint(state->bytecode, (uint)value));
+            state, ByteVectorAddRef(state->bytecode, value));
 }
 
 boolean ParseStateWriteList(ParseState *state, uint size)
@@ -440,7 +440,7 @@ boolean ParseStateWriteFile(ParseState *state, stringref filename)
     ParseStateCheck(state);
     return ParseStateWriteInstruction(state, OP_FILE) &&
         !ParseStateSetError(state,
-                            ByteVectorAddUint(state->bytecode, (uint)filename));
+                            ByteVectorAddRef(state->bytecode, filename));
 }
 
 boolean ParseStateWriteFileset(ParseState *state, stringref pattern)
@@ -448,7 +448,7 @@ boolean ParseStateWriteFileset(ParseState *state, stringref pattern)
     ParseStateCheck(state);
     return ParseStateWriteInstruction(state, OP_FILESET) &&
         !ParseStateSetError(state,
-                            ByteVectorAddUint(state->bytecode, (uint)pattern));
+                            ByteVectorAddRef(state->bytecode, pattern));
 }
 
 boolean ParseStateWriteBeginCondition(ParseState *state)
@@ -532,7 +532,8 @@ boolean ParseStateWriteInvocation(ParseState *state,
         if (ParseStateSetError(
                 state, ByteVectorAdd(state->bytecode, OP_INVOKE_NATIVE)) ||
             ParseStateSetError(
-                state, ByteVectorAdd(state->bytecode, (byte)nativeFunction)))
+                state, ByteVectorAdd(state->bytecode,
+                                     (byte)uintFromRef(nativeFunction))))
         {
             return false;
         }
@@ -542,7 +543,7 @@ boolean ParseStateWriteInvocation(ParseState *state,
         if (ParseStateSetError(
                 state, ByteVectorAdd(state->bytecode, OP_INVOKE)) ||
             ParseStateSetError(
-                state, ByteVectorAddUint(state->bytecode, (uint)function)))
+                state, ByteVectorAddRef(state->bytecode, function)))
         {
             return false;
         }

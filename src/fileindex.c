@@ -34,14 +34,14 @@ static size_t cwdLength;
 static void checkFile(fileref file)
 {
     assert(file);
-    assert(file <= sizeof(fileIndex) / sizeof(fileIndex[0]));
-    assert(fileIndex[file - 1].refCount);
+    assert(sizeFromRef(file) <= sizeof(fileIndex) / sizeof(fileIndex[0]));
+    assert(fileIndex[sizeFromRef(file) - 1].refCount);
 }
 
 static FileEntry *getFile(fileref file)
 {
     checkFile(file);
-    return &fileIndex[file - 1];
+    return &fileIndex[sizeFromRef(file) - 1];
 }
 
 static char *copyString(const char *restrict string, size_t length)
@@ -129,13 +129,13 @@ ErrorCode FileIndexInit(void)
 
 void FileIndexDispose(void)
 {
-    uint i = sizeof(fileIndex) / sizeof(fileIndex[0]);
+    size_t i = sizeof(fileIndex) / sizeof(fileIndex[0]);
     while (--i)
     {
         if (fileIndex[i].refCount)
         {
             fileIndex[i].refCount = 1;
-            FileIndexClose(i + 1);
+            FileIndexClose(refFromSize(i + 1));
         }
     }
     free(cwd);
@@ -144,7 +144,7 @@ void FileIndexDispose(void)
 
 static fileref addFile(const char *filename, boolean filenameOwner)
 {
-    uint file;
+    size_t file;
 
     if (!filename)
     {
@@ -167,7 +167,7 @@ static fileref addFile(const char *filename, boolean filenameOwner)
     fileIndex[file].data = null;
     fileIndex[file].size = 0;
     fileIndex[file].refCount = 1;
-    return file + 1;
+    return refFromSize(file + 1);
 }
 
 fileref FileIndexAdd(const char *filename, size_t length)
@@ -177,7 +177,7 @@ fileref FileIndexAdd(const char *filename, size_t length)
 
 fileref FileIndexOpen(const char *filename)
 {
-    uint file;
+    size_t file;
     FILE *f;
     int status;
     long l;
@@ -217,7 +217,7 @@ fileref FileIndexOpen(const char *filename)
     fileIndex[file].data = data;
     fileIndex[file].size = size;
     fileIndex[file].refCount = 1;
-    return file + 1;
+    return refFromSize(file + 1);
 }
 
 void FileIndexClose(fileref file)

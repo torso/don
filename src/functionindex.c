@@ -30,21 +30,25 @@ static intvector localNames;
 static functionref currentFunction;
 
 
-static uint getFunctionInfoSize(functionref function)
+static size_t getFunctionInfoSize(functionref function)
 {
-    return (uint)sizeof(FunctionInfo) +
+    return sizeof(FunctionInfo) +
         ((FunctionInfo*)ByteVectorGetPointer(
-            &functionTable, function))->parameterCount * (uint)sizeof(int);
+            &functionTable, sizeFromRef(function)))->parameterCount *
+        (uint)sizeof(ref_t);
 }
 
 static boolean isValidFunction(functionref function)
 {
-    uint f;
-    if (function + sizeof(FunctionInfo) > ByteVectorSize(&functionTable))
+    functionref f;
+    if (sizeFromRef(function) + sizeof(FunctionInfo) >
+        ByteVectorSize(&functionTable))
     {
         return false;
     }
-    for (f = FunctionIndexGetFirstFunction(); f; f += getFunctionInfoSize(f))
+    for (f = FunctionIndexGetFirstFunction();
+         f;
+         f = refFromSize(sizeFromRef(f) + getFunctionInfoSize(f)))
     {
         if (f == function)
         {
@@ -57,7 +61,8 @@ static boolean isValidFunction(functionref function)
 static FunctionInfo *getFunctionInfo(functionref function)
 {
     assert(isValidFunction(function));
-    return (FunctionInfo*)ByteVectorGetPointer(&functionTable, function);
+    return (FunctionInfo*)ByteVectorGetPointer(&functionTable,
+                                               sizeFromRef(function));
 }
 
 
@@ -89,7 +94,7 @@ void FunctionIndexDispose(void)
 ErrorCode FunctionIndexBeginFunction(stringref name)
 {
     ErrorCode error;
-    currentFunction = (functionref)ByteVectorSize(&functionTable);
+    currentFunction = refFromSize(ByteVectorSize(&functionTable));
     error = ByteVectorGrowZero(&functionTable, sizeof(FunctionInfo));
     if (error)
     {
@@ -109,7 +114,7 @@ ErrorCode FunctionIndexAddParameter(stringref name, boolean required)
     {
         info->minArgumentCount++;
     }
-    return ByteVectorAddUint(&functionTable, (uint)name);
+    return ByteVectorAddRef(&functionTable, name);
 }
 
 functionref FunctionIndexFinishFunction(fileref file, uint line, uint fileOffset)
@@ -128,14 +133,15 @@ functionref FunctionIndexGetFirstFunction(void)
     {
         return 0;
     }
-    return sizeof(int);
+    return refFromSize(sizeof(int));
 }
 
 functionref FunctionIndexGetNextFunction(functionref function)
 {
-    function = (functionref)((uint)function + getFunctionInfoSize(function));
-    assert((uint)function <= ByteVectorSize(&functionTable));
-    if ((uint)function == ByteVectorSize(&functionTable))
+    function = refFromSize(sizeFromRef(function) +
+                           getFunctionInfoSize(function));
+    assert(sizeFromRef(function) <= ByteVectorSize(&functionTable));
+    if (sizeFromRef(function) == ByteVectorSize(&functionTable))
     {
         return 0;
     }
@@ -202,8 +208,8 @@ uint FunctionIndexGetParameterCount(functionref function)
 const stringref *FunctionIndexGetParameterNames(functionref function)
 {
     assert(isValidFunction(function));
-    return (stringref*)ByteVectorGetPointer(&functionTable,
-                                            function + sizeof(FunctionInfo));
+    return (stringref*)ByteVectorGetPointer(
+        &functionTable, sizeFromRef(function) + sizeof(FunctionInfo));
 }
 
 uint FunctionIndexGetMinimumArgumentCount(functionref function)
@@ -219,8 +225,8 @@ uint FunctionIndexGetLocalsCount(functionref function)
 stringref FunctionIndexGetLocalName(functionref function, uint16 local)
 {
     assert(local < FunctionIndexGetLocalsCount(function));
-    return (stringref)IntVectorGet(&localNames,
-                                   getFunctionInfo(function)->localNamesOffset);
+    return IntVectorGetRef(&localNames,
+                           getFunctionInfo(function)->localNamesOffset);
 }
 
 ErrorCode FunctionIndexSetLocals(functionref function, const inthashmap *locals,

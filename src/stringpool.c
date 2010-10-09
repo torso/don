@@ -44,10 +44,10 @@ static uint getSlotHash(const uint *t, uint slot)
     return t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_HASH];
 }
 
-static uint getSlotValue(const uint *t, uint slot)
+static stringref getSlotValue(const uint *t, uint slot)
 {
     checkSlot(t, slot);
-    return t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE];
+    return refFromUint(t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE]);
 }
 
 static boolean isSlotEmpty(const uint *t, uint slot)
@@ -61,9 +61,8 @@ static boolean slotContainsString(const uint *t, uint slot, uint hash,
 {
     checkTable(t);
     return getSlotHash(t, slot) == hash &&
-        StringPoolGetStringLength((stringref)getSlotValue(t, slot)) == length &&
-        memcmp(&stringData[getSlotValue(t, slot)],
-               string, length) == 0;
+        StringPoolGetStringLength(getSlotValue(t, slot)) == length &&
+        memcmp(StringPoolGetString(getSlotValue(t, slot)), string, length) == 0;
 }
 
 ErrorCode StringPoolInit(void)
@@ -120,7 +119,7 @@ stringref StringPoolAdd2(const char *token, size_t length)
     {
         if (slotContainsString(cachedTable, slot, hash, token, length))
         {
-            return (stringref)getSlotValue(cachedTable, slot);
+            return getSlotValue(cachedTable, slot);
         }
         slot++;
         if (slot == getTableSize(cachedTable))
@@ -129,10 +128,10 @@ stringref StringPoolAdd2(const char *token, size_t length)
         }
     }
     stringData[dataSize++] = (char)length;
-    ref = (stringref)dataSize;
+    ref = refFromSize(dataSize);
     memcpy(&stringData[dataSize], token, length);
     stringData[dataSize + length] = 0;
-    table[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE] = (uint)ref;
+    table[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE] = uintFromRef(ref);
     table[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_HASH] = hash;
     dataSize += length + 1;
     return ref;
@@ -143,7 +142,7 @@ const char *StringPoolGetString(stringref ref)
     assert(stringData);
     assert(ref);
     assert((size_t)ref < dataSize);
-    return &stringData[ref];
+    return &stringData[sizeFromRef(ref)];
 }
 
 size_t StringPoolGetStringLength(stringref ref)
@@ -151,5 +150,5 @@ size_t StringPoolGetStringLength(stringref ref)
     assert(stringData);
     assert(ref);
     assert((size_t)ref < dataSize);
-    return (size_t)stringData[ref - 1];
+    return (size_t)stringData[sizeFromRef(ref) - 1];
 }

@@ -202,7 +202,11 @@ static stringref readIdentifier(ParseState *state)
 
 static stringref peekReadIdentifier(ParseState *state)
 {
-    return peekIdentifier(state) ? readIdentifier(state) : 0;
+    if (peekIdentifier(state))
+    {
+        return readIdentifier(state);
+    }
+    return 0;
 }
 
 static stringref readVariableName(ParseState *state)

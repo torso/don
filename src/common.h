@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdint.h>
 
 typedef signed char int8;
 typedef unsigned char uint8;
@@ -53,13 +54,19 @@ typedef enum
     ERROR_FAIL
 } ErrorCode;
 
-
 typedef struct bytevector bytevector;
 typedef struct inthashmap inthashmap;
 typedef struct intvector intvector;
 typedef struct VM VM;
-typedef uint nativefunctionref;
-typedef uint stringref;
-typedef uint fieldref;
-typedef uint fileref;
-typedef uint functionref;
+
+typedef uint ref_t;
+typedef ref_t nativefunctionref;
+typedef ref_t stringref;
+typedef ref_t fieldref;
+typedef ref_t fileref;
+typedef ref_t functionref;
+
+extern pure ref_t refFromSize(size_t i);
+extern pure ref_t refFromUint(uint i);
+extern pure size_t sizeFromRef(ref_t r);
+extern pure uint uintFromRef(ref_t r);

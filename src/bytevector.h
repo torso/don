@@ -32,6 +32,7 @@ extern nonnull ErrorCode ByteVectorAddPackInt(bytevector *v, int value);
 extern nonnull ErrorCode ByteVectorAddPackUint(bytevector *v, uint value);
 extern nonnull ErrorCode ByteVectorAddUnpackedInt(bytevector *v, int value);
 extern nonnull ErrorCode ByteVectorAddUnpackedUint(bytevector *v, uint value);
+extern nonnull ErrorCode ByteVectorAddRef(bytevector *v, ref_t value);
 extern nonnull ErrorCode ByteVectorAddData(bytevector *v,
                                            const byte *value, size_t size);
 extern nonnull pure byte ByteVectorGet(const bytevector *v, size_t index);

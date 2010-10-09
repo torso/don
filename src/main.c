@@ -11,6 +11,29 @@
 #include "parser.h"
 #include "stringpool.h"
 
+
+ref_t refFromUint(uint i)
+{
+    return (ref_t)(uintptr_t)i;
+}
+
+ref_t refFromSize(size_t i)
+{
+    assert(i <= MAX_UINT);
+    return refFromUint((uint)i);
+}
+
+size_t sizeFromRef(ref_t r)
+{
+    return uintFromRef(r);
+}
+
+uint uintFromRef(ref_t r)
+{
+    return (uint)(uintptr_t)r;
+}
+
+
 #ifdef DEBUG
 #include <execinfo.h>
 #include <signal.h>
@@ -137,7 +160,7 @@ int main(int argc, const char **argv)
         {
             name = StringPoolAdd(argv[i]);
             if (handleError(name ? NO_ERROR : OUT_OF_MEMORY) ||
-                handleError(IntVectorAdd(&targets, (uint)name)))
+                handleError(IntVectorAddRef(&targets, name)))
             {
                 return 1;
             }
@@ -151,7 +174,7 @@ int main(int argc, const char **argv)
     {
         name = StringPoolAdd("default");
         if (handleError(name ? NO_ERROR : OUT_OF_MEMORY) ||
-            handleError(IntVectorAdd(&targets, (uint)name)))
+            handleError(IntVectorAddRef(&targets, name)))
         {
             return 1;
         }
@@ -269,7 +292,7 @@ int main(int argc, const char **argv)
 
     for (j = 0; j < IntVectorSize(&targets); j++)
     {
-        name = (stringref)IntVectorGet(&targets, j);
+        name = IntVectorGetRef(&targets, j);
         if (!NamespaceGetTarget(name))
         {
             printf("'%s' is not a target.\n", StringPoolGetString(name));
@@ -286,7 +309,7 @@ int main(int argc, const char **argv)
 
     for (j = 0; j < IntVectorSize(&targets); j++)
     {
-        function = NamespaceGetTarget((stringref)IntVectorGet(&targets, j));
+        function = NamespaceGetTarget(IntVectorGetRef(&targets, j));
         assert(function);
         if (handleError(InterpreterExecute(bytecode, function)))
         {

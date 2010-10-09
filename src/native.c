@@ -84,8 +84,8 @@ static void addFunctionInfo(const char *name,
 static pure const FunctionInfo *getFunctionInfo(nativefunctionref function)
 {
     assert(function);
-    assert(function < NATIVE_FUNCTION_COUNT);
-    return (FunctionInfo*)&functionInfo[functionIndex[function]];
+    assert(uintFromRef(function) < NATIVE_FUNCTION_COUNT);
+    return (FunctionInfo*)&functionInfo[functionIndex[sizeFromRef(function)]];
 }
 
 static char **createStringArray(VM *vm, objectref collection)
@@ -406,12 +406,12 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
 
 nativefunctionref NativeFindFunction(stringref name)
 {
-    nativefunctionref i;
+    uint i;
     for (i = 1; i < NATIVE_FUNCTION_COUNT; i++)
     {
-        if (NativeGetName(i) == name)
+        if (NativeGetName(refFromUint(i)) == name)
         {
-            return i;
+            return refFromUint(i);
         }
     }
     return 0;

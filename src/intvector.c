@@ -122,10 +122,20 @@ ErrorCode IntVectorAdd(intvector *v, uint value)
     return NO_ERROR;
 }
 
+ErrorCode IntVectorAddRef(intvector *v, ref_t value)
+{
+    return IntVectorAdd(v, uintFromRef(value));
+}
+
 uint IntVectorGet(const intvector *v, size_t index)
 {
     checkIntVectorIndex(v, index);
     return v->data[index];
+}
+
+ref_t IntVectorGetRef(const intvector *v, size_t index)
+{
+    return refFromUint(IntVectorGet(v, index));
 }
 
 const uint *IntVectorGetPointer(const intvector *v, size_t index)
@@ -140,6 +150,11 @@ uint IntVectorPeek(const intvector *v)
     return v->data[v->size - 1];
 }
 
+ref_t IntVectorPeekRef(const intvector *v)
+{
+    return refFromUint(IntVectorPeek(v));
+}
+
 uint IntVectorPop(intvector *v)
 {
     checkIntVectorIndex(v, 0);
@@ -147,8 +162,18 @@ uint IntVectorPop(intvector *v)
     return v->data[v->size];
 }
 
+ref_t IntVectorPopRef(intvector *v)
+{
+    return refFromUint(IntVectorPop(v));
+}
+
 void IntVectorSet(intvector *v, size_t index, uint value)
 {
     checkIntVectorIndex(v, index);
     v->data[index] = value;
+}
+
+void IntVectorSetRef(intvector *v, size_t index, ref_t value)
+{
+    IntVectorSet(v, index, uintFromRef(value));
 }

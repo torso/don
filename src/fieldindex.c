@@ -18,7 +18,7 @@ uint fieldCount;
 
 static FieldInfo *getFieldInfo(fieldref field)
 {
-    return (FieldInfo*)ByteVectorGetPointer(&fieldTable, field);
+    return (FieldInfo*)ByteVectorGetPointer(&fieldTable, sizeFromRef(field));
 }
 
 
@@ -105,13 +105,13 @@ uint FieldIndexGetCount(void)
 
 fieldref FieldIndexGetFirstField(void)
 {
-    return fieldCount ? sizeof(int) : 0;
+    return refFromUint(fieldCount ? sizeof(int) : 0);
 }
 
 fieldref FieldIndexGetNextField(fieldref field)
 {
-    field += (uint)sizeof(FieldInfo);
-    if (field == ByteVectorSize(&fieldTable))
+    field = refFromSize(sizeFromRef(field) + sizeof(FieldInfo));
+    if (field == refFromSize(ByteVectorSize(&fieldTable)))
     {
         return 0;
     }
@@ -120,7 +120,7 @@ fieldref FieldIndexGetNextField(fieldref field)
 
 uint FieldIndexGetIndex(fieldref field)
 {
-    return (field - (uint)sizeof(int)) / (uint)sizeof(FieldInfo);
+    return (uint)(sizeFromRef(field) - sizeof(int)) / (uint)sizeof(FieldInfo);
 }
 
 fileref FieldIndexGetFile(fieldref field)

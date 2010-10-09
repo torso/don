@@ -28,33 +28,37 @@ static boolean setError(VM *vm, ErrorCode error)
 
 objectref InterpreterPeek(VM *vm)
 {
-    return (objectref)IntVectorPeek(&vm->stack);
+    return IntVectorPeekRef(&vm->stack);
 }
 
 objectref InterpreterPop(VM *vm)
 {
-    return (objectref)IntVectorPop(&vm->stack);
+    return IntVectorPopRef(&vm->stack);
 }
 
 boolean InterpreterPush(VM *vm, objectref value)
 {
-    return !setError(vm, IntVectorAdd(&vm->stack, (uint)value));
+    return !setError(vm, IntVectorAddRef(&vm->stack, value));
 }
 
 static boolean pushBoolean(VM *vm, boolean value)
 {
-    return push(vm, value ? vm->booleanTrue : vm->booleanFalse);
+    if (value)
+    {
+        return push(vm, vm->booleanTrue);
+    }
+    return push(vm, vm->booleanFalse);
 }
 
 
 static objectref getLocal(VM *vm, uint bp, uint16 local)
 {
-    return (objectref)IntVectorGet(&vm->stack, bp + local);
+    return IntVectorGetRef(&vm->stack, bp + local);
 }
 
 static void storeLocal(VM *vm, uint bp, uint16 local, objectref value)
 {
-    IntVectorSet(&vm->stack, bp + local, (uint)value);
+    IntVectorSetRef(&vm->stack, bp + local, value);
 }
 
 
@@ -385,7 +389,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_STRING:
-            value = HeapCreatePooledString(vm, (stringref)BytecodeReadUint(&ip));
+            value = HeapCreatePooledString(vm, BytecodeReadRef(&ip));
             if (!value)
             {
                 return;
@@ -416,7 +420,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_FILE:
-            string = (stringref)BytecodeReadUint(&ip);
+            string = BytecodeReadRef(&ip);
             file = FileIndexAdd(StringPoolGetString(string),
                                  StringPoolGetStringLength(string));
             if (!file)
@@ -434,7 +438,7 @@ static void execute(VM *vm, functionref target)
 
         case OP_FILESET:
             value = HeapCreateFilesetGlob(
-                vm, StringPoolGetString((stringref)BytecodeReadUint(&ip)));
+                vm, StringPoolGetString(BytecodeReadRef(&ip)));
             if (!value)
             {
                 return;
@@ -701,7 +705,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_INVOKE:
-            function = (functionref)BytecodeReadUint(&ip);
+            function = BytecodeReadRef(&ip);
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == FunctionIndexGetParameterCount(function)); /* TODO */
             returnValueCount = *ip++;
@@ -710,7 +714,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_INVOKE_NATIVE:
-            nativeFunction = (nativefunctionref)*ip++;
+            nativeFunction = refFromUint(*ip++);
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == NativeGetParameterCount(nativeFunction)); /* TODO */
             vm->error = NativeInvoke(vm, nativeFunction, *ip++);

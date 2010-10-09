@@ -20,14 +20,21 @@ uint16 BytecodeReadUint16(const byte **bytecode)
     return (uint16)((value << 16) + *(*bytecode)++);
 }
 
+ref_t BytecodeReadRef(const byte **bytecode)
+{
+    return refFromUint(BytecodeReadUint(bytecode));
+}
+
 static const byte *disassemble(const byte *bytecode, const byte *base,
                                const byte **limit)
 {
     uint ip = (uint)(bytecode - base);
-    uint function;
+    functionref function;
+    nativefunctionref nativeFunction;
     uint arguments;
     uint value;
     uint value2;
+    ref_t ref;
     uint controlFlowNextInstruction = true;
 
     switch ((Instruction)*bytecode++)
@@ -49,9 +56,8 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         break;
 
     case OP_STRING:
-        value = BytecodeReadUint(&bytecode);
-        printf(" %u: push string %u \"%s\"\n", ip, value,
-               StringPoolGetString((stringref)value));
+        ref = BytecodeReadRef(&bytecode);
+        printf(" %u: push string \"%s\"\n", ip, StringPoolGetString(ref));
         break;
 
     case OP_EMPTY_LIST:
@@ -64,12 +70,12 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_FILE:
         printf(" %u: file %s\n", ip,
-               StringPoolGetString((stringref)BytecodeReadUint(&bytecode)));
+               StringPoolGetString(BytecodeReadRef(&bytecode)));
         break;
 
     case OP_FILESET:
         printf(" %u: fileset %s\n", ip,
-               StringPoolGetString((stringref)BytecodeReadUint(&bytecode)));
+               StringPoolGetString(BytecodeReadRef(&bytecode)));
         break;
 
     case OP_POP:
@@ -208,22 +214,22 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         break;
 
     case OP_INVOKE:
-        function = BytecodeReadUint(&bytecode);
+        function = BytecodeReadRef(&bytecode);
         arguments = BytecodeReadUint16(&bytecode);
         value = *bytecode++;
-        printf(" %u: invoke %u \"%s\" arguments: %u return: %u\n",
-               ip, function,
-               StringPoolGetString(FunctionIndexGetName((functionref)function)),
+        printf(" %u: invoke \"%s\" arguments: %u return: %u\n",
+               ip,
+               StringPoolGetString(FunctionIndexGetName(function)),
                arguments, value);
         break;
 
     case OP_INVOKE_NATIVE:
-        function = *bytecode++;
+        nativeFunction = refFromUint(*bytecode++);
         arguments = BytecodeReadUint16(&bytecode);
         value = *bytecode++;
-        printf(" %u: invoke native %u \"%s\" arguments: %u return: %u\n",
-               ip, function,
-               StringPoolGetString(NativeGetName((nativefunctionref)function)),
+        printf(" %u: invoke native \"%s\" arguments: %u return: %u\n",
+               ip,
+               StringPoolGetString(NativeGetName(nativeFunction)),
                arguments, value);
         break;
 

@@ -1,7 +1,7 @@
 #include "bytevector.h"
 #include "intvector.h"
 
-typedef uint objectref;
+typedef ref_t objectref;
 
 struct VM
 {
