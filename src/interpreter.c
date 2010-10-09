@@ -69,68 +69,6 @@ static objectref createIterator(VM *vm, objectref object)
     return HeapFinishAlloc(vm, (byte*)iter);
 }
 
-static boolean equals(VM *vm, objectref value1, objectref value2)
-{
-    Iterator iter1;
-    Iterator iter2;
-    size_t size1;
-    size_t size2;
-    boolean success;
-
-    if (value1 == value2)
-    {
-        return true;
-    }
-    switch (HeapGetObjectType(vm, value1))
-    {
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_FILE:
-    case TYPE_ITERATOR:
-        return false;
-
-    case TYPE_STRING:
-    case TYPE_STRING_POOLED:
-        size1 = HeapStringLength(vm, value1);
-        size2 = HeapStringLength(vm, value2);
-        return size1 == size2 &&
-            !memcmp(HeapGetString(vm, value1),
-                    HeapGetString(vm, value2), size1);
-
-    case TYPE_EMPTY_LIST:
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-        if (!HeapIsCollection(vm, value2) ||
-            HeapCollectionSize(vm, value1) !=
-            HeapCollectionSize(vm, value2))
-        {
-            return false;
-        }
-        HeapIteratorInit(vm, &iter1, value1, false);
-        HeapIteratorInit(vm, &iter2, value2, false);
-        while (HeapIteratorNext(&iter1, &value1))
-        {
-            success = HeapIteratorNext(&iter2, &value2);
-            assert(success);
-            if (!equals(vm, value1, value2))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-    assert(false);
-    return false;
-}
-
-static int compare(VM *vm, objectref value1, objectref value2)
-{
-    int i1 = HeapUnboxInteger(vm, value1);
-    int i2 = HeapUnboxInteger(vm, value2);
-    return i1 == i2 ? 0 : i1 < i2 ? -1 : 1;
-}
-
 bytevector *InterpreterGetPipeOut(VM *vm)
 {
     return vm->pipeOut;
@@ -343,35 +281,35 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_EQUALS:
-            pushBoolean(vm, equals(vm, pop(vm), pop(vm)));
+            pushBoolean(vm, HeapEquals(vm, pop(vm), pop(vm)));
             break;
 
         case OP_NOT_EQUALS:
-            pushBoolean(vm, !equals(vm, pop(vm), pop(vm)));
+            pushBoolean(vm, !HeapEquals(vm, pop(vm), pop(vm)));
             break;
 
         case OP_LESS_EQUALS:
             value = pop(vm);
             value2 = pop(vm);
-            pushBoolean(vm, compare(vm, value2, value) <= 0);
+            pushBoolean(vm, HeapCompare(vm, value2, value) <= 0);
             break;
 
         case OP_GREATER_EQUALS:
             value = pop(vm);
             value2 = pop(vm);
-            pushBoolean(vm, compare(vm, value2, value) >= 0);
+            pushBoolean(vm, HeapCompare(vm, value2, value) >= 0);
             break;
 
         case OP_LESS:
             value = pop(vm);
             value2 = pop(vm);
-            pushBoolean(vm, compare(vm, value2, value) < 0);
+            pushBoolean(vm, HeapCompare(vm, value2, value) < 0);
             break;
 
         case OP_GREATER:
             value = pop(vm);
             value2 = pop(vm);
-            pushBoolean(vm, compare(vm, value2, value) > 0);
+            pushBoolean(vm, HeapCompare(vm, value2, value) > 0);
             break;
 
         case OP_NOT:

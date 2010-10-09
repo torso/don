@@ -51,6 +51,8 @@ extern nonnull void HeapDispose(VM *vm);
 extern nonnull ObjectType HeapGetObjectType(VM *vm, objectref object);
 extern nonnull size_t HeapGetObjectSize(VM *vm, objectref object);
 extern nonnull const byte *HeapGetObjectData(VM *vm, objectref object);
+extern nonnull boolean HeapEquals(VM *vm, objectref object1, objectref object2);
+extern nonnull int HeapCompare(VM *vm, objectref object1, objectref object2);
 
 extern nonnull byte *HeapAlloc(VM *vm, ObjectType type, size_t size);
 extern nonnull objectref HeapFinishAlloc(VM *vm, byte *objectData);
@@ -59,7 +61,7 @@ extern nonnull objectref HeapFinishAlloc(VM *vm, byte *objectData);
 
 extern nonnull objectref HeapBoxInteger(VM *vm, int value);
 extern nonnull objectref HeapBoxSize(VM *vm, size_t value);
-extern nonnull int HeapUnboxInteger(VM *vm, objectref value);
+extern nonnull int HeapUnboxInteger(VM *vm, objectref object);
 
 
 
@@ -80,7 +82,7 @@ extern nonnull size_t HeapStringLength(VM *vm, objectref object);
   be exactly as long as HeapStringLength returned. The string will not be zero
   terminated. A pointer just past the end of the written string is returned.
 */
-extern nonnull char *HeapWriteString(VM *restrict vm, objectref value,
+extern nonnull char *HeapWriteString(VM *restrict vm, objectref object,
                                      char *restrict dst);
 
 

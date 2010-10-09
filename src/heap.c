@@ -19,9 +19,9 @@ static void checkObject(VM *vm, objectref object)
     assert(object);
 }
 
-static pure boolean isInteger(objectref value)
+static pure boolean isInteger(objectref object)
 {
-    return (value & INTEGER_LITERAL_MARK) != 0;
+    return (object & INTEGER_LITERAL_MARK) != 0;
 }
 
 static objectref boxReference(VM *vm, ObjectType type, ref_t value)
@@ -150,6 +150,7 @@ void HeapDispose(VM *vm)
     free(vm->heapBase);
 }
 
+
 ObjectType HeapGetObjectType(VM *vm, objectref object)
 {
     checkObject(vm, object);
@@ -168,6 +169,70 @@ const byte *HeapGetObjectData(VM *vm, objectref object)
     checkObject(vm, object);
     return vm->heapBase + sizeFromRef(object) + OBJECT_OVERHEAD;
 }
+
+
+boolean HeapEquals(VM *vm, objectref object1, objectref object2)
+{
+    Iterator iter1;
+    Iterator iter2;
+    size_t size1;
+    size_t size2;
+    boolean success;
+
+    if (object1 == object2)
+    {
+        return true;
+    }
+    switch (HeapGetObjectType(vm, object1))
+    {
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_FILE:
+    case TYPE_ITERATOR:
+        return false;
+
+    case TYPE_STRING:
+    case TYPE_STRING_POOLED:
+        size1 = HeapStringLength(vm, object1);
+        size2 = HeapStringLength(vm, object2);
+        return size1 == size2 &&
+            !memcmp(HeapGetString(vm, object1),
+                    HeapGetString(vm, object2), size1);
+
+    case TYPE_EMPTY_LIST:
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+        if (!HeapIsCollection(vm, object2) ||
+            HeapCollectionSize(vm, object1) !=
+            HeapCollectionSize(vm, object2))
+        {
+            return false;
+        }
+        HeapIteratorInit(vm, &iter1, object1, false);
+        HeapIteratorInit(vm, &iter2, object2, false);
+        while (HeapIteratorNext(&iter1, &object1))
+        {
+            success = HeapIteratorNext(&iter2, &object2);
+            assert(success);
+            if (!HeapEquals(vm, object1, object2))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+    assert(false);
+    return false;
+}
+
+int HeapCompare(VM *vm, objectref object1, objectref object2)
+{
+    int i1 = HeapUnboxInteger(vm, object1);
+    int i2 = HeapUnboxInteger(vm, object2);
+    return i1 == i2 ? 0 : i1 < i2 ? -1 : 1;
+}
+
 
 byte *HeapAlloc(VM *vm, ObjectType type, size_t size)
 {
@@ -190,16 +255,16 @@ objectref HeapBoxInteger(VM *vm, int value)
     return refFromUint((uint)value | INTEGER_LITERAL_MARK);
 }
 
-objectref HeapBoxSize(VM *vm unused, size_t value)
+objectref HeapBoxSize(VM *vm, size_t value)
 {
     assert(value <= INT_MAX);
     return HeapBoxInteger(vm, (int)value);
 }
 
-int HeapUnboxInteger(VM *vm unused, objectref value)
+int HeapUnboxInteger(VM *vm unused, objectref object)
 {
-    assert(isInteger(value));
-    return ((signed)uintFromRef(value) << 1) >> 1;
+    assert(isInteger(object));
+    return ((signed)uintFromRef(object) << 1) >> 1;
 }
 
 
