@@ -141,7 +141,7 @@ stringref StringPoolAdd2(const char *token, size_t length)
 const char *StringPoolGetString(stringref ref)
 {
     assert(stringData);
-    assert(ref > 0);
+    assert(ref);
     assert((size_t)ref < dataSize);
     return &stringData[ref];
 }
@@ -149,7 +149,7 @@ const char *StringPoolGetString(stringref ref)
 size_t StringPoolGetStringLength(stringref ref)
 {
     assert(stringData);
-    assert(ref > 0);
+    assert(ref);
     assert((size_t)ref < dataSize);
     return (size_t)stringData[ref - 1];
 }

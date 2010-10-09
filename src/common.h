@@ -59,7 +59,7 @@ typedef struct inthashmap inthashmap;
 typedef struct intvector intvector;
 typedef struct VM VM;
 typedef uint nativefunctionref;
-typedef int stringref;
+typedef uint stringref;
 typedef uint fieldref;
 typedef uint fileref;
 typedef uint functionref;
