@@ -526,7 +526,7 @@ boolean ParseStateWriteInvocation(ParseState *state,
     assert(argumentCount <= MAX_UINT16); /* TODO: report error */
     assert(returnValues <= MAX_UINT8); /* TODO: report error */
     ParseStateCheck(state);
-    if (nativeFunction >= 0)
+    if (nativeFunction)
     {
         assert(!function);
         if (ParseStateSetError(

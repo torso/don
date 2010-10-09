@@ -17,6 +17,7 @@
 
 typedef enum
 {
+    NATIVE_NULL,
     NATIVE_ECHO,
     NATIVE_EXEC,
     NATIVE_FAIL,
@@ -41,7 +42,7 @@ static byte functionInfo[
 static uint functionIndex[NATIVE_FUNCTION_COUNT];
 
 static byte *initFunctionInfo = functionInfo;
-static uint initFunctionIndex = 0;
+static uint initFunctionIndex = 1;
 
 static void addFunctionInfo(const char *name,
                             uint parameterCount, uint minimumArgumentCount,
@@ -82,7 +83,7 @@ static void addFunctionInfo(const char *name,
 
 static pure const FunctionInfo *getFunctionInfo(nativefunctionref function)
 {
-    assert(function >= 0);
+    assert(function);
     assert(function < NATIVE_FUNCTION_COUNT);
     return (FunctionInfo*)&functionInfo[functionIndex[function]];
 }
@@ -395,6 +396,7 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         }
         return NO_ERROR;
 
+    case NATIVE_NULL:
     case NATIVE_FUNCTION_COUNT:
         break;
     }
@@ -404,15 +406,15 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
 
 nativefunctionref NativeFindFunction(stringref name)
 {
-    int i;
-    for (i = 0; i < NATIVE_FUNCTION_COUNT; i++)
+    nativefunctionref i;
+    for (i = 1; i < NATIVE_FUNCTION_COUNT; i++)
     {
         if (NativeGetName(i) == name)
         {
             return i;
         }
     }
-    return -1;
+    return 0;
 }
 
 stringref NativeGetName(nativefunctionref function)

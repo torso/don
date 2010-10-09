@@ -540,7 +540,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     uint line = state->line;
 
     ParseStateCheck(state);
-    if (nativeFunction >= 0)
+    if (nativeFunction)
     {
         parameterCount = NativeGetParameterCount(nativeFunction);
         parameterNames = NativeGetParameterNames(nativeFunction);

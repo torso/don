@@ -58,7 +58,7 @@ typedef struct bytevector bytevector;
 typedef struct inthashmap inthashmap;
 typedef struct intvector intvector;
 typedef struct VM VM;
-typedef int nativefunctionref;
+typedef uint nativefunctionref;
 typedef int stringref;
 typedef uint fieldref;
 typedef uint fileref;
