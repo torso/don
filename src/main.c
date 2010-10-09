@@ -6,6 +6,7 @@
 #include "fileindex.h"
 #include "functionindex.h"
 #include "interpreter.h"
+#include "log.h"
 #include "namespace.h"
 #include "native.h"
 #include "parser.h"
@@ -74,6 +75,7 @@ static void cleanup(void)
     FunctionIndexDispose();
     FileIndexDispose();
     StringPoolDispose();
+    LogDispose();
 }
 
 int main(int argc, const char **argv)
@@ -97,6 +99,7 @@ int main(int argc, const char **argv)
     size_t bytecodeSize;
 
     if (handleError(IntVectorInit(&targets)) ||
+        handleError(LogInit()) ||
         handleError(StringPoolInit()) ||
         handleError(ParserAddKeywords()) ||
         handleError(StringPoolAdd("") ? NO_ERROR : OUT_OF_MEMORY))
@@ -288,6 +291,7 @@ int main(int argc, const char **argv)
                 bytecode + FunctionIndexGetBytecodeOffset(function),
                 bytecodeLimit);
         }
+        fflush(stdout);
     }
 
     for (j = 0; j < IntVectorSize(&targets); j++)

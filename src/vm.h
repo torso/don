@@ -1,8 +1,6 @@
 #include "bytevector.h"
 #include "intvector.h"
 
-typedef ref_t objectref;
-
 struct VM
 {
     const byte *restrict bytecode;
@@ -14,9 +12,6 @@ struct VM
     intvector stack;
     byte *heapBase;
     byte *heapFree;
-
-    bytevector *pipeOut;
-    bytevector *pipeErr;
 
     objectref booleanTrue;
     objectref booleanFalse;

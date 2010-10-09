@@ -8,6 +8,7 @@
 #include "functionindex.h"
 #include "instruction.h"
 #include "interpreter.h"
+#include "log.h"
 #include "math.h"
 #include "native.h"
 #include "stringpool.h"
@@ -62,31 +63,6 @@ static void storeLocal(VM *vm, uint bp, uint16 local, objectref value)
 }
 
 
-bytevector *InterpreterGetPipeOut(VM *vm)
-{
-    return vm->pipeOut;
-}
-
-bytevector *InterpreterGetPipeErr(VM *vm)
-{
-    return vm->pipeErr;
-}
-
-const char *InterpreterGetString(VM *vm, objectref value)
-{
-    size_t size = HeapStringLength(vm, value);
-    char *buffer = (char*)malloc(size + 1); /* TODO: Avoid malloc */
-    assert(buffer); /* TODO: Error handling */
-    HeapWriteString(vm, value, buffer);
-    buffer[size] = 0;
-    return buffer;
-}
-
-void InterpreterFreeStringBuffer(VM *vm unused, const char *buffer)
-{
-    free((void*)buffer);
-}
-
 static void pushStackFrame(VM *vm, const byte **ip, uint *bp,
                            functionref function, uint returnValues)
 {
@@ -116,6 +92,7 @@ static void popStackFrame(VM *vm, const byte **ip, uint *bp,
     *bp = IntVectorPop(&vm->callStack);
     *ip = vm->bytecode + IntVectorPop(&vm->callStack);
 }
+
 
 static void execute(VM *vm, functionref target)
 {
@@ -495,52 +472,21 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_PIPE_BEGIN:
-            assert(!vm->pipeOut);
-            assert(!vm->pipeErr);
-            vm->pipeOut = ByteVectorCreate();
-            vm->pipeErr = ByteVectorCreate();
-            if (!vm->pipeOut || !vm->pipeErr)
+            vm->error = LogPushBuffer();
+            if (vm->error)
             {
-                vm->error = OUT_OF_MEMORY;
                 return;
             }
             break;
 
         case OP_PIPE_END:
-            assert(vm->pipeOut);
-            value = HeapCreateString(
-                vm,
-                (const char*)ByteVectorGetPointer(vm->pipeOut, 0),
-                ByteVectorSize(vm->pipeOut));
-            if (!value)
-            {
-                vm->error = OUT_OF_MEMORY;
-                return;
-            }
-            storeLocal(vm, bp, BytecodeReadUint16(&ip), value);
-            ByteVectorDispose(vm->pipeOut);
-            free(vm->pipeOut);
-            vm->pipeOut = null;
-
-            assert(vm->pipeErr);
-            value = HeapCreateString(
-                vm,
-                (const char*)ByteVectorGetPointer(vm->pipeErr, 0),
-                ByteVectorSize(vm->pipeErr));
-            if (!value)
-            {
-                vm->error = OUT_OF_MEMORY;
-                return;
-            }
-            storeLocal(vm, bp, BytecodeReadUint16(&ip), value);
-            ByteVectorDispose(vm->pipeErr);
-            free(vm->pipeErr);
-            vm->pipeErr = null;
-
+            LogPopBuffer(vm, &value, &value2);
             if (vm->error)
             {
                 return;
             }
+            storeLocal(vm, bp, BytecodeReadUint16(&ip), value);
+            storeLocal(vm, bp, BytecodeReadUint16(&ip), value2);
             break;
         }
     }

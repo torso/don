@@ -10,7 +10,7 @@ test:
    for f in @test/*
       pipe out, err
          exitcode = exec(["./don", "-i", f])
-      if exitcode || out != "PASS\n" || err != ""
+      if exitcode || out != "PASS" || err != ""
          fail += 1
          if hasOutput
             echo("")

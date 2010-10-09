@@ -49,11 +49,12 @@ typedef struct intvector intvector;
 typedef struct VM VM;
 
 typedef uint ref_t;
-typedef ref_t nativefunctionref;
-typedef ref_t stringref;
 typedef ref_t fieldref;
 typedef ref_t fileref;
 typedef ref_t functionref;
+typedef ref_t nativefunctionref;
+typedef ref_t objectref;
+typedef ref_t stringref;
 
 extern pure ref_t refFromSize(size_t i);
 extern pure ref_t refFromUint(uint i);
