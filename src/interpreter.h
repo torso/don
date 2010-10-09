@@ -16,11 +16,6 @@ extern nonnull size_t InterpreterGetStringSize(VM *vm, objectref value);
 extern nonnull byte *InterpreterCopyString(VM *restrict vm, objectref value,
                                            byte *restrict dst);
 
-extern nonnull ErrorCode InterpreterCreateString(VM *vm,
-                                                 const char *string,
-                                                 size_t length,
-                                                 objectref *value);
-
 extern nonnull objectref InterpreterPeek(VM *vm);
 extern nonnull objectref InterpreterPop(VM *vm);
 extern nonnull boolean InterpreterPush(VM *vm, objectref value);
