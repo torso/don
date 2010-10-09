@@ -12,7 +12,7 @@
 static char *stringData = null;
 static size_t dataSize = 0;
 static uint *table = null;
-/*static uint stringCount = 0;*/
+
 
 static void checkTable(const uint *t)
 {
