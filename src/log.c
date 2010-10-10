@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include "common.h"
 #include "vm.h"
-#include "fileindex.h"
+#include "file.h"
 #include "log.h"
 #include "stringpool.h"
 
@@ -97,9 +97,10 @@ void LogDispose(void)
 }
 
 
-void LogParseError(fileref file, uint line, const char *message)
+void LogParseError(fileref file, size_t line, const char *message)
 {
-    printf("%s:%d: %s\n", FileIndexGetName(file), line, message);
+    /* TODO: Don't truncate line number. */
+    printf("%s:%d: %s\n", FileGetName(file), (uint)line, message);
 }
 
 ErrorCode LogPrint(const char *text, size_t length)

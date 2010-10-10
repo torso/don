@@ -9,6 +9,7 @@ typedef struct
 {
     const byte *start;
     const byte *current;
+    const byte *limit;
     functionref function;
     fileref file;
     uint line;

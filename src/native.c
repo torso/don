@@ -5,7 +5,7 @@
 #include <sys/wait.h>
 #include "common.h"
 #include "vm.h"
-#include "fileindex.h"
+#include "file.h"
 #include "interpreter.h"
 #include "log.h"
 #include "native.h"
@@ -152,6 +152,7 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
     int pipeErr[2];
     fileref file;
     const char *filename;
+    /* byte *objectData; */
 
     switch ((NativeFunction)function)
     {
@@ -253,8 +254,8 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         if (returnValues)
         {
             file = HeapGetFile(vm, value);
-            size = strlen(FileIndexGetName(file));
-            filename = FileIndexFilename(FileIndexGetName(file), &size);
+            size = FileGetNameLength(file);
+            filename = FileFilename(FileGetName(file), &size);
             if (!filename)
             {
                 return OUT_OF_MEMORY;

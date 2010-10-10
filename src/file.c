@@ -1,12 +1,14 @@
+#include <fcntl.h>
 #include <ftw.h>
 #include <memory.h>
 #include <unistd.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <stdio.h>
 #include "common.h"
+#include "file.h"
 #include "glob.h"
 #include "stringpool.h"
-#include "fileindex.h"
 
 #define INITIAL_FILE_SIZE 128
 
@@ -15,10 +17,13 @@
 typedef struct
 {
     const char *name;
-    byte *data;
-    size_t size;
+    size_t nameLength;
     int flags;
     uint refCount;
+
+    int fd;
+    byte *data;
+    size_t size;
 } FileEntry;
 
 static FileEntry fileIndex[INITIAL_FILE_SIZE];
@@ -115,34 +120,8 @@ static char *getAbsoluteFilename(const char *restrict base, size_t baseLength,
     return cleanFilename(buffer, baseLength + length + 1);
 }
 
-
-ErrorCode FileIndexInit(void)
-{
-    cwd = getcwd(null, 0);
-    if (!cwd)
-    {
-        return OUT_OF_MEMORY;
-    }
-    cwdLength = strlen(cwd);
-    return NO_ERROR;
-}
-
-void FileIndexDispose(void)
-{
-    size_t i = sizeof(fileIndex) / sizeof(fileIndex[0]);
-    while (--i)
-    {
-        if (fileIndex[i].refCount)
-        {
-            fileIndex[i].refCount = 1;
-            FileIndexClose(refFromSize(i + 1));
-        }
-    }
-    free(cwd);
-}
-
-
-static fileref addFile(const char *filename, boolean filenameOwner)
+static fileref addFile(const char *filename, size_t filenameLength,
+                       boolean filenameOwner)
 {
     size_t file;
 
@@ -162,90 +141,128 @@ static fileref addFile(const char *filename, boolean filenameOwner)
         }
     }
 
-    fileIndex[file].flags = filenameOwner ? FLAG_FREE_FILENAME : 0;
     fileIndex[file].name = (const char*)filename;
-    fileIndex[file].data = null;
-    fileIndex[file].size = 0;
+    fileIndex[file].nameLength = filenameLength;
+    fileIndex[file].flags = filenameOwner ? FLAG_FREE_FILENAME : 0;
     fileIndex[file].refCount = 1;
+    fileIndex[file].fd = 0;
+    fileIndex[file].data = null;
     return refFromSize(file + 1);
 }
 
-fileref FileIndexAdd(const char *filename, size_t length)
+static ErrorCode openFile(FileEntry *fe)
 {
-    return addFile(getAbsoluteFilename(null, 0, filename, length), true);
+    struct stat s;
+
+    if (fe->fd)
+    {
+        return NO_ERROR;
+    }
+    fe->fd = open(fe->name, O_RDONLY);
+    if (fe->fd <= 0)
+    {
+        return ERROR_IO;
+    }
+    if (fstat(fe->fd, &s))
+    {
+        return ERROR_IO;
+    }
+    fe->size = (size_t)s.st_size;
+    return NO_ERROR;
 }
 
-fileref FileIndexOpen(const char *filename)
-{
-    size_t file;
-    FILE *f;
-    int status;
-    long l;
-    size_t size;
-    size_t bytes;
-    byte *data;
 
-    file = sizeof(fileIndex) / sizeof(fileIndex[0]);
-    for (;;)
+ErrorCode FileInit(void)
+{
+    cwd = getcwd(null, 0);
+    if (!cwd)
     {
-        assert(file); /* TODO: grow file index */
-        file--;
-        if (!fileIndex[file].refCount)
+        return OUT_OF_MEMORY;
+    }
+    cwdLength = strlen(cwd);
+    return NO_ERROR;
+}
+
+void FileDisposeAll(void)
+{
+    size_t i = sizeof(fileIndex) / sizeof(fileIndex[0]);
+    while (--i)
+    {
+        if (fileIndex[i].refCount)
         {
-            break;
+            fileIndex[i].refCount = 1;
+            FileDispose(refFromSize(i + 1));
         }
     }
-
-    f = fopen(filename, "rb");
-    assert(f); /* TODO: handle file error */
-    setvbuf(f, null, _IONBF, 0);
-    status = fseek(f, 0, SEEK_END);
-    assert(!status); /* TODO: handle file error */
-    l = ftell(f);
-    assert(l != -1); /* TODO: handle file error */
-    size = (size_t)l;
-    status = fseek(f, 0, SEEK_SET);
-    assert(!status); /* TODO: handle file error */
-    data = (byte*)malloc(size + 1);
-    assert(data); /* TODO: handle oom */
-    data[size] = 0;
-    bytes = fread(data, 1, size, f);
-    assert(bytes == size); /* TODO: handle file error */
-    fclose(f);
-    fileIndex[file].flags = 0;
-    fileIndex[file].name = filename;
-    fileIndex[file].data = data;
-    fileIndex[file].size = size;
-    fileIndex[file].refCount = 1;
-    return refFromSize(file + 1);
+    free(cwd);
 }
 
-void FileIndexClose(fileref file)
+
+fileref FileAdd(const char *filename, size_t length)
+{
+    filename = getAbsoluteFilename(null, 0, filename, length);
+    return addFile(filename, strlen(filename), true);
+}
+
+void FileDispose(fileref file)
 {
     FileEntry *fe = getFile(file);
-    if (!--fe->refCount)
+    if (fe->refCount == 1)
     {
         if (fe->flags & FLAG_FREE_FILENAME)
         {
             free((void*)fe->name);
         }
-        free(fe->data);
+        if (fe->data)
+        {
+            FileMUnmap(file);
+        }
     }
+    fe->refCount--;
 }
 
-const char *FileIndexGetName(fileref file)
+
+const char *FileGetName(fileref file)
 {
     return getFile(file)->name;
 }
 
-const byte *FileIndexGetContents(fileref file)
+size_t FileGetNameLength(fileref file)
 {
-    return getFile(file)->data;
+    return getFile(file)->nameLength;
 }
 
-size_t FileIndexGetSize(fileref file)
+
+ErrorCode FileMMap(fileref file, const byte **p, size_t *size)
 {
-    return getFile(file)->size;
+    FileEntry *fe = getFile(file);
+    ErrorCode error;
+
+    if (!fe->data)
+    {
+        error = openFile(fe);
+        if (error)
+        {
+            return error;
+        }
+        fe->data = (byte*)mmap(null, fe->size, PROT_READ, MAP_PRIVATE, fe->fd, 0);
+        if (!fe->data)
+        {
+            /* TODO: Read file fallback */
+            return ERROR_IO;
+        }
+    }
+    *p = fe->data;
+    *size = fe->size;
+    return NO_ERROR;
+}
+
+ErrorCode FileMUnmap(fileref file)
+{
+    FileEntry *fe = getFile(file);
+
+    assert(fe->data);
+    return munmap(fe->data, fe->size) ? ERROR_IO : NO_ERROR; /* TODO: Error handling */
 }
 
 
@@ -263,7 +280,7 @@ static int globTraverse(const char *filename, const struct stat *info unused,
     {
         return 0;
     }
-    file = addFile(copyString(filename, length), true);
+    file = addFile(copyString(filename, length), length, true);
     if (!file)
     {
         return OUT_OF_MEMORY;
@@ -271,7 +288,7 @@ static int globTraverse(const char *filename, const struct stat *info unused,
     return globalCallback(file, globalUserdata);
 }
 
-const char *FileIndexFilename(const char *path, size_t *length)
+const char *FileFilename(const char *path, size_t *length)
 {
     const char *current = path + *length;
     while (current > path && current[-1] != '/')
@@ -282,7 +299,7 @@ const char *FileIndexFilename(const char *path, size_t *length)
     return current;
 }
 
-ErrorCode FileIndexTraverseGlob(const char *pattern,
+ErrorCode FileTraverseGlob(const char *pattern,
                                 TraverseCallback callback, void *userdata)
 {
     const char *slash = null;
@@ -310,7 +327,7 @@ ErrorCode FileIndexTraverseGlob(const char *pattern,
 
     if (!asterisk)
     {
-        file = FileIndexAdd(pattern, length);
+        file = FileAdd(pattern, length);
         if (!file)
         {
             return OUT_OF_MEMORY;

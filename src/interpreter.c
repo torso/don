@@ -4,7 +4,7 @@
 #include "vm.h"
 #include "bytecode.h"
 #include "fieldindex.h"
-#include "fileindex.h"
+#include "file.h"
 #include "functionindex.h"
 #include "instruction.h"
 #include "interpreter.h"
@@ -172,8 +172,8 @@ static void execute(VM *vm, functionref target)
 
         case OP_FILE:
             string = BytecodeReadRef(&ip);
-            file = FileIndexAdd(StringPoolGetString(string),
-                                StringPoolGetStringLength(string));
+            file = FileAdd(StringPoolGetString(string),
+                           StringPoolGetStringLength(string));
             if (!file)
             {
                 vm->error = OUT_OF_MEMORY;

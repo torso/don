@@ -1,7 +1,7 @@
 extern ErrorCode LogInit(void);
 extern void LogDispose(void);
 
-extern nonnull void LogParseError(fileref file, uint line, const char *message);
+extern nonnull void LogParseError(fileref file, size_t line, const char *message);
 
 /*
   Prints the specified text to standard output without any formatting.

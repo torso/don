@@ -1,7 +1,7 @@
 #include <memory.h>
 #include "common.h"
 #include "vm.h"
-#include "fileindex.h"
+#include "file.h"
 #include "math.h"
 #include "stringpool.h"
 
@@ -378,7 +378,7 @@ size_t HeapStringLength(VM *vm, objectref object)
             unboxReference(vm, TYPE_STRING_POOLED, object));
 
     case TYPE_FILE:
-        return strlen(FileIndexGetName(HeapGetFile(vm, object)));
+        return FileGetNameLength(HeapGetFile(vm, object));
 
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
@@ -466,8 +466,8 @@ char *HeapWriteString(VM *vm, objectref object, char *dst)
 
     case TYPE_FILE:
         file = HeapGetFile(vm, object);
-        size = strlen(FileIndexGetName(file));
-        memcpy(dst, FileIndexGetName(file), size);
+        size = FileGetNameLength(file);
+        memcpy(dst, FileGetName(file), size);
         return dst + size;
 
     case TYPE_EMPTY_LIST:
@@ -705,7 +705,7 @@ objectref HeapCreateFilesetGlob(VM *vm, const char *pattern)
         return 0;
     }
     files = (ref_t*)objectData;
-    vm->error = FileIndexTraverseGlob(pattern, addFile, vm);
+    vm->error = FileTraverseGlob(pattern, addFile, vm);
     if (vm->error)
     {
         return 0;

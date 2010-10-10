@@ -1,7 +1,7 @@
 #include "common.h"
 #include "bytevector.h"
 #include "fieldindex.h"
-#include "fileindex.h"
+#include "file.h"
 #include "functionindex.h"
 #include "instruction.h"
 #include "inthashmap.h"
@@ -24,7 +24,7 @@ void ParseStateCheck(const ParseState *state)
 {
     assert(state->start);
     assert(state->current >= state->start);
-    assert(state->current <= state->start + FileIndexGetSize(state->file));
+    assert(state->current <= state->limit);
 }
 
 static void setError(ParseState *state, const char *message)
@@ -83,11 +83,17 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
 {
     const stringref *parameterNames;
     uint parameterCount;
+    size_t size;
 
     assert(file);
     assert(line == 1 || line <= offset);
-    state->start = FileIndexGetContents(file);
+    state->error = FileMMap(file, &state->start, &size);
+    if (state->error)
+    {
+        return;
+    }
     state->current = state->start + offset;
+    state->limit = state->start + size;
     state->function = function;
     state->file = file;
     state->line = line;

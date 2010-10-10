@@ -1,9 +1,10 @@
 #include <stdio.h>
+#include <memory.h>
 #include "common.h"
 #include "vm.h"
 #include "bytecode.h"
 #include "fieldindex.h"
-#include "fileindex.h"
+#include "file.h"
 #include "functionindex.h"
 #include "interpreter.h"
 #include "log.h"
@@ -62,6 +63,10 @@ static boolean handleError(ErrorCode error)
         printf("Out of memory\n");
         break;
 
+    case ERROR_IO:
+        printf("IO error\n");
+        break;
+
     case ERROR_FAIL:
         break;
     }
@@ -73,7 +78,7 @@ static void cleanup(void)
     NamespaceDispose();
     FieldIndexDispose();
     FunctionIndexDispose();
-    FileIndexDispose();
+    FileDisposeAll();
     StringPoolDispose();
     LogDispose();
 }
@@ -183,7 +188,7 @@ int main(int argc, const char **argv)
         }
     }
 
-    if (handleError(FileIndexInit()) ||
+    if (handleError(FileInit()) ||
         handleError(FunctionIndexInit()) ||
         handleError(FunctionIndexBeginFunction(StringPoolAdd(""))) ||
         handleError(FieldIndexInit()) ||
@@ -196,10 +201,11 @@ int main(int argc, const char **argv)
     }
     FunctionIndexFinishFunction(0, 0, 0);
 
-    inputFile = FileIndexOpen(inputFilename);
-    assert(inputFile);
-    if (handleError(ParseFile(inputFile)))
+    inputFile = FileAdd(inputFilename, strlen(inputFilename));
+    if (handleError(inputFile ? NO_ERROR : OUT_OF_MEMORY) ||
+        handleError(ParseFile(inputFile)))
     {
+        IntVectorDispose(&targets);
         ByteVectorDispose(&parsed);
         cleanup();
         return 1;
@@ -267,7 +273,7 @@ int main(int argc, const char **argv)
         }
     }
 
-    FileIndexClose(inputFile);
+    FileDispose(inputFile);
     bytecodeSize = ByteVectorSize(&parsed);
     bytecode = ByteVectorDisposeContainer(&parsed);
     bytecodeLimit = bytecode + bytecodeSize;

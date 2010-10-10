@@ -3,7 +3,7 @@
 #include "common.h"
 #include "bytevector.h"
 #include "fieldindex.h"
-#include "fileindex.h"
+#include "file.h"
 #include "functionindex.h"
 #include "instruction.h"
 #include "inthashmap.h"
@@ -14,6 +14,7 @@
 #include "parser.h"
 #include "parsestate.h"
 #include "stringpool.h"
+#include "util.h"
 
 typedef enum
 {
@@ -80,7 +81,7 @@ static void error(ParseState *state, const char *message)
     LogParseError(state->file, state->line, message);
 }
 
-static void errorOnLine(ParseState *state, uint line, const char *message)
+static void errorOnLine(ParseState *state, size_t line, const char *message)
 {
     ParseStateSetError(state, ERROR_FAIL);
     LogParseError(state->file, line, message);
@@ -115,7 +116,7 @@ static boolean unwindBlocks(ParseState *restrict state,
 static boolean eof(const ParseState *state)
 {
     ParseStateCheck(state);
-    return state->current == state->start + FileIndexGetSize(state->file);
+    return state->current == state->limit;
 }
 
 static void skipWhitespace(ParseState *state)
@@ -1704,6 +1705,16 @@ ErrorCode ParseFile(fileref file)
     if (state.error)
     {
         return state.error;
+    }
+    if (state.current != state.limit && state.limit[-1] != '\n')
+    {
+        /* TODO: Provide fallback */
+        errorOnLine(&state,
+                    UtilCountNewlines((const char*)state.start,
+                                      (size_t)(state.limit - state.start)) + 1,
+                    "File does not end with newline.");
+        ParseStateDispose(&state);
+        return ERROR_FAIL;
     }
     parseScript(&state);
     ParseStateDispose(&state);
