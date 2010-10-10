@@ -32,13 +32,13 @@ extern nonnull ErrorCode IntVectorAppendAll(const intvector *src,
 extern nonnull ErrorCode IntVectorAdd(intvector *v, uint value);
 extern nonnull ErrorCode IntVectorAddRef(intvector *v, ref_t value);
 
-extern nonnull pure uint IntVectorGet(const intvector *v, size_t index);
+extern nonnull uint IntVectorGet(const intvector *v, size_t index);
 extern nonnull ref_t IntVectorGetRef(const intvector *v, size_t index);
 
 extern nonnull void IntVectorSet(intvector *v, size_t index, uint value);
 extern nonnull void IntVectorSetRef(intvector *v, size_t index, ref_t value);
 
-extern nonnull pure uint IntVectorPeek(const intvector *v);
+extern nonnull uint IntVectorPeek(const intvector *v);
 extern nonnull ref_t IntVectorPeekRef(const intvector *v);
 extern nonnull uint IntVectorPop(intvector *v);
 extern nonnull ref_t IntVectorPopRef(intvector *v);

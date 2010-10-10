@@ -16,7 +16,7 @@ typedef struct
 extern nonnull ErrorCode IntHashMapInit(inthashmap *map, size_t capacity);
 extern nonnull void IntHashMapDispose(inthashmap *map);
 extern nonnull ErrorCode IntHashMapAdd(inthashmap *map, uint key, uint value);
-extern nonnull pure uint IntHashMapGet(const inthashmap *map, uint key);
+extern nonnull uint IntHashMapGet(const inthashmap *map, uint key);
 extern nonnull pure size_t IntHashMapSize(const inthashmap *map);
 
 extern nonnull void IntHashMapIteratorInit(const inthashmap *map,

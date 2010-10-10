@@ -80,7 +80,7 @@ static void addFunctionInfo(const char *name,
     }
 }
 
-static pure const FunctionInfo *getFunctionInfo(nativefunctionref function)
+static const FunctionInfo *getFunctionInfo(nativefunctionref function)
 {
     assert(function);
     assert(uintFromRef(function) < NATIVE_FUNCTION_COUNT);

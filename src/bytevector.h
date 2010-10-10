@@ -47,10 +47,10 @@ extern nonnull ErrorCode ByteVectorAddRef(bytevector *v, ref_t value);
 extern nonnull ErrorCode ByteVectorAddData(bytevector *v,
                                            const byte *value, size_t size);
 
-extern nonnull pure byte ByteVectorGet(const bytevector *v, size_t index);
+extern nonnull byte ByteVectorGet(const bytevector *v, size_t index);
 #define ByteVectorGetInt(v, index) ((int)ByteVectorGetUint(v, index))
-extern nonnull pure uint ByteVectorGetUint(const bytevector *v, size_t index);
-extern nonnull pure uint16 ByteVectorGetUint16(const bytevector *v, size_t index);
+extern nonnull uint ByteVectorGetUint(const bytevector *v, size_t index);
+extern nonnull uint16 ByteVectorGetUint16(const bytevector *v, size_t index);
 
 extern nonnull void ByteVectorSet(bytevector *v, size_t index, byte value);
 extern nonnull void ByteVectorSetInt(bytevector *v, size_t index, int value);
@@ -65,6 +65,6 @@ extern nonnull void ByteVectorWrite(bytevector *v, size_t *index, byte value);
 extern nonnull void ByteVectorWriteInt(bytevector *v, size_t *index, int value);
 extern nonnull void ByteVectorWriteUint(bytevector *v, size_t *index, uint value);
 
-extern nonnull pure byte ByteVectorPeek(const bytevector *v);
+extern nonnull byte ByteVectorPeek(const bytevector *v);
 extern nonnull byte ByteVectorPop(bytevector *v);
 extern nonnull void ByteVectorPopData(bytevector *v, byte *value, size_t size);

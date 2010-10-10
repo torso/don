@@ -1,8 +1,8 @@
 extern ErrorCode NativeInit(void);
 extern nonnull ErrorCode NativeInvoke(VM *vm, nativefunctionref function,
                                       uint returnValues);
-extern pure nativefunctionref NativeFindFunction(stringref name);
-extern pure stringref NativeGetName(nativefunctionref function);
-extern pure uint NativeGetParameterCount(nativefunctionref function);
-extern pure uint NativeGetMinimumArgumentCount(nativefunctionref function);
-extern pure const stringref *NativeGetParameterNames(nativefunctionref function);
+extern nativefunctionref NativeFindFunction(stringref name);
+extern stringref NativeGetName(nativefunctionref function);
+extern uint NativeGetParameterCount(nativefunctionref function);
+extern uint NativeGetMinimumArgumentCount(nativefunctionref function);
+extern const stringref *NativeGetParameterNames(nativefunctionref function);
