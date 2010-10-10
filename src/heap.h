@@ -5,6 +5,8 @@ typedef enum
     TYPE_INTEGER,
     TYPE_STRING,
     TYPE_STRING_POOLED,
+    TYPE_STRING_WRAPPED,
+    TYPE_SUBSTRING,
     TYPE_FILE,
     TYPE_EMPTY_LIST,
     TYPE_ARRAY,
@@ -68,6 +70,10 @@ extern nonnull int HeapUnboxInteger(VM *vm, objectref object);
 extern nonnull objectref HeapCreateString(VM *vm, const char *string,
                                           size_t length);
 extern nonnull objectref HeapCreatePooledString(VM *vm, stringref string);
+extern nonnull objectref HeapCreateWrappedString(VM *vm, const char *string,
+                                                 size_t length);
+extern nonnull objectref HeapCreateSubstring(VM *vm, objectref string,
+                                             size_t offset, size_t length);
 extern nonnull boolean HeapIsString(VM *vm, objectref object);
 
 /*
@@ -93,6 +99,7 @@ extern nonnull fileref HeapGetFile(VM *vm, objectref object);
 
 extern nonnull objectref HeapCreateRange(VM *vm, objectref lowObject,
                                          objectref highObject);
+extern nonnull objectref HeapSplitLines(VM *vm, objectref string);
 
 extern nonnull boolean HeapIsCollection(VM *vm, objectref object);
 extern nonnull size_t HeapCollectionSize(VM *vm, objectref object);

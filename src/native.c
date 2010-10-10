@@ -11,7 +11,7 @@
 #include "native.h"
 #include "stringpool.h"
 
-#define TOTAL_PARAMETER_COUNT 5
+#define TOTAL_PARAMETER_COUNT 6
 
 typedef enum
 {
@@ -20,6 +20,7 @@ typedef enum
     NATIVE_EXEC,
     NATIVE_FAIL,
     NATIVE_FILENAME,
+    NATIVE_READFILE,
     NATIVE_SIZE,
 
     NATIVE_FUNCTION_COUNT
@@ -132,11 +133,13 @@ ErrorCode NativeInit(void)
     static const char *execParameters[] = {"command"};
     static const char *failParameters[] = {"message"};
     static const char *filenameParameters[] = {"path"};
+    static const char *readFileParameters[] = {"file"};
     static const char *sizeParameters[] = {"collection"};
     addFunctionInfo("echo", 1, 1, echoParameters);
     addFunctionInfo("exec", 1, 1, execParameters);
     addFunctionInfo("fail", 1, 1, failParameters);
     addFunctionInfo("filename", 1, 1, filenameParameters);
+    addFunctionInfo("readFile", 1, 1, readFileParameters);
     addFunctionInfo("size", 1, 1, sizeParameters);
     return initFunctionInfo ? NO_ERROR : OUT_OF_MEMORY;
 }
@@ -151,8 +154,7 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
     int pipeOut[2];
     int pipeErr[2];
     fileref file;
-    const char *filename;
-    /* byte *objectData; */
+    const char *text;
 
     switch ((NativeFunction)function)
     {
@@ -255,17 +257,53 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         {
             file = HeapGetFile(vm, value);
             size = FileGetNameLength(file);
-            filename = FileFilename(FileGetName(file), &size);
-            if (!filename)
+            text = FileFilename(FileGetName(file), &size);
+            if (!text)
             {
                 return OUT_OF_MEMORY;
             }
-            value = HeapCreateString(vm, filename, size);
+            value = HeapCreateString(vm, text, size);
             if (!value)
             {
                 return OUT_OF_MEMORY;
             }
             InterpreterPush(vm, value);
+        }
+        return NO_ERROR;
+
+    case NATIVE_READFILE:
+        assert(returnValues <= 1);
+        value = InterpreterPop(vm);
+        assert(HeapGetObjectType(vm, value) == TYPE_FILE);
+        if (returnValues)
+        {
+            file = HeapGetFile(vm, value);
+            vm->error = FileMMap(file, (const byte**)&text, &size);
+            if (vm->error)
+            {
+                return vm->error;
+            }
+            if (!size)
+            {
+                InterpreterPush(vm, vm->emptyList);
+                return vm->error;
+            }
+            if (text[size - 1] == '\n')
+            {
+                size--;
+            }
+            value = HeapCreateWrappedString(vm, text, size);
+            if (!value)
+            {
+                return vm->error;
+            }
+            value = HeapSplitLines(vm, value);
+            if (!value)
+            {
+                return vm->error;
+            }
+            InterpreterPush(vm, value);
+            return vm->error;
         }
         return NO_ERROR;
 

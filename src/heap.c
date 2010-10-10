@@ -4,6 +4,7 @@
 #include "file.h"
 #include "math.h"
 #include "stringpool.h"
+#include "util.h"
 
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))
 
@@ -12,6 +13,14 @@
 #define OBJECT_OVERHEAD 8
 #define HEADER_SIZE 0
 #define HEADER_TYPE 4
+
+typedef struct
+{
+    objectref string;
+    size_t offset;
+    size_t length;
+} SubString;
+
 
 static void checkObject(VM *vm, objectref object)
 {
@@ -43,6 +52,8 @@ static ref_t unboxReference(VM *vm, ObjectType type, objectref object)
 
 static const char *getString(VM *vm, objectref object)
 {
+    const SubString *ss;
+
     switch (HeapGetObjectType(vm, object))
     {
     case TYPE_STRING:
@@ -51,6 +62,13 @@ static const char *getString(VM *vm, objectref object)
     case TYPE_STRING_POOLED:
         return StringPoolGetString(
             unboxReference(vm, TYPE_STRING_POOLED, object));
+
+    case TYPE_STRING_WRAPPED:
+        return *(const char**)HeapGetObjectData(vm, object);
+
+    case TYPE_SUBSTRING:
+        ss = (const SubString*)HeapGetObjectData(vm, object);
+        return &getString(vm, ss->string)[ss->offset];
 
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
@@ -76,6 +94,8 @@ static boolean isCollectionType(ObjectType type)
     case TYPE_INTEGER:
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
     case TYPE_FILE:
     case TYPE_ITERATOR:
         return false;
@@ -149,6 +169,8 @@ static void iterStateInit(VM *vm, IteratorState *state, objectref object,
     case TYPE_INTEGER:
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
     case TYPE_FILE:
     case TYPE_ITERATOR:
     default:
@@ -219,6 +241,8 @@ boolean HeapEquals(VM *vm, objectref object1, objectref object2)
 
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
         size1 = HeapStringLength(vm, object1);
         size2 = HeapStringLength(vm, object2);
         return size1 == size2 &&
@@ -312,7 +336,82 @@ objectref HeapCreateString(VM *vm, const char *restrict string, size_t length)
 
 objectref HeapCreatePooledString(VM *vm, stringref string)
 {
-    return boxReference(vm, TYPE_STRING_POOLED, string);
+   return boxReference(vm, TYPE_STRING_POOLED, string);
+}
+
+objectref HeapCreateWrappedString(VM *vm, const char *restrict string,
+                                  size_t length)
+{
+    byte *restrict data;
+
+    if (!length)
+    {
+        return vm->emptyString;
+    }
+    data = HeapAlloc(vm, TYPE_STRING_WRAPPED, sizeof(char*) + sizeof(size_t));
+    if (!data)
+    {
+        return 0;
+    }
+    *(const char**)data = string;
+    *(size_t*)&data[sizeof(char*)] = length;
+    return HeapFinishAlloc(vm, data);
+}
+
+objectref HeapCreateSubstring(VM *vm, objectref string, size_t offset,
+                              size_t length)
+{
+    const SubString *ss;
+    byte *data;
+    size_t *sizes;
+
+    assert(HeapIsString(vm, string));
+    assert(HeapStringLength(vm, string) >= offset + length);
+    if (!length)
+    {
+        return vm->emptyString;
+    }
+    if (length == HeapStringLength(vm, string))
+    {
+        return string;
+    }
+    switch (HeapGetObjectType(vm, string))
+    {
+    case TYPE_STRING:
+        break;
+
+    case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+        return HeapCreateWrappedString(vm, &getString(vm, string)[offset], length);
+
+    case TYPE_SUBSTRING:
+        ss = (const SubString*)HeapGetObjectData(vm, string);
+        string = ss->string;
+        offset += ss->offset;
+        break;
+
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_FILE:
+    case TYPE_EMPTY_LIST:
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+    case TYPE_ITERATOR:
+        assert(false);
+        break;
+    }
+    data = HeapAlloc(vm, TYPE_SUBSTRING,
+                     sizeof(objectref) + 2 * sizeof(size_t));
+    if (!data)
+    {
+        return 0;
+    }
+    *(objectref*)data = string;
+    sizes = (size_t*)&data[sizeof(objectref)];
+    sizes[0] = offset;
+    sizes[1] = length;
+    return HeapFinishAlloc(vm, data);
 }
 
 boolean HeapIsString(VM *vm, objectref object)
@@ -321,6 +420,8 @@ boolean HeapIsString(VM *vm, objectref object)
     {
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
         return true;
 
     case TYPE_BOOLEAN_TRUE:
@@ -376,6 +477,12 @@ size_t HeapStringLength(VM *vm, objectref object)
     case TYPE_STRING_POOLED:
         return StringPoolGetStringLength(
             unboxReference(vm, TYPE_STRING_POOLED, object));
+
+    case TYPE_STRING_WRAPPED:
+        return *(size_t*)&HeapGetObjectData(vm, object)[sizeof(const char**)];
+
+    case TYPE_SUBSTRING:
+        return ((const SubString*)HeapGetObjectData(vm, object))->length;
 
     case TYPE_FILE:
         return FileGetNameLength(HeapGetFile(vm, object));
@@ -460,6 +567,8 @@ char *HeapWriteString(VM *vm, objectref object, char *dst)
 
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
         size = HeapStringLength(vm, object);
         memcpy(dst, getString(vm, object), size);
         return dst + size;
@@ -528,6 +637,52 @@ objectref HeapCreateRange(VM *vm, objectref lowObject, objectref highObject)
     return HeapFinishAlloc(vm, objectData);
 }
 
+objectref HeapSplitLines(VM *vm, objectref string)
+{
+    byte *data;
+    objectref *array;
+    const char *text;
+    size_t size;
+    size_t offset;
+    size_t lineLength;
+    size_t lines;
+
+    assert(HeapIsString(vm, string));
+    size = HeapStringLength(vm, string);
+    if (!size)
+    {
+        return vm->emptyList;
+    }
+    text = getString(vm, string);
+    lines = UtilCountNewlines(text, size);
+    data = HeapAlloc(vm, TYPE_ARRAY, (lines + 1) * sizeof(objectref));
+    if (!data)
+    {
+        return 0;
+    }
+    array = (objectref*)data;
+    offset = 0;
+    while (lines--)
+    {
+        lineLength = (size_t)(strchr(text, '\n') - text);
+        *array = HeapCreateSubstring(vm, string, offset, lineLength);
+        if (!*array)
+        {
+            return 0;
+        }
+        array++;
+        lineLength++;
+        text += lineLength;
+        offset += lineLength;
+    }
+    *array = HeapCreateSubstring(vm, string, offset, size - offset);
+    if (!*array)
+    {
+        return 0;
+    }
+    return HeapFinishAlloc(vm, data);
+}
+
 
 boolean HeapIsCollection(VM *vm, objectref object)
 {
@@ -555,6 +710,8 @@ size_t HeapCollectionSize(VM *vm, objectref object)
     case TYPE_INTEGER:
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
     case TYPE_FILE:
     case TYPE_ITERATOR:
     default:
@@ -598,6 +755,8 @@ boolean HeapCollectionGet(VM *vm, objectref object, objectref indexObject,
     case TYPE_INTEGER:
     case TYPE_STRING:
     case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
     case TYPE_FILE:
     case TYPE_ITERATOR:
     default:
