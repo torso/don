@@ -2,12 +2,12 @@
 #include "common.h"
 #include "intvector.h"
 
-#define SEGMENT_SIZE (size_t)1024
-
 static void checkIntVector(const intvector *v)
 {
     assert(v);
     assert(v->data);
+    assert(v->allocatedSize);
+    assert(v->allocatedSize >= v->size);
 }
 
 static void checkIntVectorIndex(const intvector *v, size_t index)
@@ -23,27 +23,51 @@ static void checkIntVectorRange(const intvector *v, size_t index, size_t size)
     assert(IntVectorSize(v) >= index + size);
 }
 
+static uint *grow(intvector *v, size_t size)
+{
+    size_t oldSize = v->size;
+    size_t newSize;
+    uint *newData;
+
+    checkIntVector(v);
+    size += v->size;
+    if (size > v->allocatedSize)
+    {
+        newSize = v->allocatedSize;
+        do
+        {
+            newSize *= 2;
+            if (newSize < v->allocatedSize)
+            {
+                return null;
+            }
+        }
+        while (size > newSize);
+        newData = (uint*)malloc(newSize * sizeof(uint));
+        if (!newData)
+        {
+            return null;
+        }
+        memcpy(newData, v->data, v->size * sizeof(uint));
+        free(v->data);
+        v->data = newData;
+        v->allocatedSize = newSize;
+    }
+    v->size = size;
+    return &v->data[oldSize];
+}
+
+
 ErrorCode IntVectorInit(intvector *v)
 {
-    v->data = (uint*)malloc(SEGMENT_SIZE * sizeof(uint));
+    size_t reserveSize = 4;
+    v->data = (uint*)malloc(reserveSize * sizeof(uint));
     if (!v->data)
     {
         return OUT_OF_MEMORY;
     }
     v->size = 0;
-    return NO_ERROR;
-}
-
-ErrorCode IntVectorInitCopy(intvector *restrict v,
-                            const intvector *restrict data)
-{
-    v->data = (uint*)malloc(SEGMENT_SIZE * sizeof(uint));
-    if (!v->data)
-    {
-        return OUT_OF_MEMORY;
-    }
-    memcpy(v->data, data->data, data->size * sizeof(uint));
-    v->size = data->size;
+    v->allocatedSize = reserveSize;
     return NO_ERROR;
 }
 
@@ -53,6 +77,7 @@ void IntVectorDispose(intvector *v)
     v->data = null;
 }
 
+
 size_t IntVectorSize(const intvector *v)
 {
     checkIntVector(v);
@@ -61,50 +86,42 @@ size_t IntVectorSize(const intvector *v)
 
 ErrorCode IntVectorSetSize(intvector *v, size_t size)
 {
-    checkIntVector(v);
-    assert(size <= SEGMENT_SIZE); /* TODO: grow int vector */
-    v->size = size;
+    if (size < v->allocatedSize)
+    {
+        v->size = size;
+    }
+    else if (!grow(v, size - v->size))
+    {
+        return OUT_OF_MEMORY;
+    }
     return NO_ERROR;
 }
 
 ErrorCode IntVectorGrowZero(intvector *v, size_t size)
 {
-    size_t oldSize = IntVectorSize(v);
-    ErrorCode error = IntVectorSetSize(v, oldSize + size);
-    if (error)
+    uint *p = grow(v, size);
+    if (!p)
     {
-        return error;
+        return OUT_OF_MEMORY;
     }
-    memset((void*)IntVectorGetPointer(v, oldSize), 0, size * sizeof(int));
+    memset(p, 0, size * sizeof(uint));
     return NO_ERROR;
 }
 
-void IntVectorCopy(const intvector *restrict src, size_t srcOffset,
-                   intvector *restrict dst, size_t dstOffset, size_t size)
+
+const uint *IntVectorGetPointer(const intvector *v, size_t index)
+{
+    checkIntVectorIndex(v, index);
+    return &v->data[index];
+}
+
+
+void IntVectorCopy(const intvector *src, size_t srcOffset,
+                   intvector *dst, size_t dstOffset, size_t size)
 {
     checkIntVectorRange(src, srcOffset, size);
     checkIntVectorRange(dst, dstOffset, size);
-    memmove(&dst->data[dstOffset], &src->data[srcOffset],
-            size * sizeof(uint));
-}
-
-ErrorCode IntVectorAppend(const intvector *restrict src, size_t srcOffset,
-                          intvector *restrict dst, size_t size)
-{
-    size_t vectorSize = IntVectorSize(dst);
-    ErrorCode error = IntVectorSetSize(dst, vectorSize + size);
-    if (error)
-    {
-        return error;
-    }
-    IntVectorCopy(src, srcOffset, dst, size, size);
-    return NO_ERROR;
-}
-
-ErrorCode IntVectorAppendAll(const intvector *restrict src,
-                             intvector *restrict dst)
-{
-    return IntVectorAppend(src, 0, dst, IntVectorSize(src));
+    memmove(&dst->data[dstOffset], &src->data[srcOffset], size * sizeof(uint));
 }
 
 void IntVectorMove(intvector *v, size_t src, size_t dst, size_t size)
@@ -114,11 +131,36 @@ void IntVectorMove(intvector *v, size_t src, size_t dst, size_t size)
     memmove(&v->data[dst], &v->data[src], size * sizeof(uint));
 }
 
+
+ErrorCode IntVectorAppend(const intvector *src, size_t srcOffset,
+                          intvector *dst, size_t size)
+{
+    uint *p;
+
+    checkIntVectorRange(src, srcOffset, size);
+    p = grow(dst, size);
+    if (!p)
+    {
+        return OUT_OF_MEMORY;
+    }
+    memcpy(p, IntVectorGetPointer(src, srcOffset), size * sizeof(uint));
+    return NO_ERROR;
+}
+
+ErrorCode IntVectorAppendAll(const intvector *src, intvector *dst)
+{
+    return IntVectorAppend(src, 0, dst, IntVectorSize(src));
+}
+
+
 ErrorCode IntVectorAdd(intvector *v, uint value)
 {
-    checkIntVector(v);
-    assert(IntVectorSize(v) + 1 < SEGMENT_SIZE); /* TODO: grow int vector */
-    v->data[v->size++] = value;
+    uint *p = grow(v, 1);
+    if (!p)
+    {
+        return OUT_OF_MEMORY;
+    }
+    *p = value;
     return NO_ERROR;
 }
 
@@ -126,6 +168,7 @@ ErrorCode IntVectorAddRef(intvector *v, ref_t value)
 {
     return IntVectorAdd(v, uintFromRef(value));
 }
+
 
 uint IntVectorGet(const intvector *v, size_t index)
 {
@@ -138,11 +181,18 @@ ref_t IntVectorGetRef(const intvector *v, size_t index)
     return refFromUint(IntVectorGet(v, index));
 }
 
-const uint *IntVectorGetPointer(const intvector *v, size_t index)
+
+void IntVectorSet(intvector *v, size_t index, uint value)
 {
     checkIntVectorIndex(v, index);
-    return &v->data[index];
+    v->data[index] = value;
 }
+
+void IntVectorSetRef(intvector *v, size_t index, ref_t value)
+{
+    IntVectorSet(v, index, uintFromRef(value));
+}
+
 
 uint IntVectorPeek(const intvector *v)
 {
@@ -165,15 +215,4 @@ uint IntVectorPop(intvector *v)
 ref_t IntVectorPopRef(intvector *v)
 {
     return refFromUint(IntVectorPop(v));
-}
-
-void IntVectorSet(intvector *v, size_t index, uint value)
-{
-    checkIntVectorIndex(v, index);
-    v->data[index] = value;
-}
-
-void IntVectorSetRef(intvector *v, size_t index, ref_t value)
-{
-    IntVectorSet(v, index, uintFromRef(value));
 }
