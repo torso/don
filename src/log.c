@@ -9,6 +9,9 @@
 #include "log.h"
 #include "stringpool.h"
 
+#define MIN_READ_BUFFER 1024
+
+
 static bytevector out;
 static bytevector err;
 static intvector buffer;
@@ -73,12 +76,12 @@ static void autoflushErr(size_t newData)
 
 ErrorCode LogInit(void)
 {
-    ErrorCode error = ByteVectorInit(&out);
+    ErrorCode error = ByteVectorInit(&out, MIN_READ_BUFFER * 2);
     if (error)
     {
         return error;
     }
-    error = ByteVectorInit(&err);
+    error = ByteVectorInit(&err, MIN_READ_BUFFER * 2);
     if (error)
     {
         return error;
@@ -218,8 +221,9 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
     {
         if (fdOut)
         {
+            ByteVectorReserveAppendSize(&out, MIN_READ_BUFFER);
             ssize = read(fdOut, ByteVectorGetAppendPointer(&out),
-                         ByteVectorGetAvailableSize(&out));
+                         ByteVectorGetReservedAppendSize(&out));
             if (ssize)
             {
                 if (ssize > 0)
@@ -243,8 +247,9 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
         }
         if (fdErr)
         {
+            ByteVectorReserveAppendSize(&err, MIN_READ_BUFFER);
             ssize = read(fdErr, ByteVectorGetAppendPointer(&err),
-                         ByteVectorGetAvailableSize(&err));
+                         ByteVectorGetReservedAppendSize(&err));
             if (ssize)
             {
                 if (ssize > 0)

@@ -70,7 +70,7 @@ ErrorCode FunctionIndexInit(void)
 {
     ErrorCode error;
 
-    error = ByteVectorInit(&functionTable);
+    error = ByteVectorInit(&functionTable, 16384);
     if (error)
     {
         return error;

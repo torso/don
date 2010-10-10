@@ -294,7 +294,7 @@ static stringref readString(ParseState *state)
         case  '\\':
             if (!copied)
             {
-                ByteVectorInit(&string);
+                ByteVectorInit(&string, 128);
                 copied = true;
             }
             ByteVectorAddData(&string, begin, getOffset(state, begin));
@@ -1215,7 +1215,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     ExpressionState estate;
     bytevector lvalues;
 
-    ByteVectorInit(&lvalues);
+    ByteVectorInit(&lvalues, 16);
     do
     {
         skipWhitespace(state);

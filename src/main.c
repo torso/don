@@ -189,7 +189,7 @@ int main(int argc, const char **argv)
         handleError(FieldIndexInit()) ||
         handleError(NamespaceInit()) ||
         handleError(NativeInit()) ||
-        handleError(ByteVectorInit(&parsed)))
+        handleError(ByteVectorInit(&parsed, 65536)))
     {
         cleanup();
         return 1;
@@ -227,7 +227,7 @@ int main(int argc, const char **argv)
     }
 
     bytecode = ByteVectorDisposeContainer(&parsed);
-    if (handleError(ByteVectorInit(&parsed)))
+    if (handleError(ByteVectorInit(&parsed, 65536)))
     {
         free(bytecode);
         cleanup();

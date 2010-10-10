@@ -24,7 +24,7 @@ static FieldInfo *getFieldInfo(fieldref field)
 
 ErrorCode FieldIndexInit(void)
 {
-    ErrorCode error = ByteVectorInit(&fieldTable);
+    ErrorCode error = ByteVectorInit(&fieldTable, 1024);
     if (error)
     {
         return error;
