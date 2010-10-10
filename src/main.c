@@ -46,6 +46,7 @@ void _assert(const char *expression, const char *file, int line)
     uint frames;
 
     printf("Assertion failed: %s:%d: %s\n", file, line, expression);
+    fflush(stdout);
     frames = (uint)backtrace(backtraceData, sizeof(backtraceData) / sizeof(void*));
     backtrace_symbols_fd(&backtraceData[1], (int)frames - 1, 1);
     raise(SIGABRT);
