@@ -5,4 +5,4 @@ extern nativefunctionref NativeFindFunction(stringref name);
 extern stringref NativeGetName(nativefunctionref function);
 extern uint NativeGetParameterCount(nativefunctionref function);
 extern uint NativeGetMinimumArgumentCount(nativefunctionref function);
-extern const stringref *NativeGetParameterNames(nativefunctionref function);
+extern const ParameterInfo *NativeGetParameterInfo(nativefunctionref function);

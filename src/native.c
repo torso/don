@@ -31,13 +31,13 @@ typedef struct
     stringref name;
     uint parameterCount;
     uint minimumArgumentCount;
-    stringref parameterNames[1];
+    ParameterInfo parameterInfo[1];
 } FunctionInfo;
 
 static byte functionInfo[
     (sizeof(FunctionInfo) -
-     sizeof(stringref)) * NATIVE_FUNCTION_COUNT +
-    sizeof(stringref) * TOTAL_PARAMETER_COUNT];
+     sizeof(ParameterInfo)) * NATIVE_FUNCTION_COUNT +
+    sizeof(ParameterInfo) * TOTAL_PARAMETER_COUNT];
 static uint functionIndex[NATIVE_FUNCTION_COUNT];
 
 static byte *initFunctionInfo = functionInfo;
@@ -48,16 +48,17 @@ static void addFunctionInfo(const char *name,
                             const char **parameterNames)
 {
     FunctionInfo *info = (FunctionInfo*)initFunctionInfo;
-    stringref *pnames;
+    ParameterInfo *paramInfo;
+
     if (!info)
     {
         return;
     }
     functionIndex[initFunctionIndex++] =
         (uint)(initFunctionInfo - functionInfo);
-    pnames = info->parameterNames;
-    initFunctionInfo += sizeof(FunctionInfo) - sizeof(stringref) +
-        sizeof(stringref) * parameterCount;
+    paramInfo = info->parameterInfo;
+    initFunctionInfo += sizeof(FunctionInfo) - sizeof(ParameterInfo) +
+        sizeof(ParameterInfo) * parameterCount;
     assert(initFunctionInfo <= &functionInfo[sizeof(functionInfo)]);
 
     info->name = StringPoolAdd(name);
@@ -70,13 +71,14 @@ static void addFunctionInfo(const char *name,
     }
     while (parameterCount--)
     {
-        *pnames = StringPoolAdd(*parameterNames);
-        if (!*pnames)
+        paramInfo->name = StringPoolAdd(*parameterNames);
+        if (!paramInfo->name)
         {
             initFunctionInfo = null;
             return;
         }
-        pnames++;
+        paramInfo->value = 0;
+        paramInfo++;
         parameterNames++;
     }
 }
@@ -353,7 +355,7 @@ uint NativeGetMinimumArgumentCount(nativefunctionref function)
     return getFunctionInfo(function)->minimumArgumentCount;
 }
 
-const stringref *NativeGetParameterNames(nativefunctionref function)
+const ParameterInfo *NativeGetParameterInfo(nativefunctionref function)
 {
-    return getFunctionInfo(function)->parameterNames;
+    return getFunctionInfo(function)->parameterInfo;
 }

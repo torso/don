@@ -191,16 +191,17 @@ int main(int argc, const char **argv)
 
     if (handleError(FileInit()) ||
         handleError(FunctionIndexInit()) ||
-        handleError(FunctionIndexBeginFunction(StringPoolAdd(""))) ||
+        handleError(FunctionIndexAddFunction(StringPoolAdd(""), 0, 0, 0) ?
+                    NO_ERROR : OUT_OF_MEMORY) ||
         handleError(FieldIndexInit()) ||
         handleError(NamespaceInit()) ||
         handleError(NativeInit()) ||
         handleError(ByteVectorInit(&parsed, 65536)))
     {
+        IntVectorDispose(&targets);
         cleanup();
         return 1;
     }
-    FunctionIndexFinishFunction(0, 0, 0);
 
     inputFile = FileAdd(inputFilename, strlen(inputFilename));
     if (handleError(inputFile ? NO_ERROR : OUT_OF_MEMORY) ||
@@ -217,6 +218,28 @@ int main(int argc, const char **argv)
          field = FieldIndexGetNextField(field))
     {
         error = ParseField(field, &parsed);
+        if (error)
+        {
+            if (error == ERROR_FAIL)
+            {
+                parseFailed = true;
+            }
+            else
+            {
+                handleError(error);
+                ByteVectorDispose(&parsed);
+                cleanup();
+                return 1;
+            }
+        }
+    }
+
+    for (function = FunctionIndexGetNextFunction(
+             FunctionIndexGetFirstFunction());
+         function;
+         function = FunctionIndexGetNextFunction(function))
+    {
+        error = ParseFunctionDeclaration(function, &parsed);
         if (error)
         {
             if (error == ERROR_FAIL)
@@ -257,7 +280,7 @@ int main(int argc, const char **argv)
          function;
          function = FunctionIndexGetNextFunction(function))
     {
-        error = ParseFunction(function, &parsed);
+        error = ParseFunctionBody(function, &parsed);
         if (error)
         {
             if (error == ERROR_FAIL)

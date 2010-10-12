@@ -22,10 +22,12 @@
 extern ErrorCode FunctionIndexInit(void);
 extern void FunctionIndexDispose(void);
 
-extern ErrorCode FunctionIndexBeginFunction(stringref name);
-extern ErrorCode FunctionIndexAddParameter(stringref name, boolean required);
-extern functionref FunctionIndexFinishFunction(fileref file, uint line,
-                                               uint fileOffset);
+extern functionref FunctionIndexAddFunction(stringref name, fileref file,
+                                            uint line, uint fileOffset);
+extern ErrorCode FunctionIndexAddParameter(functionref function, stringref name,
+                                           fieldref value, boolean required);
+extern void FunctionIndexFinishParameters(functionref function,
+                                          uint line, uint fileOffset);
 
 extern functionref FunctionIndexGetFirstFunction(void);
 extern functionref FunctionIndexGetNextFunction(functionref function);
@@ -39,7 +41,7 @@ extern boolean FunctionIndexIsTarget(functionref function);
 extern uint FunctionIndexGetBytecodeOffset(functionref function);
 extern void FunctionIndexSetBytecodeOffset(functionref function, uint offset);
 extern uint FunctionIndexGetParameterCount(functionref function);
-extern const stringref *FunctionIndexGetParameterNames(functionref function);
+extern const ParameterInfo *FunctionIndexGetParameterInfo(functionref function);
 extern uint FunctionIndexGetMinimumArgumentCount(functionref function);
 extern uint FunctionIndexGetLocalsCount(functionref function);
 extern stringref FunctionIndexGetLocalName(functionref function,

@@ -540,7 +540,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     nativefunctionref nativeFunction = NativeFindFunction(name);
     functionref function = 0;
     uint parameterCount;
-    const stringref *parameterNames;
+    const ParameterInfo *parameterInfo;
     uint minimumArgumentCount;
     uint argumentCount = 0;
     uint line = state->line;
@@ -555,7 +555,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     if (nativeFunction)
     {
         parameterCount = NativeGetParameterCount(nativeFunction);
-        parameterNames = NativeGetParameterNames(nativeFunction);
+        parameterInfo = NativeGetParameterInfo(nativeFunction);
         minimumArgumentCount = NativeGetMinimumArgumentCount(nativeFunction);
     }
     else
@@ -569,10 +569,10 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             return false;
         }
         parameterCount = FunctionIndexGetParameterCount(function);
-        parameterNames = FunctionIndexGetParameterNames(function);
+        parameterInfo = FunctionIndexGetParameterInfo(function);
         minimumArgumentCount = FunctionIndexGetMinimumArgumentCount(function);
     }
-    assert(parameterNames || !parameterCount);
+    assert(parameterInfo || !parameterCount);
 
     if (!readOperator(state, ')'))
     {
@@ -639,7 +639,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                         error(state, errorBuffer);
                         return false;
                     }
-                    if (parameterNames[i] == estateArgument.identifier)
+                    if (parameterInfo[i].name == estateArgument.identifier)
                     {
                         if (IntVectorGet(&namedParameters, i))
                         {
@@ -1674,13 +1674,72 @@ static boolean parseFunctionBody(ParseState *state)
     }
 }
 
+static void parseFunctionDeclaration(ParseState *state, functionref function)
+{
+    stringref parameterName;
+
+    if (readOperator(state, ':'))
+    {
+        if (!peekNewline(state))
+        {
+            error(state, "Garbage after target declaration.");
+            return;
+        }
+    }
+    else
+    {
+        assert(peekOperator(state, '('));
+        state->current++;
+        if (!readOperator(state, ')'))
+        {
+            for (;;)
+            {
+                parameterName = peekReadIdentifier(state);
+                if (state->error)
+                {
+                    return;
+                }
+                if (!parameterName || isKeyword(parameterName))
+                {
+                    error(state, "Expected parameter name or ')'.");
+                    return;
+                }
+                skipWhitespace(state);
+                state->error = FunctionIndexAddParameter(function, parameterName,
+                                                         0, true);
+                if (state->error)
+                {
+                    return;
+                }
+                if (readOperator(state, ')'))
+                {
+                    break;
+                }
+                if (!readOperator(state, ','))
+                {
+                    error(state, "Expected ',' or ')'.");
+                    return;
+                }
+                skipWhitespace(state);
+            }
+        }
+        if (!peekNewline(state))
+        {
+            error(state, "Garbage after function declaration.");
+            return;
+        }
+    }
+    skipEndOfLine(state);
+    FunctionIndexFinishParameters(function, state->line,
+                                  getOffset(state, state->start));
+}
+
 static void parseScript(ParseState *state)
 {
-    boolean inFunction = false;
-    boolean isTarget;
-    stringref name;
-    stringref parameterName;
+    functionref function;
     fieldref field;
+    stringref name;
+    boolean allowIndent = false;
 
     ParseStateCheck(state);
     while (!eof(state))
@@ -1693,81 +1752,41 @@ static void parseScript(ParseState *state)
             {
                 return;
             }
-            if (readOperator(state, ':'))
+            if (peekOperator(state, ':'))
             {
-                isTarget = true;
-                state->error = FunctionIndexBeginFunction(name);
+                function = FunctionIndexAddFunction(
+                    name, state->file, state->line,
+                    getOffset(state, state->start));
+                if (!function)
+                {
+                    state->error = OUT_OF_MEMORY;
+                    return;
+                }
+                state->error = NamespaceAddTarget(name, function);
                 if (state->error)
                 {
                     return;
                 }
-                assert(peekNewline(state));
                 skipEndOfLine(state);
-                inFunction = true;
-                state->error = NamespaceAddTarget(
-                    name,
-                    FunctionIndexFinishFunction(
-                        state->file, state->line,
-                        getOffset(state, state->start)));
-                if (state->error)
-                {
-                    return;
-                }
+                allowIndent = true;
             }
-            else if (readOperator(state, '('))
+            else if (peekOperator(state, '('))
             {
-                isTarget = false;
-                skipWhitespace(state);
-                state->error = FunctionIndexBeginFunction(name);
+                function = FunctionIndexAddFunction(
+                    name, state->file, state->line,
+                    getOffset(state, state->start));
+                if (!function)
+                {
+                    state->error = OUT_OF_MEMORY;
+                    return;
+                }
+                state->error = NamespaceAddFunction(name, function);
                 if (state->error)
                 {
                     return;
                 }
-                if (!readOperator(state, ')'))
-                {
-                    for (;;)
-                    {
-                        parameterName = peekReadIdentifier(state);
-                        if (state->error)
-                        {
-                            return;
-                        }
-                        if (!parameterName || isKeyword(parameterName))
-                        {
-                            error(state, "Expected parameter name or ')'.");
-                            return;
-                        }
-                        skipWhitespace(state);
-                        state->error = FunctionIndexAddParameter(parameterName,
-                                                                 true);
-                        if (state->error)
-                        {
-                            return;
-                        }
-                        if (readOperator(state, ')'))
-                        {
-                            break;
-                        }
-                        if (!readOperator(state, ','))
-                        {
-                            error(state, "Expected ',' or ')'.");
-                            return;
-                        }
-                        skipWhitespace(state);
-                    }
-                }
-                assert(peekNewline(state));
                 skipEndOfLine(state);
-                inFunction = true;
-                state->error = NamespaceAddFunction(
-                    name,
-                    FunctionIndexFinishFunction(
-                        state->file, state->line,
-                        getOffset(state, state->start)));
-                if (state->error)
-                {
-                    return;
-                }
+                allowIndent = true;
             }
             else
             {
@@ -1791,10 +1810,10 @@ static void parseScript(ParseState *state)
                     return;
                 }
                 skipEndOfLine(state);
-                inFunction = true;
+                allowIndent = false;
             }
         }
-        else if ((peekIndent(state) && inFunction) ||
+        else if ((peekIndent(state) && allowIndent) ||
                  peekComment(state))
         {
             skipEndOfLine(state);
@@ -1884,9 +1903,28 @@ ErrorCode ParseField(fieldref field, bytevector *bytecode)
     return state.error;
 }
 
-ErrorCode ParseFunction(functionref function, bytevector *bytecode)
+ErrorCode ParseFunctionDeclaration(functionref function, bytevector *bytecode)
 {
     ParseState state;
+
+    assert(function);
+    ParseStateInit(&state, bytecode, function,
+                   FunctionIndexGetFile(function),
+                   FunctionIndexGetLine(function),
+                   FunctionIndexGetFileOffset(function));
+    if (state.error)
+    {
+        return state.error;
+    }
+    parseFunctionDeclaration(&state, function);
+    ParseStateDispose(&state);
+    return state.error;
+}
+
+ErrorCode ParseFunctionBody(functionref function, bytevector *bytecode)
+{
+    ParseState state;
+
     assert(function);
     FunctionIndexSetBytecodeOffset(function, (uint)ByteVectorSize(bytecode));
     ParseStateInit(&state, bytecode, function,

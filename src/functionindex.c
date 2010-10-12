@@ -13,7 +13,7 @@ typedef struct
     uint fileOffset;
 
     uint bytecodeOffset;
-    uint parameterNamesOffset;
+    size_t parameterInfoOffset;
     uint parameterCount;
     uint minArgumentCount;
     uint localCount;
@@ -22,40 +22,17 @@ typedef struct
 
 static bytevector functionTable;
 static intvector localNames;
+static size_t lastFunction = 0;
 
-/*
-  This value is used temporarily between FunctionIndexBeginFunction and
-  FunctionIndexFinishFunction.
-*/
-static functionref currentFunction;
-
-
-static size_t getFunctionInfoSize(functionref function)
-{
-    return sizeof(FunctionInfo) +
-        ((FunctionInfo*)ByteVectorGetPointer(
-            &functionTable, sizeFromRef(function)))->parameterCount *
-        (uint)sizeof(ref_t);
-}
 
 static boolean isValidFunction(functionref function)
 {
-    functionref f;
-    if (sizeFromRef(function) + sizeof(FunctionInfo) >
-        ByteVectorSize(&functionTable))
+    if (sizeFromRef(function) > lastFunction)
     {
         return false;
     }
-    for (f = FunctionIndexGetFirstFunction();
-         f;
-         f = refFromSize(sizeFromRef(f) + getFunctionInfoSize(f)))
-    {
-        if (f == function)
-        {
-            return true;
-        }
-    }
-    return false;
+    return (sizeFromRef(function) - FunctionIndexGetFirstFunction()) %
+        sizeof(FunctionInfo) == 0;
 }
 
 static FunctionInfo *getFunctionInfo(functionref function)
@@ -91,39 +68,70 @@ void FunctionIndexDispose(void)
 }
 
 
-ErrorCode FunctionIndexBeginFunction(stringref name)
+functionref FunctionIndexAddFunction(stringref name, fileref file, uint line,
+                                     uint fileOffset)
 {
+    functionref function = refFromSize(ByteVectorSize(&functionTable));
+    FunctionInfo *info;
+
+    if (ByteVectorGrowZero(&functionTable, sizeof(FunctionInfo)))
+    {
+        return 0;
+    }
+    lastFunction = sizeFromRef(function);
+    info = getFunctionInfo(function);
+    info->name = name;
+    info->file = file;
+    info->line = line;
+    info->fileOffset = fileOffset;
+    return function;
+}
+
+ErrorCode FunctionIndexAddParameter(functionref function, stringref name,
+                                    fieldref value, boolean required)
+{
+    FunctionInfo *info;
+    ParameterInfo *paramInfo;
+    size_t parameterInfoOffset = ByteVectorSize(&functionTable);
     ErrorCode error;
-    currentFunction = refFromSize(ByteVectorSize(&functionTable));
-    error = ByteVectorGrowZero(&functionTable, sizeof(FunctionInfo));
+
+    error = ByteVectorGrow(&functionTable, sizeof(ParameterInfo));
     if (error)
     {
         return error;
     }
-    getFunctionInfo(currentFunction)->name = name;
-    return NO_ERROR;
-}
+    info = getFunctionInfo(function);
+    paramInfo = (ParameterInfo*)ByteVectorGetPointer(&functionTable,
+                                                     parameterInfoOffset);
 
-ErrorCode FunctionIndexAddParameter(stringref name, boolean required)
-{
-    FunctionInfo *info = getFunctionInfo(currentFunction);
-
+    if (!info->parameterCount)
+    {
+        info->parameterInfoOffset = parameterInfoOffset;
+    }
+    assert(&FunctionIndexGetParameterInfo(function)[info->parameterCount] ==
+           paramInfo);
     assert(!required || info->parameterCount == info->minArgumentCount);
     info->parameterCount++;
     if (required)
     {
         info->minArgumentCount++;
+        assert(!value);
     }
-    return ByteVectorAddRef(&functionTable, name);
+    else
+    {
+        assert(value);
+    }
+    paramInfo->name = name;
+    paramInfo->value = value;
+    return NO_ERROR;
 }
 
-functionref FunctionIndexFinishFunction(fileref file, uint line, uint fileOffset)
+void FunctionIndexFinishParameters(functionref function,
+                                   uint line, uint fileOffset)
 {
-    FunctionInfo *info = getFunctionInfo(currentFunction);
-    info->file = file;
+    FunctionInfo *info = getFunctionInfo(function);
     info->line = line;
     info->fileOffset = fileOffset;
-    return currentFunction;
 }
 
 
@@ -138,10 +146,10 @@ functionref FunctionIndexGetFirstFunction(void)
 
 functionref FunctionIndexGetNextFunction(functionref function)
 {
-    function = refFromSize(sizeFromRef(function) +
-                           getFunctionInfoSize(function));
-    assert(sizeFromRef(function) <= ByteVectorSize(&functionTable));
-    if (sizeFromRef(function) == ByteVectorSize(&functionTable))
+    assert(isValidFunction(function));
+    function = refFromSize(sizeFromRef(function) + sizeof(FunctionInfo));
+    assert(lastFunction <= ByteVectorSize(&functionTable));
+    if (sizeFromRef(function) > lastFunction)
     {
         return 0;
     }
@@ -152,7 +160,7 @@ functionref FunctionIndexGetNextFunction(functionref function)
 functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset)
 {
     functionref function;
-    functionref lastFunction;
+    functionref prevFunction;
     for (function = FunctionIndexGetFirstFunction();
          function;
          function = FunctionIndexGetNextFunction(function))
@@ -163,11 +171,11 @@ functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset)
             {
                 return function;
             }
-            return lastFunction;
+            return prevFunction;
         }
-        lastFunction = function;
+        prevFunction = function;
     }
-    return lastFunction;
+    return prevFunction;
 }
 
 stringref FunctionIndexGetName(functionref function)
@@ -205,11 +213,11 @@ uint FunctionIndexGetParameterCount(functionref function)
     return getFunctionInfo(function)->parameterCount;
 }
 
-const stringref *FunctionIndexGetParameterNames(functionref function)
+const ParameterInfo *FunctionIndexGetParameterInfo(functionref function)
 {
-    assert(isValidFunction(function));
-    return (stringref*)ByteVectorGetPointer(
-        &functionTable, sizeFromRef(function) + sizeof(FunctionInfo));
+    FunctionInfo *info = getFunctionInfo(function);
+    return (const ParameterInfo*)ByteVectorGetPointer(
+        &functionTable, info->parameterInfoOffset);
 }
 
 uint FunctionIndexGetMinimumArgumentCount(functionref function)

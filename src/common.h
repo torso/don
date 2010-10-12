@@ -57,6 +57,12 @@ typedef ref_t nativefunctionref;
 typedef ref_t objectref;
 typedef ref_t stringref;
 
+typedef struct
+{
+    stringref name;
+    fieldref value;
+} ParameterInfo;
+
 extern pure ref_t refFromSize(size_t i);
 extern pure ref_t refFromUint(uint i);
 extern pure size_t sizeFromRef(ref_t r);

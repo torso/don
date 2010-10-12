@@ -84,7 +84,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
                     functionref function, fileref file, uint line, uint offset)
 {
     char errorBuffer[256];
-    const stringref *parameterNames;
+    const ParameterInfo *parameterInfo;
     uint parameterCount;
     size_t size;
     uint i;
@@ -114,15 +114,15 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
         parameterCount = FunctionIndexGetParameterCount(function);
         if (parameterCount)
         {
-            parameterNames = FunctionIndexGetParameterNames(function);
-            for (i = 0; i < parameterCount; i++, parameterNames++)
+            parameterInfo = FunctionIndexGetParameterInfo(function);
+            for (i = 0; i < parameterCount; i++, parameterInfo++)
             {
-                if (getLocalIndex(state, *parameterNames) != i)
+                if (getLocalIndex(state, parameterInfo->name) != i)
                 {
                     IntHashMapDispose(&state->locals);
                     sprintf(errorBuffer,
                             "Multiple uses of parameter name '%s'.",
-                            StringPoolGetString(*parameterNames));
+                            StringPoolGetString(parameterInfo->name));
                     setError(state, errorBuffer);
                     return;
                 }
