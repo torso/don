@@ -536,6 +536,7 @@ static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
 static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                                    stringref name)
 {
+    ExpressionState estateArgument;
     nativefunctionref nativeFunction = NativeFindFunction(name);
     functionref function = 0;
     uint parameterCount;
@@ -543,6 +544,12 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     uint minimumArgumentCount;
     uint argumentCount = 0;
     uint line = state->line;
+    boolean requireNamedParameters = false;
+    intvector namedParameters;
+    uint position;
+    uint firstOutOfOrder;
+    uint reorderCount;
+    uint i;
 
     ParseStateCheck(state);
     if (nativeFunction)
@@ -571,8 +578,92 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     {
         for (;;)
         {
-            if (!parseRValue(state, false))
+            if (requireNamedParameters)
             {
+                if (!peekIdentifier(state))
+                {
+                    IntVectorDispose(&namedParameters);
+                    error(state, "Expected parameter name.");
+                    return false;
+                }
+                estateArgument.identifier = readIdentifier(state);
+                if (state->error || !readExpectedOperator(state, ':'))
+                {
+                    IntVectorDispose(&namedParameters);
+                    return false;
+                }
+            }
+            else
+            {
+                estateArgument.identifier = peekReadIdentifier(state);
+                if (state->error)
+                {
+                    return false;
+                }
+                if (estateArgument.identifier && readOperator(state, ':'))
+                {
+                    requireNamedParameters = true;
+                    state->error = IntVectorInit(&namedParameters);
+                    if (state->error)
+                    {
+                        return false;
+                    }
+                    for (i = 0; i++ < argumentCount;)
+                    {
+                        state->error = IntVectorAdd(&namedParameters, i);
+                        if (state->error)
+                        {
+                            IntVectorDispose(&namedParameters);
+                            return false;
+                        }
+                    }
+                    state->error = IntVectorGrowZero(
+                        &namedParameters, parameterCount - argumentCount);
+                    if (state->error)
+                    {
+                        IntVectorDispose(&namedParameters);
+                        return false;
+                    }
+                }
+            }
+            if (requireNamedParameters)
+            {
+                skipWhitespace(state);
+                for (i = 0;; i++)
+                {
+                    if (i == parameterCount)
+                    {
+                        IntVectorDispose(&namedParameters);
+                        sprintf(errorBuffer, "Invalid parameter name '%s'.",
+                                StringPoolGetString(estateArgument.identifier));
+                        error(state, errorBuffer);
+                        return false;
+                    }
+                    if (parameterNames[i] == estateArgument.identifier)
+                    {
+                        if (IntVectorGet(&namedParameters, i))
+                        {
+                            IntVectorDispose(&namedParameters);
+                            sprintf(errorBuffer,
+                                    "More than one value for parameter '%s'.",
+                                    StringPoolGetString(estateArgument.identifier));
+                            error(state, errorBuffer);
+                            return false;
+                        }
+                        IntVectorSet(&namedParameters, i, argumentCount + 1);
+                        estateArgument.identifier = 0;
+                        break;
+                    }
+                }
+            }
+            estateArgument.constant = false;
+            if (!parseExpression(state, &estateArgument) ||
+                !finishRValue(state, &estateArgument))
+            {
+                if (requireNamedParameters)
+                {
+                    IntVectorDispose(&namedParameters);
+                }
                 return false;
             }
             argumentCount++;
@@ -582,6 +673,10 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             }
             if (!readExpectedOperator(state, ','))
             {
+                if (requireNamedParameters)
+                {
+                    IntVectorDispose(&namedParameters);
+                }
                 return false;
             }
             skipWhitespace(state);
@@ -602,9 +697,46 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                     StringPoolGetString(name), argumentCount, parameterCount);
         }
         errorOnLine(state, line, errorBuffer);
+        if (requireNamedParameters)
+        {
+            IntVectorDispose(&namedParameters);
+        }
         return false;
     }
-    if (argumentCount < minimumArgumentCount)
+    if (requireNamedParameters)
+    {
+        reorderCount = 0;
+        for (i = 0; i < parameterCount; i++)
+        {
+            position = IntVectorGet(&namedParameters, i);
+            if (!position && i < minimumArgumentCount)
+            {
+                sprintf(errorBuffer,
+                        "Too few arguments for function '%s'. Got %d arguments, but at least %d were expected.",
+                        StringPoolGetString(name), argumentCount, parameterCount);
+                errorOnLine(state, line, errorBuffer);
+                return false;
+            }
+            if (position && (position - 1 != i || reorderCount))
+            {
+                if (!reorderCount)
+                {
+                    firstOutOfOrder = i;
+                }
+                reorderCount++;
+            }
+        }
+        if (reorderCount && !ParseStateReorderStack(
+                state, &namedParameters, firstOutOfOrder, reorderCount,
+                parameterCount - firstOutOfOrder))
+        {
+            IntVectorDispose(&namedParameters);
+            return false;
+        }
+        IntVectorDispose(&namedParameters);
+        argumentCount = parameterCount;
+    }
+    else if (argumentCount < minimumArgumentCount)
     {
         sprintf(errorBuffer,
                 "Too few arguments for function '%s'. Got %d arguments, but at least %d were expected.",

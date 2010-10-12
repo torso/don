@@ -560,3 +560,44 @@ boolean ParseStateWriteInvocation(ParseState *state,
         !ParseStateSetError(state, ByteVectorAdd(state->bytecode,
                                                  (uint8)returnValues));
 }
+
+boolean ParseStateReorderStack(ParseState *state,
+                               intvector *order, uint offset, uint count,
+                               uint expandCount)
+{
+    uint position;
+    uint baseOffset = offset;
+
+    assert(count);
+    assert(count <= UINT16_MAX);
+    assert(expandCount <= UINT16_MAX);
+    assert(count <= expandCount);
+    ParseStateCheck(state);
+
+    if (ParseStateSetError(
+            state, ByteVectorAdd(state->bytecode, OP_REORDER_STACK)) ||
+        ParseStateSetError(
+            state, ByteVectorAddUint16(state->bytecode, (uint16)count)) ||
+        ParseStateSetError(
+            state, ByteVectorAddUint16(state->bytecode,
+                                       (uint16)(expandCount - count))))
+    {
+        return false;
+    }
+    while (count)
+    {
+        position = IntVectorGet(order, offset++);
+        if (position)
+        {
+            assert(position - 1 <= UINT16_MAX);
+            if (ParseStateSetError(
+                    state, ByteVectorAddUint16(state->bytecode,
+                                               (uint16)(position - baseOffset - 1))))
+            {
+                return false;
+            }
+            count--;
+        }
+    }
+    return true;
+}

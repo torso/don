@@ -97,6 +97,11 @@ ErrorCode IntVectorSetSize(intvector *v, size_t size)
     return NO_ERROR;
 }
 
+ErrorCode IntVectorGrow(intvector *v, size_t size)
+{
+    return grow(v, size) ? NO_ERROR : OUT_OF_MEMORY;
+}
+
 ErrorCode IntVectorGrowZero(intvector *v, size_t size)
 {
     uint *p = grow(v, size);
@@ -129,6 +134,12 @@ void IntVectorMove(intvector *v, size_t src, size_t dst, size_t size)
     checkIntVectorRange(v, src, size);
     checkIntVectorRange(v, dst, size);
     memmove(&v->data[dst], &v->data[src], size * sizeof(uint));
+}
+
+void IntVectorZero(intvector *v, size_t offset, size_t size)
+{
+    checkIntVectorRange(v, offset, size);
+    memset(&v->data[offset], 0, size * sizeof(uint));
 }
 
 

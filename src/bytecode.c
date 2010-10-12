@@ -87,6 +87,17 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: dup\n", ip);
         break;
 
+    case OP_REORDER_STACK:
+        value = BytecodeReadUint16(&bytecode);
+        value2 = BytecodeReadUint16(&bytecode);
+        printf(" %u: reorder_stack %d %d\n", ip, value, value2);
+        for (value2 = 0; value2 < value; value2++)
+        {
+            printf("    value %u at %u\n", value2,
+                   BytecodeReadUint16(&bytecode));
+        }
+        break;
+
     case OP_LOAD:
         printf(" %u: load %u\n", ip, BytecodeReadUint16(&bytecode));
         break;
