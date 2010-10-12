@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "common.h"
 #include "bytevector.h"
 #include "fieldindex.h"
@@ -8,6 +9,7 @@
 #include "intvector.h"
 #include "log.h"
 #include "parsestate.h"
+#include "stringpool.h"
 
 typedef enum
 {
@@ -81,9 +83,11 @@ static uint16 getLocalIndex(ParseState *state, stringref name)
 void ParseStateInit(ParseState *state, bytevector *bytecode,
                     functionref function, fileref file, uint line, uint offset)
 {
+    char errorBuffer[256];
     const stringref *parameterNames;
     uint parameterCount;
     size_t size;
+    uint i;
 
     assert(file);
     assert(line == 1 || line <= offset);
@@ -100,15 +104,9 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
     state->indent = 0;
     state->bytecode = bytecode;
     state->unnamedVariables = 0;
-    state->error = IntVectorInit(&state->blockStack);
-    if (state->error)
-    {
-        return;
-    }
     state->error = IntHashMapInit(&state->locals, 256);
     if (state->error)
     {
-        IntVectorDispose(&state->blockStack);
         return;
     }
     if (function)
@@ -117,11 +115,25 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
         if (parameterCount)
         {
             parameterNames = FunctionIndexGetParameterNames(function);
-            while (parameterCount--)
+            for (i = 0; i < parameterCount; i++, parameterNames++)
             {
-                getLocalIndex(state, *parameterNames++);
+                if (getLocalIndex(state, *parameterNames) != i)
+                {
+                    IntHashMapDispose(&state->locals);
+                    sprintf(errorBuffer,
+                            "Multiple uses of parameter name '%s'.",
+                            StringPoolGetString(*parameterNames));
+                    setError(state, errorBuffer);
+                    return;
+                }
             }
         }
+    }
+    state->error = IntVectorInit(&state->blockStack);
+    if (state->error)
+    {
+        IntHashMapDispose(&state->locals);
+        return;
     }
 }
 
