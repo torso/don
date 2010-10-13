@@ -331,8 +331,16 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         if (returnValues)
         {
             assert(returnValues == 1);
-            assert(HeapCollectionSize(vm, value) <= INT_MAX);
-            InterpreterPush(vm, HeapBoxSize(vm, HeapCollectionSize(vm, value)));
+            if (HeapIsCollection(vm, value))
+            {
+                assert(HeapCollectionSize(vm, value) <= INT_MAX);
+                InterpreterPush(vm, HeapBoxSize(vm, HeapCollectionSize(vm, value)));
+            }
+            else
+            {
+                assert(HeapIsString(vm, value));
+                InterpreterPush(vm, HeapBoxSize(vm, HeapStringLength(vm, value)));
+            }
         }
         return NO_ERROR;
 
