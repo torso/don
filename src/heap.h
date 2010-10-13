@@ -103,7 +103,8 @@ extern nonnull fileref HeapGetFile(VM *vm, objectref object);
 
 extern nonnull objectref HeapCreateRange(VM *vm, objectref lowObject,
                                          objectref highObject);
-extern nonnull objectref HeapSplitLines(VM *vm, objectref string);
+extern nonnull objectref HeapSplitLines(VM *vm, objectref string,
+                                        boolean trimEmptyLastLine);
 
 extern nonnull boolean HeapIsCollection(VM *vm, objectref object);
 extern nonnull size_t HeapCollectionSize(VM *vm, objectref object);

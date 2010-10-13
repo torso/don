@@ -37,6 +37,11 @@ objectref InterpreterPop(VM *vm)
     return IntVectorPopRef(&vm->stack);
 }
 
+boolean InterpreterPopBoolean(VM *vm)
+{
+    return HeapIsTrue(vm, IntVectorPopRef(&vm->stack));
+}
+
 boolean InterpreterPush(VM *vm, objectref value)
 {
     return !setError(vm, IntVectorAddRef(&vm->stack, value));
@@ -242,7 +247,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_CAST_BOOLEAN:
-            pushBoolean(vm, HeapIsTrue(vm, pop(vm)));
+            pushBoolean(vm, InterpreterPopBoolean(vm));
             break;
 
         case OP_EQUALS:

@@ -13,7 +13,7 @@
 #include "native.h"
 #include "stringpool.h"
 
-#define TOTAL_PARAMETER_COUNT 6
+#define TOTAL_PARAMETER_COUNT 8
 
 typedef enum
 {
@@ -22,6 +22,7 @@ typedef enum
     NATIVE_EXEC,
     NATIVE_FAIL,
     NATIVE_FILENAME,
+    NATIVE_LINES,
     NATIVE_READFILE,
     NATIVE_SIZE,
 
@@ -109,6 +110,10 @@ ErrorCode NativeInit(bytevector *bytecode)
     addFunctionInfo("filename");
     addParameter("path", 0);
 
+    addFunctionInfo("lines");
+    addParameter("value", 0);
+    addParameter("trimEmptyLastLine", valueTrue);
+
     addFunctionInfo("readFile");
     addParameter("file", 0);
 
@@ -158,6 +163,25 @@ static char **createStringArray(VM *vm, objectref collection)
     return strings;
 }
 
+static objectref readFile(VM *vm, objectref object)
+{
+    const char *text;
+    size_t size;
+    fileref file = HeapGetFile(vm, object);
+
+    vm->error = FileMMap(file, (const byte**)&text, &size);
+    if (vm->error)
+    {
+        return vm->error;
+    }
+    if (!size)
+    {
+        InterpreterPush(vm, vm->emptyList);
+        return vm->error;
+    }
+    return HeapCreateWrappedString(vm, text, size);
+}
+
 ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
 {
     objectref value;
@@ -169,6 +193,7 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
     int pipeErr[2];
     fileref file;
     const char *text;
+    boolean condition;
 
     switch ((NativeFunction)function)
     {
@@ -290,28 +315,36 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         }
         return NO_ERROR;
 
+    case NATIVE_LINES:
+        assert(returnValues <= 1);
+        condition = InterpreterPopBoolean(vm);
+        value = InterpreterPop(vm);
+        if (returnValues)
+        {
+            if (HeapGetObjectType(vm, value) == TYPE_FILE)
+            {
+                value = readFile(vm, value);
+                if (!value)
+                {
+                    return vm->error;
+                }
+            }
+            assert(HeapIsString(vm, value));
+            value = HeapSplitLines(vm, value, condition);
+            if (!value)
+            {
+                return vm->error;
+            }
+            InterpreterPush(vm, value);
+        }
+        return NO_ERROR;
+
     case NATIVE_READFILE:
         assert(returnValues <= 1);
         value = InterpreterPop(vm);
-        assert(HeapGetObjectType(vm, value) == TYPE_FILE);
         if (returnValues)
         {
-            file = HeapGetFile(vm, value);
-            vm->error = FileMMap(file, (const byte**)&text, &size);
-            if (vm->error)
-            {
-                return vm->error;
-            }
-            if (!size)
-            {
-                InterpreterPush(vm, vm->emptyList);
-                return vm->error;
-            }
-            if (text[size - 1] == '\n')
-            {
-                size--;
-            }
-            value = HeapCreateWrappedString(vm, text, size);
+            value = readFile(vm, value);
             if (!value)
             {
                 return vm->error;

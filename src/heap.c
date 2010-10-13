@@ -663,7 +663,7 @@ objectref HeapCreateRange(VM *vm, objectref lowObject, objectref highObject)
     return HeapFinishAlloc(vm, objectData);
 }
 
-objectref HeapSplitLines(VM *vm, objectref string)
+objectref HeapSplitLines(VM *vm, objectref string, boolean trimEmptyLastLine)
 {
     byte *data;
     objectref *array;
@@ -680,6 +680,10 @@ objectref HeapSplitLines(VM *vm, objectref string)
         return vm->emptyList;
     }
     text = getString(vm, string);
+    if (trimEmptyLastLine && text[size - 1] == '\n')
+    {
+        size--;
+    }
     lines = UtilCountNewlines(text, size);
     data = HeapAlloc(vm, TYPE_ARRAY, (lines + 1) * sizeof(objectref));
     if (!data)

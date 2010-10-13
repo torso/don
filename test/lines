@@ -1,0 +1,4 @@
+default:
+   if lines("a\nb") == ["a", "b"] && lines("a\nb\n") == ["a", "b"]
+      if lines("a\nb", false) == ["a", "b"] && lines("a\nb\n", false) == ["a", "b", ""]
+         echo("PASS")
