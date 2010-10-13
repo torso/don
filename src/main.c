@@ -195,7 +195,6 @@ int main(int argc, const char **argv)
                     NO_ERROR : OUT_OF_MEMORY) ||
         handleError(FieldIndexInit()) ||
         handleError(NamespaceInit()) ||
-        handleError(NativeInit()) ||
         handleError(ByteVectorInit(&parsed, 65536)))
     {
         IntVectorDispose(&targets);
@@ -254,6 +253,14 @@ int main(int argc, const char **argv)
                 return 1;
             }
         }
+    }
+
+    if (handleError(NativeInit(&parsed)))
+    {
+        IntVectorDispose(&targets);
+        ByteVectorDispose(&parsed);
+        cleanup();
+        return 1;
     }
 
     bytecode = ByteVectorDisposeContainer(&parsed);

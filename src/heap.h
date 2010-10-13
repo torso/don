@@ -61,6 +61,10 @@ extern nonnull objectref HeapFinishAlloc(VM *vm, byte *objectData);
 
 
 
+extern nonnull boolean HeapIsTrue(VM *vm, objectref object);
+
+
+
 extern nonnull objectref HeapBoxInteger(VM *vm, int value);
 extern nonnull objectref HeapBoxSize(VM *vm, size_t value);
 extern nonnull int HeapUnboxInteger(VM *vm, objectref object);

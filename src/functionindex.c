@@ -15,7 +15,6 @@ typedef struct
     uint bytecodeOffset;
     size_t parameterInfoOffset;
     uint parameterCount;
-    uint minArgumentCount;
     uint localCount;
     uint localNamesOffset;
 } FunctionInfo;
@@ -88,7 +87,7 @@ functionref FunctionIndexAddFunction(stringref name, fileref file, uint line,
 }
 
 ErrorCode FunctionIndexAddParameter(functionref function, stringref name,
-                                    fieldref value, boolean required)
+                                    fieldref value)
 {
     FunctionInfo *info;
     ParameterInfo *paramInfo;
@@ -110,17 +109,7 @@ ErrorCode FunctionIndexAddParameter(functionref function, stringref name,
     }
     assert(&FunctionIndexGetParameterInfo(function)[info->parameterCount] ==
            paramInfo);
-    assert(!required || info->parameterCount == info->minArgumentCount);
     info->parameterCount++;
-    if (required)
-    {
-        info->minArgumentCount++;
-        assert(!value);
-    }
-    else
-    {
-        assert(value);
-    }
     paramInfo->name = name;
     paramInfo->value = value;
     return NO_ERROR;
@@ -218,11 +207,6 @@ const ParameterInfo *FunctionIndexGetParameterInfo(functionref function)
     FunctionInfo *info = getFunctionInfo(function);
     return (const ParameterInfo*)ByteVectorGetPointer(
         &functionTable, info->parameterInfoOffset);
-}
-
-uint FunctionIndexGetMinimumArgumentCount(functionref function)
-{
-    return getFunctionInfo(function)->minArgumentCount;
 }
 
 uint FunctionIndexGetLocalsCount(functionref function)

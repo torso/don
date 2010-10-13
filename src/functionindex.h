@@ -25,7 +25,7 @@ extern void FunctionIndexDispose(void);
 extern functionref FunctionIndexAddFunction(stringref name, fileref file,
                                             uint line, uint fileOffset);
 extern ErrorCode FunctionIndexAddParameter(functionref function, stringref name,
-                                           fieldref value, boolean required);
+                                           fieldref value);
 extern void FunctionIndexFinishParameters(functionref function,
                                           uint line, uint fileOffset);
 
@@ -42,7 +42,6 @@ extern uint FunctionIndexGetBytecodeOffset(functionref function);
 extern void FunctionIndexSetBytecodeOffset(functionref function, uint offset);
 extern uint FunctionIndexGetParameterCount(functionref function);
 extern const ParameterInfo *FunctionIndexGetParameterInfo(functionref function);
-extern uint FunctionIndexGetMinimumArgumentCount(functionref function);
 extern uint FunctionIndexGetLocalsCount(functionref function);
 extern stringref FunctionIndexGetLocalName(functionref function,
                                                 uint16 local);

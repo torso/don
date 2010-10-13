@@ -296,6 +296,32 @@ objectref HeapFinishAlloc(VM *vm, byte *objectData)
 }
 
 
+boolean HeapIsTrue(VM *vm, objectref object)
+{
+    if (object == vm->booleanTrue)
+    {
+        return true;
+    }
+    if (object == vm->booleanFalse || !object)
+    {
+        return false;
+    }
+    if (HeapGetObjectType(vm, object) == TYPE_INTEGER)
+    {
+        return HeapUnboxInteger(vm, object) != 0;
+    }
+    if (HeapIsString(vm, object))
+    {
+        return HeapStringLength(vm, object) != 0;
+    }
+    if (HeapIsCollection(vm, object))
+    {
+        return HeapCollectionSize(vm, object) != 0;
+    }
+    return true;
+}
+
+
 objectref HeapBoxInteger(VM *vm, int value)
 {
     assert(value == HeapUnboxInteger(vm, refFromUint((uint)value |

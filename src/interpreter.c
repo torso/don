@@ -242,32 +242,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_CAST_BOOLEAN:
-            value = pop(vm);
-            if (value == vm->booleanTrue ||
-                value == vm->booleanFalse)
-            {
-                push(vm, value);
-            }
-            else if (!value)
-            {
-                push(vm, vm->booleanFalse);
-            }
-            else if (HeapGetObjectType(vm, value) == TYPE_INTEGER)
-            {
-                pushBoolean(vm, HeapUnboxInteger(vm, value) != 0);
-            }
-            else if (HeapIsString(vm, value))
-            {
-                pushBoolean(vm, HeapStringLength(vm, value) != 0);
-            }
-            else if (HeapIsCollection(vm, value))
-            {
-                pushBoolean(vm, HeapCollectionSize(vm, value) != 0);
-            }
-            else
-            {
-                push(vm, vm->booleanTrue);
-            }
+            pushBoolean(vm, HeapIsTrue(vm, pop(vm)));
             break;
 
         case OP_EQUALS:

@@ -541,7 +541,6 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     functionref function = 0;
     uint parameterCount;
     const ParameterInfo *parameterInfo;
-    uint minimumArgumentCount;
     uint argumentCount = 0;
     uint line = state->line;
     boolean requireNamedParameters = false;
@@ -556,7 +555,6 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     {
         parameterCount = NativeGetParameterCount(nativeFunction);
         parameterInfo = NativeGetParameterInfo(nativeFunction);
-        minimumArgumentCount = NativeGetMinimumArgumentCount(nativeFunction);
     }
     else
     {
@@ -570,7 +568,6 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         }
         parameterCount = FunctionIndexGetParameterCount(function);
         parameterInfo = FunctionIndexGetParameterInfo(function);
-        minimumArgumentCount = FunctionIndexGetMinimumArgumentCount(function);
     }
     assert(parameterInfo || !parameterCount);
 
@@ -744,16 +741,16 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         IntVectorDispose(&namedParameters);
         argumentCount = parameterCount;
     }
-    else if (argumentCount < minimumArgumentCount)
+    else if (argumentCount < parameterCount)
     {
-        sprintf(errorBuffer, "No value for parameter '%s' given.",
-                StringPoolGetString(parameterInfo[argumentCount].name));
-        errorOnLine(state, line, errorBuffer);
-        return false;
-    }
-    else
-    {
-        while (argumentCount < parameterCount)
+        if (!parameterInfo[argumentCount].value)
+        {
+            sprintf(errorBuffer, "No value for parameter '%s' given.",
+                    StringPoolGetString(parameterInfo[argumentCount].name));
+            errorOnLine(state, line, errorBuffer);
+            return false;
+        }
+        do
         {
             assert(parameterInfo[argumentCount].value);
             if (!ParseStateGetField(state, parameterInfo[argumentCount].value))
@@ -762,6 +759,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             }
             argumentCount++;
         }
+        while (argumentCount < parameterCount);
     }
     estate->valueType = VALUE_INVOCATION;
     estate->nativeFunction = nativeFunction;
@@ -1698,7 +1696,7 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
     stringref parameterName;
     fieldref field = 0;
     boolean requireDefaultValues = false;
-    uint start;
+    size_t start;
 
     if (readOperator(state, ':'))
     {
@@ -1754,13 +1752,13 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                         state->error = OUT_OF_MEMORY;
                         return;
                     }
-                    start = (uint)ByteVectorSize(state->bytecode);
+                    start = ByteVectorSize(state->bytecode);
                     if (!parseRValue(state, true))
                     {
                         return;
                     }
                     FieldIndexSetBytecodeOffset(
-                        field, start, (uint)ByteVectorSize(state->bytecode));
+                        field, start, ByteVectorSize(state->bytecode));
                 }
                 else if (requireDefaultValues)
                 {
@@ -1770,8 +1768,9 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                     error(state, errorBuffer);
                     return;
                 }
-                state->error = FunctionIndexAddParameter(function, parameterName,
-                                                         field, field == 0);
+                state->error = FunctionIndexAddParameter(function,
+                                                         parameterName,
+                                                         field);
                 if (state->error)
                 {
                     return;
@@ -1940,7 +1939,7 @@ ErrorCode ParseFile(fileref file)
 ErrorCode ParseField(fieldref field, bytevector *bytecode)
 {
     ParseState state;
-    uint start = (uint)ByteVectorSize(bytecode);
+    size_t start = ByteVectorSize(bytecode);
 
     assert(field);
     ParseStateInit(&state, bytecode, 0, FieldIndexGetFile(field),
@@ -1960,7 +1959,7 @@ ErrorCode ParseField(fieldref field, bytevector *bytecode)
         else
         {
             /* TODO: Look for code before next field/function. */
-            FieldIndexSetBytecodeOffset(field, start, (uint)ByteVectorSize(bytecode));
+            FieldIndexSetBytecodeOffset(field, start, ByteVectorSize(bytecode));
         }
     }
 

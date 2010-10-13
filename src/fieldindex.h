@@ -5,7 +5,8 @@ extern ErrorCode FieldIndexFinishBytecode(const byte *parsed,
                                           bytevector *bytecode);
 
 extern fieldref FieldIndexAdd(fileref file, uint line, uint fileOffset);
-extern void FieldIndexSetBytecodeOffset(fieldref field, uint start, uint stop);
+extern void FieldIndexSetBytecodeOffset(fieldref field,
+                                        size_t start, size_t stop);
 
 extern uint FieldIndexGetCount(void);
 extern fieldref FieldIndexGetFirstField(void);

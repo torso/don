@@ -5,7 +5,9 @@
 #include <sys/wait.h>
 #include "common.h"
 #include "vm.h"
+#include "fieldindex.h"
 #include "file.h"
+#include "instruction.h"
 #include "interpreter.h"
 #include "log.h"
 #include "native.h"
@@ -30,7 +32,6 @@ typedef struct
 {
     stringref name;
     uint parameterCount;
-    uint minimumArgumentCount;
     ParameterInfo parameterInfo[1];
 } FunctionInfo;
 
@@ -41,53 +42,81 @@ static byte functionInfo[
 static uint functionIndex[NATIVE_FUNCTION_COUNT];
 
 static byte *initFunctionInfo = functionInfo;
+static FunctionInfo *currentFunctionInfo;
 static uint initFunctionIndex = 1;
+static boolean failed;
 
-static void addFunctionInfo(const char *name,
-                            uint parameterCount, uint minimumArgumentCount,
-                            const char **parameterNames)
-{
-    FunctionInfo *info = (FunctionInfo*)initFunctionInfo;
-    ParameterInfo *paramInfo;
-
-    if (!info)
-    {
-        return;
-    }
-    functionIndex[initFunctionIndex++] =
-        (uint)(initFunctionInfo - functionInfo);
-    paramInfo = info->parameterInfo;
-    initFunctionInfo += sizeof(FunctionInfo) - sizeof(ParameterInfo) +
-        sizeof(ParameterInfo) * parameterCount;
-    assert(initFunctionInfo <= &functionInfo[sizeof(functionInfo)]);
-
-    info->name = StringPoolAdd(name);
-    info->parameterCount = parameterCount;
-    info->minimumArgumentCount = minimumArgumentCount;
-    if (!info->name)
-    {
-        initFunctionInfo = null;
-        return;
-    }
-    while (parameterCount--)
-    {
-        paramInfo->name = StringPoolAdd(*parameterNames);
-        if (!paramInfo->name)
-        {
-            initFunctionInfo = null;
-            return;
-        }
-        paramInfo->value = 0;
-        paramInfo++;
-        parameterNames++;
-    }
-}
 
 static const FunctionInfo *getFunctionInfo(nativefunctionref function)
 {
     assert(function);
     assert(uintFromRef(function) < NATIVE_FUNCTION_COUNT);
     return (FunctionInfo*)&functionInfo[functionIndex[sizeFromRef(function)]];
+}
+
+static fieldref addValue(bytevector *bytecode, Instruction op)
+{
+    size_t start = ByteVectorSize(bytecode);
+    fieldref field = FieldIndexAdd(0, 0, 0);
+
+    if (!field || ByteVectorAdd(bytecode, op))
+    {
+        failed = true;
+        return 0;
+    }
+    FieldIndexSetBytecodeOffset(field, start, ByteVectorSize(bytecode));
+    return field;
+}
+
+static void addFunctionInfo(const char *name)
+{
+    functionIndex[initFunctionIndex++] =
+        (uint)(initFunctionInfo - functionInfo);
+    currentFunctionInfo = (FunctionInfo*)initFunctionInfo;
+    initFunctionInfo += sizeof(FunctionInfo) - sizeof(ParameterInfo);
+
+    currentFunctionInfo->name = StringPoolAdd(name);
+    currentFunctionInfo->parameterCount = 0;
+    failed = failed || currentFunctionInfo->name == 0;
+}
+
+static void addParameter(const char *name, fieldref value)
+{
+    ParameterInfo *info = (ParameterInfo*)initFunctionInfo;
+
+    info->name = StringPoolAdd(name);
+    info->value = value;
+    failed = failed || info->name == 0;
+    currentFunctionInfo->parameterCount++;
+    initFunctionInfo += sizeof(ParameterInfo);
+}
+
+ErrorCode NativeInit(bytevector *bytecode)
+{
+    fieldref valueNull = addValue(bytecode, OP_NULL);
+    fieldref valueTrue = addValue(bytecode, OP_TRUE);
+
+    addFunctionInfo("echo");
+    addParameter("message", 0);
+
+    addFunctionInfo("exec");
+    addParameter("command", 0);
+
+    addFunctionInfo("fail");
+    addParameter("message", valueNull);
+    addParameter("condition", valueTrue);
+
+    addFunctionInfo("filename");
+    addParameter("path", 0);
+
+    addFunctionInfo("readFile");
+    addParameter("file", 0);
+
+    addFunctionInfo("size");
+    addParameter("value", 0);
+
+    assert(initFunctionInfo == functionInfo + sizeof(functionInfo));
+    return failed ? OUT_OF_MEMORY : NO_ERROR;
 }
 
 static char **createStringArray(VM *vm, objectref collection)
@@ -127,23 +156,6 @@ static char **createStringArray(VM *vm, objectref collection)
     }
     *table = null;
     return strings;
-}
-
-ErrorCode NativeInit(void)
-{
-    static const char *echoParameters[] = {"message"};
-    static const char *execParameters[] = {"command"};
-    static const char *failParameters[] = {"message"};
-    static const char *filenameParameters[] = {"path"};
-    static const char *readFileParameters[] = {"file"};
-    static const char *sizeParameters[] = {"collection"};
-    addFunctionInfo("echo", 1, 1, echoParameters);
-    addFunctionInfo("exec", 1, 1, execParameters);
-    addFunctionInfo("fail", 1, 1, failParameters);
-    addFunctionInfo("filename", 1, 1, filenameParameters);
-    addFunctionInfo("readFile", 1, 1, readFileParameters);
-    addFunctionInfo("size", 1, 1, sizeParameters);
-    return initFunctionInfo ? NO_ERROR : OUT_OF_MEMORY;
 }
 
 ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
@@ -238,9 +250,14 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
 
     case NATIVE_FAIL:
         assert(!returnValues);
+        if (!HeapIsTrue(vm, InterpreterPop(vm)))
+        {
+            InterpreterPop(vm);
+            return NO_ERROR;
+        }
         value = InterpreterPop(vm);
         LogPrintSZ("BUILD FAILED");
-        if (!value || value == vm->emptyString)
+        if (!value || !HeapStringLength(vm, value))
         {
             LogNewline();
         }
@@ -348,11 +365,6 @@ stringref NativeGetName(nativefunctionref function)
 uint NativeGetParameterCount(nativefunctionref function)
 {
     return getFunctionInfo(function)->parameterCount;
-}
-
-uint NativeGetMinimumArgumentCount(nativefunctionref function)
-{
-    return getFunctionInfo(function)->minimumArgumentCount;
 }
 
 const ParameterInfo *NativeGetParameterInfo(nativefunctionref function)
