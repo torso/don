@@ -316,11 +316,6 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
             {
                 return vm->error;
             }
-            value = HeapSplitLines(vm, value);
-            if (!value)
-            {
-                return vm->error;
-            }
             InterpreterPush(vm, value);
             return vm->error;
         }
