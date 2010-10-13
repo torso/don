@@ -1726,6 +1726,22 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                     error(state, "Expected parameter name or ')'.");
                     return;
                 }
+                if (NamespaceGetField(parameterName))
+                {
+                    sprintf(errorBuffer,
+                            "Invalid parameter name. '%s' is a global variable.",
+                            StringPoolGetString(parameterName));
+                    error(state, errorBuffer);
+                    return;
+                }
+                if (NamespaceGetFunction(parameterName))
+                {
+                    sprintf(errorBuffer,
+                            "Invalid parameter name. '%s' is a function.",
+                            StringPoolGetString(parameterName));
+                    error(state, errorBuffer);
+                    return;
+                }
                 skipWhitespace(state);
                 if (readOperator(state, '='))
                 {
