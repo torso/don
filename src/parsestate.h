@@ -83,5 +83,4 @@ extern nonnull boolean ParseStateWriteInvocation(
     ParseState *state, nativefunctionref nativeFunction,
     functionref function, uint argumentCount, uint returnValues);
 extern nonnull boolean ParseStateReorderStack(
-    ParseState *state, intvector *order, uint offset, uint count,
-    uint expandCount);
+    ParseState *state, intvector *order, uint offset, uint count);

@@ -207,16 +207,14 @@ static void execute(VM *vm, functionref target)
 
         case OP_REORDER_STACK:
             value = BytecodeReadUint16(&ip);
-            value2 = BytecodeReadUint16(&ip);
-            size1 = IntVectorSize(&vm->stack) - value;
-            size2 = size1 + value + value2;
-            vm->error = IntVectorGrow(&vm->stack, value + value2);
+            size2 = IntVectorSize(&vm->stack);
+            size1 = size2 - value;
+            vm->error = IntVectorGrow(&vm->stack, value);
             if (vm->error)
             {
                 return;
             }
             IntVectorMove(&vm->stack, size1, size2, value);
-            IntVectorZero(&vm->stack, size1, value + value2);
             while (value--)
             {
                 IntVectorSet(&vm->stack, size1++,

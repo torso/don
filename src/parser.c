@@ -548,7 +548,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     intvector namedParameters;
     uint position;
     uint firstOutOfOrder;
-    uint reorderCount;
+    boolean inOrder;
     uint i;
 
     ParseStateCheck(state);
@@ -705,29 +705,37 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     }
     if (requireNamedParameters)
     {
-        reorderCount = 0;
+        inOrder = true;
         for (i = 0; i < parameterCount; i++)
         {
             position = IntVectorGet(&namedParameters, i);
-            if (!position && i < minimumArgumentCount)
+            if (!position)
             {
-                sprintf(errorBuffer,
-                        "Too few arguments for function '%s'. Got %d arguments, but at least %d were expected.",
-                        StringPoolGetString(name), argumentCount, parameterCount);
-                errorOnLine(state, line, errorBuffer);
-                return false;
+                if (!parameterInfo[i].value)
+                {
+                    sprintf(errorBuffer, "No value for parameter '%s' given.",
+                            StringPoolGetString(parameterInfo[i].name));
+                    errorOnLine(state, line, errorBuffer);
+                    return false;
+                }
+                if (!ParseStateGetField(state, parameterInfo[i].value))
+                {
+                    return false;
+                }
+                position = ++argumentCount;
+                IntVectorSet(&namedParameters, i, position);
             }
-            if (position && (position - 1 != i || reorderCount))
+            if (position - 1 != i || !inOrder)
             {
-                if (!reorderCount)
+                if (inOrder)
                 {
                     firstOutOfOrder = i;
+                    inOrder = false;
                 }
-                reorderCount++;
             }
         }
-        if (reorderCount && !ParseStateReorderStack(
-                state, &namedParameters, firstOutOfOrder, reorderCount,
+        if (!inOrder && !ParseStateReorderStack(
+                state, &namedParameters, firstOutOfOrder,
                 parameterCount - firstOutOfOrder))
         {
             IntVectorDispose(&namedParameters);
@@ -738,11 +746,22 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     }
     else if (argumentCount < minimumArgumentCount)
     {
-        sprintf(errorBuffer,
-                "Too few arguments for function '%s'. Got %d arguments, but at least %d were expected.",
-                StringPoolGetString(name), argumentCount, parameterCount);
+        sprintf(errorBuffer, "No value for parameter '%s' given.",
+                StringPoolGetString(parameterInfo[argumentCount].name));
         errorOnLine(state, line, errorBuffer);
         return false;
+    }
+    else
+    {
+        while (argumentCount < parameterCount)
+        {
+            assert(parameterInfo[argumentCount].value);
+            if (!ParseStateGetField(state, parameterInfo[argumentCount].value))
+            {
+                return false;
+            }
+            argumentCount++;
+        }
     }
     estate->valueType = VALUE_INVOCATION;
     estate->nativeFunction = nativeFunction;
@@ -1677,6 +1696,9 @@ static boolean parseFunctionBody(ParseState *state)
 static void parseFunctionDeclaration(ParseState *state, functionref function)
 {
     stringref parameterName;
+    fieldref field = 0;
+    boolean requireDefaultValues = false;
+    uint start;
 
     if (readOperator(state, ':'))
     {
@@ -1705,8 +1727,35 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                     return;
                 }
                 skipWhitespace(state);
+                if (readOperator(state, '='))
+                {
+                    requireDefaultValues = true;
+                    skipWhitespace(state);
+                    field = FieldIndexAdd(state->file, state->line,
+                                          getOffset(state, state->start));
+                    if (!field)
+                    {
+                        state->error = OUT_OF_MEMORY;
+                        return;
+                    }
+                    start = (uint)ByteVectorSize(state->bytecode);
+                    if (!parseRValue(state, true))
+                    {
+                        return;
+                    }
+                    FieldIndexSetBytecodeOffset(
+                        field, start, (uint)ByteVectorSize(state->bytecode));
+                }
+                else if (requireDefaultValues)
+                {
+                    sprintf(errorBuffer,
+                            "Default value for parameter '%s' required.",
+                            StringPoolGetString(parameterName));
+                    error(state, errorBuffer);
+                    return;
+                }
                 state->error = FunctionIndexAddParameter(function, parameterName,
-                                                         0, true);
+                                                         field, field == 0);
                 if (state->error)
                 {
                     return;
