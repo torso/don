@@ -48,8 +48,5 @@ typedef enum
     OP_RETURN,
     OP_RETURN_VOID,
     OP_INVOKE,
-    OP_INVOKE_NATIVE,
-
-    OP_PIPE_BEGIN,
-    OP_PIPE_END
+    OP_INVOKE_NATIVE
 } Instruction;

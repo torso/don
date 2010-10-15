@@ -17,8 +17,7 @@ typedef enum
     BLOCK_ELSE,
     BLOCK_CONDITION1,
     BLOCK_CONDITION2,
-    BLOCK_WHILE,
-    BLOCK_PIPE
+    BLOCK_WHILE
 } BlockType;
 
 
@@ -177,13 +176,6 @@ static boolean beginLoopBlock(ParseState *state, BlockType type,
     return beginJumpBlock(state, type);
 }
 
-static boolean beginPipeBlock(ParseState *state, uint16 out, uint16 err)
-{
-    IntVectorAdd(&state->blockStack, out);
-    IntVectorAdd(&state->blockStack, err);
-    return beginBlock(state, BLOCK_PIPE);
-}
-
 static boolean writeElse(ParseState *state, BlockType type)
 {
     return !ParseStateSetError(state,
@@ -199,8 +191,6 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
     uint jumpOffset = 0;
     BlockType type;
     uint loopOffset;
-    uint16 out;
-    uint16 err;
 
     ParseStateCheck(state);
 
@@ -273,20 +263,6 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
             jumpOffset = IntVectorPop(&state->blockStack);
             loopOffset = IntVectorPop(&state->blockStack);
             if (!writeBackwardsJump(state, loopOffset))
-            {
-                return false;
-            }
-            break;
-
-        case BLOCK_PIPE:
-            err = (uint16)IntVectorPop(&state->blockStack);
-            out = (uint16)IntVectorPop(&state->blockStack);
-            if (ParseStateSetError(
-                    state, ByteVectorAdd(state->bytecode, OP_PIPE_END)) ||
-                ParseStateSetError(
-                    state, ByteVectorAddUint16(state->bytecode, out)) ||
-                ParseStateSetError(
-                    state, ByteVectorAddUint16(state->bytecode, err)))
             {
                 return false;
             }
@@ -507,15 +483,6 @@ boolean ParseStateWriteWhile(ParseState *state, size_t loopTarget)
         state, ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE)) &&
         beginLoopBlock(state, BLOCK_WHILE, loopTarget) &&
         !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
-}
-
-boolean ParseStateWritePipe(ParseState *state, stringref out, stringref err)
-{
-    ParseStateCheck(state);
-    return !ParseStateSetError(state,
-                               ByteVectorAdd(state->bytecode, OP_PIPE_BEGIN)) &&
-        beginPipeBlock(state, getLocalIndex(state, out),
-                          getLocalIndex(state, err));
 }
 
 boolean ParseStateWriteReturn(ParseState *state, uint values)

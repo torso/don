@@ -164,7 +164,7 @@ size_t ByteVectorGetReservedAppendSize(const bytevector *v)
 }
 
 
-const byte *ByteVectorGetPointer(const bytevector *v, size_t index)
+byte *ByteVectorGetPointer(const bytevector *v, size_t index)
 {
     if (index)
     {

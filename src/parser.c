@@ -43,7 +43,6 @@ static stringref keywordFor;
 static stringref keywordIf;
 static stringref keywordIn;
 static stringref keywordNull;
-static stringref keywordPipe;
 static stringref keywordReturn;
 static stringref keywordTrue;
 static stringref keywordWhile;
@@ -1463,7 +1462,6 @@ static boolean parseFunctionBody(ParseState *state)
     uint currentIndent = 0;
     uint prevIndent = 0;
     stringref identifier;
-    stringref identifier2;
     size_t target;
     uint16 iterVariable;
 
@@ -1607,30 +1605,6 @@ static boolean parseFunctionBody(ParseState *state)
                             !ParseStateSetVariable(state, identifier) ||
                             !ParseStateWriteWhile(state, target))
                         {
-                            return false;
-                        }
-                    }
-                    else if (identifier == keywordPipe)
-                    {
-                        prevIndent = currentIndent;
-                        currentIndent = 0;
-                        identifier = readVariableName(state);
-                        if (state->error ||
-                            !readExpectedOperator(state, ','))
-                        {
-                            return false;
-                        }
-                        skipWhitespace(state);
-                        identifier2 = readVariableName(state);
-                        if (state->error ||
-                            !ParseStateWritePipe(state,
-                                                 identifier, identifier2))
-                        {
-                            return false;
-                        }
-                        if (!peekNewline(state))
-                        {
-                            error(state, "Garbage after pipe statement.");
                             return false;
                         }
                     }
@@ -1900,7 +1874,6 @@ ErrorCode ParserAddKeywords(void)
         !(keywordIf = StringPoolAdd("if")) ||
         !(keywordIn = StringPoolAdd("in")) ||
         !(keywordNull = StringPoolAdd("null")) ||
-        !(keywordPipe = StringPoolAdd("pipe")) ||
         !(keywordReturn = StringPoolAdd("return")) ||
         !(keywordTrue = StringPoolAdd("true")) ||
         !(keywordWhile = StringPoolAdd("while")))

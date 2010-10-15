@@ -4,96 +4,92 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "common.h"
-#include "vm.h"
 #include "file.h"
 #include "log.h"
-#include "stringpool.h"
+#include "vm.h"
 
 #define MIN_READ_BUFFER 1024
 
 
-static bytevector out;
-static bytevector err;
-static intvector buffer;
-
-
-static boolean buffered(void)
+typedef struct
 {
-    return IntVectorSize(&buffer) != 0;
+    size_t begin;
+    boolean echo;
+} Buffer;
+
+typedef struct
+{
+    bytevector buffer;
+    bytevector bufferStack;
+    int fd;
+} Pipe;
+
+static Pipe out;
+static Pipe err;
+
+
+static boolean buffered(Pipe *p)
+{
+    return ByteVectorSize(&p->bufferStack) != 0;
 }
 
-static void flush(bytevector *v, int fd, size_t size)
+static void flush(Pipe *p, size_t size)
 {
     size_t keep;
 
-    if (buffered())
+    if (buffered(p))
     {
         return;
     }
-    keep = ByteVectorSize(v) - size;
+    keep = ByteVectorSize(&p->buffer) - size;
     /* TODO: Error handling */
-    write(fd, ByteVectorGetPointer(v, 0), size);
-    ByteVectorMove(v, size, 0, keep);
-    ByteVectorSetSize(v, keep);
+    write(p->fd, ByteVectorGetPointer(&p->buffer, 0), size);
+    ByteVectorMove(&p->buffer, size, 0, keep);
+    ByteVectorSetSize(&p->buffer, keep);
 }
 
-static void flushOut(size_t newData)
-{
-    flush(&out, STDOUT_FILENO, newData);
-}
-
-static void autoflush(bytevector *v, int fd, size_t newData)
+static void autoflush(Pipe *p, size_t newData)
 {
     size_t i;
     const byte *data;
 
-    if (buffered())
+    if (buffered(p))
     {
         return;
     }
-    data = ByteVectorGetPointer(v, ByteVectorSize(v));
+    data = ByteVectorGetPointer(&p->buffer, ByteVectorSize(&p->buffer));
     for (i = newData; i; i--)
     {
         data--;
         if (*data == '\n')
         {
-            flush(v, fd, ByteVectorSize(v) - newData + i);
+            flush(p, ByteVectorSize(&p->buffer) - newData + i);
             return;
         }
     }
 }
 
-static void autoflushOut(size_t newData)
-{
-    autoflush(&out, STDOUT_FILENO, newData);
-}
-
-static void autoflushErr(size_t newData)
-{
-    autoflush(&err, STDERR_FILENO, newData);
-}
-
 
 ErrorCode LogInit(void)
 {
-    ErrorCode error = ByteVectorInit(&out, MIN_READ_BUFFER * 2);
-    if (error)
+    if (ByteVectorInit(&out.buffer, MIN_READ_BUFFER * 2) ||
+        ByteVectorInit(&err.buffer, MIN_READ_BUFFER * 2) ||
+        ByteVectorInit(&out.bufferStack, sizeof(Buffer) * 2) ||
+        ByteVectorInit(&err.bufferStack, sizeof(Buffer) * 2))
     {
-        return error;
+        return OUT_OF_MEMORY;
     }
-    error = ByteVectorInit(&err, MIN_READ_BUFFER * 2);
-    if (error)
-    {
-        return error;
-    }
-    return IntVectorInit(&buffer);
+    out.fd = STDOUT_FILENO;
+    err.fd = STDERR_FILENO;
+    return NO_ERROR;
 }
 
 void LogDispose(void)
 {
-    ByteVectorDispose(&out);
-    ByteVectorDispose(&err);
-    IntVectorDispose(&buffer);
+    ByteVectorDispose(&out.buffer);
+    ByteVectorDispose(&err.buffer);
+    ByteVectorDispose(&out.bufferStack);
+    ByteVectorDispose(&err.bufferStack);
 }
 
 
@@ -111,18 +107,19 @@ ErrorCode LogPrint(const char *text, size_t length)
     {
         return LogNewline();
     }
-    if (!buffered() && !ByteVectorSize(&out) && text[length - 1] == '\n')
+    if (!buffered(&out) && !ByteVectorSize(&out.buffer) &&
+        text[length - 1] == '\n')
     {
         /* TODO: Error handling */
         write(STDOUT_FILENO, text, length);
         return NO_ERROR;
     }
-    error = ByteVectorAddData(&out, (const byte*)text, length);
+    error = ByteVectorAddData(&out.buffer, (const byte*)text, length);
     if (error)
     {
         return error;
     }
-    autoflushOut(length);
+    autoflush(&out, length);
     return NO_ERROR;
 }
 
@@ -139,20 +136,21 @@ ErrorCode LogPrintAutoNewline(const char *text, size_t length)
     {
         return LogNewline();
     }
-    if (!buffered() && !ByteVectorSize(&out) && text[length - 1] == '\n')
+    if (!buffered(&out) && !ByteVectorSize(&out.buffer) &&
+        text[length - 1] == '\n')
     {
         /* TODO: Error handling */
         write(STDOUT_FILENO, text, length);
         return NO_ERROR;
     }
-    error = ByteVectorAddData(&out, (const byte*)text, length);
+    error = ByteVectorAddData(&out.buffer, (const byte*)text, length);
     if (error)
     {
         return error;
     }
     if (text[length - 1] == '\n')
     {
-        flushOut(ByteVectorSize(&out));
+        flush(&out, ByteVectorSize(&out.buffer));
         return NO_ERROR;
     }
     return LogNewline();
@@ -168,8 +166,8 @@ ErrorCode LogPrintObjectAutoNewline(VM *vm, objectref object)
     {
         return LogNewline();
     }
-    p = ByteVectorGetAppendPointer(&out);
-    error = ByteVectorGrow(&out, length + 1);
+    p = ByteVectorGetAppendPointer(&out.buffer);
+    error = ByteVectorGrow(&out.buffer, length + 1);
     if (error)
     {
         return error;
@@ -181,26 +179,26 @@ ErrorCode LogPrintObjectAutoNewline(VM *vm, objectref object)
     }
     else
     {
-        ByteVectorPop(&out);
+        ByteVectorPop(&out.buffer);
     }
-    flushOut(ByteVectorSize(&out));
+    flush(&out, ByteVectorSize(&out.buffer));
     return NO_ERROR;
 }
 
 ErrorCode LogNewline(void)
 {
-    ErrorCode error = ByteVectorAdd(&out, '\n');
+    ErrorCode error = ByteVectorAdd(&out.buffer, '\n');
     if (error)
     {
         return error;
     }
-    flushOut(ByteVectorSize(&out));
+    flush(&out, ByteVectorSize(&out.buffer));
     return NO_ERROR;
 }
 
 ErrorCode LogAutoNewline(void)
 {
-    if (ByteVectorSize(&out) && ByteVectorPeek(&out) != '\n')
+    if (ByteVectorSize(&out.buffer) && ByteVectorPeek(&out.buffer) != '\n')
     {
         return LogNewline();
     }
@@ -222,15 +220,15 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
     {
         if (fdOut)
         {
-            ByteVectorReserveAppendSize(&out, MIN_READ_BUFFER);
-            ssize = read(fdOut, ByteVectorGetAppendPointer(&out),
-                         ByteVectorGetReservedAppendSize(&out));
+            ByteVectorReserveAppendSize(&out.buffer, MIN_READ_BUFFER);
+            ssize = read(fdOut, ByteVectorGetAppendPointer(&out.buffer),
+                         ByteVectorGetReservedAppendSize(&out.buffer));
             if (ssize)
             {
                 if (ssize > 0)
                 {
-                    ByteVectorGrow(&out, (size_t)ssize);
-                    autoflushOut((size_t)ssize);
+                    ByteVectorGrow(&out.buffer, (size_t)ssize);
+                    autoflush(&out, (size_t)ssize);
                 }
                 else if (errno != EWOULDBLOCK)
                 {
@@ -248,14 +246,14 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
         }
         if (fdErr)
         {
-            ByteVectorReserveAppendSize(&err, MIN_READ_BUFFER);
-            ssize = read(fdErr, ByteVectorGetAppendPointer(&err),
-                         ByteVectorGetReservedAppendSize(&err));
+            ByteVectorReserveAppendSize(&err.buffer, MIN_READ_BUFFER);
+            ssize = read(fdErr, ByteVectorGetAppendPointer(&err.buffer),
+                         ByteVectorGetReservedAppendSize(&err.buffer));
             if (ssize)
             {
                 if (ssize > 0)
                 {
-                    ByteVectorGrow(&err, (size_t)ssize);
+                    ByteVectorGrow(&err.buffer, (size_t)ssize);
                 }
                 else if (errno != EWOULDBLOCK)
                 {
@@ -272,60 +270,80 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
             }
         }
     }
-    autoflushErr(ByteVectorSize(&err));
+    autoflush(&err, ByteVectorSize(&err.buffer));
     return NO_ERROR;
 }
 
-ErrorCode LogPushBuffer(void)
+static ErrorCode pushBuffer(Pipe *p, boolean echo)
 {
-    ErrorCode error = IntVectorAdd(&buffer, (uint)ByteVectorSize(&out));
+    size_t oldSize = ByteVectorSize(&p->bufferStack);
+    ErrorCode error;
+    Buffer *buffer;
+
+    error = ByteVectorSetSize(&p->bufferStack, oldSize + sizeof(Buffer));
     if (error)
     {
         return error;
     }
-    error = IntVectorAdd(&buffer, (uint)ByteVectorSize(&err));
-    if (error)
-    {
-        IntVectorPop(&buffer);
-    }
-    return error;
+    buffer = (Buffer*)ByteVectorGetPointer(&p->bufferStack, oldSize);
+    buffer->begin = ByteVectorSize(&p->buffer);
+    buffer->echo = echo;
+    return NO_ERROR;
 }
 
-void LogPopBuffer(VM *vm, objectref *stringOut, objectref *stringErr)
+ErrorCode LogPushOutBuffer(boolean echo)
 {
-    uint errOffset = IntVectorPop(&buffer);
-    uint outOffset = IntVectorPop(&buffer);
-    size_t outSize = ByteVectorSize(&out);
-    size_t errSize = ByteVectorSize(&err);
+    return pushBuffer(&out, echo);
+}
 
-    if (!outSize)
+ErrorCode LogPushErrBuffer(boolean echo)
+{
+    return pushBuffer(&err, echo);
+}
+
+static void getBuffer(Pipe *p, const byte **output, size_t *length)
+{
+    Buffer *buffer = (Buffer*)ByteVectorGetPointer(
+        &p->bufferStack, ByteVectorSize(&p->bufferStack) - sizeof(Buffer));
+
+    *output = ByteVectorGetPointer(&p->buffer, buffer->begin);
+    *length = ByteVectorSize(&p->buffer) - buffer->begin;
+}
+
+void LogGetOutBuffer(const byte **output, size_t *length)
+{
+    getBuffer(&out, output, length);
+}
+
+void LogGetErrBuffer(const byte **output, size_t *length)
+{
+    getBuffer(&err, output, length);
+}
+
+static void popBuffer(Pipe *p)
+{
+    size_t bufferOffset = ByteVectorSize(&p->bufferStack) - sizeof(Buffer);
+    Buffer *buffer = (Buffer*)ByteVectorGetPointer(&p->bufferStack,
+                                                   bufferOffset);
+
+    if (!buffer->echo)
     {
-        *stringOut = vm->emptyString;
+        ByteVectorSetSize(&p->buffer, buffer->begin);
+        ByteVectorSetSize(&p->bufferStack, bufferOffset);
     }
     else
     {
-        if (ByteVectorPeek(&out) == '\n')
-        {
-            ByteVectorPop(&out);
-        }
-        *stringOut = HeapCreateString(
-            vm, (const char*)ByteVectorGetPointer(&out, outOffset),
-            ByteVectorSize(&out) - outOffset);
-        ByteVectorSetSize(&out, outOffset);
+        ByteVectorSetSize(&p->bufferStack, bufferOffset);
+        autoflush(p, ByteVectorSize(&p->buffer) - buffer->begin);
     }
-    *stringErr = vm->emptyString;
-    if (errSize && *stringOut)
-    {
-        if (ByteVectorPeek(&err) == '\n')
-        {
-            ByteVectorPop(&err);
-        }
-        if (*stringOut)
-        {
-            *stringErr = HeapCreateString(
-                vm, (const char*)ByteVectorGetPointer(&err, errOffset),
-                ByteVectorSize(&err) - errOffset);
-        }
-    }
-    ByteVectorSetSize(&err, errOffset);
+}
+
+void LogPopOutBuffer(void)
+{
+    popBuffer(&out);
+}
+
+void LogPopErrBuffer(void)
+{
+    popBuffer(&err);
 }

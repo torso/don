@@ -26,5 +26,9 @@ extern ErrorCode LogAutoNewline(void);
 
 extern ErrorCode LogConsumePipes(int fdOut, int fdErr);
 
-extern ErrorCode LogPushBuffer(void);
-extern void LogPopBuffer(VM *vm, objectref *stringOut, objectref *stringErr);
+extern ErrorCode LogPushOutBuffer(boolean echo);
+extern ErrorCode LogPushErrBuffer(boolean echo);
+extern void LogGetOutBuffer(const byte **output, size_t *length);
+extern void LogGetErrBuffer(const byte **output, size_t *length);
+extern void LogPopOutBuffer(void);
+extern void LogPopErrBuffer(void);

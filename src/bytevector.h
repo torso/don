@@ -20,8 +20,8 @@ extern nonnull ErrorCode ByteVectorReserveSize(bytevector *v, size_t size);
 extern nonnull ErrorCode ByteVectorReserveAppendSize(bytevector *v, size_t size);
 extern nonnull size_t ByteVectorGetReservedAppendSize(const bytevector *v);
 
-extern nonnull pure const byte *ByteVectorGetPointer(const bytevector *v,
-                                                     size_t index);
+extern nonnull pure byte *ByteVectorGetPointer(const bytevector *v,
+                                               size_t index);
 extern nonnull byte *ByteVectorGetAppendPointer(bytevector *v);
 
 extern nonnull void ByteVectorCopy(const bytevector *src, size_t srcOffset,

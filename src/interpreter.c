@@ -470,24 +470,6 @@ static void execute(VM *vm, functionref target)
                 return;
             }
             break;
-
-        case OP_PIPE_BEGIN:
-            vm->error = LogPushBuffer();
-            if (vm->error)
-            {
-                return;
-            }
-            break;
-
-        case OP_PIPE_END:
-            LogPopBuffer(vm, &value, &value2);
-            if (vm->error)
-            {
-                return;
-            }
-            storeLocal(vm, bp, BytecodeReadUint16(&ip), value);
-            storeLocal(vm, bp, BytecodeReadUint16(&ip), value2);
-            break;
         }
     }
 }

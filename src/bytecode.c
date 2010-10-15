@@ -243,16 +243,6 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
                StringPoolGetString(NativeGetName(nativeFunction)),
                arguments, value);
         break;
-
-    case OP_PIPE_BEGIN:
-        printf(" %u: pipe_begin\n", ip);
-        break;
-
-    case OP_PIPE_END:
-        value = BytecodeReadUint16(&bytecode);
-        value2 = BytecodeReadUint16(&bytecode);
-        printf(" %u: pipe_end %u %u\n", ip, value, value2);
-        break;
     }
     if (controlFlowNextInstruction)
     {

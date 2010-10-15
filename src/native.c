@@ -13,7 +13,7 @@
 #include "native.h"
 #include "stringpool.h"
 
-#define TOTAL_PARAMETER_COUNT 8
+#define TOTAL_PARAMETER_COUNT 11
 
 typedef enum
 {
@@ -102,6 +102,9 @@ ErrorCode NativeInit(bytevector *bytecode)
 
     addFunctionInfo("exec");
     addParameter("command", 0);
+    addParameter("failOnError", valueTrue);
+    addParameter("echo", valueTrue);
+    addParameter("echoStderr", valueTrue);
 
     addFunctionInfo("fail");
     addParameter("message", valueNull);
@@ -182,15 +185,147 @@ static objectref readFile(VM *vm, objectref object)
     return HeapCreateWrappedString(vm, text, size);
 }
 
+static ErrorCode nativeExec(VM *vm, uint returnValues)
+{
+    char **argv;
+    pid_t pid;
+    int status;
+    int pipeOut[2];
+    int pipeErr[2];
+    boolean echoOut;
+    boolean echoErr;
+    boolean failOnError;
+    objectref log;
+    const byte *p;
+    size_t length;
+
+    assert(returnValues <= 3);
+    echoErr = InterpreterPopBoolean(vm);
+    echoOut = InterpreterPopBoolean(vm);
+    failOnError = InterpreterPopBoolean(vm);
+    argv = createStringArray(vm, InterpreterPop(vm));
+    if (!argv)
+    {
+        return OUT_OF_MEMORY;
+    }
+
+    status = pipe(pipeOut);
+    if (status < 0)
+    {
+        /* TODO: Error handling. */
+        return OUT_OF_MEMORY;
+    }
+    status = pipe(pipeErr);
+    if (status < 0)
+    {
+        /* TODO: Error handling. */
+        return OUT_OF_MEMORY;
+    }
+
+    pid = fork();
+    if (!pid)
+    {
+        close(pipeOut[0]);
+        close(pipeErr[0]);
+
+        status = dup2(pipeOut[1], STDOUT_FILENO);
+        if (status < 0)
+        {
+            /* TODO: Error handling. */
+            return false;
+        }
+        close(pipeOut[1]);
+        status = dup2(pipeErr[1], STDERR_FILENO);
+        if (status < 0)
+        {
+            /* TODO: Error handling. */
+            return false;
+        }
+        close(pipeErr[1]);
+
+        execvp(argv[0], argv);
+        _exit(EXIT_FAILURE);
+    }
+    free(argv);
+    close(pipeOut[1]);
+    close(pipeErr[1]);
+    if (pid < 0)
+    {
+        /* TODO: Error handling. */
+        return OUT_OF_MEMORY;
+    }
+
+    if (returnValues)
+    {
+        vm->error = LogPushOutBuffer(echoOut);
+        if (vm->error)
+        {
+            return vm->error;
+        }
+    }
+    if (returnValues >= 3)
+    {
+        vm->error = LogPushErrBuffer(echoErr);
+        if (vm->error)
+        {
+            return vm->error;
+        }
+    }
+    LogConsumePipes(pipeOut[0], pipeErr[0]);
+
+    pid = waitpid(pid, &status, 0);
+    if (pid < 0)
+    {
+        /* TODO: Error handling. */
+        return OUT_OF_MEMORY;
+    }
+    if (failOnError && status)
+    {
+        return ERROR_FAIL;
+    }
+    if (returnValues)
+    {
+        LogGetOutBuffer(&p, &length);
+        log = HeapCreateString(vm, (const char*)p, length);
+        if (vm->error)
+        {
+            return vm->error;
+        }
+        LogPopOutBuffer();
+        if (!InterpreterPush(vm, log))
+        {
+            return vm->error;
+        }
+    }
+    if (returnValues >= 2)
+    {
+        if (!InterpreterPush(vm, HeapBoxInteger(vm, status)))
+        {
+            return vm->error;
+        }
+    }
+    if (returnValues >= 3)
+    {
+        LogGetErrBuffer(&p, &length);
+        log = HeapCreateString(vm, (const char*)p, length);
+        if (vm->error)
+        {
+            return vm->error;
+        }
+        LogPopErrBuffer();
+        if (!InterpreterPush(vm, log))
+        {
+            return vm->error;
+        }
+    }
+    LogAutoNewline();
+    return vm->error;
+}
+
 ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
 {
     objectref value;
     size_t size;
-    pid_t pid;
-    int status;
-    char **argv;
-    int pipeOut[2];
-    int pipeErr[2];
     fileref file;
     const char *text;
     boolean condition;
@@ -204,74 +339,7 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         return LogPrintObjectAutoNewline(vm, value);
 
     case NATIVE_EXEC:
-        assert(returnValues <= 1);
-        value = InterpreterPop(vm);
-        argv = createStringArray(vm, value);
-        if (!argv)
-        {
-            return OUT_OF_MEMORY;
-        }
-
-        status = pipe(pipeOut);
-        if (status < 0)
-        {
-            /* TODO: Error handling. */
-            return OUT_OF_MEMORY;
-        }
-        status = pipe(pipeErr);
-        if (status < 0)
-        {
-            /* TODO: Error handling. */
-            return OUT_OF_MEMORY;
-        }
-
-        pid = fork();
-        if (!pid)
-        {
-            close(pipeOut[0]);
-            close(pipeErr[0]);
-
-            status = dup2(pipeOut[1], STDOUT_FILENO);
-            if (status < 0)
-            {
-                /* TODO: Error handling. */
-                return false;
-            }
-            close(pipeOut[1]);
-            status = dup2(pipeErr[1], STDERR_FILENO);
-            if (status < 0)
-            {
-                /* TODO: Error handling. */
-                return false;
-            }
-            close(pipeErr[1]);
-
-            execvp(argv[0], argv);
-            _exit(EXIT_FAILURE);
-        }
-        free(argv);
-        close(pipeOut[1]);
-        close(pipeErr[1]);
-        if (pid < 0)
-        {
-            /* TODO: Error handling. */
-            return OUT_OF_MEMORY;
-        }
-
-        LogConsumePipes(pipeOut[0], pipeErr[0]);
-        LogAutoNewline();
-
-        pid = waitpid(pid, &status, 0);
-        if (pid < 0)
-        {
-            /* TODO: Error handling. */
-            return OUT_OF_MEMORY;
-        }
-        if (returnValues)
-        {
-            InterpreterPush(vm, HeapBoxInteger(vm, status));
-        }
-        return NO_ERROR;
+        return nativeExec(vm, returnValues);
 
     case NATIVE_FAIL:
         assert(!returnValues);
