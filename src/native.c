@@ -185,7 +185,7 @@ static objectref readFile(VM *vm, objectref object)
     return HeapCreateWrappedString(vm, text, size);
 }
 
-static ErrorCode nativeExec(VM *vm, uint returnValues)
+static void nativeExec(VM *vm, uint returnValues)
 {
     char **argv;
     pid_t pid;
@@ -206,20 +206,23 @@ static ErrorCode nativeExec(VM *vm, uint returnValues)
     argv = createStringArray(vm, InterpreterPop(vm));
     if (!argv)
     {
-        return OUT_OF_MEMORY;
+        vm->error = OUT_OF_MEMORY;
+        return;
     }
 
     status = pipe(pipeOut);
     if (status < 0)
     {
         /* TODO: Error handling. */
-        return OUT_OF_MEMORY;
+        vm->error = OUT_OF_MEMORY;
+        return;
     }
     status = pipe(pipeErr);
     if (status < 0)
     {
         /* TODO: Error handling. */
-        return OUT_OF_MEMORY;
+        vm->error = OUT_OF_MEMORY;
+        return;
     }
 
     pid = fork();
@@ -232,14 +235,16 @@ static ErrorCode nativeExec(VM *vm, uint returnValues)
         if (status < 0)
         {
             /* TODO: Error handling. */
-            return false;
+            vm->error = OUT_OF_MEMORY;
+            return;
         }
         close(pipeOut[1]);
         status = dup2(pipeErr[1], STDERR_FILENO);
         if (status < 0)
         {
             /* TODO: Error handling. */
-            return false;
+            vm->error = OUT_OF_MEMORY;
+            return;
         }
         close(pipeErr[1]);
 
@@ -252,7 +257,8 @@ static ErrorCode nativeExec(VM *vm, uint returnValues)
     if (pid < 0)
     {
         /* TODO: Error handling. */
-        return OUT_OF_MEMORY;
+        vm->error = OUT_OF_MEMORY;
+        return;
     }
 
     if (returnValues)
@@ -260,7 +266,7 @@ static ErrorCode nativeExec(VM *vm, uint returnValues)
         vm->error = LogPushOutBuffer(echoOut);
         if (vm->error)
         {
-            return vm->error;
+            return;
         }
     }
     if (returnValues >= 3)
@@ -268,7 +274,7 @@ static ErrorCode nativeExec(VM *vm, uint returnValues)
         vm->error = LogPushErrBuffer(echoErr);
         if (vm->error)
         {
-            return vm->error;
+            return;
         }
     }
     LogConsumePipes(pipeOut[0], pipeErr[0]);
@@ -277,11 +283,13 @@ static ErrorCode nativeExec(VM *vm, uint returnValues)
     if (pid < 0)
     {
         /* TODO: Error handling. */
-        return OUT_OF_MEMORY;
+        vm->error = OUT_OF_MEMORY;
+        return;
     }
     if (failOnError && status)
     {
-        return ERROR_FAIL;
+        vm->error = ERROR_FAIL;
+        return;
     }
     if (returnValues)
     {
@@ -289,19 +297,19 @@ static ErrorCode nativeExec(VM *vm, uint returnValues)
         log = HeapCreateString(vm, (const char*)p, length);
         if (vm->error)
         {
-            return vm->error;
+            return;
         }
         LogPopOutBuffer();
         if (!InterpreterPush(vm, log))
         {
-            return vm->error;
+            return;
         }
     }
     if (returnValues >= 2)
     {
         if (!InterpreterPush(vm, HeapBoxInteger(vm, status)))
         {
-            return vm->error;
+            return;
         }
     }
     if (returnValues >= 3)
@@ -310,19 +318,18 @@ static ErrorCode nativeExec(VM *vm, uint returnValues)
         log = HeapCreateString(vm, (const char*)p, length);
         if (vm->error)
         {
-            return vm->error;
+            return;
         }
         LogPopErrBuffer();
         if (!InterpreterPush(vm, log))
         {
-            return vm->error;
+            return;
         }
     }
     LogAutoNewline();
-    return vm->error;
 }
 
-ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
+void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
 {
     objectref value;
     size_t size;
@@ -336,17 +343,19 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         assert(!returnValues);
         value = InterpreterPop(vm);
         size = HeapStringLength(vm, value);
-        return LogPrintObjectAutoNewline(vm, value);
+        vm->error = LogPrintObjectAutoNewline(vm, value);
+        return;
 
     case NATIVE_EXEC:
-        return nativeExec(vm, returnValues);
+        nativeExec(vm, returnValues);
+        return;
 
     case NATIVE_FAIL:
         assert(!returnValues);
         if (!HeapIsTrue(vm, InterpreterPop(vm)))
         {
             InterpreterPop(vm);
-            return NO_ERROR;
+            return;
         }
         value = InterpreterPop(vm);
         LogPrintSZ("BUILD FAILED");
@@ -359,7 +368,8 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
             LogPrintSZ(": ");
             LogPrintObjectAutoNewline(vm, value);
         }
-        return ERROR_FAIL;
+        vm->error = ERROR_FAIL;
+        return;
 
     case NATIVE_FILENAME:
         assert(returnValues <= 1);
@@ -372,16 +382,17 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
             text = FileFilename(FileGetName(file), &size);
             if (!text)
             {
-                return OUT_OF_MEMORY;
+                vm->error = OUT_OF_MEMORY;
+                return;
             }
             value = HeapCreateString(vm, text, size);
             if (!value)
             {
-                return OUT_OF_MEMORY;
+                return;
             }
             InterpreterPush(vm, value);
         }
-        return NO_ERROR;
+        return;
 
     case NATIVE_LINES:
         assert(returnValues <= 1);
@@ -394,18 +405,18 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
                 value = readFile(vm, value);
                 if (!value)
                 {
-                    return vm->error;
+                    return;
                 }
             }
             assert(HeapIsString(vm, value));
             value = HeapSplitLines(vm, value, condition);
             if (!value)
             {
-                return vm->error;
+                return;
             }
             InterpreterPush(vm, value);
         }
-        return NO_ERROR;
+        return;
 
     case NATIVE_READFILE:
         assert(returnValues <= 1);
@@ -415,12 +426,11 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
             value = readFile(vm, value);
             if (!value)
             {
-                return vm->error;
+                return;
             }
             InterpreterPush(vm, value);
-            return vm->error;
         }
-        return NO_ERROR;
+        return;
 
     case NATIVE_SIZE:
         value = InterpreterPop(vm);
@@ -438,14 +448,13 @@ ErrorCode NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
                 InterpreterPush(vm, HeapBoxSize(vm, HeapStringLength(vm, value)));
             }
         }
-        return NO_ERROR;
+        return;
 
     case NATIVE_NULL:
     case NATIVE_FUNCTION_COUNT:
         break;
     }
     assert(false);
-    return NO_ERROR;
 }
 
 nativefunctionref NativeFindFunction(stringref name)

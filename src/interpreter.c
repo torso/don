@@ -464,7 +464,7 @@ static void execute(VM *vm, functionref target)
             nativeFunction = refFromUint(*ip++);
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == NativeGetParameterCount(nativeFunction)); /* TODO */
-            vm->error = NativeInvoke(vm, nativeFunction, *ip++);
+            NativeInvoke(vm, nativeFunction, *ip++);
             if (vm->error)
             {
                 return;
