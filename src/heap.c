@@ -137,9 +137,9 @@ static objectref finishAllocResize(VM *vm, byte *objectData, uint32 newSize)
 static void iterStateInit(VM *vm, IteratorState *state, objectref object,
                           boolean flatten)
 {
-    const int *data;
     size_t size;
 
+    state->object = object;
     state->flatten = flatten;
     switch (HeapGetObjectType(vm, object))
     {
@@ -148,23 +148,16 @@ static void iterStateInit(VM *vm, IteratorState *state, objectref object,
         return;
 
     case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
         size = HeapCollectionSize(vm, object);
         if (!size)
         {
             state->type = ITER_EMPTY;
             return;
         }
-        state->type = ITER_OBJECT_ARRAY;
-        state->current.objectArray =
-            (const objectref*)HeapGetObjectData(vm, object);
-        state->limit.objectArray = state->current.objectArray + size - 1;
-        return;
-
-    case TYPE_INTEGER_RANGE:
-        data = (const int*)HeapGetObjectData(vm, object);
-        state->type = ITER_INTEGER_RANGE;
-        state->current.value = data[0];
-        state->limit.value = data[1];
+        state->type = ITER_INDEXED;
+        state->current.index = 0;
+        state->limit.index = size - 1;
         return;
 
     case TYPE_CONCAT_LIST:
@@ -175,9 +168,8 @@ static void iterStateInit(VM *vm, IteratorState *state, objectref object,
             return;
         }
         state->type = ITER_CONCAT_LIST;
-        state->current.objectArray =
-            (const objectref*)HeapGetObjectData(vm, object);
-        state->limit.objectArray = state->current.objectArray + size - 1;
+        state->current.index = 0;
+        state->limit.index = size - 1;
         return;
 
     case TYPE_BOOLEAN_TRUE:
@@ -852,7 +844,7 @@ boolean HeapCollectionGet(VM *vm, objectref object, objectref indexObject,
             {
                 assert(index <= INT_MAX);
                 return HeapCollectionGet(vm, *data,
-                                         HeapBoxInteger(vm, (int)index), value);
+                                         HeapBoxSize(vm, index), value);
             }
             index -= size;
             data++;
@@ -915,32 +907,26 @@ boolean HeapIteratorNext(Iterator *iter, objectref *value)
             iter->state.nextState = nextState;
             continue;
 
-        case ITER_OBJECT_ARRAY:
-            *value = *currentState->current.objectArray;
-            if (currentState->current.objectArray == currentState->limit.objectArray)
+        case ITER_INDEXED:
+            HeapCollectionGet(iter->vm, currentState->object,
+                              HeapBoxSize(iter->vm, currentState->current.index), value);
+            if (currentState->current.index == currentState->limit.index)
             {
                 currentState->type = ITER_EMPTY;
             }
-            currentState->current.objectArray++;
-            break;
-
-        case ITER_INTEGER_RANGE:
-            *value = HeapBoxInteger(iter->vm, currentState->current.value);
-            if (currentState->current.value == currentState->limit.value)
-            {
-                currentState->type = ITER_EMPTY;
-            }
-            currentState->current.value++;
+            currentState->current.index++;
             break;
 
         case ITER_CONCAT_LIST:
-            *value = *currentState->current.objectArray;
+            *value = ((const objectref*)HeapGetObjectData(
+                          iter->vm,
+                          currentState->object))[currentState->current.index];
             assert(HeapIsCollection(iter->vm, *value));
-            if (currentState->current.objectArray == currentState->limit.objectArray)
+            if (currentState->current.index == currentState->limit.index)
             {
                 currentState->type = ITER_EMPTY;
             }
-            currentState->current.objectArray++;
+            currentState->current.index++;
             flatten = true;
             break;
 
@@ -957,7 +943,7 @@ boolean HeapIteratorNext(Iterator *iter, objectref *value)
             assert(nextState); /* TODO: Error handling. */
             nextState->nextState = currentState;
             iter->state.nextState = nextState;
-            iterStateInit(iter->vm, nextState, *value, true);
+            iterStateInit(iter->vm, nextState, *value, currentState->flatten);
             continue;
         }
         return true;

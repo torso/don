@@ -18,8 +18,7 @@ typedef enum
 typedef enum
 {
     ITER_EMPTY,
-    ITER_OBJECT_ARRAY,
-    ITER_INTEGER_RANGE,
+    ITER_INDEXED,
     ITER_CONCAT_LIST
 } IteratorType;
 
@@ -29,16 +28,15 @@ struct IteratorState
 {
     IteratorState *nextState;
     IteratorType type;
+    objectref object;
     boolean flatten;
     union
     {
-        const objectref *objectArray;
-        int value;
+        size_t index;
     } current;
     union
     {
-        const objectref *objectArray;
-        int value;
+        size_t index;
     } limit;
 };
 
