@@ -13,7 +13,7 @@
 #include "native.h"
 #include "stringpool.h"
 
-#define TOTAL_PARAMETER_COUNT 12
+#define TOTAL_PARAMETER_COUNT 13
 
 typedef enum
 {
@@ -106,6 +106,7 @@ ErrorCode NativeInit(bytevector *bytecode)
 
     addFunctionInfo("echo");
     addParameter("message", 0, false);
+    addParameter("prefix", valueNull, false);
 
     addFunctionInfo("exec");
     addParameter("command", 0, true);
@@ -190,6 +191,37 @@ static objectref readFile(VM *vm, objectref object)
         return vm->error;
     }
     return HeapCreateWrappedString(vm, text, size);
+}
+
+static void nativeEcho(VM *vm)
+{
+    objectref prefix;
+    objectref message;
+    char *buffer;
+    size_t length;
+
+    prefix = InterpreterPop(vm);
+    message = InterpreterPop(vm);
+    if (prefix)
+    {
+        /* TODO: Avoid malloc */
+        length = HeapStringLength(vm, prefix);
+        buffer = (char*)malloc(length);
+        if (!buffer)
+        {
+            vm->error = OUT_OF_MEMORY;
+            return;
+        }
+        HeapWriteString(vm, prefix, buffer);
+        LogSetPrefix(buffer, length);
+        vm->error = LogPrintObjectAutoNewline(vm, message);
+        LogSetPrefix(null, 0);
+        free(buffer);
+    }
+    else
+    {
+        vm->error = LogPrintObjectAutoNewline(vm, message);
+    }
 }
 
 static void nativeExec(VM *vm, uint returnValues)
@@ -348,9 +380,7 @@ void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
     {
     case NATIVE_ECHO:
         assert(!returnValues);
-        value = InterpreterPop(vm);
-        size = HeapStringLength(vm, value);
-        vm->error = LogPrintObjectAutoNewline(vm, value);
+        nativeEcho(vm);
         return;
 
     case NATIVE_EXEC:

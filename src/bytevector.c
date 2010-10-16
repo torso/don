@@ -272,14 +272,29 @@ ErrorCode ByteVectorAddRef(bytevector *v, ref_t value)
     return ByteVectorAddUint(v, uintFromRef(value));
 }
 
-ErrorCode ByteVectorAddData(bytevector *v, const byte *value, size_t size)
+ErrorCode ByteVectorAddData(bytevector *v, const byte *data, size_t size)
 {
     byte *p = grow(v, size);
     if (!p)
     {
         return OUT_OF_MEMORY;
     }
-    memcpy(p, value, size);
+    memcpy(p, data, size);
+    return NO_ERROR;
+}
+
+ErrorCode ByteVectorInsertData(bytevector *v, size_t offset,
+                               const byte *data, size_t size)
+{
+    byte *p = grow(v, size);
+    byte *insert;
+    if (!p)
+    {
+        return OUT_OF_MEMORY;
+    }
+    insert = ByteVectorGetPointer(v, offset);
+    memmove(insert + size, insert, (size_t)(p - insert));
+    memcpy(insert, data, size);
     return NO_ERROR;
 }
 

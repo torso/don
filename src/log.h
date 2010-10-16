@@ -24,6 +24,8 @@ extern nonnull ErrorCode LogPrintObjectAutoNewline(VM *vm, objectref object);
 extern ErrorCode LogNewline(void);
 extern ErrorCode LogAutoNewline(void);
 
+extern void LogSetPrefix(const char *prefix, size_t length);
+
 extern ErrorCode LogConsumePipes(int fdOut, int fdErr);
 
 extern ErrorCode LogPushOutBuffer(boolean echo);

@@ -45,7 +45,9 @@ extern nonnull ErrorCode ByteVectorAddUint(bytevector *v, uint value);
 extern nonnull ErrorCode ByteVectorAddUint16(bytevector *v, uint16 value);
 extern nonnull ErrorCode ByteVectorAddRef(bytevector *v, ref_t value);
 extern nonnull ErrorCode ByteVectorAddData(bytevector *v,
-                                           const byte *value, size_t size);
+                                           const byte *data, size_t size);
+extern nonnull ErrorCode ByteVectorInsertData(bytevector *v, size_t offset,
+                                              const byte *data, size_t size);
 
 extern nonnull byte ByteVectorGet(const bytevector *v, size_t index);
 #define ByteVectorGetInt(v, index) ((int)ByteVectorGetUint(v, index))

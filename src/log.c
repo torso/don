@@ -22,6 +22,8 @@ typedef struct
     bytevector buffer;
     bytevector bufferStack;
     int fd;
+    const char *prefix;
+    size_t prefixLength;
 } Pipe;
 
 static Pipe out;
@@ -67,6 +69,47 @@ static void autoflush(Pipe *p, size_t newData)
             return;
         }
     }
+}
+
+static ErrorCode processNewData(Pipe *p, size_t newData)
+{
+    size_t beginOffset;
+    size_t offset;
+    boolean lastWasNewline;
+
+    if (!newData)
+    {
+        return NO_ERROR;
+    }
+    if (!p->prefixLength)
+    {
+        autoflush(p, newData);
+        return NO_ERROR;
+    }
+    beginOffset = ByteVectorSize(&p->buffer) - newData;
+    offset = beginOffset;
+    lastWasNewline = false;
+    if (offset == 0)
+    {
+        lastWasNewline = true;
+    }
+    while (newData--)
+    {
+        if (lastWasNewline)
+        {
+            lastWasNewline = false;
+            ByteVectorInsertData(&p->buffer, offset,
+                                 (const byte*)p->prefix, p->prefixLength);
+            offset += p->prefixLength;
+        }
+        if (ByteVectorGet(&p->buffer, offset) == '\n')
+        {
+            lastWasNewline = true;
+        }
+        offset++;
+    }
+    autoflush(p, ByteVectorSize(&p->buffer) - beginOffset);
+    return NO_ERROR;
 }
 
 
@@ -119,8 +162,7 @@ ErrorCode LogPrint(const char *text, size_t length)
     {
         return error;
     }
-    autoflush(&out, length);
-    return NO_ERROR;
+    return processNewData(&out, length);
 }
 
 ErrorCode LogPrintSZ(const char *text)
@@ -136,24 +178,16 @@ ErrorCode LogPrintAutoNewline(const char *text, size_t length)
     {
         return LogNewline();
     }
-    if (!buffered(&out) && !ByteVectorSize(&out.buffer) &&
-        text[length - 1] == '\n')
-    {
-        /* TODO: Error handling */
-        write(STDOUT_FILENO, text, length);
-        return NO_ERROR;
-    }
-    error = ByteVectorAddData(&out.buffer, (const byte*)text, length);
+    error = LogPrint(text, length);
     if (error)
     {
         return error;
     }
-    if (text[length - 1] == '\n')
+    if (text[length - 1] != '\n')
     {
-        flush(&out, ByteVectorSize(&out.buffer));
-        return NO_ERROR;
+        return LogNewline();
     }
-    return LogNewline();
+    return NO_ERROR;
 }
 
 ErrorCode LogPrintObjectAutoNewline(VM *vm, objectref object)
@@ -181,19 +215,12 @@ ErrorCode LogPrintObjectAutoNewline(VM *vm, objectref object)
     {
         ByteVectorPop(&out.buffer);
     }
-    flush(&out, ByteVectorSize(&out.buffer));
-    return NO_ERROR;
+    return processNewData(&out, ByteVectorSize(&out.buffer));
 }
 
 ErrorCode LogNewline(void)
 {
-    ErrorCode error = ByteVectorAdd(&out.buffer, '\n');
-    if (error)
-    {
-        return error;
-    }
-    flush(&out, ByteVectorSize(&out.buffer));
-    return NO_ERROR;
+    return LogPrint("\n", 1);
 }
 
 ErrorCode LogAutoNewline(void)
@@ -203,6 +230,12 @@ ErrorCode LogAutoNewline(void)
         return LogNewline();
     }
     return NO_ERROR;
+}
+
+void LogSetPrefix(const char *prefix, size_t length)
+{
+    out.prefix = prefix;
+    out.prefixLength = length;
 }
 
 ErrorCode LogConsumePipes(int fdOut, int fdErr)
@@ -228,7 +261,7 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
                 if (ssize > 0)
                 {
                     ByteVectorGrow(&out.buffer, (size_t)ssize);
-                    autoflush(&out, (size_t)ssize);
+                    processNewData(&out, (size_t)ssize);
                 }
                 else if (errno != EWOULDBLOCK)
                 {
@@ -270,7 +303,7 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
             }
         }
     }
-    autoflush(&err, ByteVectorSize(&err.buffer));
+    processNewData(&err, ByteVectorSize(&err.buffer));
     return NO_ERROR;
 }
 
