@@ -1135,6 +1135,15 @@ static boolean parseExpression5(ParseState *state, ExpressionState *estate)
             }
             continue;
         }
+        if (readOperator2(state, ':', ':'))
+        {
+            if (!parseBinaryOperationRest(state, estate,
+                                          parseExpression6, OP_CONCAT_LIST))
+            {
+                return false;
+            }
+            continue;
+        }
         break;
     }
     return true;
@@ -1175,7 +1184,7 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
         if (!finishRValue(state, estate) ||
             !parseExpression5(state, estate) ||
             !finishRValue(state, estate) ||
-            !ParseStateWriteInstruction(state, OP_CONCAT))
+            !ParseStateWriteInstruction(state, OP_CONCAT_STRING))
         {
             return false;
         }

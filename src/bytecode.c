@@ -173,8 +173,12 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: rem\n", ip);
         break;
 
-    case OP_CONCAT:
-        printf(" %u: concat\n", ip);
+    case OP_CONCAT_STRING:
+        printf(" %u: concat_string\n", ip);
+        break;
+
+    case OP_CONCAT_LIST:
+        printf(" %u: concat_list\n", ip);
         break;
 
     case OP_INDEXED_ACCESS:

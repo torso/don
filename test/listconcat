@@ -1,0 +1,4 @@
+default:
+   if [0, 100]::[true, false, "abc", null] == [0, 100, true, false, "abc", null]
+      if [2]::[3] != [3]::[4] && [2]::[3, 4] == [2, 3]::[4]
+         echo("PASS")

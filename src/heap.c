@@ -1,4 +1,5 @@
 #include <memory.h>
+#include <unistd.h>
 #include "common.h"
 #include "vm.h"
 #include "file.h"
@@ -77,6 +78,7 @@ static const char *getString(VM *vm, objectref object)
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
     case TYPE_ITERATOR:
         break;
     }
@@ -103,6 +105,7 @@ static boolean isCollectionType(ObjectType type)
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
         return true;
     }
     assert(false);
@@ -162,6 +165,19 @@ static void iterStateInit(VM *vm, IteratorState *state, objectref object,
         state->type = ITER_INTEGER_RANGE;
         state->current.value = data[0];
         state->limit.value = data[1];
+        return;
+
+    case TYPE_CONCAT_LIST:
+        size = HeapGetObjectSize(vm, object) / sizeof(objectref);
+        if (!size)
+        {
+            state->type = ITER_EMPTY;
+            return;
+        }
+        state->type = ITER_CONCAT_LIST;
+        state->current.objectArray =
+            (const objectref*)HeapGetObjectData(vm, object);
+        state->limit.objectArray = state->current.objectArray + size - 1;
         return;
 
     case TYPE_BOOLEAN_TRUE:
@@ -251,6 +267,7 @@ boolean HeapEquals(VM *vm, objectref object1, objectref object2)
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
         if (!HeapIsCollection(vm, object2) ||
             HeapCollectionSize(vm, object1) !=
             HeapCollectionSize(vm, object2))
@@ -423,6 +440,7 @@ objectref HeapCreateSubstring(VM *vm, objectref string, size_t offset,
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
     case TYPE_ITERATOR:
         assert(false);
         break;
@@ -457,6 +475,7 @@ boolean HeapIsString(VM *vm, objectref object)
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
     case TYPE_ITERATOR:
         return false;
     }
@@ -516,6 +535,7 @@ size_t HeapStringLength(VM *vm, objectref object)
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
         size = HeapCollectionSize(vm, object);
         if (size)
         {
@@ -608,6 +628,7 @@ char *HeapWriteString(VM *vm, objectref object, char *dst)
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
         *dst++ = '[';
         first = true;
         HeapIteratorInit(vm, &iter, object, false);
@@ -714,6 +735,28 @@ objectref HeapSplitLines(VM *vm, objectref string, boolean trimEmptyLastLine)
 }
 
 
+objectref HeapConcatList(VM *vm, objectref list1, objectref list2)
+{
+    byte *data;
+    objectref *subLists;
+
+    assert(HeapIsCollection(vm, list1));
+    assert(HeapIsCollection(vm, list2));
+    if (!HeapCollectionSize(vm, list1))
+    {
+        return list2;
+    }
+    if (!HeapCollectionSize(vm, list2))
+    {
+        return list1;
+    }
+    data = HeapAlloc(vm, TYPE_CONCAT_LIST, sizeof(objectref) * 2);
+    subLists = (objectref*)data;
+    subLists[0] = list1;
+    subLists[1] = list2;
+    return HeapFinishAlloc(vm, data);
+}
+
 boolean HeapIsCollection(VM *vm, objectref object)
 {
     return isCollectionType(HeapGetObjectType(vm, object));
@@ -721,7 +764,12 @@ boolean HeapIsCollection(VM *vm, objectref object)
 
 size_t HeapCollectionSize(VM *vm, objectref object)
 {
-    const int *data;
+    const byte *data;
+    const int *intData;
+    const objectref *objects;
+    const objectref *limit;
+    size_t size;
+
     switch (HeapGetObjectType(vm, object))
     {
     case TYPE_EMPTY_LIST:
@@ -731,9 +779,20 @@ size_t HeapCollectionSize(VM *vm, objectref object)
         return HeapGetObjectSize(vm, object) / sizeof(objectref);
 
     case TYPE_INTEGER_RANGE:
-        data = (const int *)HeapGetObjectData(vm, object);
-        assert(!subOverflow(data[1], data[0]));
-        return (size_t)(data[1] - data[0]) + 1;
+        intData = (const int *)HeapGetObjectData(vm, object);
+        assert(!subOverflow(intData[1], intData[0]));
+        return (size_t)(intData[1] - intData[0]) + 1;
+
+    case TYPE_CONCAT_LIST:
+        data = HeapGetObjectData(vm, object);
+        objects = (const objectref*)data;
+        limit = (const objectref*)(data + HeapGetObjectSize(vm, object));
+        size = 0;
+        while (objects < limit)
+        {
+            size += HeapCollectionSize(vm, *objects++);
+        }
+        return size;
 
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
@@ -754,15 +813,17 @@ boolean HeapCollectionGet(VM *vm, objectref object, objectref indexObject,
                           objectref *restrict value)
 {
     const objectref *restrict data;
+    const objectref *restrict limit;
     const int *restrict intData;
-    int i = HeapUnboxInteger(vm, indexObject);
-    uint index;
+    ssize_t i = HeapUnboxInteger(vm, indexObject);
+    size_t index;
+    size_t size;
 
     if (i < 0)
     {
         return false;
     }
-    index = (uint)i;
+    index = (size_t)i;
     assert(index < HeapCollectionSize(vm, object));
     switch (HeapGetObjectType(vm, object))
     {
@@ -776,9 +837,27 @@ boolean HeapCollectionGet(VM *vm, objectref object, objectref indexObject,
 
     case TYPE_INTEGER_RANGE:
         intData = (const int *)HeapGetObjectData(vm, object);
-        assert(!addOverflow(i, intData[0]));
-        *value = HeapBoxInteger(vm, i + intData[0]);
+        assert(i <= INT_MAX);
+        assert(!addOverflow((int)i, intData[0]));
+        *value = HeapBoxInteger(vm, (int)i + intData[0]);
         return true;
+
+    case TYPE_CONCAT_LIST:
+        data = (const objectref*)HeapGetObjectData(vm, object);
+        limit = data + HeapGetObjectSize(vm, object);
+        while (data < limit)
+        {
+            size = HeapCollectionSize(vm, *data);
+            if (index < size)
+            {
+                assert(index <= INT_MAX);
+                return HeapCollectionGet(vm, *data,
+                                         HeapBoxInteger(vm, (int)index), value);
+            }
+            index -= size;
+            data++;
+        }
+        return false;
 
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
@@ -818,9 +897,11 @@ boolean HeapIteratorNext(Iterator *iter, objectref *value)
 {
     IteratorState *currentState;
     IteratorState *nextState;
+    boolean flatten;
 
     for (;;)
     {
+        flatten = false;
         currentState = iter->state.nextState;
         switch (currentState->type)
         {
@@ -852,12 +933,25 @@ boolean HeapIteratorNext(Iterator *iter, objectref *value)
             currentState->current.value++;
             break;
 
+        case ITER_CONCAT_LIST:
+            *value = *currentState->current.objectArray;
+            assert(HeapIsCollection(iter->vm, *value));
+            if (currentState->current.objectArray == currentState->limit.objectArray)
+            {
+                currentState->type = ITER_EMPTY;
+            }
+            currentState->current.objectArray++;
+            flatten = true;
+            break;
+
         default:
             assert(false);
             break;
         }
-        if (currentState->flatten &&
-            HeapIsCollection(iter->vm, *value))
+        if (flatten ||
+            (currentState->flatten &&
+             *value &&
+             HeapIsCollection(iter->vm, *value)))
         {
             nextState = (IteratorState*)malloc(sizeof(IteratorState));
             assert(nextState); /* TODO: Error handling. */

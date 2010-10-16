@@ -11,6 +11,7 @@ typedef enum
     TYPE_EMPTY_LIST,
     TYPE_ARRAY,
     TYPE_INTEGER_RANGE,
+    TYPE_CONCAT_LIST,
     TYPE_ITERATOR
 } ObjectType;
 
@@ -18,7 +19,8 @@ typedef enum
 {
     ITER_EMPTY,
     ITER_OBJECT_ARRAY,
-    ITER_INTEGER_RANGE
+    ITER_INTEGER_RANGE,
+    ITER_CONCAT_LIST
 } IteratorType;
 
 typedef struct IteratorState IteratorState;
@@ -106,6 +108,7 @@ extern nonnull objectref HeapCreateRange(VM *vm, objectref lowObject,
 extern nonnull objectref HeapSplitLines(VM *vm, objectref string,
                                         boolean trimEmptyLastLine);
 
+extern nonnull objectref HeapConcatList(VM *vm, objectref list1, objectref list2);
 extern nonnull boolean HeapIsCollection(VM *vm, objectref object);
 extern nonnull size_t HeapCollectionSize(VM *vm, objectref object);
 

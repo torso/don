@@ -342,7 +342,7 @@ static void execute(VM *vm, functionref target)
                                     HeapUnboxInteger(vm, value)));
             break;
 
-        case OP_CONCAT:
+        case OP_CONCAT_STRING:
             value = pop(vm);
             value2 = pop(vm);
             size1 = HeapStringLength(vm, value2);
@@ -361,6 +361,16 @@ static void execute(VM *vm, functionref target)
             HeapWriteString(vm, value2, (char*)objectData);
             HeapWriteString(vm, value, (char*)objectData + size1);
             push(vm, HeapFinishAlloc(vm, objectData));
+            break;
+
+        case OP_CONCAT_LIST:
+            value = pop(vm);
+            value2 = pop(vm);
+            value = HeapConcatList(vm, value2, value);
+            if (!value || !push(vm, value))
+            {
+                return;
+            }
             break;
 
         case OP_INDEXED_ACCESS:
