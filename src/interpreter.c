@@ -160,6 +160,7 @@ static void execute(VM *vm, functionref target)
 
         case OP_LIST:
             size1 = BytecodeReadUint(&ip);
+            assert(size1);
             objectData = HeapAlloc(vm, TYPE_ARRAY, size1 * sizeof(objectref));
             if (!objectData)
             {

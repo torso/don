@@ -402,6 +402,18 @@ static boolean peekOperator2(ParseState *state, byte op1, byte op2)
     return false;
 }
 
+static boolean readOperator3(ParseState *state, byte op1, byte op2, byte op3)
+{
+    if (state->current[0] == op1 &&
+        state->current[1] == op2 &&
+        state->current[2] == op3)
+    {
+        state->current += 3;
+        return true;
+    }
+    return false;
+}
+
 static boolean readExpectedOperator(ParseState *state, byte op)
 {
     if (!readOperator(state, op))
@@ -540,6 +552,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     functionref function = 0;
     uint parameterCount;
     const ParameterInfo *parameterInfo;
+    uint varargIndex;
     uint argumentCount = 0;
     uint line = state->line;
     boolean requireNamedParameters = false;
@@ -554,6 +567,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     {
         parameterCount = NativeGetParameterCount(nativeFunction);
         parameterInfo = NativeGetParameterInfo(nativeFunction);
+        varargIndex = UINT_MAX;
     }
     else
     {
@@ -567,6 +581,8 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         }
         parameterCount = FunctionIndexGetParameterCount(function);
         parameterInfo = FunctionIndexGetParameterInfo(function);
+        varargIndex = FunctionIndexHasVararg(function) ?
+            FunctionIndexGetVarargIndex(function) : UINT_MAX;
     }
     assert(parameterInfo || !parameterCount);
 
@@ -598,6 +614,14 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 }
                 if (estateArgument.identifier && readOperator(state, ':'))
                 {
+                    if (argumentCount > varargIndex)
+                    {
+                        if (!ParseStateWriteList(state, argumentCount - varargIndex))
+                        {
+                            return false;
+                        }
+                        argumentCount = varargIndex + 1;
+                    }
                     requireNamedParameters = true;
                     state->error = IntVectorInit(&namedParameters);
                     if (state->error)
@@ -678,6 +702,14 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             skipWhitespace(state);
         }
     }
+    if (!requireNamedParameters && argumentCount >= varargIndex)
+    {
+        if (!ParseStateWriteList(state, argumentCount - varargIndex))
+        {
+            return false;
+        }
+        argumentCount = varargIndex + 1;
+    }
     if (argumentCount > parameterCount)
     {
         if (!parameterCount)
@@ -709,13 +741,27 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             {
                 if (!parameterInfo[i].value)
                 {
-                    sprintf(errorBuffer, "No value for parameter '%s' given.",
-                            StringPoolGetString(parameterInfo[i].name));
-                    errorOnLine(state, line, errorBuffer);
-                    return false;
+                    if (i == varargIndex)
+                    {
+                        if (!ParseStateWriteInstruction(state, OP_EMPTY_LIST))
+                        {
+                            IntVectorDispose(&namedParameters);
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        IntVectorDispose(&namedParameters);
+                        sprintf(errorBuffer, "No value for parameter '%s' given.",
+                                StringPoolGetString(parameterInfo[i].name));
+                        errorOnLine(state, line, errorBuffer);
+                        return false;
+                    }
                 }
-                if (!ParseStateGetField(state, parameterInfo[i].value))
+                if (parameterInfo[i].value &&
+                    !ParseStateGetField(state, parameterInfo[i].value))
                 {
+                    IntVectorDispose(&namedParameters);
                     return false;
                 }
                 position = ++argumentCount;
@@ -1678,6 +1724,7 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
 {
     stringref parameterName;
     fieldref field = 0;
+    boolean vararg;
     boolean requireDefaultValues = false;
     size_t start;
 
@@ -1697,6 +1744,7 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
         {
             for (;;)
             {
+                vararg = false;
                 parameterName = peekReadIdentifier(state);
                 if (state->error)
                 {
@@ -1751,9 +1799,16 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                     error(state, errorBuffer);
                     return;
                 }
+                else if (readOperator3(state, '.', '.', '.'))
+                {
+                    requireDefaultValues = true;
+                    skipWhitespace(state);
+                    vararg = true;
+                }
                 state->error = FunctionIndexAddParameter(function,
                                                          parameterName,
-                                                         field);
+                                                         field,
+                                                         vararg);
                 if (state->error)
                 {
                     return;
