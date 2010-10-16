@@ -1,4 +1,4 @@
 default:
-   out, exitcode, err = exec(["echo", "-n", "teststring"], failOnError:false, echo:false)
+   out, exitcode, err = exec("echo", "-n", "teststring", failOnError:false, echo:false)
    if exitcode == 0 && out == "teststring" && err == ""
       echo("PASS")

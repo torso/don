@@ -13,7 +13,7 @@
 #include "native.h"
 #include "stringpool.h"
 
-#define TOTAL_PARAMETER_COUNT 11
+#define TOTAL_PARAMETER_COUNT 12
 
 typedef enum
 {
@@ -33,12 +33,13 @@ typedef struct
 {
     stringref name;
     uint parameterCount;
+    uint vararg;
     ParameterInfo parameterInfo[1];
 } FunctionInfo;
 
 static byte functionInfo[
     (sizeof(FunctionInfo) -
-     sizeof(ParameterInfo)) * NATIVE_FUNCTION_COUNT +
+     sizeof(ParameterInfo)) * (NATIVE_FUNCTION_COUNT - 1) +
     sizeof(ParameterInfo) * TOTAL_PARAMETER_COUNT];
 static uint functionIndex[NATIVE_FUNCTION_COUNT];
 
@@ -81,14 +82,20 @@ static void addFunctionInfo(const char *name)
     failed = failed || currentFunctionInfo->name == 0;
 }
 
-static void addParameter(const char *name, fieldref value)
+static void addParameter(const char *name, fieldref value, boolean vararg)
 {
     ParameterInfo *info = (ParameterInfo*)initFunctionInfo;
 
+    assert(!vararg || !value);
     info->name = StringPoolAdd(name);
     info->value = value;
     failed = failed || info->name == 0;
     currentFunctionInfo->parameterCount++;
+    if (vararg)
+    {
+        assert(!currentFunctionInfo->vararg);
+        currentFunctionInfo->vararg = currentFunctionInfo->parameterCount;
+    }
     initFunctionInfo += sizeof(ParameterInfo);
 }
 
@@ -98,30 +105,30 @@ ErrorCode NativeInit(bytevector *bytecode)
     fieldref valueTrue = addValue(bytecode, OP_TRUE);
 
     addFunctionInfo("echo");
-    addParameter("message", 0);
+    addParameter("message", 0, false);
 
     addFunctionInfo("exec");
-    addParameter("command", 0);
-    addParameter("failOnError", valueTrue);
-    addParameter("echo", valueTrue);
-    addParameter("echoStderr", valueTrue);
+    addParameter("command", 0, true);
+    addParameter("failOnError", valueTrue, false);
+    addParameter("echo", valueTrue, false);
+    addParameter("echoStderr", valueTrue, false);
 
     addFunctionInfo("fail");
-    addParameter("message", valueNull);
-    addParameter("condition", valueTrue);
+    addParameter("message", valueNull, false);
+    addParameter("condition", valueTrue, false);
 
     addFunctionInfo("filename");
-    addParameter("path", 0);
+    addParameter("path", 0, false);
 
     addFunctionInfo("lines");
-    addParameter("value", 0);
-    addParameter("trimEmptyLastLine", valueTrue);
+    addParameter("value", 0, false);
+    addParameter("trimEmptyLastLine", valueTrue, false);
 
     addFunctionInfo("readFile");
-    addParameter("file", 0);
+    addParameter("file", 0, false);
 
     addFunctionInfo("size");
-    addParameter("value", 0);
+    addParameter("value", 0, false);
 
     assert(initFunctionInfo == functionInfo + sizeof(functionInfo));
     return failed ? OUT_OF_MEMORY : NO_ERROR;
@@ -483,4 +490,15 @@ uint NativeGetParameterCount(nativefunctionref function)
 const ParameterInfo *NativeGetParameterInfo(nativefunctionref function)
 {
     return getFunctionInfo(function)->parameterInfo;
+}
+
+boolean NativeHasVararg(nativefunctionref function)
+{
+    return getFunctionInfo(function)->vararg != 0;
+}
+
+uint NativeGetVarargIndex(nativefunctionref function)
+{
+    assert(NativeHasVararg(function));
+    return getFunctionInfo(function)->vararg - 1;
 }

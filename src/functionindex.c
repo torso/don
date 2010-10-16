@@ -110,12 +110,12 @@ ErrorCode FunctionIndexAddParameter(functionref function, stringref name,
     }
     assert(&FunctionIndexGetParameterInfo(function)[info->parameterCount] ==
            paramInfo);
+    info->parameterCount++;
     if (vararg)
     {
         assert(!info->vararg);
-        info->vararg = info->parameterCount + 1;
+        info->vararg = info->parameterCount;
     }
-    info->parameterCount++;
     paramInfo->name = name;
     paramInfo->value = value;
     return NO_ERROR;

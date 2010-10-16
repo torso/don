@@ -567,7 +567,8 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     {
         parameterCount = NativeGetParameterCount(nativeFunction);
         parameterInfo = NativeGetParameterInfo(nativeFunction);
-        varargIndex = UINT_MAX;
+        varargIndex = NativeHasVararg(nativeFunction) ?
+            NativeGetVarargIndex(nativeFunction) : UINT_MAX;
     }
     else
     {
