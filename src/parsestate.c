@@ -17,7 +17,8 @@ typedef enum
     BLOCK_ELSE,
     BLOCK_CONDITION1,
     BLOCK_CONDITION2,
-    BLOCK_WHILE
+    BLOCK_WHILE,
+    BLOCK_UPTODATE
 } BlockType;
 
 
@@ -244,6 +245,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         {
         case BLOCK_IF:
         case BLOCK_ELSE:
+        case BLOCK_UPTODATE:
             jumpOffset = IntVectorPop(&state->blockStack);
             break;
 
@@ -275,6 +277,14 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         ByteVectorSetInt(
             state->bytecode, jumpOffset,
             (int)(ByteVectorSize(state->bytecode) - jumpOffset - sizeof(int)));
+    }
+
+    if (type == BLOCK_UPTODATE)
+    {
+        if (!ParseStateWriteInstruction(state, OP_UPTODATE_FINISH))
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -496,7 +506,7 @@ boolean ParseStateWriteUptodate(ParseState *state, stringref variableName)
         ParseStateSetVariable(state, variableName) &&
         !ParseStateSetError(
             state, ByteVectorAdd(state->bytecode, OP_BRANCH_TRUE)) &&
-        beginJumpBlock(state, BLOCK_IF) &&
+        beginJumpBlock(state, BLOCK_UPTODATE) &&
         !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
 }
 

@@ -487,6 +487,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_UPTODATE:
+            assert(!vm->currentCache);
             HashInit(&hashState);
             HeapHash(vm, pop(vm), &hashState);
             HashFinal(&hashState, hash);
@@ -502,6 +503,10 @@ static void execute(VM *vm, functionref target)
                 return;
             }
             push(vm, value);
+            break;
+
+        case OP_UPTODATE_FINISH:
+            vm->currentCache = 0;
             break;
         }
     }

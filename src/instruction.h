@@ -51,5 +51,6 @@ typedef enum
     OP_INVOKE,
     OP_INVOKE_NATIVE,
 
-    OP_UPTODATE
+    OP_UPTODATE,
+    OP_UPTODATE_FINISH
 } Instruction;
