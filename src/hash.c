@@ -586,7 +586,7 @@ void HashFinal(HashState *restrict state, byte *restrict hash)
     if (state->unprocessed >= BLOCK_SIZE - sizeof(uint64))
     {
         compression512((const uint64*)state->buffer, state->pipe);
-        memset(state->buffer + state->unprocessed, 0, BLOCK_SIZE - 8);
+        memset(state->buffer, 0, BLOCK_SIZE - sizeof(uint64));
     }
     ((uint64*)state->buffer)[15] = dataSize;
     compression512((const uint64*)state->buffer, state->pipe);
