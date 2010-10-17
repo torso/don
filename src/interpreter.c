@@ -116,7 +116,8 @@ static void execute(VM *vm, functionref target)
     size_t size2;
     stringref string;
     byte *objectData;
-    Iterator *iter;
+    Iterator iter;
+    Iterator *piter;
     functionref function;
     nativefunctionref nativeFunction;
     fileref file;
@@ -412,9 +413,9 @@ static void execute(VM *vm, functionref target)
             value = pop(vm);
             assert(HeapGetObjectType(vm, value) == TYPE_ITERATOR);
             assert(HeapGetObjectSize(vm, value) == sizeof(Iterator));
-            iter = (Iterator*)HeapGetObjectData(vm, value);
+            piter = (Iterator*)HeapGetObjectData(vm, value);
             value = 0;
-            pushBoolean(vm, HeapIteratorNext(iter, &value));
+            pushBoolean(vm, HeapIteratorNext(piter, &value));
             push(vm, value);
             break;
 
@@ -489,12 +490,29 @@ static void execute(VM *vm, functionref target)
         case OP_UPTODATE:
             assert(!vm->currentCache);
             HashInit(&hashState);
-            HeapHash(vm, pop(vm), &hashState);
+            value = pop(vm);
+            HeapHash(vm, value, &hashState);
             HashFinal(&hashState, hash);
             vm->error = CacheGet(hash, &vm->currentCache);
             if (vm->error)
             {
                 return;
+            }
+            if (CacheIsNewEntry(vm->currentCache))
+            {
+                HeapIteratorInit(vm, &iter, value, true);
+                while (HeapIteratorNext(&iter, &value))
+                {
+                    if (HeapGetObjectType(vm, value) == TYPE_FILE)
+                    {
+                        vm->error = CacheAddDependency(vm->currentCache,
+                                                       HeapGetFile(vm, value));
+                        if (vm->error)
+                        {
+                            return;
+                        }
+                    }
+                }
             }
             pushBoolean(vm, CacheUptodate(vm->currentCache));
             value = HeapCreateFile(vm, CacheGetDirectory(vm->currentCache));
@@ -503,6 +521,10 @@ static void execute(VM *vm, functionref target)
                 return;
             }
             push(vm, value);
+            if (vm->error)
+            {
+                return;
+            }
             break;
 
         case OP_UPTODATE_FINISH:

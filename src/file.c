@@ -24,6 +24,7 @@ typedef struct
     int fd;
     byte *data;
     size_t size;
+    filetime_t mtime;
 } FileEntry;
 
 static FileEntry fileIndex[INITIAL_FILE_SIZE];
@@ -168,6 +169,8 @@ static ErrorCode openFile(FileEntry *fe)
         return ERROR_IO;
     }
     fe->size = (size_t)s.st_size;
+    fe->mtime.seconds = s.st_mtime;
+    fe->mtime.fraction = s.st_mtimensec;
     return NO_ERROR;
 }
 
@@ -237,6 +240,18 @@ const char *FileGetName(fileref file)
 size_t FileGetNameLength(fileref file)
 {
     return getFile(file)->nameLength;
+}
+
+ErrorCode FileStat(fileref file, size_t *restrict size,
+                   filetime_t *restrict mtime)
+{
+    FileEntry *restrict fe = getFile(file);
+    ErrorCode error;
+
+    error = openFile(fe);
+    *size = fe->size;
+    *mtime = fe->mtime;
+    return error;
 }
 
 

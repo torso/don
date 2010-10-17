@@ -1,4 +1,13 @@
+#include <time.h>
+
+typedef struct
+{
+    time_t seconds;
+    ulong fraction;
+} filetime_t;
+
 typedef ErrorCode (*TraverseCallback)(fileref, void*);
+
 
 extern ErrorCode FileInit(void);
 extern void FileDisposeAll(void);
@@ -10,6 +19,8 @@ extern void FileDispose(fileref file);
 
 extern const char *FileGetName(fileref file);
 extern size_t FileGetNameLength(fileref file);
+extern nonnull ErrorCode FileStat(fileref file, size_t *restrict size,
+                                  filetime_t *restrict mtime);
 
 /* TODO: Refcount mmap */
 extern ErrorCode FileMMap(fileref file, const byte **p, size_t *size);

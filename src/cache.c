@@ -1,5 +1,6 @@
 #include "memory.h"
 #include "common.h"
+#include "bytevector.h"
 #include "cache.h"
 #include "file.h"
 #include "hash.h"
@@ -12,7 +13,16 @@ typedef struct
     byte hash[FILENAME_DIGEST_SIZE];
     fileref directory;
     boolean uptodate;
+    boolean newEntry;
+    bytevector dependencies;
 } Entry;
+
+typedef struct
+{
+    fileref file;
+    size_t size;
+    filetime_t mtime;
+} Dependency;
 
 static fileref cacheDir;
 static Entry entries[16];
@@ -32,6 +42,16 @@ ErrorCode CacheInit(void)
 
 void CacheDispose(void)
 {
+    Entry *entry;
+    for (entry = entries + 1;
+         entry < entries + sizeof(entries) / sizeof(Entry);
+         entry++)
+    {
+        if (entry->directory)
+        {
+            ByteVectorDispose(&entry->dependencies);
+        }
+    }
 }
 
 ErrorCode CacheGet(const byte *hash, cacheref *ref)
@@ -39,6 +59,7 @@ ErrorCode CacheGet(const byte *hash, cacheref *ref)
     Entry *entry;
     Entry *freeEntry = null;
     char directoryName[FILENAME_DIGEST_SIZE / 5 * 8 + 1];
+    ErrorCode error;
 
     for (entry = entries + 1;
          entry < entries + sizeof(entries) / sizeof(Entry);
@@ -75,15 +96,50 @@ ErrorCode CacheGet(const byte *hash, cacheref *ref)
     {
         return OUT_OF_MEMORY;
     }
+    error = ByteVectorInit(&freeEntry->dependencies, sizeof(Dependency));
+    if (error)
+    {
+        return error;
+    }
     memcpy(freeEntry->hash, hash, FILENAME_DIGEST_SIZE);
     freeEntry->uptodate = false;
+    freeEntry->newEntry = true;
     *ref = refFromSize((size_t)(freeEntry - entries));
+    return NO_ERROR;
+}
+
+ErrorCode CacheAddDependency(cacheref ref, fileref file)
+{
+    Entry *entry = getEntry(ref);
+    Dependency *dependency;
+    size_t oldSize = ByteVectorSize(&entry->dependencies);
+    ErrorCode error;
+
+    assert(!CacheUptodate(ref));
+    error = ByteVectorGrow(&entry->dependencies, sizeof(Dependency));
+    if (error)
+    {
+        return error;
+    }
+    dependency = (Dependency*)ByteVectorGetPointer(&entry->dependencies, oldSize);
+    dependency->file = file;
+    error = FileStat(file, &dependency->size, &dependency->mtime);
+    if (error)
+    {
+        ByteVectorSetSize(&entry->dependencies, oldSize);
+        return error;
+    }
     return NO_ERROR;
 }
 
 boolean CacheUptodate(cacheref ref)
 {
     return getEntry(ref)->uptodate;
+}
+
+boolean CacheIsNewEntry(cacheref ref)
+{
+    return getEntry(ref)->newEntry;
 }
 
 fileref CacheGetDirectory(cacheref ref)

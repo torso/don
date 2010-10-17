@@ -9,6 +9,7 @@ typedef uint32_t uint32;
 typedef uint64_t uint64;
 
 typedef unsigned int uint;
+typedef unsigned long int ulong;
 typedef _Bool boolean;
 typedef uint8 byte;
 
