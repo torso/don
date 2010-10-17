@@ -3,6 +3,7 @@
 #include "common.h"
 #include "vm.h"
 #include "file.h"
+#include "hash.h"
 #include "math.h"
 #include "stringpool.h"
 #include "util.h"
@@ -225,6 +226,78 @@ const byte *HeapGetObjectData(VM *vm, objectref object)
     return vm->heapBase + sizeFromRef(object) + OBJECT_OVERHEAD;
 }
 
+void HeapHash(VM *vm, objectref object, HashState *hash)
+{
+    Iterator iter;
+    fileref file;
+    byte value;
+
+    if (!object)
+    {
+        value = 0;
+        HashUpdate(hash, &value, 1);
+        return;
+    }
+    switch (HeapGetObjectType(vm, object))
+    {
+    case TYPE_BOOLEAN_TRUE:
+        value = TYPE_BOOLEAN_TRUE;
+        HashUpdate(hash, &value, 1);
+        break;
+
+    case TYPE_BOOLEAN_FALSE:
+        value = TYPE_BOOLEAN_FALSE;
+        HashUpdate(hash, &value, 1);
+        break;
+
+    case TYPE_INTEGER:
+        value = TYPE_INTEGER;
+        HashUpdate(hash, &value, 1);
+        /* TODO: Make platform independent. */
+        HashUpdate(hash, (const byte*)&object, sizeof(object));
+        break;
+
+    case TYPE_STRING:
+    case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
+        value = TYPE_STRING;
+        HashUpdate(hash, &value, 1);
+        HashUpdate(hash, (const byte*)getString(vm, object),
+                   HeapStringLength(vm, object));
+        break;
+
+    case TYPE_FILE:
+        value = TYPE_FILE;
+        HashUpdate(hash, &value, 1);
+        file = HeapGetFile(vm, object);
+        HashUpdate(hash, (const byte*)FileGetName(file),
+                   FileGetNameLength(file));
+        break;
+
+    case TYPE_EMPTY_LIST:
+        value = TYPE_ARRAY;
+        HashUpdate(hash, &value, 1);
+        break;
+
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
+        value = TYPE_ARRAY;
+        HashUpdate(hash, &value, 1);
+        HeapIteratorInit(vm, &iter, object, false);
+        while (HeapIteratorNext(&iter, &object))
+        {
+            /* TODO: Avoid recursion */
+            HeapHash(vm, object, hash);
+        }
+        break;
+
+    case TYPE_ITERATOR:
+        assert(false);
+        break;
+    }
+}
 
 boolean HeapEquals(VM *vm, objectref object1, objectref object2)
 {

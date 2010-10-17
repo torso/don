@@ -45,6 +45,7 @@ static stringref keywordIn;
 static stringref keywordNull;
 static stringref keywordReturn;
 static stringref keywordTrue;
+static stringref keywordUptodate;
 static stringref keywordWhile;
 
 static stringref maxStatementKeyword;
@@ -1671,6 +1672,33 @@ static boolean parseFunctionBody(ParseState *state)
                             return false;
                         }
                     }
+                    else if (identifier == keywordUptodate)
+                    {
+                        prevIndent = currentIndent;
+                        currentIndent = 0;
+                        if (!parseRValue(state, false))
+                        {
+                            return false;
+                        }
+                        skipWhitespace(state);
+                        if (!readExpectedOperator(state, ','))
+                        {
+                            return false;
+                        }
+                        skipWhitespace(state);
+                        identifier = readVariableName(state);
+                        if (!identifier ||
+                            !ParseStateWriteUptodate(state, identifier))
+                        {
+                            return false;
+                        }
+                        if (!peekNewline(state))
+                        {
+                            error(state, "Garbage after uptodate statement.");
+                            return false;
+                        }
+                        skipEndOfLine(state);
+                    }
                     else if (identifier == keywordWhile)
                     {
                         prevIndent = currentIndent;
@@ -1941,6 +1969,7 @@ ErrorCode ParserAddKeywords(void)
         !(keywordNull = StringPoolAdd("null")) ||
         !(keywordReturn = StringPoolAdd("return")) ||
         !(keywordTrue = StringPoolAdd("true")) ||
+        !(keywordUptodate = StringPoolAdd("uptodate")) ||
         !(keywordWhile = StringPoolAdd("while")))
     {
         return OUT_OF_MEMORY;

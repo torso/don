@@ -247,6 +247,10 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
                StringPoolGetString(NativeGetName(nativeFunction)),
                arguments, value);
         break;
+
+    case OP_UPTODATE:
+        printf(" %u: uptodate\n", ip);
+        break;
     }
     if (controlFlowNextInstruction)
     {

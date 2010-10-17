@@ -17,6 +17,8 @@ struct VM
     objectref booleanFalse;
     objectref emptyString;
     objectref emptyList;
+
+    cacheref currentCache;
 };
 
 #include "heap.h"

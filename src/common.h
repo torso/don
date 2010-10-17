@@ -6,6 +6,7 @@ typedef int8_t int8;
 typedef uint8_t uint8;
 typedef uint16_t uint16;
 typedef uint32_t uint32;
+typedef uint64_t uint64;
 
 typedef unsigned int uint;
 typedef _Bool boolean;
@@ -47,9 +48,11 @@ typedef enum
 typedef struct bytevector bytevector;
 typedef struct inthashmap inthashmap;
 typedef struct intvector intvector;
+typedef struct HashState HashState;
 typedef struct VM VM;
 
 typedef uint ref_t;
+typedef ref_t cacheref;
 typedef ref_t fieldref;
 typedef ref_t fileref;
 typedef ref_t functionref;

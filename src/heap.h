@@ -53,6 +53,7 @@ extern nonnull void HeapDispose(VM *vm);
 extern nonnull ObjectType HeapGetObjectType(VM *vm, objectref object);
 extern nonnull size_t HeapGetObjectSize(VM *vm, objectref object);
 extern nonnull const byte *HeapGetObjectData(VM *vm, objectref object);
+extern nonnull void HeapHash(VM *vm, objectref object, HashState *hash);
 extern nonnull boolean HeapEquals(VM *vm, objectref object1, objectref object2);
 extern nonnull int HeapCompare(VM *vm, objectref object1, objectref object2);
 

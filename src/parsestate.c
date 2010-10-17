@@ -489,6 +489,17 @@ boolean ParseStateWriteWhile(ParseState *state, size_t loopTarget)
         !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
 }
 
+boolean ParseStateWriteUptodate(ParseState *state, stringref variableName)
+{
+    ParseStateCheck(state);
+    return ParseStateWriteInstruction(state, OP_UPTODATE) &&
+        ParseStateSetVariable(state, variableName) &&
+        !ParseStateSetError(
+            state, ByteVectorAdd(state->bytecode, OP_BRANCH_TRUE)) &&
+        beginJumpBlock(state, BLOCK_IF) &&
+        !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
+}
+
 boolean ParseStateWriteReturn(ParseState *state, uint values)
 {
     assert(values);

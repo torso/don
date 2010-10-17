@@ -204,6 +204,13 @@ fileref FileAdd(const char *filename, size_t length)
     return addFile(filename, strlen(filename), true);
 }
 
+fileref FileAddRelative(const char *base, size_t baseLength,
+                        const char *filename, size_t length)
+{
+    filename = getAbsoluteFilename(base, baseLength, filename, length);
+    return addFile(filename, strlen(filename), true);
+}
+
 void FileDispose(fileref file)
 {
     FileEntry *fe = getFile(file);

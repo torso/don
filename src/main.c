@@ -3,6 +3,7 @@
 #include "common.h"
 #include "vm.h"
 #include "bytecode.h"
+#include "cache.h"
 #include "fieldindex.h"
 #include "file.h"
 #include "functionindex.h"
@@ -340,7 +341,8 @@ int main(int argc, const char **argv)
             parseFailed = true;
         }
     }
-    if (parseFailed)
+    if (parseFailed ||
+        handleError(CacheInit()))
     {
         IntVectorDispose(&targets);
         free(bytecode);
@@ -356,6 +358,7 @@ int main(int argc, const char **argv)
         {
             IntVectorDispose(&targets);
             free(bytecode);
+            CacheDispose();
             cleanup();
             return 1;
         }
@@ -363,6 +366,7 @@ int main(int argc, const char **argv)
 
     IntVectorDispose(&targets);
     free(bytecode);
+    CacheDispose();
     cleanup();
     return 0;
 }

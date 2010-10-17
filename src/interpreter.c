@@ -3,9 +3,11 @@
 #include "common.h"
 #include "vm.h"
 #include "bytecode.h"
+#include "cache.h"
 #include "fieldindex.h"
 #include "file.h"
 #include "functionindex.h"
+#include "hash.h"
 #include "instruction.h"
 #include "interpreter.h"
 #include "log.h"
@@ -118,6 +120,8 @@ static void execute(VM *vm, functionref target)
     functionref function;
     nativefunctionref nativeFunction;
     fileref file;
+    HashState hashState;
+    byte hash[DIGEST_SIZE];
 
     local = FunctionIndexGetLocalsCount(target);
     IntVectorSetSize(&vm->stack, local);
@@ -480,6 +484,24 @@ static void execute(VM *vm, functionref target)
             {
                 return;
             }
+            break;
+
+        case OP_UPTODATE:
+            HashInit(&hashState);
+            HeapHash(vm, pop(vm), &hashState);
+            HashFinal(&hashState, hash);
+            vm->error = CacheGet(hash, &vm->currentCache);
+            if (vm->error)
+            {
+                return;
+            }
+            pushBoolean(vm, CacheUptodate(vm->currentCache));
+            value = HeapCreateFile(vm, CacheGetDirectory(vm->currentCache));
+            if (!value)
+            {
+                return;
+            }
+            push(vm, value);
             break;
         }
     }
