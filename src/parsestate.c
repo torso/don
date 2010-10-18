@@ -245,7 +245,6 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         {
         case BLOCK_IF:
         case BLOCK_ELSE:
-        case BLOCK_UPTODATE:
             jumpOffset = IntVectorPop(&state->blockStack);
             break;
 
@@ -269,6 +268,14 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
                 return false;
             }
             break;
+
+        case BLOCK_UPTODATE:
+            jumpOffset = IntVectorPop(&state->blockStack);
+            if (!ParseStateWriteInstruction(state, OP_UPTODATE_FINISH))
+            {
+                return false;
+            }
+            break;
         }
     }
 
@@ -277,14 +284,6 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         ByteVectorSetInt(
             state->bytecode, jumpOffset,
             (int)(ByteVectorSize(state->bytecode) - jumpOffset - sizeof(int)));
-    }
-
-    if (type == BLOCK_UPTODATE)
-    {
-        if (!ParseStateWriteInstruction(state, OP_UPTODATE_FINISH))
-        {
-            return false;
-        }
     }
     return true;
 }

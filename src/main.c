@@ -342,6 +342,7 @@ int main(int argc, const char **argv)
         }
     }
     if (parseFailed ||
+        handleError(FileMkdir(FileAdd(".don", 4))) ||
         handleError(CacheInit()))
     {
         IntVectorDispose(&targets);

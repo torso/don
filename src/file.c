@@ -16,15 +16,26 @@
 
 typedef struct
 {
+    size_t size;
+    filetime_t mtime;
+} StatusBlob;
+
+typedef struct
+{
     const char *name;
     size_t nameLength;
     int flags;
     uint refCount;
 
     int fd;
+    boolean append;
+
+    boolean hasStat;
+    mode_t mode;
+
     byte *data;
-    size_t size;
-    filetime_t mtime;
+
+    StatusBlob blob;
 } FileEntry;
 
 static FileEntry fileIndex[INITIAL_FILE_SIZE];
@@ -147,30 +158,62 @@ static fileref addFile(const char *filename, size_t filenameLength,
     fileIndex[file].flags = filenameOwner ? FLAG_FREE_FILENAME : 0;
     fileIndex[file].refCount = 1;
     fileIndex[file].fd = 0;
+    fileIndex[file].hasStat = false;
     fileIndex[file].data = null;
     return refFromSize(file + 1);
 }
 
-static ErrorCode openFile(FileEntry *fe)
+static ErrorCode fileOpen(FileEntry *fe, boolean append)
 {
-    struct stat s;
-
+    if (append)
+    {
+        if (fe->fd)
+        {
+            if (!fe->append)
+            {
+                close(fe->fd);
+                fe->fd = 0;
+            }
+        }
+    }
     if (fe->fd)
     {
         return NO_ERROR;
     }
-    fe->fd = open(fe->name, O_RDONLY);
-    if (fe->fd <= 0)
+    fe->fd = open(fe->name, append ? O_CREAT | O_WRONLY | O_APPEND : O_RDONLY,
+                  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+    if (fe->fd == -1)
     {
         return ERROR_IO;
     }
-    if (fstat(fe->fd, &s))
+    fe->append = append;
+    return NO_ERROR;
+}
+
+static ErrorCode fileStat(FileEntry *fe)
+{
+    struct stat s;
+
+    if (fe->hasStat)
+    {
+        return NO_ERROR;
+    }
+    if (fe->fd)
+    {
+        if (fstat(fe->fd, &s))
+        {
+            return ERROR_IO;
+        }
+    }
+    else if (stat(fe->name, &s))
     {
         return ERROR_IO;
     }
-    fe->size = (size_t)s.st_size;
-    fe->mtime.seconds = s.st_mtime;
-    fe->mtime.fraction = s.st_mtimensec;
+    fe->hasStat = true;
+    fe->blob.size = (size_t)s.st_size;
+    fe->mode = s.st_mode;
+    fe->blob.mtime.seconds = s.st_mtime;
+    fe->blob.mtime.fraction = s.st_mtimensec;
     return NO_ERROR;
 }
 
@@ -242,16 +285,55 @@ size_t FileGetNameLength(fileref file)
     return getFile(file)->nameLength;
 }
 
-ErrorCode FileStat(fileref file, size_t *restrict size,
-                   filetime_t *restrict mtime)
+ErrorCode FileGetSize(fileref file, size_t *restrict size)
 {
     FileEntry *restrict fe = getFile(file);
-    ErrorCode error;
+    ErrorCode error = fileStat(fe);
+    if (error)
+    {
+        return error;
+    }
+    *size = fe->blob.size;
+    return NO_ERROR;
+}
 
-    error = openFile(fe);
-    *size = fe->size;
-    *mtime = fe->mtime;
-    return error;
+ErrorCode FileGetStatusBlob(fileref file, const byte **blob)
+{
+    FileEntry *fe = getFile(file);
+    fileStat(fe);
+    *blob = (const byte*)&fe->blob;
+    return NO_ERROR;
+}
+
+size_t FileGetStatusBlobSize(void)
+{
+    return sizeof(StatusBlob);
+}
+
+
+ErrorCode FileOpenAppend(fileref file)
+{
+    return fileOpen(getFile(file), true);
+}
+
+ErrorCode FileWrite(fileref file, const byte *data, size_t size)
+{
+    FileEntry *restrict fe = getFile(file);
+    ssize_t written;
+
+    assert(fe->fd);
+    assert(fe->append);
+    while (size)
+    {
+        written = write(fe->fd, data, size);
+        if (written < 0)
+        {
+            return ERROR_IO;
+        }
+        assert((size_t)written <= size);
+        size -= (size_t)written;
+    }
+    return NO_ERROR;
 }
 
 
@@ -262,20 +344,25 @@ ErrorCode FileMMap(fileref file, const byte **p, size_t *size)
 
     if (!fe->data)
     {
-        error = openFile(fe);
+        error = fileOpen(fe, false);
         if (error)
         {
             return error;
         }
-        fe->data = (byte*)mmap(null, fe->size, PROT_READ, MAP_PRIVATE, fe->fd, 0);
-        if (!fe->data)
+        error = fileStat(fe);
+        if (error)
+        {
+            return error;
+        }
+        fe->data = (byte*)mmap(null, fe->blob.size, PROT_READ, MAP_PRIVATE, fe->fd, 0);
+        if (fe->data == (byte*)-1)
         {
             /* TODO: Read file fallback */
             return ERROR_IO;
         }
     }
     *p = fe->data;
-    *size = fe->size;
+    *size = fe->blob.size;
     return NO_ERROR;
 }
 
@@ -284,7 +371,28 @@ ErrorCode FileMUnmap(fileref file)
     FileEntry *fe = getFile(file);
 
     assert(fe->data);
-    return munmap(fe->data, fe->size) ? ERROR_IO : NO_ERROR; /* TODO: Error handling */
+    return munmap(fe->data, fe->blob.size) ? ERROR_IO : NO_ERROR; /* TODO: Error handling */
+}
+
+
+ErrorCode FileMkdir(fileref file)
+{
+    FileEntry *fe = getFile(file);
+    ErrorCode error;
+
+    error = fileStat(fe);
+    if (!error)
+    {
+        if (S_ISDIR(fe->mode))
+        {
+            return NO_ERROR;
+        }
+    }
+    if (mkdir(fe->name, S_IRWXU | S_IRWXG | S_IRWXO | S_ISUID | S_ISGID))
+    {
+        return ERROR_IO;
+    }
+    return NO_ERROR;
 }
 
 

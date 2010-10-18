@@ -515,7 +515,7 @@ static void execute(VM *vm, functionref target)
                 }
             }
             pushBoolean(vm, CacheUptodate(vm->currentCache));
-            value = HeapCreateFile(vm, CacheGetDirectory(vm->currentCache));
+            value = HeapCreateFile(vm, CacheGetFile(vm->currentCache));
             if (!value)
             {
                 return;
@@ -528,6 +528,12 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_UPTODATE_FINISH:
+            assert(vm->currentCache);
+            vm->error = CacheSetUptodate(vm->currentCache);
+            if (vm->error)
+            {
+                return;
+            }
             vm->currentCache = 0;
             break;
         }
