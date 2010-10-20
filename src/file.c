@@ -410,12 +410,9 @@ ErrorCode FileMkdir(fileref file)
     ErrorCode error;
 
     error = fileStat(fe);
-    if (!error)
+    if (!error && S_ISDIR(fe->mode))
     {
-        if (S_ISDIR(fe->mode))
-        {
-            return NO_ERROR;
-        }
+        return NO_ERROR;
     }
     if (mkdir(fe->name, S_IRWXU | S_IRWXG | S_IRWXO | S_ISUID | S_ISGID))
     {
