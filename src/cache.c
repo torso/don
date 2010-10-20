@@ -14,6 +14,7 @@ typedef struct
     fileref file;
     boolean uptodate;
     boolean newEntry;
+    boolean written;
     bytevector dependencies;
 } Entry;
 
@@ -31,11 +32,9 @@ static Entry *getEntry(cacheref ref)
 
 static void clearEntry(Entry *entry)
 {
-    if (entry->file)
-    {
-        ByteVectorDispose(&entry->dependencies);
-        entry->file = 0;
-    }
+    assert(entry->file);
+    ByteVectorDispose(&entry->dependencies);
+    entry->file = 0;
 }
 
 static ErrorCode addDependency(Entry *entry, fileref file, const byte *blob)
@@ -57,7 +56,68 @@ static ErrorCode addDependency(Entry *entry, fileref file, const byte *blob)
     return NO_ERROR;
 }
 
-static ErrorCode readTempIndex(fileref file)
+static ErrorCode writeEntry(Entry *restrict entry)
+{
+    fileref file;
+    ErrorCode error;
+    const byte *restrict depend;
+    const byte *restrict dependLimit;
+    byte *restrict data;
+    size_t size;
+    size_t filenameLength;
+
+    depend = ByteVectorGetPointer(&entry->dependencies, 0);
+    dependLimit = depend + ByteVectorSize(&entry->dependencies);
+
+    size = sizeof(size_t) + FILENAME_DIGEST_SIZE;
+    while (depend < dependLimit)
+    {
+        file = *(fileref*)depend;
+        /* TODO: Check if file has changed */
+        size += FileGetNameLength(file) + sizeof(size_t) +
+            FileGetStatusBlobSize();
+        depend += sizeof(fileref) + FileGetStatusBlobSize();
+    }
+
+    data = (byte*)malloc(size);
+    if (!data)
+    {
+        return OUT_OF_MEMORY;
+    }
+    *(size_t*)data = size;
+    memcpy(data + sizeof(size_t), entry->hash, FILENAME_DIGEST_SIZE);
+    size = sizeof(size_t) + FILENAME_DIGEST_SIZE;
+    depend = ByteVectorGetPointer(&entry->dependencies, 0);
+    while (depend < dependLimit)
+    {
+        file = *(fileref*)depend;
+        depend += sizeof(fileref);
+        filenameLength = FileGetNameLength(file);
+        *(size_t*)&data[size] = filenameLength;
+        size += sizeof(size_t);
+        memcpy(data + size, FileGetName(file), filenameLength);
+        size += filenameLength;
+        memcpy(data + size, depend, FileGetStatusBlobSize());
+        size += FileGetStatusBlobSize();
+        depend += FileGetStatusBlobSize();
+    }
+
+    error = FileOpenAppend(cacheIndexTemp);
+    if (error)
+    {
+        free(data);
+        return error;
+    }
+    error = FileWrite(cacheIndexTemp, data, size);
+    free(data);
+    if (!error)
+    {
+        entry->written = true;
+    }
+    return error;
+}
+
+static ErrorCode readIndex(fileref file)
 {
     cacheref ref;
     Entry *entry;
@@ -99,6 +159,17 @@ static ErrorCode readTempIndex(fileref file)
             return error;
         }
         entry = getEntry(ref);
+        if (!entry->newEntry)
+        {
+            clearEntry(entry);
+            error = CacheGet(data, &ref);
+            if (error)
+            {
+                FileMUnmap(file);
+                return error;
+            }
+            entry = getEntry(ref);
+        }
         data += FILENAME_DIGEST_SIZE;
         while (data < limit)
         {
@@ -129,8 +200,8 @@ static ErrorCode readTempIndex(fileref file)
                 return error;
             }
         }
-        entry->newEntry = false;
         entry->uptodate = true;
+        entry->newEntry = false;
     }
     return FileMUnmap(file);
 }
@@ -142,7 +213,7 @@ ErrorCode CacheInit(void)
 
     cacheDir = FileAdd(".don/cache", 10);
     cacheIndex = FileAdd(".don/cache/index", 16);
-    cacheIndexTemp = FileAdd(".don/cache/index.tmp", 20);
+    cacheIndexTemp = FileAdd(".don/cache/index.1", 18);
     if (!cacheDir || !cacheIndex || !cacheIndexTemp)
     {
         return OUT_OF_MEMORY;
@@ -152,19 +223,39 @@ ErrorCode CacheInit(void)
     {
         return error;
     }
-    return readTempIndex(cacheIndexTemp);
+    error = readIndex(cacheIndex);
+    if (error)
+    {
+        return error;
+    }
+    return readIndex(cacheIndexTemp);
 }
 
 ErrorCode CacheDispose(void)
 {
     Entry *entry;
+    ErrorCode error;
+
     for (entry = entries + 1;
          entry < entries + sizeof(entries) / sizeof(Entry);
          entry++)
     {
-        clearEntry(entry);
+        if (entry->file)
+        {
+            if (!entry->written)
+            {
+                writeEntry(entry);
+            }
+            clearEntry(entry);
+        }
     }
-    return NO_ERROR;
+    error = FileDelete(cacheIndex);
+    if (error)
+    {
+        return error;
+    }
+    error = FileRename(cacheIndexTemp, cacheIndex);
+    return error == FILE_NOT_FOUND ? NO_ERROR : error;
 }
 
 ErrorCode CacheGet(const byte *hash, cacheref *ref)
@@ -217,73 +308,17 @@ ErrorCode CacheGet(const byte *hash, cacheref *ref)
     memcpy(freeEntry->hash, hash, FILENAME_DIGEST_SIZE);
     freeEntry->uptodate = false;
     freeEntry->newEntry = true;
+    freeEntry->written = false;
     *ref = refFromSize((size_t)(freeEntry - entries));
     return NO_ERROR;
 }
 
 ErrorCode CacheSetUptodate(cacheref ref)
 {
-    Entry *restrict entry = getEntry(ref);
-    fileref file;
-    ErrorCode error;
-    const byte *restrict depend;
-    const byte *restrict dependLimit;
-    byte *restrict data;
-    size_t size;
-    size_t filenameLength;
-
+    Entry *entry = getEntry(ref);
     assert(!entry->uptodate);
-
-    depend = ByteVectorGetPointer(&entry->dependencies, 0);
-    dependLimit = depend + ByteVectorSize(&entry->dependencies);
-
-    size = sizeof(size_t) + FILENAME_DIGEST_SIZE;
-    while (depend < dependLimit)
-    {
-        file = *(fileref*)depend;
-        /* TODO: Check if file has changed */
-        size += FileGetNameLength(file) + sizeof(size_t) +
-            FileGetStatusBlobSize();
-        depend += sizeof(fileref) + FileGetStatusBlobSize();
-    }
-
-    data = (byte*)malloc(size);
-    if (!data)
-    {
-        return OUT_OF_MEMORY;
-    }
-    *(size_t*)data = size;
-    memcpy(data + sizeof(size_t), entry->hash, FILENAME_DIGEST_SIZE);
-    size = sizeof(size_t) + FILENAME_DIGEST_SIZE;
-    depend = ByteVectorGetPointer(&entry->dependencies, 0);
-    while (depend < dependLimit)
-    {
-        file = *(fileref*)depend;
-        depend += sizeof(fileref);
-        filenameLength = FileGetNameLength(file);
-        *(size_t*)&data[size] = filenameLength;
-        size += sizeof(size_t);
-        memcpy(data + size, FileGetName(file), filenameLength);
-        size += filenameLength;
-        memcpy(data + size, depend, FileGetStatusBlobSize());
-        size += FileGetStatusBlobSize();
-        depend += FileGetStatusBlobSize();
-    }
-
-    error = FileOpenAppend(cacheIndexTemp);
-    if (error)
-    {
-        free(data);
-        return error;
-    }
-    error = FileWrite(cacheIndexTemp, data, size);
-    free(data);
-    if (error)
-    {
-        return error;
-    }
     entry->uptodate = true;
-    return NO_ERROR;
+    return writeEntry(entry);
 }
 
 ErrorCode CacheAddDependency(cacheref ref, fileref file)
