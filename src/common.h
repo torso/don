@@ -42,6 +42,7 @@ typedef enum
 {
     NO_ERROR = 0,
     OUT_OF_MEMORY,
+    FILE_NOT_FOUND,
     ERROR_IO,
     ERROR_FAIL
 } ErrorCode;

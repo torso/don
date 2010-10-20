@@ -49,6 +49,16 @@ static char *cwd;
 static size_t cwdLength;
 
 
+static ErrorCode getLastError(void)
+{
+    switch (errno)
+    {
+    case ENOENT:
+        return FILE_NOT_FOUND;
+    }
+    return ERROR_IO;
+}
+
 static void checkFile(fileref file)
 {
     assert(file);
@@ -193,7 +203,7 @@ static ErrorCode fileOpen(FileEntry *fe, boolean append)
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
     if (fe->fd == -1)
     {
-        return ERROR_IO;
+        return getLastError();
     }
     fe->append = append;
     return NO_ERROR;
@@ -211,12 +221,12 @@ static ErrorCode fileStat(FileEntry *fe)
     {
         if (fstat(fe->fd, &s))
         {
-            return ERROR_IO;
+            return getLastError();
         }
     }
     else if (stat(fe->name, &s))
     {
-        return ERROR_IO;
+        return getLastError();
     }
     fe->hasStat = true;
     fe->blob.size = (size_t)s.st_size;
@@ -337,7 +347,7 @@ ErrorCode FileWrite(fileref file, const byte *data, size_t size)
         written = write(fe->fd, data, size);
         if (written < 0)
         {
-            return ERROR_IO;
+            return getLastError();
         }
         assert((size_t)written <= size);
         size -= (size_t)written;
@@ -367,7 +377,7 @@ ErrorCode FileMMap(fileref file, const byte **p, size_t *size)
         if (fe->data == (byte*)-1)
         {
             /* TODO: Read file fallback */
-            return ERROR_IO;
+            return getLastError();
         }
     }
     *p = fe->data;
@@ -380,7 +390,7 @@ ErrorCode FileMUnmap(fileref file)
     FileEntry *fe = getFile(file);
 
     assert(fe->data);
-    return munmap(fe->data, fe->blob.size) ? ERROR_IO : NO_ERROR; /* TODO: Error handling */
+    return munmap(fe->data, fe->blob.size) ? getLastError() : NO_ERROR; /* TODO: Error handling */
 }
 
 
@@ -390,7 +400,7 @@ ErrorCode FileDelete(fileref file)
     fileClose(fe);
     if (remove(fe->name) && errno != ENOENT)
     {
-        return ERROR_IO;
+        return getLastError();
     }
     return NO_ERROR;
 }
@@ -401,7 +411,7 @@ ErrorCode FileRename(fileref oldFile, fileref newFile)
     FileEntry *newFE = getFile(newFile);
     fileClose(oldFE);
     fileClose(newFE);
-    return rename(oldFE->name, newFE->name) ? ERROR_IO : NO_ERROR;
+    return rename(oldFE->name, newFE->name) ? getLastError() : NO_ERROR;
 }
 
 ErrorCode FileMkdir(fileref file)
@@ -416,7 +426,7 @@ ErrorCode FileMkdir(fileref file)
     }
     if (mkdir(fe->name, S_IRWXU | S_IRWXG | S_IRWXO | S_ISUID | S_ISGID))
     {
-        return ERROR_IO;
+        return getLastError();
     }
     return NO_ERROR;
 }

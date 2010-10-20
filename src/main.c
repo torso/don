@@ -65,6 +65,10 @@ static boolean handleError(ErrorCode error)
         printf("Out of memory\n");
         break;
 
+    case FILE_NOT_FOUND:
+        printf("File not found\n");
+        break;
+
     case ERROR_IO:
         printf("IO error\n");
         break;
