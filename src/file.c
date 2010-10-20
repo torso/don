@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE 500
 #include <errno.h>
 #include <fcntl.h>
 #include <ftw.h>
@@ -333,6 +334,18 @@ size_t FileGetStatusBlobSize(void)
 ErrorCode FileOpenAppend(fileref file)
 {
     return fileOpen(getFile(file), true);
+}
+
+void FileCloseSync(fileref file)
+{
+    FileEntry *fe = getFile(file);
+    if (fe->fd)
+    {
+        /* Sync is best-effort only. Ignore errors. */
+        fdatasync(fe->fd);
+
+        fileClose(fe);
+    }
 }
 
 ErrorCode FileWrite(fileref file, const byte *data, size_t size)

@@ -20,7 +20,7 @@ typedef struct
 
 static fileref cacheDir;
 static fileref cacheIndex;
-static fileref cacheIndexTemp;
+static fileref cacheIndexOut;
 static Entry entries[16];
 
 
@@ -56,7 +56,7 @@ static ErrorCode addDependency(Entry *entry, fileref file, const byte *blob)
     return NO_ERROR;
 }
 
-static ErrorCode writeEntry(Entry *restrict entry)
+static ErrorCode writeEntry(Entry *restrict entry, fileref indexFile)
 {
     fileref file;
     ErrorCode error;
@@ -102,13 +102,13 @@ static ErrorCode writeEntry(Entry *restrict entry)
         depend += FileGetStatusBlobSize();
     }
 
-    error = FileOpenAppend(cacheIndexTemp);
+    error = FileOpenAppend(indexFile);
     if (error)
     {
         free(data);
         return error;
     }
-    error = FileWrite(cacheIndexTemp, data, size);
+    error = FileWrite(indexFile, data, size);
     free(data);
     if (!error)
     {
@@ -132,10 +132,6 @@ static ErrorCode readIndex(fileref file)
     error = FileMMap(file, &data, &size);
     if (error)
     {
-        if (error == FILE_NOT_FOUND)
-        {
-            return NO_ERROR;
-        }
         return error;
     }
     while (size)
@@ -189,6 +185,7 @@ static ErrorCode readIndex(fileref file)
             data += filenameLength;
             if (!dependFile)
             {
+                clearEntry(entry);
                 FileMUnmap(file);
                 return OUT_OF_MEMORY;
             }
@@ -196,6 +193,7 @@ static ErrorCode readIndex(fileref file)
             data += FileGetStatusBlobSize();
             if (error)
             {
+                clearEntry(entry);
                 FileMUnmap(file);
                 return error;
             }
@@ -209,12 +207,15 @@ static ErrorCode readIndex(fileref file)
 
 ErrorCode CacheInit(void)
 {
+    Entry *entry;
+    fileref tempfile;
     ErrorCode error;
 
     cacheDir = FileAdd(".don/cache", 10);
     cacheIndex = FileAdd(".don/cache/index", 16);
-    cacheIndexTemp = FileAdd(".don/cache/index.1", 18);
-    if (!cacheDir || !cacheIndex || !cacheIndexTemp)
+    cacheIndexOut = FileAdd(".don/cache/index.1", 18);
+    tempfile = FileAdd(".don/cache/index.2", 18);
+    if (!cacheDir || !cacheIndex || !cacheIndexOut || !tempfile)
     {
         return OUT_OF_MEMORY;
     }
@@ -223,12 +224,43 @@ ErrorCode CacheInit(void)
     {
         return error;
     }
-    error = readIndex(cacheIndex);
+    error = FileDelete(tempfile);
     if (error)
     {
         return error;
     }
-    return readIndex(cacheIndexTemp);
+    error = readIndex(cacheIndex);
+    if (error && error != FILE_NOT_FOUND)
+    {
+        return error;
+    }
+    error = readIndex(cacheIndexOut);
+    if (!error)
+    {
+        FileOpenAppend(tempfile);
+        for (entry = entries + 1;
+             entry < entries + sizeof(entries) / sizeof(Entry);
+             entry++)
+        {
+            if (entry->file)
+            {
+                writeEntry(entry, tempfile);
+                entry->written = false;
+            }
+        }
+        FileCloseSync(cacheIndexOut);
+        error = FileRename(tempfile, cacheIndexOut);
+        if (error)
+        {
+            return error;
+        }
+        error = FileRename(cacheIndexOut, cacheIndex);
+    }
+    else if (error == FILE_NOT_FOUND)
+    {
+        error = NO_ERROR;
+    }
+    return error;
 }
 
 ErrorCode CacheDispose(void)
@@ -244,17 +276,18 @@ ErrorCode CacheDispose(void)
         {
             if (!entry->written)
             {
-                writeEntry(entry);
+                writeEntry(entry, cacheIndexOut);
             }
             clearEntry(entry);
         }
     }
+    FileCloseSync(cacheIndexOut);
     error = FileDelete(cacheIndex);
     if (error)
     {
         return error;
     }
-    error = FileRename(cacheIndexTemp, cacheIndex);
+    error = FileRename(cacheIndexOut, cacheIndex);
     return error == FILE_NOT_FOUND ? NO_ERROR : error;
 }
 
@@ -317,8 +350,9 @@ ErrorCode CacheSetUptodate(cacheref ref)
 {
     Entry *entry = getEntry(ref);
     assert(!entry->uptodate);
+    assert(!entry->written);
     entry->uptodate = true;
-    return writeEntry(entry);
+    return writeEntry(entry, cacheIndexOut);
 }
 
 ErrorCode CacheAddDependency(cacheref ref, fileref file)

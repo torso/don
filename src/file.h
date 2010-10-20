@@ -24,7 +24,8 @@ extern nonnull ErrorCode FileGetSize(fileref file, size_t *size);
 extern nonnull ErrorCode FileGetStatusBlob(fileref file, const byte **blob);
 extern pure size_t FileGetStatusBlobSize(void);
 
-extern nonnull ErrorCode FileOpenAppend(fileref file);
+extern ErrorCode FileOpenAppend(fileref file);
+extern void FileCloseSync(fileref file);
 extern nonnull ErrorCode FileWrite(fileref file, const byte *data,
                                     size_t size);
 
