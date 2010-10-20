@@ -32,6 +32,8 @@ extern nonnull ErrorCode FileWrite(fileref file, const byte *data,
 extern ErrorCode FileMMap(fileref file, const byte **p, size_t *size);
 extern ErrorCode FileMUnmap(fileref file);
 
+extern ErrorCode FileDelete(fileref file);
+extern ErrorCode FileRename(fileref oldFile, fileref newFile);
 extern ErrorCode FileMkdir(fileref file);
 
 extern nonnull const char *FileFilename(const char *path, size_t *length);

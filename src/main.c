@@ -359,7 +359,7 @@ int main(int argc, const char **argv)
         {
             IntVectorDispose(&targets);
             free(bytecode);
-            CacheDispose();
+            handleError(CacheDispose());
             cleanup();
             return 1;
         }
@@ -367,7 +367,7 @@ int main(int argc, const char **argv)
 
     IntVectorDispose(&targets);
     free(bytecode);
-    CacheDispose();
+    handleError(CacheDispose());
     cleanup();
     return 0;
 }

@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <ftw.h>
 #include <memory.h>
@@ -163,6 +164,15 @@ static fileref addFile(const char *filename, size_t filenameLength,
     return refFromSize(file + 1);
 }
 
+static void fileClose(FileEntry *fe)
+{
+    if (fe->fd)
+    {
+        close(fe->fd);
+        fe->fd = 0;
+    }
+}
+
 static ErrorCode fileOpen(FileEntry *fe, boolean append)
 {
     if (append)
@@ -171,8 +181,7 @@ static ErrorCode fileOpen(FileEntry *fe, boolean append)
         {
             if (!fe->append)
             {
-                close(fe->fd);
-                fe->fd = 0;
+                fileClose(fe);
             }
         }
     }
@@ -374,6 +383,26 @@ ErrorCode FileMUnmap(fileref file)
     return munmap(fe->data, fe->blob.size) ? ERROR_IO : NO_ERROR; /* TODO: Error handling */
 }
 
+
+ErrorCode FileDelete(fileref file)
+{
+    FileEntry *fe = getFile(file);
+    fileClose(fe);
+    if (remove(fe->name) && errno != ENOENT)
+    {
+        return ERROR_IO;
+    }
+    return NO_ERROR;
+}
+
+ErrorCode FileRename(fileref oldFile, fileref newFile)
+{
+    FileEntry *oldFE = getFile(oldFile);
+    FileEntry *newFE = getFile(newFile);
+    fileClose(oldFE);
+    fileClose(newFE);
+    return rename(oldFE->name, newFE->name) ? ERROR_IO : NO_ERROR;
+}
 
 ErrorCode FileMkdir(fileref file)
 {

@@ -42,9 +42,11 @@ ErrorCode CacheInit(void)
     return FileMkdir(cacheDir);
 }
 
-void CacheDispose(void)
+ErrorCode CacheDispose(void)
 {
     Entry *entry;
+    ErrorCode error;
+
     for (entry = entries + 1;
          entry < entries + sizeof(entries) / sizeof(Entry);
          entry++)
@@ -54,6 +56,12 @@ void CacheDispose(void)
             ByteVectorDispose(&entry->dependencies);
         }
     }
+    error = FileDelete(cacheIndex);
+    if (error)
+    {
+        return error;
+    }
+    return FileRename(cacheIndexTemp, cacheIndex);
 }
 
 ErrorCode CacheGet(const byte *hash, cacheref *ref)
