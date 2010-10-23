@@ -110,6 +110,11 @@ void FunctionIndexFinishParameters(functionref function,
     info->fileOffset = fileOffset;
 }
 
+void FunctionIndexSetFailedDeclaration(functionref function)
+{
+    getFunctionInfo(function)->line = 0;
+}
+
 
 functionref FunctionIndexGetFirstFunction(void)
 {
@@ -179,9 +184,10 @@ uint FunctionIndexGetBytecodeOffset(functionref function)
     return getFunctionInfo(function)->bytecodeOffset;
 }
 
-void FunctionIndexSetBytecodeOffset(functionref function, uint offset)
+void FunctionIndexSetBytecodeOffset(functionref function, size_t offset)
 {
-    getFunctionInfo(function)->bytecodeOffset = offset;
+    assert(offset <= UINT_MAX);
+    getFunctionInfo(function)->bytecodeOffset = (uint)offset;
 }
 
 uint FunctionIndexGetParameterCount(functionref function)

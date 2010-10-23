@@ -212,15 +212,18 @@ int main(int argc, const char **argv)
             if (function == FunctionIndexGetFirstFunction())
             {
                 printf("Init:\n");
+                BytecodeDisassembleFunction(
+                    bytecode + FunctionIndexGetBytecodeOffset(function),
+                    bytecodeLimit);
             }
-            else
+            else if (FunctionIndexGetBytecodeOffset(function))
             {
                 printf("Function %s:\n",
                        StringPoolGetString(FunctionIndexGetName(function)));
+                BytecodeDisassembleFunction(
+                    bytecode + FunctionIndexGetBytecodeOffset(function),
+                    bytecodeLimit);
             }
-            BytecodeDisassembleFunction(
-                bytecode + FunctionIndexGetBytecodeOffset(function),
-                bytecodeLimit);
         }
         fflush(stdout);
     }

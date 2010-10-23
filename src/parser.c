@@ -1697,7 +1697,7 @@ static boolean parseFunctionBody(ParseState *state)
     }
 }
 
-static void parseFunctionDeclaration(ParseState *state, functionref function)
+static boolean parseFunctionDeclaration(ParseState *state, functionref function)
 {
     stringref parameterName;
     fieldref field = 0;
@@ -1710,7 +1710,7 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
         if (!peekNewline(state))
         {
             error(state, "Garbage after target declaration.");
-            return;
+            return false;
         }
     }
     else
@@ -1726,20 +1726,20 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                 if (!parameterName || isKeyword(parameterName))
                 {
                     error(state, "Expected parameter name or ')'.");
-                    return;
+                    return false;
                 }
                 if (NamespaceGetField(parameterName))
                 {
                     error(state,
                           "Invalid parameter name. '%s' is a global variable.",
                           StringPoolGetString(parameterName));
-                    return;
+                    return false;
                 }
                 if (NamespaceGetFunction(parameterName))
                 {
                     error(state, "Invalid parameter name. '%s' is a function.",
                           StringPoolGetString(parameterName));
-                    return;
+                    return false;
                 }
                 skipWhitespace(state);
                 if (readOperator(state, '='))
@@ -1751,7 +1751,7 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                     start = ByteVectorSize(state->bytecode);
                     if (!parseRValue(state, true))
                     {
-                        return;
+                        return false;
                     }
                     FieldIndexSetBytecodeOffset(
                         field, start, ByteVectorSize(state->bytecode));
@@ -1760,7 +1760,7 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                 {
                     error(state, "Default value for parameter '%s' required.",
                           StringPoolGetString(parameterName));
-                    return;
+                    return false;
                 }
                 else if (readOperator3(state, '.', '.', '.'))
                 {
@@ -1777,7 +1777,7 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                 if (!readOperator(state, ','))
                 {
                     error(state, "Expected ',' or ')'.");
-                    return;
+                    return false;
                 }
                 skipWhitespace(state);
             }
@@ -1785,12 +1785,13 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
         if (!peekNewline(state))
         {
             error(state, "Garbage after function declaration.");
-            return;
+            return false;
         }
     }
     skipEndOfLine(state);
     FunctionIndexFinishParameters(function, state->line,
                                   getOffset(state, state->start));
+    return true;
 }
 
 static void parseScript(ParseState *state)
@@ -1923,20 +1924,32 @@ void ParseFunctionDeclaration(functionref function, bytevector *bytecode)
                    FunctionIndexGetFile(function),
                    FunctionIndexGetLine(function),
                    FunctionIndexGetFileOffset(function));
-    parseFunctionDeclaration(&state, function);
+    if (!parseFunctionDeclaration(&state, function))
+    {
+        FunctionIndexSetFailedDeclaration(function);
+    }
     ParseStateDispose(&state);
 }
 
 void ParseFunctionBody(functionref function, bytevector *bytecode)
 {
     ParseState state;
+    size_t start = ByteVectorSize(bytecode);
+    uint line;
 
     assert(function);
-    FunctionIndexSetBytecodeOffset(function, (uint)ByteVectorSize(bytecode));
+    line = FunctionIndexGetLine(function);
+    if (!line)
+    {
+        return;
+    }
     ParseStateInit(&state, bytecode, function,
                    FunctionIndexGetFile(function),
-                   FunctionIndexGetLine(function),
+                   line,
                    FunctionIndexGetFileOffset(function));
-    parseFunctionBody(&state);
+    if (parseFunctionBody(&state))
+    {
+        FunctionIndexSetBytecodeOffset(function, start);
+    }
     ParseStateDispose(&state);
 }
