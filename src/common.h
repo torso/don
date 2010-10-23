@@ -44,13 +44,6 @@ extern void _assert(const char *expression, const char *file, int line);
 #define assert(e) do { (void)sizeof(e); } while(0)
 #endif
 
-typedef enum
-{
-    NO_ERROR = 0,
-    OUT_OF_MEMORY,
-    ERROR_FAIL
-} ErrorCode;
-
 typedef struct bytevector bytevector;
 typedef struct inthashmap inthashmap;
 typedef struct intvector intvector;

@@ -34,3 +34,9 @@ void TaskFailIO(const char *filename)
     }
     abort();
 }
+
+void TaskFailVM(VM *vm unused)
+{
+    /* TODO: Print stack trace. */
+    abort();
+}

@@ -278,8 +278,8 @@ static void nativeExec(VM *vm, uint returnValues)
     }
     if (failOnError && status)
     {
-        vm->error = ERROR_FAIL;
-        return;
+        printf("BUILD ERROR: Process exited with status %d.\n", status);
+        TaskFailVM(vm);
     }
     if (returnValues)
     {
@@ -339,7 +339,7 @@ void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
             LogPrintSZ(": ");
             LogPrintObjectAutoNewline(vm, value);
         }
-        vm->error = ERROR_FAIL;
+        TaskFailVM(vm);
         return;
 
     case NATIVE_FILENAME:

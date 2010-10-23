@@ -55,23 +55,6 @@ void _assert(const char *expression, const char *file, int line)
 }
 #endif
 
-static boolean handleError(ErrorCode error)
-{
-    switch (error)
-    {
-    case NO_ERROR:
-        return false;
-
-    case OUT_OF_MEMORY:
-        printf("Out of memory\n");
-        break;
-
-    case ERROR_FAIL:
-        break;
-    }
-    return true;
-}
-
 static void cleanup(void)
 {
     NamespaceDispose();
@@ -272,14 +255,7 @@ int main(int argc, const char **argv)
     {
         function = NamespaceGetTarget(IntVectorGetRef(&targets, j));
         assert(function);
-        if (handleError(InterpreterExecute(bytecode, function)))
-        {
-            IntVectorDispose(&targets);
-            free(bytecode);
-            CacheDispose();
-            cleanup();
-            return 1;
-        }
+        InterpreterExecute(bytecode, function);
     }
 
     IntVectorDispose(&targets);

@@ -444,10 +444,6 @@ static void execute(VM *vm, functionref target)
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == NativeGetParameterCount(nativeFunction)); /* TODO */
             NativeInvoke(vm, nativeFunction, *ip++);
-            if (vm->error)
-            {
-                return;
-            }
             break;
 
         case OP_UPTODATE:
@@ -491,7 +487,7 @@ static void disposeVM(VM *vm)
     IntVectorDispose(&vm->stack);
 }
 
-ErrorCode InterpreterExecute(const byte *restrict bytecode, functionref target)
+void InterpreterExecute(const byte *restrict bytecode, functionref target)
 {
     VM vm;
     uint fieldCount = FieldIndexGetCount();
@@ -504,11 +500,7 @@ ErrorCode InterpreterExecute(const byte *restrict bytecode, functionref target)
     IntVectorInit(&vm.stack);
 
     execute(&vm, FunctionIndexGetFirstFunction());
-    if (!vm.error)
-    {
-        execute(&vm, target);
-    }
+    execute(&vm, target);
 
     disposeVM(&vm);
-    return vm.error;
 }

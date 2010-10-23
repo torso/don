@@ -5,8 +5,6 @@ struct VM
 {
     const byte *restrict bytecode;
 
-    ErrorCode error;
-
     objectref *fields;
     intvector callStack;
     intvector stack;
