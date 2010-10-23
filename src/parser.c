@@ -1826,8 +1826,10 @@ static void parseScript(ParseState *state)
                 skipWhitespace(state);
                 if (!readOperator(state, '='))
                 {
-                    error(state, "Invalid field declaration.");
-                    return;
+                    error(state, "Invalid declaration.");
+                    allowIndent = true;
+                    skipEndOfLine(state);
+                    continue;
                 }
                 skipWhitespace(state);
                 NamespaceAddField(name, FieldIndexAdd(
@@ -1844,8 +1846,8 @@ static void parseScript(ParseState *state)
         }
         else if (!readNewline(state))
         {
-            error(state, "Unsupported character: %d", state->current[0]);
-            return;
+            error(state, "Unsupported character: '%c'", state->current[0]);
+            skipEndOfLine(state);
         }
     }
 }
