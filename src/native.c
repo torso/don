@@ -12,6 +12,7 @@
 #include "log.h"
 #include "native.h"
 #include "stringpool.h"
+#include "task.h"
 
 #define TOTAL_PARAMETER_COUNT 13
 
@@ -220,18 +221,14 @@ static void nativeExec(VM *vm, uint returnValues)
     argv = createStringArray(vm, InterpreterPop(vm));
 
     status = pipe(pipeOut);
-    if (status < 0)
+    if (status == -1)
     {
-        /* TODO: Error handling. */
-        vm->error = OUT_OF_MEMORY;
-        return;
+        TaskFailErrno();
     }
     status = pipe(pipeErr);
-    if (status < 0)
+    if (status == -1)
     {
-        /* TODO: Error handling. */
-        vm->error = OUT_OF_MEMORY;
-        return;
+        TaskFailErrno();
     }
 
     pid = fork();
@@ -241,19 +238,15 @@ static void nativeExec(VM *vm, uint returnValues)
         close(pipeErr[0]);
 
         status = dup2(pipeOut[1], STDOUT_FILENO);
-        if (status < 0)
+        if (status == -1)
         {
-            /* TODO: Error handling. */
-            vm->error = OUT_OF_MEMORY;
-            return;
+            TaskFailErrno();
         }
         close(pipeOut[1]);
         status = dup2(pipeErr[1], STDERR_FILENO);
-        if (status < 0)
+        if (status == -1)
         {
-            /* TODO: Error handling. */
-            vm->error = OUT_OF_MEMORY;
-            return;
+            TaskFailErrno();
         }
         close(pipeErr[1]);
 
@@ -265,9 +258,7 @@ static void nativeExec(VM *vm, uint returnValues)
     close(pipeErr[1]);
     if (pid < 0)
     {
-        /* TODO: Error handling. */
-        vm->error = OUT_OF_MEMORY;
-        return;
+        TaskFailOOM();
     }
 
     if (returnValues)
@@ -283,9 +274,7 @@ static void nativeExec(VM *vm, uint returnValues)
     pid = waitpid(pid, &status, 0);
     if (pid < 0)
     {
-        /* TODO: Error handling. */
-        vm->error = OUT_OF_MEMORY;
-        return;
+        TaskFailErrno();
     }
     if (failOnError && status)
     {
@@ -296,10 +285,6 @@ static void nativeExec(VM *vm, uint returnValues)
     {
         LogGetOutBuffer(&p, &length);
         log = HeapCreateString(vm, (const char*)p, length);
-        if (vm->error)
-        {
-            return;
-        }
         LogPopOutBuffer();
         InterpreterPush(vm, log);
     }
@@ -311,10 +296,6 @@ static void nativeExec(VM *vm, uint returnValues)
     {
         LogGetErrBuffer(&p, &length);
         log = HeapCreateString(vm, (const char*)p, length);
-        if (vm->error)
-        {
-            return;
-        }
         LogPopErrBuffer();
         InterpreterPush(vm, log);
     }

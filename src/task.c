@@ -3,6 +3,17 @@
 #include "common.h"
 #include "task.h"
 
+void TaskFailErrno(void)
+{
+    switch (errno)
+    {
+    default:
+        printf("Error %d\n", errno);
+        break;
+    }
+    abort();
+}
+
 void TaskFailOOM(void)
 {
     printf("Out of memory\n");
