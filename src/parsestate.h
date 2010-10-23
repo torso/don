@@ -46,7 +46,7 @@ extern nonnull boolean ParseStateSetVariable(ParseState *state, stringref name);
 extern nonnull boolean ParseStateCreateUnnamedVariable(ParseState *state,
                                                        uint16 *result);
 extern nonnull void ParseStateGetUnnamedVariable(ParseState *state,
-                                                    uint16 variable);
+                                                 uint16 variable);
 extern nonnull void ParseStateSetUnnamedVariable(ParseState *state,
                                                  uint16 variable);
 

@@ -148,7 +148,7 @@ static void beginJumpBlock(ParseState *state, BlockType type)
 }
 
 static void beginLoopBlock(ParseState *state, BlockType type,
-                              size_t loopOffset)
+                           size_t loopOffset)
 {
     /* MAX_UINT - 1 doesn't produce any warning when uint == size_t. */
     assert(loopOffset <= UINT_MAX - 1);
