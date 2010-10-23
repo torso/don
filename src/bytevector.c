@@ -77,7 +77,9 @@ void ByteVectorDispose(bytevector *v)
 
 byte *ByteVectorDisposeContainer(bytevector *v)
 {
-    return v->data;
+    byte *data = v->data;
+    v->data = null;
+    return data;
 }
 
 

@@ -484,28 +484,30 @@ static void execute(VM *vm, functionref target)
     }
 }
 
-static void disposeVM(VM *vm)
+void InterpreterInit(VM *vm, const byte *bytecode)
+{
+    uint fieldCount = FieldIndexGetCount();
+
+    memset(vm, 0, sizeof(VM));
+    vm->bytecode = bytecode;
+    vm->fields = (objectref*)malloc(fieldCount * sizeof(int));
+    HeapInit(vm);
+    IntVectorInit(&vm->callStack);
+    IntVectorInit(&vm->stack);
+
+    execute(vm, FunctionIndexGetFirstFunction());
+}
+
+void InterpreterDispose(VM *vm)
 {
     HeapDispose(vm);
     free(vm->fields);
+    vm->fields = null;
     IntVectorDispose(&vm->callStack);
     IntVectorDispose(&vm->stack);
 }
 
-void InterpreterExecute(const byte *restrict bytecode, functionref target)
+void InterpreterExecute(VM *vm, functionref target)
 {
-    VM vm;
-    uint fieldCount = FieldIndexGetCount();
-
-    memset(&vm, 0, sizeof(vm));
-    vm.bytecode = bytecode;
-    vm.fields = (objectref*)malloc(fieldCount * sizeof(int));
-    HeapInit(&vm);
-    IntVectorInit(&vm.callStack);
-    IntVectorInit(&vm.stack);
-
-    execute(&vm, FunctionIndexGetFirstFunction());
-    execute(&vm, target);
-
-    disposeVM(&vm);
+    execute(vm, target);
 }

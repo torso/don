@@ -198,6 +198,7 @@ void HeapInit(VM *vm)
 void HeapDispose(VM *vm)
 {
     free(vm->heapBase);
+    vm->heapBase = null;
 }
 
 

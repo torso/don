@@ -17,6 +17,12 @@
 #include "task.h"
 
 
+static intvector targets;
+static bytevector parsed;
+static byte *bytecode;
+static VM vm;
+
+
 ref_t refFromUint(uint i)
 {
     return (ref_t)i;
@@ -58,9 +64,14 @@ void _assert(const char *expression, const char *file, int line)
 
 static void cleanup(void)
 {
+    IntVectorDispose(&targets);
+    ByteVectorDispose(&parsed);
+    free(bytecode);
+    InterpreterDispose(&vm);
     NamespaceDispose();
     FieldIndexDispose();
     FunctionIndexDispose();
+    CacheDispose();
     FileDisposeAll();
     StringPoolDispose();
     LogDispose();
@@ -73,17 +84,16 @@ int main(int argc, const char **argv)
     const char *options;
     const char *inputFilename = null;
     fileref inputFile;
-    intvector targets;
     stringref name;
     fieldref field;
     functionref function;
     boolean parseOptions = true;
     boolean disassemble = false;
-    bytevector parsed;
-    byte *bytecode;
     const byte *bytecodeLimit;
     size_t bytecodeSize;
     boolean fail;
+
+    atexit(cleanup);
 
     IntVectorInit(&targets);
     LogInit();
@@ -189,6 +199,7 @@ int main(int argc, const char **argv)
     ByteVectorInit(&parsed, 65536);
     FieldIndexFinishBytecode(bytecode, &parsed);
     free(bytecode);
+    bytecode = null;
 
     for (function = FunctionIndexGetNextFunction(
              FunctionIndexGetFirstFunction());
@@ -230,9 +241,6 @@ int main(int argc, const char **argv)
 
     if (LogFlushParseErrors())
     {
-        IntVectorDispose(&targets);
-        free(bytecode);
-        cleanup();
         return 1;
     }
     fail = false;
@@ -248,9 +256,6 @@ int main(int argc, const char **argv)
     }
     if (fail)
     {
-        IntVectorDispose(&targets);
-        free(bytecode);
-        cleanup();
         return 1;
     }
     FileMkdir(FileAdd(".don", 4));
@@ -260,13 +265,11 @@ int main(int argc, const char **argv)
     {
         function = NamespaceGetTarget(IntVectorGetRef(&targets, j));
         assert(function);
-        InterpreterExecute(bytecode, function);
+        InterpreterInit(&vm, bytecode);
+        InterpreterExecute(&vm, function);
+        InterpreterDispose(&vm);
     }
 
-    IntVectorDispose(&targets);
-    free(bytecode);
-    CacheDispose();
-    cleanup();
     return 0;
 }
 
