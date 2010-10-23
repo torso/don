@@ -476,6 +476,10 @@ static void execute(VM *vm, functionref target)
             CacheSetUptodate(vm->currentCache);
             vm->currentCache = 0;
             break;
+
+        case OP_UNKNOWN_VALUE:
+            assert(false);
+            break;
         }
     }
 }

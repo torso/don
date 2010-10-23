@@ -25,7 +25,7 @@ static FieldInfo *getFieldInfo(fieldref field)
 void FieldIndexInit(void)
 {
     ByteVectorInit(&fieldTable, 1024);
-    /* Position 0 is reserved to mean invalid function. */
+    /* Position 0 is reserved to mean invalid. */
     ByteVectorSetSize(&fieldTable, sizeof(int));
 }
 
@@ -45,8 +45,15 @@ void FieldIndexFinishBytecode(const byte *parsed, bytevector *bytecode)
          field = FieldIndexGetNextField(field))
     {
         info = getFieldInfo(field);
-        ByteVectorAddData(bytecode, &parsed[info->bytecodeStart],
-                          info->bytecodeStop - info->bytecodeStart);
+        if (info->bytecodeStop)
+        {
+            ByteVectorAddData(bytecode, &parsed[info->bytecodeStart],
+                              info->bytecodeStop - info->bytecodeStart);
+        }
+        else
+        {
+            ByteVectorAdd(bytecode, OP_UNKNOWN_VALUE);
+        }
         ByteVectorAdd(bytecode, OP_STORE_FIELD);
         ByteVectorAddUint(bytecode, FieldIndexGetIndex(field));
     }
@@ -65,6 +72,7 @@ fieldref FieldIndexAdd(fileref file, uint line, uint fileOffset)
     info->file = file;
     info->line = line;
     info->fileOffset = fileOffset;
+    info->bytecodeStop = 0;
     return (fieldref)size;
 }
 

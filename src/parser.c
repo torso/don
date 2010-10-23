@@ -1905,6 +1905,7 @@ void ParseField(fieldref field, bytevector *bytecode)
         else
         {
             /* TODO: Look for code before next field/function. */
+            assert(!state.failed);
             FieldIndexSetBytecodeOffset(field, start, ByteVectorSize(bytecode));
         }
     }

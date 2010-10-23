@@ -255,6 +255,10 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
     case OP_UPTODATE_FINISH:
         printf(" %u: uptodate_finish\n", ip);
         break;
+
+    case OP_UNKNOWN_VALUE:
+        printf("  %u: unknown_value\n", ip);
+        break;
     }
     if (controlFlowNextInstruction)
     {
