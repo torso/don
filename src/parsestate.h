@@ -15,7 +15,6 @@ typedef struct
     uint line;
     uint statementLine;
     uint indent;
-    boolean failed;
 
     intvector blockStack;
     inthashmap locals;
@@ -30,7 +29,6 @@ extern void ParseStateInit(ParseState *restrict state,
                            functionref function,
                            fileref file, uint line, uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
-extern nonnull void ParseStateSetFailed(ParseState *state);
 extern nonnull boolean ParseStateFinish(ParseState *restrict state);
 extern nonnull boolean ParseStateFinishBlock(ParseState *restrict state,
                                              uint indent, boolean trailingElse);

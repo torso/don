@@ -78,7 +78,6 @@ static attrprintf(2, 3) void error(ParseState *state, const char *format, ...)
 {
     va_list args;
 
-    ParseStateSetFailed(state);
     va_start(args, format);
     LogParseError(state->file, state->line, format, args);
     va_end(args);
@@ -89,7 +88,6 @@ static attrprintf(3, 4) void errorOnLine(ParseState *state, size_t line,
 {
     va_list args;
 
-    ParseStateSetFailed(state);
     va_start(args, format);
     LogParseError(state->file, line, format, args);
     va_end(args);
@@ -100,7 +98,6 @@ static attrprintf(2, 3) void statementError(ParseState *state,
 {
     va_list args;
 
-    ParseStateSetFailed(state);
     va_start(args, format);
     LogParseError(state->file, state->statementLine, format, args);
     va_end(args);
@@ -1908,7 +1905,6 @@ void ParseField(fieldref field, bytevector *bytecode)
         else
         {
             /* TODO: Look for code before next field/function. */
-            assert(!state.failed);
             FieldIndexSetBytecodeOffset(field, start, ByteVectorSize(bytecode));
         }
     }

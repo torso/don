@@ -35,7 +35,6 @@ static attrprintf(2, 3) void setError(ParseState *state,
 {
     va_list args;
 
-    ParseStateSetFailed(state);
     va_start(args, format);
     LogParseError(state->file, state->line, format, args);
     va_end(args);
@@ -101,7 +100,6 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
     state->file = file;
     state->line = line;
     state->indent = 0;
-    state->failed = false;
     state->bytecode = bytecode;
     state->unnamedVariables = 0;
     IntHashMapInit(&state->locals, 256);
@@ -131,12 +129,6 @@ void ParseStateDispose(ParseState *state)
     ParseStateCheck(state);
     IntVectorDispose(&state->blockStack);
     IntHashMapDispose(&state->locals);
-}
-
-void ParseStateSetFailed(ParseState *state)
-{
-    ParseStateCheck(state);
-    state->failed = true;
 }
 
 
