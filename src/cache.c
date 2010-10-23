@@ -189,8 +189,8 @@ void CacheInit(void)
             }
         }
         FileCloseSync(cacheIndexOut);
-        FileRename(tempfile, cacheIndexOut);
-        FileRename(cacheIndexOut, cacheIndex);
+        FileRename(tempfile, cacheIndexOut, true);
+        FileRename(cacheIndexOut, cacheIndex, true);
     }
 }
 
@@ -213,7 +213,7 @@ void CacheDispose(void)
     }
     FileCloseSync(cacheIndexOut);
     FileDelete(cacheIndex);
-    FileRename(cacheIndexOut, cacheIndex);
+    FileRename(cacheIndexOut, cacheIndex, false);
 }
 
 void CacheGet(const byte *hash, cacheref *ref)

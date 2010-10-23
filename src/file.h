@@ -34,7 +34,8 @@ extern void FileMMap(fileref file, const byte **p, size_t *size,
 extern void FileMUnmap(fileref file);
 
 extern void FileDelete(fileref file);
-extern void FileRename(fileref oldFile, fileref newFile);
+extern void FileRename(fileref oldFile, fileref newFile,
+                       boolean failOnFileNotFound);
 extern void FileMkdir(fileref file);
 
 extern nonnull const char *FileFilename(const char *path, size_t *length);

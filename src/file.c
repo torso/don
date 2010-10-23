@@ -397,7 +397,7 @@ void FileDelete(fileref file)
     }
 }
 
-void FileRename(fileref oldFile, fileref newFile)
+void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
 {
     FileEntry *oldFE = getFile(oldFile);
     FileEntry *newFE = getFile(newFile);
@@ -405,7 +405,10 @@ void FileRename(fileref oldFile, fileref newFile)
     fileClose(newFE);
     if (rename(oldFE->name, newFE->name) == -1)
     {
-        TaskFailIO(oldFE->name);
+        if (failOnFileNotFound || errno != ENOENT)
+        {
+            TaskFailIO(oldFE->name);
+        }
     }
 }
 
