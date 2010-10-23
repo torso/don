@@ -190,13 +190,13 @@ static void nativeEcho(VM *vm)
         buffer = (char*)malloc(length);
         HeapWriteString(vm, prefix, buffer);
         LogSetPrefix(buffer, length);
-        vm->error = LogPrintObjectAutoNewline(vm, message);
+        LogPrintObjectAutoNewline(vm, message);
         LogSetPrefix(null, 0);
         free(buffer);
     }
     else
     {
-        vm->error = LogPrintObjectAutoNewline(vm, message);
+        LogPrintObjectAutoNewline(vm, message);
     }
 }
 

@@ -6,6 +6,7 @@
 #include "common.h"
 #include "file.h"
 #include "log.h"
+#include "task.h"
 #include "vm.h"
 
 #define MIN_READ_BUFFER 1024
@@ -71,7 +72,7 @@ static void autoflush(Pipe *p, size_t newData)
     }
 }
 
-static ErrorCode processNewData(Pipe *p, size_t newData)
+static void processNewData(Pipe *p, size_t newData)
 {
     size_t beginOffset;
     size_t offset;
@@ -79,12 +80,12 @@ static ErrorCode processNewData(Pipe *p, size_t newData)
 
     if (!newData)
     {
-        return NO_ERROR;
+        return;
     }
     if (!p->prefixLength)
     {
         autoflush(p, newData);
-        return NO_ERROR;
+        return;
     }
     beginOffset = ByteVectorSize(&p->buffer) - newData;
     offset = beginOffset;
@@ -109,7 +110,6 @@ static ErrorCode processNewData(Pipe *p, size_t newData)
         offset++;
     }
     autoflush(p, ByteVectorSize(&p->buffer) - beginOffset);
-    return NO_ERROR;
 }
 
 
@@ -138,56 +138,52 @@ void LogParseError(fileref file, size_t line, const char *message)
     printf("%s:%d: %s\n", FileGetName(file), (uint)line, message);
 }
 
-ErrorCode LogPrint(const char *text, size_t length)
+void LogPrint(const char *text, size_t length)
 {
     if (!length)
     {
-        return LogNewline();
+        LogNewline();
+        return;
     }
     if (!buffered(&out) && !ByteVectorSize(&out.buffer) &&
         text[length - 1] == '\n')
     {
         /* TODO: Error handling */
         write(STDOUT_FILENO, text, length);
-        return NO_ERROR;
+        return;
     }
     ByteVectorAddData(&out.buffer, (const byte*)text, length);
-    return processNewData(&out, length);
+    processNewData(&out, length);
 }
 
-ErrorCode LogPrintSZ(const char *text)
+void LogPrintSZ(const char *text)
 {
-    return LogPrint(text, strlen(text));
+    LogPrint(text, strlen(text));
 }
 
-ErrorCode LogPrintAutoNewline(const char *text, size_t length)
+void LogPrintAutoNewline(const char *text, size_t length)
 {
-    ErrorCode error;
-
     if (!length)
     {
-        return LogNewline();
+        LogNewline();
+        return;
     }
-    error = LogPrint(text, length);
-    if (error)
-    {
-        return error;
-    }
+    LogPrint(text, length);
     if (text[length - 1] != '\n')
     {
-        return LogNewline();
+        LogNewline();
     }
-    return NO_ERROR;
 }
 
-ErrorCode LogPrintObjectAutoNewline(VM *vm, objectref object)
+void LogPrintObjectAutoNewline(VM *vm, objectref object)
 {
     size_t length = HeapStringLength(vm, object);
     byte *p;
 
     if (!length)
     {
-        return LogNewline();
+        LogNewline();
+        return;
     }
     p = ByteVectorGetAppendPointer(&out.buffer);
     ByteVectorGrow(&out.buffer, length + 1);
@@ -200,21 +196,20 @@ ErrorCode LogPrintObjectAutoNewline(VM *vm, objectref object)
     {
         ByteVectorPop(&out.buffer);
     }
-    return processNewData(&out, ByteVectorSize(&out.buffer));
+    processNewData(&out, ByteVectorSize(&out.buffer));
 }
 
-ErrorCode LogNewline(void)
+void LogNewline(void)
 {
-    return LogPrint("\n", 1);
+    LogPrint("\n", 1);
 }
 
-ErrorCode LogAutoNewline(void)
+void LogAutoNewline(void)
 {
     if (ByteVectorSize(&out.buffer) && ByteVectorPeek(&out.buffer) != '\n')
     {
-        return LogNewline();
+        LogNewline();
     }
-    return NO_ERROR;
 }
 
 void LogSetPrefix(const char *prefix, size_t length)
@@ -223,7 +218,7 @@ void LogSetPrefix(const char *prefix, size_t length)
     out.prefixLength = length;
 }
 
-ErrorCode LogConsumePipes(int fdOut, int fdErr)
+void LogConsumePipes(int fdOut, int fdErr)
 {
     ssize_t ssize;
     int status;
@@ -252,8 +247,7 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
                 {
                     close(fdOut);
                     close(fdErr);
-                    /* TODO: Error handling */
-                    return OUT_OF_MEMORY;
+                    TaskFailErrno();
                 }
             }
             else
@@ -277,8 +271,7 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
                 {
                     close(fdOut);
                     close(fdErr);
-                    /* TODO: Error handling */
-                    return OUT_OF_MEMORY;
+                    TaskFailErrno();
                 }
             }
             else
@@ -289,7 +282,6 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
         }
     }
     processNewData(&err, ByteVectorSize(&err.buffer));
-    return NO_ERROR;
 }
 
 static void pushBuffer(Pipe *p, boolean echo)
