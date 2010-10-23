@@ -50,10 +50,9 @@ static void addDependency(Entry *entry, fileref file, const byte *blob)
     memcpy(p + sizeof(fileref), blob, FileGetStatusBlobSize());
 }
 
-static ErrorCode writeEntry(Entry *restrict entry, fileref indexFile)
+static void writeEntry(Entry *restrict entry, fileref indexFile)
 {
     fileref file;
-    ErrorCode error;
     const byte *restrict depend;
     const byte *restrict dependLimit;
     byte *restrict data;
@@ -92,22 +91,13 @@ static ErrorCode writeEntry(Entry *restrict entry, fileref indexFile)
         depend += FileGetStatusBlobSize();
     }
 
-    error = FileOpenAppend(indexFile);
-    if (error)
-    {
-        free(data);
-        return error;
-    }
-    error = FileWrite(indexFile, data, size);
+    FileOpenAppend(indexFile);
+    FileWrite(indexFile, data, size);
     free(data);
-    if (!error)
-    {
-        entry->written = true;
-    }
-    return error;
+    entry->written = true;
 }
 
-static ErrorCode readIndex(fileref file)
+static boolean readIndex(fileref file)
 {
     cacheref ref;
     Entry *entry;
@@ -117,12 +107,11 @@ static ErrorCode readIndex(fileref file)
     size_t entrySize;
     size_t filenameLength;
     fileref dependFile;
-    ErrorCode error;
 
-    error = FileMMap(file, &data, &size);
-    if (error)
+    FileMMap(file, &data, &size, false);
+    if (!data)
     {
-        return error;
+        return false;
     }
     while (size)
     {
@@ -169,37 +158,24 @@ static ErrorCode readIndex(fileref file)
         entry->uptodate = true;
         entry->newEntry = false;
     }
-    return FileMUnmap(file);
+    FileMUnmap(file);
+    return true;
 }
 
 
-ErrorCode CacheInit(void)
+void CacheInit(void)
 {
     Entry *entry;
     fileref tempfile;
-    ErrorCode error;
 
     cacheDir = FileAdd(".don/cache", 10);
     cacheIndex = FileAdd(".don/cache/index", 16);
     cacheIndexOut = FileAdd(".don/cache/index.1", 18);
     tempfile = FileAdd(".don/cache/index.2", 18);
-    error = FileMkdir(cacheDir);
-    if (error)
-    {
-        return error;
-    }
-    error = FileDelete(tempfile);
-    if (error)
-    {
-        return error;
-    }
-    error = readIndex(cacheIndex);
-    if (error && error != FILE_NOT_FOUND)
-    {
-        return error;
-    }
-    error = readIndex(cacheIndexOut);
-    if (!error)
+    FileMkdir(cacheDir);
+    FileDelete(tempfile);
+    readIndex(cacheIndex);
+    if (readIndex(cacheIndexOut))
     {
         FileOpenAppend(tempfile);
         for (entry = entries + 1;
@@ -213,24 +189,14 @@ ErrorCode CacheInit(void)
             }
         }
         FileCloseSync(cacheIndexOut);
-        error = FileRename(tempfile, cacheIndexOut);
-        if (error)
-        {
-            return error;
-        }
-        error = FileRename(cacheIndexOut, cacheIndex);
+        FileRename(tempfile, cacheIndexOut);
+        FileRename(cacheIndexOut, cacheIndex);
     }
-    else if (error == FILE_NOT_FOUND)
-    {
-        error = NO_ERROR;
-    }
-    return error;
 }
 
-ErrorCode CacheDispose(void)
+void CacheDispose(void)
 {
     Entry *entry;
-    ErrorCode error;
 
     for (entry = entries + 1;
          entry < entries + sizeof(entries) / sizeof(Entry);
@@ -246,13 +212,8 @@ ErrorCode CacheDispose(void)
         }
     }
     FileCloseSync(cacheIndexOut);
-    error = FileDelete(cacheIndex);
-    if (error)
-    {
-        return error;
-    }
-    error = FileRename(cacheIndexOut, cacheIndex);
-    return error == FILE_NOT_FOUND ? NO_ERROR : error;
+    FileDelete(cacheIndex);
+    FileRename(cacheIndexOut, cacheIndex);
 }
 
 void CacheGet(const byte *hash, cacheref *ref)
@@ -297,25 +258,18 @@ void CacheGet(const byte *hash, cacheref *ref)
     *ref = refFromSize((size_t)(freeEntry - entries));
 }
 
-ErrorCode CacheSetUptodate(cacheref ref)
+void CacheSetUptodate(cacheref ref)
 {
     Entry *entry = getEntry(ref);
     assert(!entry->uptodate);
     assert(!entry->written);
     entry->uptodate = true;
-    return writeEntry(entry, cacheIndexOut);
+    writeEntry(entry, cacheIndexOut);
 }
 
-ErrorCode CacheAddDependency(cacheref ref, fileref file)
+void CacheAddDependency(cacheref ref, fileref file)
 {
-    const byte *blob;
-    ErrorCode error = FileGetStatusBlob(file, &blob);
-    if (error)
-    {
-        return error;
-    }
-    addDependency(getEntry(ref), file, blob);
-    return NO_ERROR;
+    addDependency(getEntry(ref), file, FileGetStatusBlob(file));
 }
 
 boolean CacheUptodate(cacheref ref)

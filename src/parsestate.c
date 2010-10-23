@@ -88,17 +88,14 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
 
     assert(file);
     assert(line == 1 || line <= offset);
-    state->error = FileMMap(file, &state->start, &size);
-    if (state->error)
-    {
-        return;
-    }
+    FileMMap(file, &state->start, &size, true);
     state->current = state->start + offset;
     state->limit = state->start + size;
     state->function = function;
     state->file = file;
     state->line = line;
     state->indent = 0;
+    state->error = NO_ERROR;
     state->bytecode = bytecode;
     state->unnamedVariables = 0;
     IntHashMapInit(&state->locals, 256);

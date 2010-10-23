@@ -11,6 +11,7 @@
 #include "file.h"
 #include "glob.h"
 #include "stringpool.h"
+#include "task.h"
 
 #define INITIAL_FILE_SIZE 128
 
@@ -49,16 +50,6 @@ static size_t globalFilenamePrefixLength;
 static char *cwd;
 static size_t cwdLength;
 
-
-static ErrorCode getLastError(void)
-{
-    switch (errno)
-    {
-    case ENOENT:
-        return FILE_NOT_FOUND;
-    }
-    return ERROR_IO;
-}
 
 static void checkFile(fileref file)
 {
@@ -176,7 +167,7 @@ static void fileClose(FileEntry *fe)
     }
 }
 
-static ErrorCode fileOpen(FileEntry *fe, boolean append)
+static void fileOpen(FileEntry *fe, boolean append, boolean failOnFileNotFound)
 {
     if (append)
     {
@@ -190,55 +181,61 @@ static ErrorCode fileOpen(FileEntry *fe, boolean append)
     }
     if (fe->fd)
     {
-        return NO_ERROR;
+        return;
     }
     fe->fd = open(fe->name, append ? O_CREAT | O_WRONLY | O_APPEND : O_RDONLY,
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
     if (fe->fd == -1)
     {
-        return getLastError();
+        fe->fd = 0;
+        if (failOnFileNotFound || errno != ENOENT)
+        {
+            TaskFailIO(fe->name);
+        }
     }
     fe->append = append;
-    return NO_ERROR;
 }
 
-static ErrorCode fileStat(FileEntry *fe)
+static boolean fileStat(FileEntry *fe, boolean failOnFileNotFound)
 {
     struct stat s;
 
     if (fe->hasStat)
     {
-        return NO_ERROR;
+        return true;
     }
     if (fe->fd)
     {
         if (fstat(fe->fd, &s))
         {
-            return getLastError();
+            TaskFailIO(fe->name);
         }
     }
     else if (stat(fe->name, &s))
     {
-        return getLastError();
+        if (!failOnFileNotFound && errno == ENOENT)
+        {
+            return false;
+        }
+        TaskFailIO(fe->name);
     }
     fe->hasStat = true;
     fe->blob.size = (size_t)s.st_size;
     fe->mode = s.st_mode;
     fe->blob.mtime.seconds = s.st_mtime;
     fe->blob.mtime.fraction = s.st_mtimensec;
-    return NO_ERROR;
+    return true;
 }
 
 
-ErrorCode FileInit(void)
+void FileInit(void)
 {
     cwd = getcwd(null, 0);
     if (!cwd)
     {
-        return OUT_OF_MEMORY;
+        TaskFailOOM();
     }
     cwdLength = strlen(cwd);
-    return NO_ERROR;
 }
 
 void FileDisposeAll(void)
@@ -297,24 +294,18 @@ size_t FileGetNameLength(fileref file)
     return getFile(file)->nameLength;
 }
 
-ErrorCode FileGetSize(fileref file, size_t *restrict size)
+size_t FileGetSize(fileref file)
 {
     FileEntry *restrict fe = getFile(file);
-    ErrorCode error = fileStat(fe);
-    if (error)
-    {
-        return error;
-    }
-    *size = fe->blob.size;
-    return NO_ERROR;
+    fileStat(fe, true);
+    return fe->blob.size;
 }
 
-ErrorCode FileGetStatusBlob(fileref file, const byte **blob)
+const byte *FileGetStatusBlob(fileref file)
 {
     FileEntry *fe = getFile(file);
-    fileStat(fe);
-    *blob = (const byte*)&fe->blob;
-    return NO_ERROR;
+    fileStat(fe, true);
+    return (const byte*)&fe->blob;
 }
 
 size_t FileGetStatusBlobSize(void)
@@ -323,9 +314,9 @@ size_t FileGetStatusBlobSize(void)
 }
 
 
-ErrorCode FileOpenAppend(fileref file)
+void FileOpenAppend(fileref file)
 {
-    return fileOpen(getFile(file), true);
+    fileOpen(getFile(file), true, true);
 }
 
 void FileCloseSync(fileref file)
@@ -340,7 +331,7 @@ void FileCloseSync(fileref file)
     }
 }
 
-ErrorCode FileWrite(fileref file, const byte *data, size_t size)
+void FileWrite(fileref file, const byte *data, size_t size)
 {
     FileEntry *restrict fe = getFile(file);
     ssize_t written;
@@ -352,88 +343,84 @@ ErrorCode FileWrite(fileref file, const byte *data, size_t size)
         written = write(fe->fd, data, size);
         if (written < 0)
         {
-            return getLastError();
+            TaskFailIO(fe->name);
         }
         assert((size_t)written <= size);
         size -= (size_t)written;
     }
-    return NO_ERROR;
 }
 
 
-ErrorCode FileMMap(fileref file, const byte **p, size_t *size)
+void FileMMap(fileref file, const byte **p, size_t *size,
+              boolean failOnFileNotFound)
 {
     FileEntry *fe = getFile(file);
-    ErrorCode error;
 
     if (!fe->data)
     {
-        error = fileOpen(fe, false);
-        if (error)
+        fileOpen(fe, false, failOnFileNotFound);
+        if (!fe->fd)
         {
-            return error;
+            *p = null;
+            return;
         }
-        error = fileStat(fe);
-        if (error)
-        {
-            return error;
-        }
+        fileStat(fe, true);
         fe->data = (byte*)mmap(null, fe->blob.size, PROT_READ, MAP_PRIVATE, fe->fd, 0);
         if (fe->data == (byte*)-1)
         {
             /* TODO: Read file fallback */
-            return getLastError();
+            TaskFailIO(fe->name);
         }
     }
     *p = fe->data;
     *size = fe->blob.size;
-    return NO_ERROR;
 }
 
-ErrorCode FileMUnmap(fileref file)
+void FileMUnmap(fileref file)
 {
     FileEntry *fe = getFile(file);
+    int error;
 
     assert(fe->data);
-    return munmap(fe->data, fe->blob.size) ? getLastError() : NO_ERROR; /* TODO: Error handling */
+    error = munmap(fe->data, fe->blob.size);
+    assert(!error);
 }
 
 
-ErrorCode FileDelete(fileref file)
+void FileDelete(fileref file)
 {
     FileEntry *fe = getFile(file);
     fileClose(fe);
     if (remove(fe->name) && errno != ENOENT)
     {
-        return getLastError();
+        TaskFailIO(fe->name);
     }
-    return NO_ERROR;
 }
 
-ErrorCode FileRename(fileref oldFile, fileref newFile)
+void FileRename(fileref oldFile, fileref newFile)
 {
     FileEntry *oldFE = getFile(oldFile);
     FileEntry *newFE = getFile(newFile);
     fileClose(oldFE);
     fileClose(newFE);
-    return rename(oldFE->name, newFE->name) ? getLastError() : NO_ERROR;
+    if (rename(oldFE->name, newFE->name) == -1)
+    {
+        TaskFailIO(oldFE->name);
+    }
 }
 
-ErrorCode FileMkdir(fileref file)
+void FileMkdir(fileref file)
 {
     FileEntry *fe = getFile(file);
-    ErrorCode error;
 
-    error = fileStat(fe);
-    if (!error && S_ISDIR(fe->mode))
+    if (fileStat(fe, false) && S_ISDIR(fe->mode))
     {
-        return NO_ERROR;
+        return;
     }
     if (mkdir(fe->name, S_IRWXU | S_IRWXG | S_IRWXO | S_ISUID | S_ISGID))
     {
-        return getLastError();
+        TaskFailIO(fe->name);
     }
-    return NO_ERROR;
 }
 
 
@@ -450,8 +437,9 @@ static int globTraverse(const char *filename, const struct stat *info unused,
     {
         return 0;
     }
-    return globalCallback(addFile(copyString(filename, length), length, true),
-                          globalUserdata);
+    globalCallback(addFile(copyString(filename, length), length, true),
+                   globalUserdata);
+    return 0;
 }
 
 const char *FileFilename(const char *path, size_t *length)
@@ -465,8 +453,8 @@ const char *FileFilename(const char *path, size_t *length)
     return current;
 }
 
-ErrorCode FileTraverseGlob(const char *pattern,
-                                TraverseCallback callback, void *userdata)
+void FileTraverseGlob(const char *pattern,
+                      TraverseCallback callback, void *userdata)
 {
     const char *slash = null;
     const char *asterisk = null;
@@ -492,7 +480,8 @@ ErrorCode FileTraverseGlob(const char *pattern,
 
     if (!asterisk)
     {
-        return callback(FileAdd(pattern, length), userdata);
+        callback(FileAdd(pattern, length), userdata);
+        return;
     }
 
     if (slash)
@@ -521,10 +510,8 @@ ErrorCode FileTraverseGlob(const char *pattern,
     {
         free(filename);
     }
-    if (error < 0)
+    if (error == -1)
     {
-        /* TODO: Error handling. */
-        return OUT_OF_MEMORY;
+        TaskFailIO(filename);
     }
-    return error;
 }

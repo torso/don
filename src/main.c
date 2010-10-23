@@ -13,6 +13,7 @@
 #include "native.h"
 #include "parser.h"
 #include "stringpool.h"
+#include "task.h"
 
 
 ref_t refFromUint(uint i)
@@ -63,14 +64,6 @@ static boolean handleError(ErrorCode error)
 
     case OUT_OF_MEMORY:
         printf("Out of memory\n");
-        break;
-
-    case FILE_NOT_FOUND:
-        printf("File not found\n");
-        break;
-
-    case ERROR_IO:
-        printf("IO error\n");
         break;
 
     case ERROR_FAIL:
@@ -182,12 +175,7 @@ int main(int argc, const char **argv)
         IntVectorAddRef(&targets, name);
     }
 
-    if (handleError(FileInit()))
-    {
-        IntVectorDispose(&targets);
-        cleanup();
-        return 1;
-    }
+    FileInit();
     FunctionIndexInit();
     FunctionIndexAddFunction(StringPoolAdd(""), 0, 0, 0);
     FieldIndexInit();
@@ -314,15 +302,15 @@ int main(int argc, const char **argv)
             parseFailed = true;
         }
     }
-    if (parseFailed ||
-        handleError(FileMkdir(FileAdd(".don", 4))) ||
-        handleError(CacheInit()))
+    if (parseFailed)
     {
         IntVectorDispose(&targets);
         free(bytecode);
         cleanup();
         return 1;
     }
+    FileMkdir(FileAdd(".don", 4));
+    CacheInit();
 
     for (j = 0; j < IntVectorSize(&targets); j++)
     {
@@ -332,7 +320,7 @@ int main(int argc, const char **argv)
         {
             IntVectorDispose(&targets);
             free(bytecode);
-            handleError(CacheDispose());
+            CacheDispose();
             cleanup();
             return 1;
         }
@@ -340,7 +328,7 @@ int main(int argc, const char **argv)
 
     IntVectorDispose(&targets);
     free(bytecode);
-    handleError(CacheDispose());
+    CacheDispose();
     cleanup();
     return 0;
 }
@@ -351,8 +339,7 @@ void *mycalloc(size_t count, size_t eltsize)
     void *p = calloc(count, eltsize);
     if (!p)
     {
-        printf("Out of memory\n");
-        abort();
+        TaskFailOOM();
     }
     return p;
 }
@@ -363,8 +350,7 @@ void *mymalloc(size_t size)
     void *p = malloc(size);
     if (!p)
     {
-        printf("Out of memory\n");
-        abort();
+        TaskFailOOM();
     }
     return p;
 }

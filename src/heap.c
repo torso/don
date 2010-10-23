@@ -993,13 +993,12 @@ boolean HeapIteratorNext(Iterator *iter, objectref *value)
 }
 
 
-static ErrorCode addFile(fileref file, void *userdata)
+static void addFile(fileref file, void *userdata)
 {
     VM *vm = (VM*)userdata;
     assert(getPageFree(vm) >= sizeof(fileref)); /* TODO: Error handling. */
     *(fileref*)vm->heapFree = file;
     vm->heapFree += sizeof(fileref);
-    return NO_ERROR;
 }
 
 objectref HeapCreateFilesetGlob(VM *vm, const char *pattern)
@@ -1012,11 +1011,7 @@ objectref HeapCreateFilesetGlob(VM *vm, const char *pattern)
 
     objectData = heapAlloc(vm, TYPE_ARRAY, 0);
     files = (ref_t*)objectData;
-    vm->error = FileTraverseGlob(pattern, addFile, vm);
-    if (vm->error)
-    {
-        return 0;
-    }
+    FileTraverseGlob(pattern, addFile, vm);
     if (vm->heapFree == objectData)
     {
         vm->heapFree = oldFree;

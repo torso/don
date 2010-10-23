@@ -591,7 +591,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                     return false;
                 }
                 estateArgument.identifier = readIdentifier(state);
-                if (state->error || !readExpectedOperator(state, ':'))
+                if (!readExpectedOperator(state, ':'))
                 {
                     IntVectorDispose(&namedParameters);
                     return false;
@@ -805,10 +805,6 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     if (!identifier && peekIdentifier(state))
     {
         identifier = readIdentifier(state);
-        if (state->error)
-        {
-            return 0;
-        }
     }
     if (identifier)
     {
@@ -1833,10 +1829,6 @@ static void parseScript(ParseState *state)
         {
             state->statementLine = state->line;
             name = readIdentifier(state);
-            if (state->error)
-            {
-                return;
-            }
             if (peekOperator(state, ':'))
             {
                 NamespaceAddTarget(name, FunctionIndexAddFunction(
@@ -1905,10 +1897,6 @@ ErrorCode ParseFile(fileref file)
     ParseState state;
 
     ParseStateInit(&state, null, 0, file, 1, 0);
-    if (state.error)
-    {
-        return state.error;
-    }
     if (state.current != state.limit && state.limit[-1] != '\n')
     {
         /* TODO: Provide fallback */
@@ -1932,10 +1920,6 @@ ErrorCode ParseField(fieldref field, bytevector *bytecode)
     assert(field);
     ParseStateInit(&state, bytecode, 0, FieldIndexGetFile(field),
                    FieldIndexGetLine(field), FieldIndexGetFileOffset(field));
-    if (state.error)
-    {
-        return state.error;
-    }
 
     state.statementLine = state.line;
     if (parseRValue(&state, true))
@@ -1964,10 +1948,6 @@ ErrorCode ParseFunctionDeclaration(functionref function, bytevector *bytecode)
                    FunctionIndexGetFile(function),
                    FunctionIndexGetLine(function),
                    FunctionIndexGetFileOffset(function));
-    if (state.error)
-    {
-        return state.error;
-    }
     parseFunctionDeclaration(&state, function);
     ParseStateDispose(&state);
     return state.error;
@@ -1983,10 +1963,6 @@ ErrorCode ParseFunctionBody(functionref function, bytevector *bytecode)
                    FunctionIndexGetFile(function),
                    FunctionIndexGetLine(function),
                    FunctionIndexGetFileOffset(function));
-    if (state.error)
-    {
-        return state.error;
-    }
     parseFunctionBody(&state);
     ParseStateDispose(&state);
     return state.error;

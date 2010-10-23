@@ -464,12 +464,8 @@ static void execute(VM *vm, functionref target)
                 {
                     if (HeapGetObjectType(vm, value) == TYPE_FILE)
                     {
-                        vm->error = CacheAddDependency(vm->currentCache,
-                                                       HeapGetFile(vm, value));
-                        if (vm->error)
-                        {
-                            return;
-                        }
+                        CacheAddDependency(vm->currentCache,
+                                           HeapGetFile(vm, value));
                     }
                 }
             }
@@ -480,11 +476,7 @@ static void execute(VM *vm, functionref target)
 
         case OP_UPTODATE_FINISH:
             assert(vm->currentCache);
-            vm->error = CacheSetUptodate(vm->currentCache);
-            if (vm->error)
-            {
-                return;
-            }
+            CacheSetUptodate(vm->currentCache);
             vm->currentCache = 0;
             break;
         }

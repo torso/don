@@ -169,16 +169,7 @@ static objectref readFile(VM *vm, objectref object)
     size_t size;
     fileref file = HeapGetFile(vm, object);
 
-    vm->error = FileMMap(file, (const byte**)&text, &size);
-    if (vm->error)
-    {
-        return vm->error;
-    }
-    if (!size)
-    {
-        InterpreterPush(vm, vm->emptyList);
-        return vm->error;
-    }
+    FileMMap(file, (const byte**)&text, &size, true);
     return HeapCreateWrappedString(vm, text, size);
 }
 
