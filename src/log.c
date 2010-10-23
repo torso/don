@@ -147,27 +147,37 @@ void LogParseError(fileref file, size_t line, const char *format, va_list ap)
     fprintf(stderr, "\n");
 }
 
-void LogPrint(const char *text, size_t length)
+static void logPrint(Pipe *p, const char *text, size_t length)
 {
     if (!length)
     {
-        LogNewline();
-        return;
+        text = "\n";
+        length = 1;
     }
-    if (!buffered(&out) && !ByteVectorSize(&out.buffer) &&
+    if (!buffered(p) && !ByteVectorSize(&p->buffer) &&
         text[length - 1] == '\n')
     {
         /* TODO: Error handling */
-        write(STDOUT_FILENO, text, length);
+        write(p->fd, text, length);
         return;
     }
-    ByteVectorAddData(&out.buffer, (const byte*)text, length);
-    processNewData(&out, length);
+    ByteVectorAddData(&p->buffer, (const byte*)text, length);
+    processNewData(p, length);
+}
+
+void LogPrint(const char *text, size_t length)
+{
+    logPrint(&out, text, length);
 }
 
 void LogPrintSZ(const char *text)
 {
-    LogPrint(text, strlen(text));
+    logPrint(&out, text, strlen(text));
+}
+
+void LogPrintErrSZ(const char *text)
+{
+    logPrint(&err, text, strlen(text));
 }
 
 void LogPrintAutoNewline(const char *text, size_t length)
@@ -184,33 +194,48 @@ void LogPrintAutoNewline(const char *text, size_t length)
     }
 }
 
-void LogPrintObjectAutoNewline(VM *vm, objectref object)
+static void logPrintObjectAutoNewline(Pipe *p, VM *vm, objectref object)
 {
     size_t length = HeapStringLength(vm, object);
-    byte *p;
+    byte *data;
 
     if (!length)
     {
-        LogNewline();
+        logPrint(p, "\n", 1);
         return;
     }
-    p = ByteVectorGetAppendPointer(&out.buffer);
-    ByteVectorGrow(&out.buffer, length + 1);
-    HeapWriteString(vm, object, (char*)p);
-    if (p[length - 1] != '\n')
+    data = ByteVectorGetAppendPointer(&p->buffer);
+    ByteVectorGrow(&p->buffer, length + 1);
+    HeapWriteString(vm, object, (char*)data);
+    if (data[length - 1] != '\n')
     {
-        p[length] = '\n';
+        data[length] = '\n';
     }
     else
     {
-        ByteVectorPop(&out.buffer);
+        ByteVectorPop(&p->buffer);
     }
-    processNewData(&out, ByteVectorSize(&out.buffer));
+    processNewData(p, ByteVectorSize(&p->buffer));
+}
+
+void LogPrintObjectAutoNewline(VM *vm, objectref object)
+{
+    logPrintObjectAutoNewline(&out, vm, object);
+}
+
+void LogPrintErrObjectAutoNewline(VM *vm, objectref object)
+{
+    logPrintObjectAutoNewline(&err, vm, object);
 }
 
 void LogNewline(void)
 {
-    LogPrint("\n", 1);
+    logPrint(&out, "\n", 1);
+}
+
+void LogErrNewline(void)
+{
+    logPrint(&err, "\n", 1);
 }
 
 void LogAutoNewline(void)
@@ -256,7 +281,7 @@ void LogConsumePipes(int fdOut, int fdErr)
                 {
                     close(fdOut);
                     close(fdErr);
-                    TaskFailErrno();
+                    TaskFailErrno(false);
                 }
             }
             else
@@ -280,7 +305,7 @@ void LogConsumePipes(int fdOut, int fdErr)
                 {
                     close(fdOut);
                     close(fdErr);
-                    TaskFailErrno();
+                    TaskFailErrno(false);
                 }
             }
             else

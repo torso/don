@@ -15,6 +15,7 @@ extern nonnull void LogPrint(const char *text, size_t length);
   string.
 */
 extern nonnull void LogPrintSZ(const char *text);
+extern nonnull void LogPrintErrSZ(const char *text);
 
 /*
   Prints the specified text to standard output without any formatting. If the
@@ -23,7 +24,9 @@ extern nonnull void LogPrintSZ(const char *text);
 extern nonnull void LogPrintAutoNewline(const char *text, size_t length);
 
 extern nonnull void LogPrintObjectAutoNewline(VM *vm, objectref object);
+extern nonnull void LogPrintErrObjectAutoNewline(VM *vm, objectref object);
 extern void LogNewline(void);
+extern void LogErrNewline(void);
 extern void LogAutoNewline(void);
 
 extern void LogSetPrefix(const char *prefix, size_t length);

@@ -48,8 +48,8 @@ void _assert(const char *expression, const char *file, int line)
     void *backtraceData[128];
     uint frames;
 
-    printf("Assertion failed: %s:%d: %s\n", file, line, expression);
     fflush(stdout);
+    fprintf(stderr, "Assertion failed: %s:%d: %s\n", file, line, expression);
     frames = (uint)backtrace(backtraceData, sizeof(backtraceData) / sizeof(void*));
     backtrace_symbols_fd(&backtraceData[1], (int)frames - 1, 1);
     raise(SIGABRT);
@@ -97,14 +97,14 @@ int main(int argc, const char **argv)
             options = argv[i] + 1;
             if (!*options)
             {
-                printf("Invalid argument: \"-\"\n");
+                fprintf(stderr, "Invalid argument: \"-\"\n");
                 return 1;
             }
             if (*options == '-')
             {
                 if (*++options)
                 {
-                    printf("TODO: Long option\n");
+                    fprintf(stderr, "TODO: Long option\n");
                     return 1;
                 }
                 else
@@ -125,19 +125,19 @@ int main(int argc, const char **argv)
                 case 'i':
                     if (inputFilename)
                     {
-                        printf("Input file already specified\n");
+                        fprintf(stderr, "Input file already specified\n");
                         return 1;
                     }
                     if (++i >= argc)
                     {
-                        printf("Option \"-i\" requires an argument\n");
+                        fprintf(stderr, "Option \"-i\" requires an argument\n");
                         return 1;
                     }
                     inputFilename = argv[i];
                     break;
 
                 default:
-                    printf("Unknown option: %c\n", argv[i][1]);
+                    fprintf(stderr, "Unknown option: %c\n", argv[i][1]);
                     return 1;
                 }
             }
@@ -241,7 +241,8 @@ int main(int argc, const char **argv)
         name = IntVectorGetRef(&targets, j);
         if (!NamespaceGetTarget(name))
         {
-            printf("'%s' is not a target.\n", StringPoolGetString(name));
+            fprintf(stderr, "'%s' is not a target.\n",
+                    StringPoolGetString(name));
             fail = true;
         }
     }

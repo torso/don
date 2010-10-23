@@ -224,12 +224,12 @@ static void nativeExec(VM *vm, uint returnValues)
     status = pipe(pipeOut);
     if (status == -1)
     {
-        TaskFailErrno();
+        TaskFailErrno(false);
     }
     status = pipe(pipeErr);
     if (status == -1)
     {
-        TaskFailErrno();
+        TaskFailErrno(false);
     }
 
     pid = fork();
@@ -241,13 +241,13 @@ static void nativeExec(VM *vm, uint returnValues)
         status = dup2(pipeOut[1], STDOUT_FILENO);
         if (status == -1)
         {
-            TaskFailErrno();
+            TaskFailErrno(true);
         }
         close(pipeOut[1]);
         status = dup2(pipeErr[1], STDERR_FILENO);
         if (status == -1)
         {
-            TaskFailErrno();
+            TaskFailErrno(true);
         }
         close(pipeErr[1]);
 
@@ -275,7 +275,7 @@ static void nativeExec(VM *vm, uint returnValues)
     pid = waitpid(pid, &status, 0);
     if (pid < 0)
     {
-        TaskFailErrno();
+        TaskFailErrno(false);
     }
     if (failOnError && status)
     {
@@ -330,15 +330,15 @@ void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
             return;
         }
         value = InterpreterPop(vm);
-        LogPrintSZ("BUILD FAILED");
+        LogPrintErrSZ("BUILD FAILED");
         if (!value || !HeapStringLength(vm, value))
         {
-            LogNewline();
+            LogErrNewline();
         }
         else
         {
-            LogPrintSZ(": ");
-            LogPrintObjectAutoNewline(vm, value);
+            LogPrintErrSZ(": ");
+            LogPrintErrObjectAutoNewline(vm, value);
         }
         TaskFailVM(vm);
         return;

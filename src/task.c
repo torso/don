@@ -1,23 +1,28 @@
 #include <errno.h>
 #include <stdio.h>
+#include <unistd.h>
 #include "common.h"
 #include "task.h"
 
-void TaskFailErrno(void)
+void TaskFailErrno(boolean forked)
 {
     switch (errno)
     {
     default:
-        printf("Error %d\n", errno);
+        fprintf(stderr, "Error %d\n", errno);
         break;
     }
-    abort();
+    if (forked)
+    {
+        _exit(1);
+    }
+    exit(1);
 }
 
 void TaskFailOOM(void)
 {
-    printf("Out of memory\n");
-    abort();
+    fprintf(stderr, "Out of memory\n");
+    exit(1);
 }
 
 void TaskFailIO(const char *filename)
@@ -25,18 +30,18 @@ void TaskFailIO(const char *filename)
     switch (errno)
     {
     case ENOENT:
-        printf("No such file or directory: %s\n", filename);
+        fprintf(stderr, "No such file or directory: %s\n", filename);
         break;
 
     default:
-        printf("IO Error %d: %s\n", errno, filename);
+        fprintf(stderr, "IO Error %d: %s\n", errno, filename);
         break;
     }
-    abort();
+    exit(1);
 }
 
 void TaskFailVM(VM *vm unused)
 {
     /* TODO: Print stack trace. */
-    abort();
+    exit(1);
 }
