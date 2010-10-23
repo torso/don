@@ -1945,6 +1945,10 @@ void ParseFunctionBody(functionref function, bytevector *bytecode)
                    FunctionIndexGetFileOffset(function));
     if (parseFunctionBody(&state))
     {
+        if (ByteVectorSize(bytecode) == start)
+        {
+            ParseStateWriteReturnVoid(&state);
+        }
         FunctionIndexSetBytecodeOffset(function, start);
     }
     ParseStateDispose(&state);
