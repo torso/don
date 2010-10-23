@@ -1,8 +1,9 @@
 #include <memory.h>
+#include <stdarg.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #include "common.h"
 #include "vm.h"
 #include "fieldindex.h"

@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdio.h>
 #include "common.h"
 #include "bytevector.h"
@@ -29,10 +30,15 @@ void ParseStateCheck(const ParseState *state)
     assert(state->current <= state->limit);
 }
 
-static void setError(ParseState *state, const char *message)
+static attrprintf(2, 3) void setError(ParseState *state,
+                                      const char *format, ...)
 {
+    va_list args;
+
     ParseStateSetFailed(state);
-    LogParseError(state->file, state->line, message);
+    va_start(args, format);
+    LogParseError(state->file, state->line, format, args);
+    va_end(args);
 }
 
 static void writeBackwardsJump(ParseState *state, uint target)
@@ -81,7 +87,6 @@ static uint16 getLocalIndex(ParseState *state, stringref name)
 void ParseStateInit(ParseState *state, bytevector *bytecode,
                     functionref function, fileref file, uint line, uint offset)
 {
-    char errorBuffer[256];
     const ParameterInfo *parameterInfo;
     uint parameterCount;
     size_t size;
@@ -111,10 +116,8 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
                 if (getLocalIndex(state, parameterInfo->name) != i)
                 {
                     IntHashMapDispose(&state->locals);
-                    sprintf(errorBuffer,
-                            "Multiple uses of parameter name '%s'.",
-                            StringPoolGetString(parameterInfo->name));
-                    setError(state, errorBuffer);
+                    setError(state, "Multiple uses of parameter name '%s'.",
+                             StringPoolGetString(parameterInfo->name));
                     return;
                 }
             }

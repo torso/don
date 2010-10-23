@@ -23,6 +23,7 @@ typedef uint8 byte;
 #define SIZE_MAX ((size_t)-1)
 #endif
 
+#define attrprintf(formatarg, args) __attribute((format(printf, formatarg, args)))
 #define nonnull __attribute((nonnull))
 #define noreturn __attribute((noreturn))
 #define pure __attribute((pure))

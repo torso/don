@@ -1,4 +1,5 @@
 #include <memory.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include "common.h"
 #include "bytevector.h"
@@ -34,8 +35,6 @@ typedef struct
     uint argumentCount;
     boolean constant;
 } ExpressionState;
-
-static char errorBuffer[256];
 
 static stringref keywordElse;
 static stringref keywordFalse;
@@ -75,22 +74,36 @@ static boolean isFilenameCharacter(byte c)
         c == '/' || c == '.' || c == '*';
 }
 
-static void error(ParseState *state, const char *message)
+static attrprintf(2, 3) void error(ParseState *state, const char *format, ...)
 {
+    va_list args;
+
     ParseStateSetFailed(state);
-    LogParseError(state->file, state->line, message);
+    va_start(args, format);
+    LogParseError(state->file, state->line, format, args);
+    va_end(args);
 }
 
-static void errorOnLine(ParseState *state, size_t line, const char *message)
+static attrprintf(3, 4) void errorOnLine(ParseState *state, size_t line,
+                                         const char *format, ...)
 {
+    va_list args;
+
     ParseStateSetFailed(state);
-    LogParseError(state->file, line, message);
+    va_start(args, format);
+    LogParseError(state->file, line, format, args);
+    va_end(args);
 }
 
-static void statementError(ParseState *state, const char *message)
+static attrprintf(2, 3) void statementError(ParseState *state,
+                                            const char *format, ...)
 {
+    va_list args;
+
     ParseStateSetFailed(state);
-    LogParseError(state->file, state->statementLine, message);
+    va_start(args, format);
+    LogParseError(state->file, state->statementLine, format, args);
+    va_end(args);
 }
 
 static uint getOffset(const ParseState *state, const byte *begin)
@@ -221,8 +234,7 @@ static boolean readExpectedKeyword(ParseState *state, stringref keyword)
     {
         return true;
     }
-    sprintf(errorBuffer, "Expected keyword %s.", StringPoolGetString(keyword));
-    statementError(state, errorBuffer);
+    statementError(state, "Expected keyword %s.", StringPoolGetString(keyword));
     return false;
 }
 
@@ -394,9 +406,8 @@ static boolean readExpectedOperator(ParseState *state, byte op)
 {
     if (!readOperator(state, op))
     {
-        sprintf(errorBuffer, "Expected operator '%c'. Got '%c'", op,
-                state->current[0]);
-        error(state, errorBuffer);
+        error(state, "Expected operator '%c'. Got '%c'", op,
+              state->current[0]);
         return false;
     }
     return true;
@@ -560,9 +571,8 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         function = NamespaceGetFunction(name);
         if (!function)
         {
-            sprintf(errorBuffer, "Unknown function '%s'.",
-                    StringPoolGetString(name));
-            statementError(state, errorBuffer);
+            statementError(state, "Unknown function '%s'.",
+                           StringPoolGetString(name));
             return false;
         }
         parameterCount = FunctionIndexGetParameterCount(function);
@@ -619,9 +629,8 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                     if (i == parameterCount)
                     {
                         IntVectorDispose(&namedParameters);
-                        sprintf(errorBuffer, "Invalid parameter name '%s'.",
-                                StringPoolGetString(estateArgument.identifier));
-                        error(state, errorBuffer);
+                        error(state, "Invalid parameter name '%s'.",
+                              StringPoolGetString(estateArgument.identifier));
                         return false;
                     }
                     if (parameterInfo[i].name == estateArgument.identifier)
@@ -629,10 +638,8 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                         if (IntVectorGet(&namedParameters, i))
                         {
                             IntVectorDispose(&namedParameters);
-                            sprintf(errorBuffer,
-                                    "More than one value for parameter '%s'.",
-                                    StringPoolGetString(estateArgument.identifier));
-                            error(state, errorBuffer);
+                            error(state, "More than one value for parameter '%s'.",
+                                  StringPoolGetString(estateArgument.identifier));
                             return false;
                         }
                         IntVectorSet(&namedParameters, i, argumentCount + 1);
@@ -676,17 +683,17 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     {
         if (!parameterCount)
         {
-            sprintf(errorBuffer,
-                    "Function '%s' does not take any arguments.",
-                    StringPoolGetString(name));
+            errorOnLine(state, line,
+                        "Function '%s' does not take any arguments.",
+                        StringPoolGetString(name));
         }
         else
         {
-            sprintf(errorBuffer,
-                    "Too many arguments for function '%s'. Got %d arguments, but at most %d were expected.",
-                    StringPoolGetString(name), argumentCount, parameterCount);
+            errorOnLine(
+                state, line,
+                "Too many arguments for function '%s'. Got %d arguments, but at most %d were expected.",
+                StringPoolGetString(name), argumentCount, parameterCount);
         }
-        errorOnLine(state, line, errorBuffer);
         if (requireNamedParameters)
         {
             IntVectorDispose(&namedParameters);
@@ -710,9 +717,9 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                     else
                     {
                         IntVectorDispose(&namedParameters);
-                        sprintf(errorBuffer, "No value for parameter '%s' given.",
-                                StringPoolGetString(parameterInfo[i].name));
-                        errorOnLine(state, line, errorBuffer);
+                        errorOnLine(state, line,
+                                    "No value for parameter '%s' given.",
+                                    StringPoolGetString(parameterInfo[i].name));
                         return false;
                     }
                 }
@@ -745,9 +752,8 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     {
         if (!parameterInfo[argumentCount].value)
         {
-            sprintf(errorBuffer, "No value for parameter '%s' given.",
-                    StringPoolGetString(parameterInfo[argumentCount].name));
-            errorOnLine(state, line, errorBuffer);
+            errorOnLine(state, line, "No value for parameter '%s' given.",
+                        StringPoolGetString(parameterInfo[argumentCount].name));
             return false;
         }
         do
@@ -816,9 +822,8 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
                 ParseStateWriteNullLiteral(state);
                 return true;
             }
-            sprintf(errorBuffer, "Unexpected keyword '%s'.",
-                    StringPoolGetString(identifier));
-            statementError(state, errorBuffer);
+            statementError(state, "Unexpected keyword '%s'.",
+                           StringPoolGetString(identifier));
             return false;
         }
         if (estate->constant)
@@ -1725,18 +1730,15 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                 }
                 if (NamespaceGetField(parameterName))
                 {
-                    sprintf(errorBuffer,
-                            "Invalid parameter name. '%s' is a global variable.",
-                            StringPoolGetString(parameterName));
-                    error(state, errorBuffer);
+                    error(state,
+                          "Invalid parameter name. '%s' is a global variable.",
+                          StringPoolGetString(parameterName));
                     return;
                 }
                 if (NamespaceGetFunction(parameterName))
                 {
-                    sprintf(errorBuffer,
-                            "Invalid parameter name. '%s' is a function.",
-                            StringPoolGetString(parameterName));
-                    error(state, errorBuffer);
+                    error(state, "Invalid parameter name. '%s' is a function.",
+                          StringPoolGetString(parameterName));
                     return;
                 }
                 skipWhitespace(state);
@@ -1756,10 +1758,8 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                 }
                 else if (requireDefaultValues)
                 {
-                    sprintf(errorBuffer,
-                            "Default value for parameter '%s' required.",
-                            StringPoolGetString(parameterName));
-                    error(state, errorBuffer);
+                    error(state, "Default value for parameter '%s' required.",
+                          StringPoolGetString(parameterName));
                     return;
                 }
                 else if (readOperator3(state, '.', '.', '.'))
@@ -1844,9 +1844,7 @@ static void parseScript(ParseState *state)
         }
         else if (!readNewline(state))
         {
-            sprintf(errorBuffer, "Unsupported character: %d",
-                    state->current[0]);
-            error(state, errorBuffer);
+            error(state, "Unsupported character: %d", state->current[0]);
             return;
         }
     }

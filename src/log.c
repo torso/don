@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdio.h>
 #include <memory.h>
 #include <errno.h>
@@ -138,11 +139,12 @@ boolean LogFlushParseErrors(void)
     return hasParseError;
 }
 
-void LogParseError(fileref file, size_t line, const char *message)
+void LogParseError(fileref file, size_t line, const char *format, va_list ap)
 {
     hasParseError = true;
-    /* TODO: Don't truncate line number. */
-    printf("%s:%d: %s\n", FileGetName(file), (uint)line, message);
+    fprintf(stderr, "%s:%ld: ", FileGetName(file), line);
+    vfprintf(stderr, format, ap);
+    fprintf(stderr, "\n");
 }
 
 void LogPrint(const char *text, size_t length)

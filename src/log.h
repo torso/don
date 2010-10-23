@@ -1,8 +1,9 @@
 extern void LogInit(void);
 extern void LogDispose(void);
 
-extern nonnull boolean LogFlushParseErrors(void);
-extern nonnull void LogParseError(fileref file, size_t line, const char *message);
+extern boolean LogFlushParseErrors(void);
+extern attrprintf(3, 0) void LogParseError(fileref file, size_t line,
+                                           const char *format, va_list ap);
 
 /*
   Prints the specified text to standard output without any formatting.
