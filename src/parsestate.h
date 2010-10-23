@@ -15,7 +15,7 @@ typedef struct
     uint line;
     uint statementLine;
     uint indent;
-    ErrorCode error;
+    boolean failed;
 
     intvector blockStack;
     inthashmap locals;
@@ -30,6 +30,7 @@ extern void ParseStateInit(ParseState *restrict state,
                            functionref function,
                            fileref file, uint line, uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
+extern nonnull void ParseStateSetFailed(ParseState *state);
 extern nonnull boolean ParseStateFinish(ParseState *restrict state);
 extern nonnull boolean ParseStateFinishBlock(ParseState *restrict state,
                                              uint indent, boolean trailingElse);
@@ -38,14 +39,14 @@ extern nonnull void ParseStateBeginForwardJump(ParseState *state,
                                                Instruction instruction,
                                                size_t *branch);
 extern nonnull void ParseStateFinishJump(ParseState *state, size_t branch);
-extern nonnull boolean ParseStateSetError(ParseState *state, ErrorCode error);
 
 extern nonnull void ParseStateSetIndent(ParseState *state, uint indent);
 extern nonnull uint ParseStateBlockIndent(ParseState *state);
 
 extern nonnull boolean ParseStateGetVariable(ParseState *state, stringref name);
 extern nonnull boolean ParseStateSetVariable(ParseState *state, stringref name);
-extern nonnull uint16 ParseStateCreateUnnamedVariable(ParseState *state);
+extern nonnull boolean ParseStateCreateUnnamedVariable(ParseState *state,
+                                                       uint16 *result);
 extern nonnull void ParseStateGetUnnamedVariable(ParseState *state,
                                                     uint16 variable);
 extern nonnull void ParseStateSetUnnamedVariable(ParseState *state,

@@ -1,6 +1,7 @@
 extern void LogInit(void);
 extern void LogDispose(void);
 
+extern nonnull boolean LogFlushParseErrors(void);
 extern nonnull void LogParseError(fileref file, size_t line, const char *message);
 
 /*

@@ -31,7 +31,7 @@ void ParseStateCheck(const ParseState *state)
 
 static void setError(ParseState *state, const char *message)
 {
-    ParseStateSetError(state, ERROR_FAIL);
+    ParseStateSetFailed(state);
     LogParseError(state->file, state->line, message);
 }
 
@@ -52,11 +52,12 @@ static uint getLocalsCount(ParseState *state)
 static uint16 getFreeLocalIndex(ParseState *state)
 {
     uint count = getLocalsCount(state);
+    assert(count <= UINT16_MAX);
     if (count == UINT16_MAX)
     {
         setError(state, "Too many local variables.");
     }
-    return (uint16)getLocalsCount(state);
+    return (uint16)count;
 }
 
 static uint16 getLocalIndex(ParseState *state, stringref name)
@@ -64,16 +65,16 @@ static uint16 getLocalIndex(ParseState *state, stringref name)
     uint local;
     ParseStateCheck(state);
     local = IntHashMapGet(&state->locals, uintFromRef(name));
-    if (!local)
+    if (local)
     {
-        local = (uint)getFreeLocalIndex(state) + 1;
-        if (state->error)
-        {
-            return 0;
-        }
-        IntHashMapAdd(&state->locals, uintFromRef(name), local);
+        return (uint16)(local - 1);
     }
-    return (uint16)(local - 1);
+    local = getFreeLocalIndex(state);
+    if (local < UINT16_MAX)
+    {
+        IntHashMapAdd(&state->locals, uintFromRef(name), local + 1);
+    }
+    return (uint16)local;
 }
 
 
@@ -95,7 +96,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
     state->file = file;
     state->line = line;
     state->indent = 0;
-    state->error = NO_ERROR;
+    state->failed = false;
     state->bytecode = bytecode;
     state->unnamedVariables = 0;
     IntHashMapInit(&state->locals, 256);
@@ -129,11 +130,10 @@ void ParseStateDispose(ParseState *state)
     IntHashMapDispose(&state->locals);
 }
 
-boolean ParseStateSetError(ParseState *state, ErrorCode error)
+void ParseStateSetFailed(ParseState *state)
 {
     ParseStateCheck(state);
-    state->error = error;
-    return state->error ? true : false;
+    state->failed = true;
 }
 
 
@@ -300,7 +300,7 @@ uint ParseStateBlockIndent(ParseState *state)
 boolean ParseStateGetVariable(ParseState *state, stringref name)
 {
     uint16 local = getLocalIndex(state, name);
-    if (state->error)
+    if (local == UINT16_MAX)
     {
         return false;
     }
@@ -311,7 +311,7 @@ boolean ParseStateGetVariable(ParseState *state, stringref name)
 boolean ParseStateSetVariable(ParseState *state, stringref name)
 {
     uint16 local = getLocalIndex(state, name);
-    if (state->error)
+    if (local == UINT16_MAX)
     {
         return false;
     }
@@ -319,11 +319,16 @@ boolean ParseStateSetVariable(ParseState *state, stringref name)
     return true;
 }
 
-uint16 ParseStateCreateUnnamedVariable(ParseState *state)
+boolean ParseStateCreateUnnamedVariable(ParseState *state, uint16 *result)
 {
     uint16 local = getFreeLocalIndex(state);
+    if (local == UINT16_MAX)
+    {
+        return false;
+    }
     state->unnamedVariables++;
-    return local;
+    *result = local;
+    return true;
 }
 
 void ParseStateGetUnnamedVariable(ParseState *state, uint16 variable)

@@ -95,12 +95,11 @@ int main(int argc, const char **argv)
     functionref function;
     boolean parseOptions = true;
     boolean disassemble = false;
-    ErrorCode error;
-    boolean parseFailed = false;
     bytevector parsed;
     byte *bytecode;
     const byte *bytecodeLimit;
     size_t bytecodeSize;
+    boolean fail;
 
     IntVectorInit(&targets);
     LogInit();
@@ -183,33 +182,13 @@ int main(int argc, const char **argv)
     ByteVectorInit(&parsed, 65536);
 
     inputFile = FileAdd(inputFilename, strlen(inputFilename));
-    if (handleError(ParseFile(inputFile)))
-    {
-        IntVectorDispose(&targets);
-        ByteVectorDispose(&parsed);
-        cleanup();
-        return 1;
-    }
+    ParseFile(inputFile);
 
     for (field = FieldIndexGetFirstField();
          field;
          field = FieldIndexGetNextField(field))
     {
-        error = ParseField(field, &parsed);
-        if (error)
-        {
-            if (error == ERROR_FAIL)
-            {
-                parseFailed = true;
-            }
-            else
-            {
-                handleError(error);
-                ByteVectorDispose(&parsed);
-                cleanup();
-                return 1;
-            }
-        }
+        ParseField(field, &parsed);
     }
 
     for (function = FunctionIndexGetNextFunction(
@@ -217,31 +196,14 @@ int main(int argc, const char **argv)
          function;
          function = FunctionIndexGetNextFunction(function))
     {
-        error = ParseFunctionDeclaration(function, &parsed);
-        if (error)
-        {
-            if (error == ERROR_FAIL)
-            {
-                parseFailed = true;
-            }
-            else
-            {
-                handleError(error);
-                ByteVectorDispose(&parsed);
-                cleanup();
-                return 1;
-            }
-        }
+        ParseFunctionDeclaration(function, &parsed);
     }
 
     NativeInit(&parsed);
 
     bytecode = ByteVectorDisposeContainer(&parsed);
     ByteVectorInit(&parsed, 65536);
-    if (!parseFailed)
-    {
-        FieldIndexFinishBytecode(bytecode, &parsed);
-    }
+    FieldIndexFinishBytecode(bytecode, &parsed);
     free(bytecode);
 
     for (function = FunctionIndexGetNextFunction(
@@ -249,21 +211,7 @@ int main(int argc, const char **argv)
          function;
          function = FunctionIndexGetNextFunction(function))
     {
-        error = ParseFunctionBody(function, &parsed);
-        if (error)
-        {
-            if (error == ERROR_FAIL)
-            {
-                parseFailed = true;
-            }
-            else
-            {
-                handleError(error);
-                ByteVectorDispose(&parsed);
-                cleanup();
-                return 1;
-            }
-        }
+        ParseFunctionBody(function, &parsed);
     }
 
     FileDispose(inputFile);
@@ -293,16 +241,24 @@ int main(int argc, const char **argv)
         fflush(stdout);
     }
 
+    if (LogFlushParseErrors())
+    {
+        IntVectorDispose(&targets);
+        free(bytecode);
+        cleanup();
+        return 1;
+    }
+    fail = false;
     for (j = 0; j < IntVectorSize(&targets); j++)
     {
         name = IntVectorGetRef(&targets, j);
         if (!NamespaceGetTarget(name))
         {
             printf("'%s' is not a target.\n", StringPoolGetString(name));
-            parseFailed = true;
+            fail = true;
         }
     }
-    if (parseFailed)
+    if (fail)
     {
         IntVectorDispose(&targets);
         free(bytecode);

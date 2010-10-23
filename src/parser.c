@@ -77,19 +77,19 @@ static boolean isFilenameCharacter(byte c)
 
 static void error(ParseState *state, const char *message)
 {
-    ParseStateSetError(state, ERROR_FAIL);
+    ParseStateSetFailed(state);
     LogParseError(state->file, state->line, message);
 }
 
 static void errorOnLine(ParseState *state, size_t line, const char *message)
 {
-    ParseStateSetError(state, ERROR_FAIL);
+    ParseStateSetFailed(state);
     LogParseError(state->file, line, message);
 }
 
 static void statementError(ParseState *state, const char *message)
 {
-    ParseStateSetError(state, ERROR_FAIL);
+    ParseStateSetFailed(state);
     LogParseError(state->file, state->statementLine, message);
 }
 
@@ -208,10 +208,7 @@ static stringref readVariableName(ParseState *state)
     stringref identifier = peekReadIdentifier(state);
     if (!identifier || isKeyword(identifier))
     {
-        if (!state->error)
-        {
-            error(state, "Expected variable name.");
-        }
+        error(state, "Expected variable name.");
         return 0;
     }
     return identifier;
@@ -224,11 +221,8 @@ static boolean readExpectedKeyword(ParseState *state, stringref keyword)
     {
         return true;
     }
-    if (!state->error)
-    {
-        sprintf(errorBuffer, "Expected keyword %s.", StringPoolGetString(keyword));
-        statementError(state, errorBuffer);
-    }
+    sprintf(errorBuffer, "Expected keyword %s.", StringPoolGetString(keyword));
+    statementError(state, errorBuffer);
     return false;
 }
 
@@ -600,10 +594,6 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             else
             {
                 estateArgument.identifier = peekReadIdentifier(state);
-                if (state->error)
-                {
-                    return false;
-                }
                 if (estateArgument.identifier && readOperator(state, ':'))
                 {
                     if (argumentCount > varargIndex)
@@ -852,7 +842,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     if (peekString(state))
     {
         string = readString(state);
-        if (state->error)
+        if (!string)
         {
             return false;
         }
@@ -906,7 +896,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '@'))
     {
         string = readFilename(state);
-        if (state->error)
+        if (!string)
         {
             return false;
         }
@@ -1509,10 +1499,6 @@ static boolean parseFunctionBody(ParseState *state)
         else
         {
             identifier = peekReadIdentifier(state);
-            if (state->error)
-            {
-                return false;
-            }
             if (indent != currentIndent)
             {
                 if (!currentIndent)
@@ -1538,11 +1524,6 @@ static boolean parseFunctionBody(ParseState *state)
                     currentIndent = indent;
                     if (identifier == keywordElse)
                     {
-                        if (state->error)
-                        {
-                            statementError(state, "else without matching if.");
-                            return false;
-                        }
                         prevIndent = indent;
                         currentIndent = 0;
                         if (!peekNewline(state))
@@ -1598,13 +1579,12 @@ static boolean parseFunctionBody(ParseState *state)
                         prevIndent = currentIndent;
                         currentIndent = 0;
                         identifier = readVariableName(state);
-                        if (state->error)
+                        if (!identifier)
                         {
                             return false;
                         }
-                        iterVariable = ParseStateCreateUnnamedVariable(state);
                         skipWhitespace(state);
-                        if (state->error ||
+                        if (!ParseStateCreateUnnamedVariable(state, &iterVariable) ||
                             !readExpectedKeyword(state, keywordIn))
                         {
                             return false;
@@ -1738,10 +1718,6 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
             {
                 vararg = false;
                 parameterName = peekReadIdentifier(state);
-                if (state->error)
-                {
-                    return;
-                }
                 if (!parameterName || isKeyword(parameterName))
                 {
                     error(state, "Expected parameter name or ')'.");
@@ -1892,7 +1868,7 @@ void ParserAddKeywords(void)
     maxKeyword = keywordWhile;
 }
 
-ErrorCode ParseFile(fileref file)
+void ParseFile(fileref file)
 {
     ParseState state;
 
@@ -1904,15 +1880,15 @@ ErrorCode ParseFile(fileref file)
                     UtilCountNewlines((const char*)state.start,
                                       (size_t)(state.limit - state.start)) + 1,
                     "File does not end with newline.");
-        ParseStateDispose(&state);
-        return ERROR_FAIL;
     }
-    parseScript(&state);
+    else
+    {
+        parseScript(&state);
+    }
     ParseStateDispose(&state);
-    return state.error;
 }
 
-ErrorCode ParseField(fieldref field, bytevector *bytecode)
+void ParseField(fieldref field, bytevector *bytecode)
 {
     ParseState state;
     size_t start = ByteVectorSize(bytecode);
@@ -1934,12 +1910,10 @@ ErrorCode ParseField(fieldref field, bytevector *bytecode)
             FieldIndexSetBytecodeOffset(field, start, ByteVectorSize(bytecode));
         }
     }
-
     ParseStateDispose(&state);
-    return state.error;
 }
 
-ErrorCode ParseFunctionDeclaration(functionref function, bytevector *bytecode)
+void ParseFunctionDeclaration(functionref function, bytevector *bytecode)
 {
     ParseState state;
 
@@ -1950,10 +1924,9 @@ ErrorCode ParseFunctionDeclaration(functionref function, bytevector *bytecode)
                    FunctionIndexGetFileOffset(function));
     parseFunctionDeclaration(&state, function);
     ParseStateDispose(&state);
-    return state.error;
 }
 
-ErrorCode ParseFunctionBody(functionref function, bytevector *bytecode)
+void ParseFunctionBody(functionref function, bytevector *bytecode)
 {
     ParseState state;
 
@@ -1965,5 +1938,4 @@ ErrorCode ParseFunctionBody(functionref function, bytevector *bytecode)
                    FunctionIndexGetFileOffset(function));
     parseFunctionBody(&state);
     ParseStateDispose(&state);
-    return state.error;
 }

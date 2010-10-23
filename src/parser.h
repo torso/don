@@ -1,7 +1,7 @@
 extern void ParserAddKeywords(void);
-extern ErrorCode ParseFile(fileref file);
-extern nonnull ErrorCode ParseField(fieldref field, bytevector *bytecode);
-extern nonnull ErrorCode ParseFunctionDeclaration(functionref function,
-                                                  bytevector *bytecode);
-extern nonnull ErrorCode ParseFunctionBody(functionref function,
-                                           bytevector *bytecode);
+extern void ParseFile(fileref file);
+extern nonnull void ParseField(fieldref field, bytevector *bytecode);
+extern nonnull void ParseFunctionDeclaration(functionref function,
+                                             bytevector *bytecode);
+extern nonnull void ParseFunctionBody(functionref function,
+                                      bytevector *bytecode);

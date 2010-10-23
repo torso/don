@@ -29,6 +29,7 @@ typedef struct
 
 static Pipe out;
 static Pipe err;
+static boolean hasParseError;
 
 
 static boolean buffered(Pipe *p)
@@ -132,8 +133,14 @@ void LogDispose(void)
 }
 
 
+boolean LogFlushParseErrors(void)
+{
+    return hasParseError;
+}
+
 void LogParseError(fileref file, size_t line, const char *message)
 {
+    hasParseError = true;
     /* TODO: Don't truncate line number. */
     printf("%s:%d: %s\n", FileGetName(file), (uint)line, message);
 }
