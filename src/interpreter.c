@@ -18,13 +18,6 @@
 static const boolean TRACE = false;
 
 
-static boolean setError(VM *vm, ErrorCode error)
-{
-    vm->error = error;
-    return error ? true : false;
-}
-
-
 #define peek InterpreterPeek
 #define pop InterpreterPop
 #define push InterpreterPush
@@ -44,18 +37,21 @@ boolean InterpreterPopBoolean(VM *vm)
     return HeapIsTrue(vm, IntVectorPopRef(&vm->stack));
 }
 
-boolean InterpreterPush(VM *vm, objectref value)
+void InterpreterPush(VM *vm, objectref value)
 {
-    return !setError(vm, IntVectorAddRef(&vm->stack, value));
+    IntVectorAddRef(&vm->stack, value);
 }
 
-static boolean pushBoolean(VM *vm, boolean value)
+static void pushBoolean(VM *vm, boolean value)
 {
     if (value)
     {
-        return push(vm, vm->booleanTrue);
+        push(vm, vm->booleanTrue);
     }
-    return push(vm, vm->booleanFalse);
+    else
+    {
+        push(vm, vm->booleanFalse);
+    }
 }
 
 
@@ -167,11 +163,6 @@ static void execute(VM *vm, functionref target)
             size1 = BytecodeReadUint(&ip);
             assert(size1);
             objectData = HeapAlloc(vm, TYPE_ARRAY, size1 * sizeof(objectref));
-            if (!objectData)
-            {
-                vm->error = OUT_OF_MEMORY;
-                return;
-            }
             objectData += size1 * sizeof(objectref);
             while (size1--)
             {
@@ -185,11 +176,6 @@ static void execute(VM *vm, functionref target)
             string = BytecodeReadRef(&ip);
             file = FileAdd(StringPoolGetString(string),
                            StringPoolGetStringLength(string));
-            if (!file)
-            {
-                vm->error = OUT_OF_MEMORY;
-                return;
-            }
             value = HeapCreateFile(vm, file);
             if (!value)
             {
@@ -220,11 +206,7 @@ static void execute(VM *vm, functionref target)
             value = BytecodeReadUint16(&ip);
             size2 = IntVectorSize(&vm->stack);
             size1 = size2 - value;
-            vm->error = IntVectorGrow(&vm->stack, value);
-            if (vm->error)
-            {
-                return;
-            }
+            IntVectorGrow(&vm->stack, value);
             IntVectorMove(&vm->stack, size1, size2, value);
             while (value--)
             {
@@ -359,11 +341,6 @@ static void execute(VM *vm, functionref target)
                 break;
             }
             objectData = HeapAlloc(vm, TYPE_STRING, size1 + size2);
-            if (!objectData)
-            {
-                vm->error = OUT_OF_MEMORY;
-                return;
-            }
             HeapWriteString(vm, value2, (char*)objectData);
             HeapWriteString(vm, value, (char*)objectData + size1);
             push(vm, HeapFinishAlloc(vm, objectData));
@@ -373,19 +350,13 @@ static void execute(VM *vm, functionref target)
             value = pop(vm);
             value2 = pop(vm);
             value = HeapConcatList(vm, value2, value);
-            if (!value || !push(vm, value))
-            {
-                return;
-            }
+            push(vm, value);
             break;
 
         case OP_INDEXED_ACCESS:
             value = pop(vm);
             value2 = pop(vm);
-            if (!HeapCollectionGet(vm, value2, value, &value))
-            {
-                return;
-            }
+            HeapCollectionGet(vm, value2, value, &value);
             push(vm, value);
             break;
 
@@ -393,19 +364,11 @@ static void execute(VM *vm, functionref target)
             value = pop(vm);
             value2 = pop(vm);
             value = HeapCreateRange(vm, value2, value);
-            if (!value)
-            {
-                return;
-            }
             push(vm, value);
             break;
 
         case OP_ITER_INIT:
             value = HeapCreateIterator(vm, pop(vm));
-            if (!value)
-            {
-                return;
-            }
             push(vm, value);
             break;
 
@@ -493,11 +456,7 @@ static void execute(VM *vm, functionref target)
             value = pop(vm);
             HeapHash(vm, value, &hashState);
             HashFinal(&hashState, hash);
-            vm->error = CacheGet(hash, &vm->currentCache);
-            if (vm->error)
-            {
-                return;
-            }
+            CacheGet(hash, &vm->currentCache);
             if (CacheIsNewEntry(vm->currentCache))
             {
                 HeapIteratorInit(vm, &iter, value, true);
@@ -516,15 +475,7 @@ static void execute(VM *vm, functionref target)
             }
             pushBoolean(vm, CacheUptodate(vm->currentCache));
             value = HeapCreateFile(vm, CacheGetFile(vm->currentCache));
-            if (!value)
-            {
-                return;
-            }
             push(vm, value);
-            if (vm->error)
-            {
-                return;
-            }
             break;
 
         case OP_UPTODATE_FINISH:
@@ -548,17 +499,6 @@ static void disposeVM(VM *vm)
     IntVectorDispose(&vm->stack);
 }
 
-static boolean handleError(VM *vm, ErrorCode error)
-{
-    vm->error = error;
-    if (error)
-    {
-        disposeVM(vm);
-        return true;
-    }
-    return false;
-}
-
 ErrorCode InterpreterExecute(const byte *restrict bytecode, functionref target)
 {
     VM vm;
@@ -567,13 +507,9 @@ ErrorCode InterpreterExecute(const byte *restrict bytecode, functionref target)
     memset(&vm, 0, sizeof(vm));
     vm.bytecode = bytecode;
     vm.fields = (objectref*)malloc(fieldCount * sizeof(int));
-    if (handleError(&vm, vm.fields ? NO_ERROR : OUT_OF_MEMORY) ||
-        handleError(&vm, HeapInit(&vm)) ||
-        handleError(&vm, IntVectorInit(&vm.callStack)) ||
-        handleError(&vm, IntVectorInit(&vm.stack)))
-    {
-        return vm.error;
-    }
+    HeapInit(&vm);
+    IntVectorInit(&vm.callStack);
+    IntVectorInit(&vm.stack);
 
     execute(&vm, FunctionIndexGetFirstFunction());
     if (!vm.error)

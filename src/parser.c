@@ -187,18 +187,11 @@ static boolean peekIdentifier(const ParseState *state)
 static stringref readIdentifier(ParseState *state)
 {
     const byte *begin = state->current;
-    stringref identifier;
 
     ParseStateCheck(state);
     assert(peekIdentifier(state));
     while (isIdentifierCharacter(*++state->current));
-    identifier = StringPoolAdd2((const char*)begin, getOffset(state, begin));
-    if (!identifier)
-    {
-        ParseStateSetError(state, OUT_OF_MEMORY);
-        return 0;
-    }
-    return identifier;
+    return StringPoolAdd2((const char*)begin, getOffset(state, begin));
 }
 
 static stringref peekReadIdentifier(ParseState *state)
@@ -284,11 +277,6 @@ static stringref readString(ParseState *state)
             {
                 s = StringPoolAdd2((const char*)begin, getOffset(state, begin));
             }
-            if (!s)
-            {
-                ParseStateSetError(state, OUT_OF_MEMORY);
-                return 0;
-            }
             state->current++;
             return s;
 
@@ -333,7 +321,6 @@ static stringref readString(ParseState *state)
 static stringref readFilename(ParseState *state)
 {
     const byte *begin;
-    stringref s;
 
     /* TODO: Quoted filenames. */
     /* TODO: Escape sequences in filenames. */
@@ -350,13 +337,7 @@ static stringref readFilename(ParseState *state)
         error(state, "Expected filename.");
         return 0;
     }
-    s = StringPoolAdd2((const char*)begin, getOffset(state, begin));
-    if (!s)
-    {
-        ParseStateSetError(state, OUT_OF_MEMORY);
-        return 0;
-    }
-    return s;
+    return StringPoolAdd2((const char*)begin, getOffset(state, begin));
 }
 
 static boolean readOperator(ParseState *state, byte op)
@@ -451,7 +432,8 @@ static boolean parseNumber(ParseState *state)
         return false;
     }
 
-    return ParseStateWriteIntegerLiteral(state, value);
+    ParseStateWriteIntegerLiteral(state, value);
+    return true;
 }
 
 static boolean parseReturnRest(ParseState *state)
@@ -460,7 +442,8 @@ static boolean parseReturnRest(ParseState *state)
 
     if (peekNewline(state))
     {
-        return ParseStateWriteReturnVoid(state);
+        ParseStateWriteReturnVoid(state);
+        return true;
     }
     for (;;)
     {
@@ -471,7 +454,8 @@ static boolean parseReturnRest(ParseState *state)
         values++;
         if (peekNewline(state))
         {
-            return ParseStateWriteReturn(state, values);
+            ParseStateWriteReturn(state, values);
+            return true;
         }
         if (!readExpectedOperator(state, ','))
         {
@@ -494,9 +478,12 @@ static boolean finishLValue(ParseState *state, ExpressionState *estate)
 
     case VALUE_VARIABLE:
         field = NamespaceGetField(estate->valueIdentifier);
-        return (boolean)(field ?
-                         ParseStateSetField(state, field) :
-                         ParseStateSetVariable(state, estate->valueIdentifier));
+        if (field)
+        {
+            ParseStateSetField(state, field);
+            return true;
+        }
+        return ParseStateSetVariable(state, estate->valueIdentifier);
     }
     assert(false);
     return false;
@@ -513,14 +500,17 @@ static boolean finishRValue(ParseState *state, ExpressionState *estate)
 
     case VALUE_VARIABLE:
         field = NamespaceGetField(estate->valueIdentifier);
-        return (boolean)(field ?
-                         ParseStateGetField(state, field) :
-                         ParseStateGetVariable(state, estate->valueIdentifier));
+        if (field)
+        {
+            ParseStateGetField(state, field);
+            return true;
+        }
+        return ParseStateGetVariable(state, estate->valueIdentifier);
 
     case VALUE_INVOCATION:
-        return ParseStateWriteInvocation(state, estate->nativeFunction,
-                                         estate->function,
-                                         estate->argumentCount, 1);
+        ParseStateWriteInvocation(state, estate->nativeFunction,
+                                  estate->function, estate->argumentCount, 1);
+        return true;
     }
     assert(false);
     return false;
@@ -537,9 +527,9 @@ static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
         return false;
 
     case VALUE_INVOCATION:
-        return ParseStateWriteInvocation(state, estate->nativeFunction,
-                                         estate->function,
-                                         estate->argumentCount, 0);
+        ParseStateWriteInvocation(state, estate->nativeFunction,
+                                  estate->function, estate->argumentCount, 0);
+        return true;
     }
     assert(false);
     return false;
@@ -618,34 +608,17 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 {
                     if (argumentCount > varargIndex)
                     {
-                        if (!ParseStateWriteList(state, argumentCount - varargIndex))
-                        {
-                            return false;
-                        }
+                        ParseStateWriteList(state, argumentCount - varargIndex);
                         argumentCount = varargIndex + 1;
                     }
                     requireNamedParameters = true;
-                    state->error = IntVectorInit(&namedParameters);
-                    if (state->error)
-                    {
-                        return false;
-                    }
+                    IntVectorInit(&namedParameters);
                     for (i = 0; i++ < argumentCount;)
                     {
-                        state->error = IntVectorAdd(&namedParameters, i);
-                        if (state->error)
-                        {
-                            IntVectorDispose(&namedParameters);
-                            return false;
-                        }
+                        IntVectorAdd(&namedParameters, i);
                     }
-                    state->error = IntVectorGrowZero(
-                        &namedParameters, parameterCount - argumentCount);
-                    if (state->error)
-                    {
-                        IntVectorDispose(&namedParameters);
-                        return false;
-                    }
+                    IntVectorGrowZero(&namedParameters,
+                                      parameterCount - argumentCount);
                 }
             }
             if (requireNamedParameters)
@@ -706,10 +679,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     }
     if (!requireNamedParameters && argumentCount >= varargIndex)
     {
-        if (!ParseStateWriteList(state, argumentCount - varargIndex))
-        {
-            return false;
-        }
+        ParseStateWriteList(state, argumentCount - varargIndex);
         argumentCount = varargIndex + 1;
     }
     if (argumentCount > parameterCount)
@@ -745,11 +715,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 {
                     if (i == varargIndex)
                     {
-                        if (!ParseStateWriteInstruction(state, OP_EMPTY_LIST))
-                        {
-                            IntVectorDispose(&namedParameters);
-                            return false;
-                        }
+                        ParseStateWriteInstruction(state, OP_EMPTY_LIST);
                     }
                     else
                     {
@@ -760,11 +726,9 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                         return false;
                     }
                 }
-                if (parameterInfo[i].value &&
-                    !ParseStateGetField(state, parameterInfo[i].value))
+                if (parameterInfo[i].value)
                 {
-                    IntVectorDispose(&namedParameters);
-                    return false;
+                    ParseStateGetField(state, parameterInfo[i].value);
                 }
                 position = ++argumentCount;
                 IntVectorSet(&namedParameters, i, position);
@@ -778,12 +742,11 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 }
             }
         }
-        if (!inOrder && !ParseStateReorderStack(
-                state, &namedParameters, firstOutOfOrder,
-                parameterCount - firstOutOfOrder))
+        if (!inOrder)
         {
-            IntVectorDispose(&namedParameters);
-            return false;
+            ParseStateReorderStack(
+                state, &namedParameters, firstOutOfOrder,
+                parameterCount - firstOutOfOrder);
         }
         IntVectorDispose(&namedParameters);
         argumentCount = parameterCount;
@@ -800,10 +763,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         do
         {
             assert(parameterInfo[argumentCount].value);
-            if (!ParseStateGetField(state, parameterInfo[argumentCount].value))
-            {
-                return false;
-            }
+            ParseStateGetField(state, parameterInfo[argumentCount].value);
             argumentCount++;
         }
         while (argumentCount < parameterCount);
@@ -823,11 +783,11 @@ static boolean parseBinaryOperationRest(
     skipWhitespace(state);
     if (!finishRValue(state, estate) ||
         !parseExpressionRest(state, estate) ||
-        !finishRValue(state, estate) ||
-        !ParseStateWriteInstruction(state, instruction))
+        !finishRValue(state, estate))
     {
         return false;
     }
+    ParseStateWriteInstruction(state, instruction);
     estate->valueType = VALUE_SIMPLE;
     skipWhitespace(state);
     return true;
@@ -857,15 +817,18 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         {
             if (identifier == keywordTrue)
             {
-                return ParseStateWriteTrueLiteral(state);
+                ParseStateWriteTrueLiteral(state);
+                return true;
             }
             else if (identifier == keywordFalse)
             {
-                return ParseStateWriteFalseLiteral(state);
+                ParseStateWriteFalseLiteral(state);
+                return true;
             }
             else if (identifier == keywordNull)
             {
-                return ParseStateWriteNullLiteral(state);
+                ParseStateWriteNullLiteral(state);
+                return true;
             }
             sprintf(errorBuffer, "Unexpected keyword '%s'.",
                     StringPoolGetString(identifier));
@@ -897,7 +860,8 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         {
             return false;
         }
-        return ParseStateWriteStringLiteral(state, string);
+        ParseStateWriteStringLiteral(state, string);
+        return true;
     }
     if (readOperator(state, '('))
     {
@@ -919,7 +883,8 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         if (readOperator(state, ']'))
         {
             skipWhitespace(state);
-            return ParseStateWriteInstruction(state, OP_EMPTY_LIST);
+            ParseStateWriteInstruction(state, OP_EMPTY_LIST);
+            return true;
         }
         size = 0;
         do
@@ -939,7 +904,8 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             return false;
         }
         skipWhitespace(state);
-        return ParseStateWriteList(state, size);
+        ParseStateWriteList(state, size);
+        return true;
     }
     if (readOperator(state, '@'))
     {
@@ -950,10 +916,12 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         }
         if (!strchr(StringPoolGetString(string), '*'))
         {
-            return ParseStateWriteFile(state, string);
+            ParseStateWriteFile(state, string);
+            return true;
         }
         /* TODO: @{} syntax */
-        return ParseStateWriteFileset(state, string);
+        ParseStateWriteFileset(state, string);
+        return true;
     }
     statementError(state, "Invalid expression.");
     return false;
@@ -976,11 +944,11 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
                 return false;
             }
             skipWhitespace(state);
-            if (!readExpectedOperator(state, ']') ||
-                !ParseStateWriteInstruction(state, OP_INDEXED_ACCESS))
+            if (!readExpectedOperator(state, ']'))
             {
                 return false;
             }
+            ParseStateWriteInstruction(state, OP_INDEXED_ACCESS);
             estate->valueType = VALUE_SIMPLE;
             continue;
         }
@@ -1001,11 +969,11 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     {
         assert(!readOperator(state, '-')); /* TODO: -- operator */
         if (!parseExpression11(state, estate) ||
-            !finishRValue(state, estate) ||
-            !ParseStateWriteInstruction(state, OP_NEG))
+            !finishRValue(state, estate))
         {
             return false;
         }
+        ParseStateWriteInstruction(state, OP_NEG);
         skipWhitespace(state);
         estate->valueType = VALUE_SIMPLE;
         return true;
@@ -1013,11 +981,11 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '!'))
     {
         if (!parseExpression11(state, estate) ||
-            !finishRValue(state, estate) ||
-            !ParseStateWriteInstruction(state, OP_NOT))
+            !finishRValue(state, estate))
         {
             return false;
         }
+        ParseStateWriteInstruction(state, OP_NOT);
         skipWhitespace(state);
         estate->valueType = VALUE_SIMPLE;
         return true;
@@ -1025,11 +993,11 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '~'))
     {
         if (!parseExpression11(state, estate) ||
-            !finishRValue(state, estate) ||
-            !ParseStateWriteInstruction(state, OP_INV))
+            !finishRValue(state, estate))
         {
             return false;
         }
+        ParseStateWriteInstruction(state, OP_INV);
         skipWhitespace(state);
         estate->valueType = VALUE_SIMPLE;
         return true;
@@ -1231,11 +1199,11 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
         }
         if (!finishRValue(state, estate) ||
             !parseExpression5(state, estate) ||
-            !finishRValue(state, estate) ||
-            !ParseStateWriteInstruction(state, OP_CONCAT_STRING))
+            !finishRValue(state, estate))
         {
             return false;
         }
+        ParseStateWriteInstruction(state, OP_CONCAT_STRING);
         estate->valueType = VALUE_NONNUMBER;
         skipWhitespace(state);
     }
@@ -1321,18 +1289,21 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
         if (readOperator2(state, '&', '&'))
         {
             skipWhitespace(state);
-            if (!finishRValue(state, estate) ||
-                !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN) ||
-                !ParseStateWriteInstruction(state, OP_DUP) ||
-                !ParseStateBeginForwardJump(state, OP_BRANCH_FALSE, &branch) ||
-                !ParseStateWriteInstruction(state, OP_POP) ||
-                !parseExpression3(state, estate) ||
-                !finishRValue(state, estate) ||
-                !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN) ||
-                !ParseStateFinishJump(state, branch))
+            if (!finishRValue(state, estate))
             {
                 return false;
             }
+            ParseStateWriteInstruction(state, OP_CAST_BOOLEAN);
+            ParseStateWriteInstruction(state, OP_DUP);
+            ParseStateBeginForwardJump(state, OP_BRANCH_FALSE, &branch);
+            ParseStateWriteInstruction(state, OP_POP);
+            if (!parseExpression3(state, estate) ||
+                !finishRValue(state, estate))
+            {
+                return false;
+            }
+            ParseStateWriteInstruction(state, OP_CAST_BOOLEAN);
+            ParseStateFinishJump(state, branch);
             estate->valueType = VALUE_SIMPLE;
             skipWhitespace(state);
             continue;
@@ -1340,18 +1311,21 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
         if (readOperator2(state, '|', '|'))
         {
             skipWhitespace(state);
-            if (!finishRValue(state, estate) ||
-                !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN) ||
-                !ParseStateWriteInstruction(state, OP_DUP) ||
-                !ParseStateBeginForwardJump(state, OP_BRANCH_TRUE, &branch) ||
-                !ParseStateWriteInstruction(state, OP_POP) ||
-                !parseExpression3(state, estate) ||
-                !finishRValue(state, estate) ||
-                !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN) ||
-                !ParseStateFinishJump(state, branch))
+            if (!finishRValue(state, estate))
             {
                 return false;
             }
+            ParseStateWriteInstruction(state, OP_CAST_BOOLEAN);
+            ParseStateWriteInstruction(state, OP_DUP);
+            ParseStateBeginForwardJump(state, OP_BRANCH_TRUE, &branch);
+            ParseStateWriteInstruction(state, OP_POP);
+            if (!parseExpression3(state, estate) ||
+                !finishRValue(state, estate))
+            {
+                return false;
+            }
+            ParseStateWriteInstruction(state, OP_CAST_BOOLEAN);
+            ParseStateFinishJump(state, branch);
             estate->valueType = VALUE_SIMPLE;
             skipWhitespace(state);
             continue;
@@ -1371,9 +1345,12 @@ static boolean parseExpression(ParseState *state, ExpressionState *estate)
     {
         skipWhitespace(state);
         /* TODO: Avoid recursion. */
-        if (!finishRValue(state, estate) ||
-            !ParseStateWriteBeginCondition(state) ||
-            !parseRValue(state, estate->constant) ||
+        if (!finishRValue(state, estate))
+        {
+            return false;
+        }
+        ParseStateWriteBeginCondition(state);
+        if (!parseRValue(state, estate->constant) ||
             !readExpectedOperator(state, ':') ||
             !ParseStateWriteSecondConsequent(state))
         {
@@ -1407,9 +1384,12 @@ static boolean parseAssignmentExpressionRest(ParseState *state,
 {
     skipWhitespace(state);
     if (!finishRValue(state, estate) ||
-        !parseRValue(state, false) ||
-        !ParseStateWriteInstruction(state, instruction) ||
-        !finishLValue(state, estate))
+        !parseRValue(state, false))
+    {
+        return false;
+    }
+    ParseStateWriteInstruction(state, instruction);
+    if (!finishLValue(state, estate))
     {
         return false;
     }
@@ -1431,11 +1411,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
         {
             return false;
         }
-        state->error = ByteVectorAddData(&lvalues, (byte*)&estate, sizeof(estate));
-        if (state->error)
-        {
-            return false;
-        }
+        ByteVectorAddData(&lvalues, (byte*)&estate, sizeof(estate));
         skipWhitespace(state);
     }
     while (readOperator(state, ','));
@@ -1452,12 +1428,9 @@ static boolean parseMultiAssignmentRest(ParseState *state)
         statementError(state, "Expected function invocation.");
         return false;
     }
-    if (!ParseStateWriteInvocation(
-            state, estate.nativeFunction, estate.function, estate.argumentCount,
-            (uint)(ByteVectorSize(&lvalues) / sizeof(estate) + 1)))
-    {
-        return false;
-    }
+    ParseStateWriteInvocation(
+        state, estate.nativeFunction, estate.function, estate.argumentCount,
+        (uint)(ByteVectorSize(&lvalues) / sizeof(estate) + 1));
     while (ByteVectorSize(&lvalues))
     {
         ByteVectorPopData(&lvalues, (byte*)&estate, sizeof(estate));
@@ -1606,21 +1579,18 @@ static boolean parseFunctionBody(ParseState *state)
                     {
                         prevIndent = currentIndent;
                         currentIndent = 0;
-                        if (!parseRValue(state, false) ||
-                            !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN))
+                        if (!parseRValue(state, false))
                         {
                             return false;
                         }
+                        ParseStateWriteInstruction(state, OP_CAST_BOOLEAN);
                         if (!peekNewline(state))
                         {
                             error(state, "Garbage after if statement.");
                             return false;
                         }
                         skipEndOfLine(state);
-                        if (!ParseStateWriteIf(state))
-                        {
-                            return false;
-                        }
+                        ParseStateWriteIf(state);
                     }
                     else if (identifier == keywordElse)
                     {
@@ -1644,12 +1614,12 @@ static boolean parseFunctionBody(ParseState *state)
                             return false;
                         }
                         skipWhitespace(state);
-                        if (!parseRValue(state, false) ||
-                            !ParseStateWriteInstruction(state, OP_ITER_INIT) ||
-                            !ParseStateSetUnnamedVariable(state, iterVariable))
+                        if (!parseRValue(state, false))
                         {
                             return false;
                         }
+                        ParseStateWriteInstruction(state, OP_ITER_INIT);
+                        ParseStateSetUnnamedVariable(state, iterVariable);
                         if (!peekNewline(state))
                         {
                             error(state, "Garbage after for statement.");
@@ -1657,13 +1627,13 @@ static boolean parseFunctionBody(ParseState *state)
                         }
                         skipEndOfLine(state);
                         target = ParseStateGetJumpTarget(state);
-                        if (!ParseStateGetUnnamedVariable(state, iterVariable) ||
-                            !ParseStateWriteInstruction(state, OP_ITER_NEXT) ||
-                            !ParseStateSetVariable(state, identifier) ||
-                            !ParseStateWriteWhile(state, target))
+                        ParseStateGetUnnamedVariable(state, iterVariable);
+                        ParseStateWriteInstruction(state, OP_ITER_NEXT);
+                        if (!ParseStateSetVariable(state, identifier))
                         {
                             return false;
                         }
+                        ParseStateWriteWhile(state, target);
                     }
                     else if (identifier == keywordReturn)
                     {
@@ -1687,11 +1657,11 @@ static boolean parseFunctionBody(ParseState *state)
                         }
                         skipWhitespace(state);
                         identifier = readVariableName(state);
-                        if (!identifier ||
-                            !ParseStateWriteUptodate(state, identifier))
+                        if (!identifier)
                         {
                             return false;
                         }
+                        ParseStateWriteUptodate(state, identifier);
                         if (!peekNewline(state))
                         {
                             error(state, "Garbage after uptodate statement.");
@@ -1704,21 +1674,18 @@ static boolean parseFunctionBody(ParseState *state)
                         prevIndent = currentIndent;
                         currentIndent = 0;
                         target = ParseStateGetJumpTarget(state);
-                        if (!parseRValue(state, false) ||
-                            !ParseStateWriteInstruction(state, OP_CAST_BOOLEAN))
+                        if (!parseRValue(state, false))
                         {
                             return false;
                         }
+                        ParseStateWriteInstruction(state, OP_CAST_BOOLEAN);
                         if (!peekNewline(state))
                         {
                             error(state, "Garbage after while statement.");
                             return false;
                         }
                         skipEndOfLine(state);
-                        if (!ParseStateWriteWhile(state, target))
-                        {
-                            return false;
-                        }
+                        ParseStateWriteWhile(state, target);
                     }
                     else
                     {
@@ -1807,11 +1774,6 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                     skipWhitespace(state);
                     field = FieldIndexAdd(state->file, state->line,
                                           getOffset(state, state->start));
-                    if (!field)
-                    {
-                        state->error = OUT_OF_MEMORY;
-                        return;
-                    }
                     start = ByteVectorSize(state->bytecode);
                     if (!parseRValue(state, true))
                     {
@@ -1834,14 +1796,8 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
                     skipWhitespace(state);
                     vararg = true;
                 }
-                state->error = FunctionIndexAddParameter(function,
-                                                         parameterName,
-                                                         field,
-                                                         vararg);
-                if (state->error)
-                {
-                    return;
-                }
+                FunctionIndexAddParameter(function, parameterName,
+                                          field, vararg);
                 if (readOperator(state, ')'))
                 {
                     break;
@@ -1867,8 +1823,6 @@ static void parseFunctionDeclaration(ParseState *state, functionref function)
 
 static void parseScript(ParseState *state)
 {
-    functionref function;
-    fieldref field;
     stringref name;
     boolean allowIndent = false;
 
@@ -1885,37 +1839,17 @@ static void parseScript(ParseState *state)
             }
             if (peekOperator(state, ':'))
             {
-                function = FunctionIndexAddFunction(
-                    name, state->file, state->line,
-                    getOffset(state, state->start));
-                if (!function)
-                {
-                    state->error = OUT_OF_MEMORY;
-                    return;
-                }
-                state->error = NamespaceAddTarget(name, function);
-                if (state->error)
-                {
-                    return;
-                }
+                NamespaceAddTarget(name, FunctionIndexAddFunction(
+                                       name, state->file, state->line,
+                                       getOffset(state, state->start)));
                 skipEndOfLine(state);
                 allowIndent = true;
             }
             else if (peekOperator(state, '('))
             {
-                function = FunctionIndexAddFunction(
-                    name, state->file, state->line,
-                    getOffset(state, state->start));
-                if (!function)
-                {
-                    state->error = OUT_OF_MEMORY;
-                    return;
-                }
-                state->error = NamespaceAddFunction(name, function);
-                if (state->error)
-                {
-                    return;
-                }
+                NamespaceAddFunction(name, FunctionIndexAddFunction(
+                                         name, state->file, state->line,
+                                         getOffset(state, state->start)));
                 skipEndOfLine(state);
                 allowIndent = true;
             }
@@ -1928,18 +1862,9 @@ static void parseScript(ParseState *state)
                     return;
                 }
                 skipWhitespace(state);
-                field = FieldIndexAdd(state->file, state->line,
-                                      getOffset(state, state->start));
-                if (!field)
-                {
-                    state->error = OUT_OF_MEMORY;
-                    return;
-                }
-                state->error = NamespaceAddField(name, field);
-                if (state->error)
-                {
-                    return;
-                }
+                NamespaceAddField(name, FieldIndexAdd(
+                                      state->file, state->line,
+                                      getOffset(state, state->start)));
                 skipEndOfLine(state);
                 allowIndent = false;
             }
@@ -1959,24 +1884,20 @@ static void parseScript(ParseState *state)
     }
 }
 
-ErrorCode ParserAddKeywords(void)
+void ParserAddKeywords(void)
 {
-    if (!(keywordElse = StringPoolAdd("else")) ||
-        !(keywordFalse = StringPoolAdd("false")) ||
-        !(keywordFor = StringPoolAdd("for")) ||
-        !(keywordIf = StringPoolAdd("if")) ||
-        !(keywordIn = StringPoolAdd("in")) ||
-        !(keywordNull = StringPoolAdd("null")) ||
-        !(keywordReturn = StringPoolAdd("return")) ||
-        !(keywordTrue = StringPoolAdd("true")) ||
-        !(keywordUptodate = StringPoolAdd("uptodate")) ||
-        !(keywordWhile = StringPoolAdd("while")))
-    {
-        return OUT_OF_MEMORY;
-    }
+    keywordElse = StringPoolAdd("else");
+    keywordFalse = StringPoolAdd("false");
+    keywordFor = StringPoolAdd("for");
+    keywordIf = StringPoolAdd("if");
+    keywordIn = StringPoolAdd("in");
+    keywordNull = StringPoolAdd("null");
+    keywordReturn = StringPoolAdd("return");
+    keywordTrue = StringPoolAdd("true");
+    keywordUptodate = StringPoolAdd("uptodate");
+    keywordWhile = StringPoolAdd("while");
     maxStatementKeyword = keywordWhile;
     maxKeyword = keywordWhile;
-    return NO_ERROR;
 }
 
 ErrorCode ParseFile(fileref file)

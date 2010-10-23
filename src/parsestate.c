@@ -35,15 +35,12 @@ static void setError(ParseState *state, const char *message)
     LogParseError(state->file, state->line, message);
 }
 
-static boolean writeBackwardsJump(ParseState *state, uint target)
+static void writeBackwardsJump(ParseState *state, uint target)
 {
-    return !ParseStateSetError(state,
-                               ByteVectorAdd(state->bytecode, OP_JUMP)) &&
-        !ParseStateSetError(
-            state,
-            ByteVectorAddInt(
-                state->bytecode,
-                (int)(target - ByteVectorSize(state->bytecode) - sizeof(int))));
+    ByteVectorAdd(state->bytecode, OP_JUMP);
+    ByteVectorAddInt(
+        state->bytecode,
+        (int)(target - ByteVectorSize(state->bytecode) - sizeof(int)));
 }
 
 static uint getLocalsCount(ParseState *state)
@@ -74,7 +71,7 @@ static uint16 getLocalIndex(ParseState *state, stringref name)
         {
             return 0;
         }
-        state->error = IntHashMapAdd(&state->locals, uintFromRef(name), local);
+        IntHashMapAdd(&state->locals, uintFromRef(name), local);
     }
     return (uint16)(local - 1);
 }
@@ -104,11 +101,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
     state->indent = 0;
     state->bytecode = bytecode;
     state->unnamedVariables = 0;
-    state->error = IntHashMapInit(&state->locals, 256);
-    if (state->error)
-    {
-        return;
-    }
+    IntHashMapInit(&state->locals, 256);
     if (function)
     {
         parameterCount = FunctionIndexGetParameterCount(function);
@@ -129,12 +122,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
             }
         }
     }
-    state->error = IntVectorInit(&state->blockStack);
-    if (state->error)
-    {
-        IntHashMapDispose(&state->locals);
-        return;
-    }
+    IntVectorInit(&state->blockStack);
 }
 
 void ParseStateDispose(ParseState *state)
@@ -152,37 +140,35 @@ boolean ParseStateSetError(ParseState *state, ErrorCode error)
 }
 
 
-static boolean beginBlock(ParseState *state, BlockType type)
+static void beginBlock(ParseState *state, BlockType type)
 {
     IntVectorAdd(&state->blockStack, state->indent);
     IntVectorAdd(&state->blockStack, type);
     state->indent = 0;
-    return true;
 }
 
-static boolean beginJumpBlock(ParseState *state, BlockType type)
+static void beginJumpBlock(ParseState *state, BlockType type)
 {
     /* MAX_UINT - 1 doesn't produce any warning when uint == size_t. */
     assert(ByteVectorSize(state->bytecode) <= UINT_MAX - 1);
     IntVectorAdd(&state->blockStack, (uint)ByteVectorSize(state->bytecode));
-    return beginBlock(state, type);
+    beginBlock(state, type);
 }
 
-static boolean beginLoopBlock(ParseState *state, BlockType type,
+static void beginLoopBlock(ParseState *state, BlockType type,
                               size_t loopOffset)
 {
     /* MAX_UINT - 1 doesn't produce any warning when uint == size_t. */
     assert(loopOffset <= UINT_MAX - 1);
     IntVectorAdd(&state->blockStack, (uint)loopOffset);
-    return beginJumpBlock(state, type);
+    beginJumpBlock(state, type);
 }
 
-static boolean writeElse(ParseState *state, BlockType type)
+static void writeElse(ParseState *state, BlockType type)
 {
-    return !ParseStateSetError(state,
-                               ByteVectorAdd(state->bytecode, OP_JUMP)) &&
-        beginJumpBlock(state, type) &&
-        !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
+    ByteVectorAdd(state->bytecode, OP_JUMP);
+    beginJumpBlock(state, type);
+    ByteVectorAddInt(state->bytecode, 0);
 }
 
 boolean ParseStateFinishBlock(ParseState *restrict state,
@@ -205,9 +191,10 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
             return false;
         }
 
-        state->error = FunctionIndexSetLocals(state->function, &state->locals,
-                                              getLocalsCount(state));
-        return !state->error && ParseStateWriteReturnVoid(state);
+        FunctionIndexSetLocals(state->function, &state->locals,
+                               getLocalsCount(state));
+        ParseStateWriteReturnVoid(state);
+        return true;
     }
 
     type = IntVectorPop(&state->blockStack);
@@ -232,10 +219,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         if (indent == prevIndent)
         {
             state->indent = indent;
-            if (!writeElse(state, BLOCK_ELSE))
-            {
-                return false;
-            }
+            writeElse(state, BLOCK_ELSE);
             state->indent = 0;
         }
     }
@@ -250,10 +234,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
 
         case BLOCK_CONDITION1:
             jumpOffset = IntVectorPop(&state->blockStack);
-            if (!writeElse(state, BLOCK_CONDITION2))
-            {
-                return false;
-            }
+            writeElse(state, BLOCK_CONDITION2);
             break;
 
         case BLOCK_CONDITION2:
@@ -263,18 +244,12 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         case BLOCK_WHILE:
             jumpOffset = IntVectorPop(&state->blockStack);
             loopOffset = IntVectorPop(&state->blockStack);
-            if (!writeBackwardsJump(state, loopOffset))
-            {
-                return false;
-            }
+            writeBackwardsJump(state, loopOffset);
             break;
 
         case BLOCK_UPTODATE:
             jumpOffset = IntVectorPop(&state->blockStack);
-            if (!ParseStateWriteInstruction(state, OP_UPTODATE_FINISH))
-            {
-                return false;
-            }
+            ParseStateWriteInstruction(state, OP_UPTODATE_FINISH);
             break;
         }
     }
@@ -294,24 +269,20 @@ size_t ParseStateGetJumpTarget(ParseState *state)
     return ByteVectorSize(state->bytecode);
 }
 
-boolean ParseStateBeginForwardJump(ParseState *state, Instruction instruction,
-                                   size_t *branch)
+void ParseStateBeginForwardJump(ParseState *state, Instruction instruction,
+                                size_t *branch)
 {
-    if (!ParseStateWriteInstruction(state, instruction))
-    {
-        return false;
-    }
+    ParseStateWriteInstruction(state, instruction);
     *branch = ByteVectorSize(state->bytecode);
-    return !ParseStateSetError(state, ByteVectorAddUint(state->bytecode, 0));
+    ByteVectorAddUint(state->bytecode, 0);
 }
 
-boolean ParseStateFinishJump(ParseState *state, size_t branch)
+void ParseStateFinishJump(ParseState *state, size_t branch)
 {
     ParseStateCheck(state);
     ByteVectorSetUint(
         state->bytecode, branch,
         (uint)(ParseStateGetJumpTarget(state) - branch - sizeof(uint)));
-    return true;
 }
 
 
@@ -332,13 +303,23 @@ uint ParseStateBlockIndent(ParseState *state)
 boolean ParseStateGetVariable(ParseState *state, stringref name)
 {
     uint16 local = getLocalIndex(state, name);
-    return !state->error && ParseStateGetUnnamedVariable(state, local);
+    if (state->error)
+    {
+        return false;
+    }
+    ParseStateGetUnnamedVariable(state, local);
+    return true;
 }
 
 boolean ParseStateSetVariable(ParseState *state, stringref name)
 {
     uint16 local = getLocalIndex(state, name);
-    return !state->error && ParseStateSetUnnamedVariable(state, local);
+    if (state->error)
+    {
+        return false;
+    }
+    ParseStateSetUnnamedVariable(state, local);
+    return true;
 }
 
 uint16 ParseStateCreateUnnamedVariable(ParseState *state)
@@ -348,123 +329,106 @@ uint16 ParseStateCreateUnnamedVariable(ParseState *state)
     return local;
 }
 
-boolean ParseStateGetUnnamedVariable(ParseState *state, uint16 variable)
+void ParseStateGetUnnamedVariable(ParseState *state, uint16 variable)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(state,
-                               ByteVectorAdd(state->bytecode, OP_LOAD)) &&
-        !ParseStateSetError(state,
-                            ByteVectorAddUint16(state->bytecode, variable));
+    ByteVectorAdd(state->bytecode, OP_LOAD);
+    ByteVectorAddUint16(state->bytecode, variable);
 }
 
-boolean ParseStateSetUnnamedVariable(ParseState *state, uint16 variable)
+void ParseStateSetUnnamedVariable(ParseState *state, uint16 variable)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(state,
-                               ByteVectorAdd(state->bytecode, OP_STORE)) &&
-        !ParseStateSetError(state,
-                            ByteVectorAddUint16(state->bytecode, variable));
+    ByteVectorAdd(state->bytecode, OP_STORE);
+    ByteVectorAddUint16(state->bytecode, variable);
 }
 
 
-boolean ParseStateGetField(ParseState *state, fieldref field)
+void ParseStateGetField(ParseState *state, fieldref field)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(
-        state, ByteVectorAdd(state->bytecode, OP_LOAD_FIELD)) &&
-        !ParseStateSetError(
-            state, ByteVectorAddUint(state->bytecode,
-                                     FieldIndexGetIndex(field)));
+    ByteVectorAdd(state->bytecode, OP_LOAD_FIELD);
+    ByteVectorAddUint(state->bytecode, FieldIndexGetIndex(field));
 }
 
-boolean ParseStateSetField(ParseState *state, fieldref field)
+void ParseStateSetField(ParseState *state, fieldref field)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(
-        state, ByteVectorAdd(state->bytecode, OP_STORE_FIELD)) &&
-        !ParseStateSetError(
-            state, ByteVectorAddUint(state->bytecode,
-                                     FieldIndexGetIndex(field)));
+    ByteVectorAdd(state->bytecode, OP_STORE_FIELD);
+    ByteVectorAddUint(state->bytecode, FieldIndexGetIndex(field));
 }
 
 
-boolean ParseStateWriteInstruction(ParseState *state, Instruction instruction)
+void ParseStateWriteInstruction(ParseState *state, Instruction instruction)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(state,
-                               ByteVectorAdd(state->bytecode, instruction));
+    ByteVectorAdd(state->bytecode, instruction);
 }
 
-boolean ParseStateWriteNullLiteral(ParseState *state)
+void ParseStateWriteNullLiteral(ParseState *state)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(state, ByteVectorAdd(state->bytecode, OP_NULL));
+    ByteVectorAdd(state->bytecode, OP_NULL);
 }
 
-boolean ParseStateWriteTrueLiteral(ParseState *state)
+void ParseStateWriteTrueLiteral(ParseState *state)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(state, ByteVectorAdd(state->bytecode, OP_TRUE));
+    ByteVectorAdd(state->bytecode, OP_TRUE);
 }
 
-boolean ParseStateWriteFalseLiteral(ParseState *state)
+void ParseStateWriteFalseLiteral(ParseState *state)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(state, ByteVectorAdd(state->bytecode, OP_FALSE));
+    ByteVectorAdd(state->bytecode, OP_FALSE);
 }
 
-boolean ParseStateWriteIntegerLiteral(ParseState *state, int value)
+void ParseStateWriteIntegerLiteral(ParseState *state, int value)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(
-        state, ByteVectorAdd(state->bytecode, OP_INTEGER)) &&
-        !ParseStateSetError(
-            state, ByteVectorAddInt(state->bytecode, value));
+    ByteVectorAdd(state->bytecode, OP_INTEGER);
+    ByteVectorAddInt(state->bytecode, value);
 }
 
-boolean ParseStateWriteStringLiteral(ParseState *state, stringref value)
+void ParseStateWriteStringLiteral(ParseState *state, stringref value)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(
-        state, ByteVectorAdd(state->bytecode, OP_STRING)) &&
-        !ParseStateSetError(
-            state, ByteVectorAddRef(state->bytecode, value));
+    ByteVectorAdd(state->bytecode, OP_STRING);
+    ByteVectorAddRef(state->bytecode, value);
 }
 
-boolean ParseStateWriteList(ParseState *state, uint size)
+void ParseStateWriteList(ParseState *state, uint size)
 {
     ParseStateCheck(state);
     if (!size)
     {
-        return ParseStateWriteInstruction(state, OP_EMPTY_LIST);
+        ParseStateWriteInstruction(state, OP_EMPTY_LIST);
+        return;
     }
-    return ParseStateWriteInstruction(state, OP_LIST) &&
-        !ParseStateSetError(state, ByteVectorAddUint(state->bytecode, size));
+    ParseStateWriteInstruction(state, OP_LIST);
+    ByteVectorAddUint(state->bytecode, size);
 }
 
-boolean ParseStateWriteFile(ParseState *state, stringref filename)
+void ParseStateWriteFile(ParseState *state, stringref filename)
 {
     ParseStateCheck(state);
-    return ParseStateWriteInstruction(state, OP_FILE) &&
-        !ParseStateSetError(state,
-                            ByteVectorAddRef(state->bytecode, filename));
+    ParseStateWriteInstruction(state, OP_FILE);
+    ByteVectorAddRef(state->bytecode, filename);
 }
 
-boolean ParseStateWriteFileset(ParseState *state, stringref pattern)
+void ParseStateWriteFileset(ParseState *state, stringref pattern)
 {
     ParseStateCheck(state);
-    return ParseStateWriteInstruction(state, OP_FILESET) &&
-        !ParseStateSetError(state,
-                            ByteVectorAddRef(state->bytecode, pattern));
+    ParseStateWriteInstruction(state, OP_FILESET);
+    ByteVectorAddRef(state->bytecode, pattern);
 }
 
-boolean ParseStateWriteBeginCondition(ParseState *state)
+void ParseStateWriteBeginCondition(ParseState *state)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(
-        state, ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE)) &&
-        beginJumpBlock(state, BLOCK_CONDITION1) &&
-        !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
+    ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE);
+    beginJumpBlock(state, BLOCK_CONDITION1);
+    ByteVectorAddInt(state->bytecode, 0);
 }
 
 boolean ParseStateWriteSecondConsequent(ParseState *state)
@@ -480,57 +444,51 @@ boolean ParseStateWriteFinishCondition(ParseState *state)
 }
 
 
-boolean ParseStateWriteIf(ParseState *state)
+void ParseStateWriteIf(ParseState *state)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(
-        state, ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE)) &&
-        beginJumpBlock(state, BLOCK_IF) &&
-        !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
+    ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE);
+    beginJumpBlock(state, BLOCK_IF);
+    ByteVectorAddInt(state->bytecode, 0);
 }
 
-boolean ParseStateWriteWhile(ParseState *state, size_t loopTarget)
+void ParseStateWriteWhile(ParseState *state, size_t loopTarget)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(
-        state, ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE)) &&
-        beginLoopBlock(state, BLOCK_WHILE, loopTarget) &&
-        !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
+    ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE);
+    beginLoopBlock(state, BLOCK_WHILE, loopTarget);
+    ByteVectorAddInt(state->bytecode, 0);
 }
 
-boolean ParseStateWriteUptodate(ParseState *state, stringref variableName)
+void ParseStateWriteUptodate(ParseState *state, stringref variableName)
 {
     ParseStateCheck(state);
-    return ParseStateWriteInstruction(state, OP_UPTODATE) &&
-        ParseStateSetVariable(state, variableName) &&
-        !ParseStateSetError(
-            state, ByteVectorAdd(state->bytecode, OP_BRANCH_TRUE)) &&
-        beginJumpBlock(state, BLOCK_UPTODATE) &&
-        !ParseStateSetError(state, ByteVectorAddInt(state->bytecode, 0));
+    ParseStateWriteInstruction(state, OP_UPTODATE);
+    ParseStateSetVariable(state, variableName);
+    ByteVectorAdd(state->bytecode, OP_BRANCH_TRUE);
+    beginJumpBlock(state, BLOCK_UPTODATE);
+    ByteVectorAddInt(state->bytecode, 0);
 }
 
-boolean ParseStateWriteReturn(ParseState *state, uint values)
+void ParseStateWriteReturn(ParseState *state, uint values)
 {
     assert(values);
     assert(values <= UINT8_MAX); /* TODO: report error */
     ParseStateCheck(state);
-    return !ParseStateSetError(state,
-                               ByteVectorAdd(state->bytecode, OP_RETURN)) &&
-        !ParseStateSetError(state,
-                            ByteVectorAdd(state->bytecode, (uint8)values));
+    ByteVectorAdd(state->bytecode, OP_RETURN);
+    ByteVectorAdd(state->bytecode, (uint8)values);
 }
 
-boolean ParseStateWriteReturnVoid(ParseState *state)
+void ParseStateWriteReturnVoid(ParseState *state)
 {
     ParseStateCheck(state);
-    return !ParseStateSetError(state,
-                               ByteVectorAdd(state->bytecode, OP_RETURN_VOID));
+    ByteVectorAdd(state->bytecode, OP_RETURN_VOID);
 }
 
-boolean ParseStateWriteInvocation(ParseState *state,
-                                  nativefunctionref nativeFunction,
-                                  functionref function, uint argumentCount,
-                                  uint returnValues)
+void ParseStateWriteInvocation(ParseState *state,
+                               nativefunctionref nativeFunction,
+                               functionref function, uint argumentCount,
+                               uint returnValues)
 {
     assert(argumentCount <= UINT16_MAX); /* TODO: report error */
     assert(returnValues <= UINT8_MAX); /* TODO: report error */
@@ -538,34 +496,20 @@ boolean ParseStateWriteInvocation(ParseState *state,
     if (nativeFunction)
     {
         assert(!function);
-        if (ParseStateSetError(
-                state, ByteVectorAdd(state->bytecode, OP_INVOKE_NATIVE)) ||
-            ParseStateSetError(
-                state, ByteVectorAdd(state->bytecode,
-                                     (byte)uintFromRef(nativeFunction))))
-        {
-            return false;
-        }
+        ByteVectorAdd(state->bytecode, OP_INVOKE_NATIVE);
+        ByteVectorAdd(state->bytecode, (byte)uintFromRef(nativeFunction));
     }
     else
     {
-        if (ParseStateSetError(
-                state, ByteVectorAdd(state->bytecode, OP_INVOKE)) ||
-            ParseStateSetError(
-                state, ByteVectorAddRef(state->bytecode, function)))
-        {
-            return false;
-        }
+        ByteVectorAdd(state->bytecode, OP_INVOKE);
+        ByteVectorAddRef(state->bytecode, function);
     }
-    return !ParseStateSetError(state,
-                               ByteVectorAddUint16(state->bytecode,
-                                                   (uint16)argumentCount)) &&
-        !ParseStateSetError(state, ByteVectorAdd(state->bytecode,
-                                                 (uint8)returnValues));
+    ByteVectorAddUint16(state->bytecode, (uint16)argumentCount);
+    ByteVectorAdd(state->bytecode, (uint8)returnValues);
 }
 
-boolean ParseStateReorderStack(ParseState *state,
-                               intvector *order, uint offset, uint count)
+void ParseStateReorderStack(ParseState *state,
+                            intvector *order, uint offset, uint count)
 {
     uint position;
     uint baseOffset = offset;
@@ -574,27 +518,17 @@ boolean ParseStateReorderStack(ParseState *state,
     assert(count <= UINT16_MAX);
     ParseStateCheck(state);
 
-    if (ParseStateSetError(
-            state, ByteVectorAdd(state->bytecode, OP_REORDER_STACK)) ||
-        ParseStateSetError(
-            state, ByteVectorAddUint16(state->bytecode, (uint16)count)))
-    {
-        return false;
-    }
+    ByteVectorAdd(state->bytecode, OP_REORDER_STACK);
+    ByteVectorAddUint16(state->bytecode, (uint16)count);
     while (count)
     {
         position = IntVectorGet(order, offset++);
         if (position)
         {
             assert(position - 1 <= UINT16_MAX);
-            if (ParseStateSetError(
-                    state, ByteVectorAddUint16(state->bytecode,
-                                               (uint16)(position - baseOffset - 1))))
-            {
-                return false;
-            }
+            ByteVectorAddUint16(state->bytecode,
+                                (uint16)(position - baseOffset - 1));
             count--;
         }
     }
-    return true;
 }

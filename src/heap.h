@@ -47,7 +47,7 @@ typedef struct
 } Iterator;
 
 
-extern nonnull ErrorCode HeapInit(VM *vm);
+extern nonnull void HeapInit(VM *vm);
 extern nonnull void HeapDispose(VM *vm);
 
 extern nonnull ObjectType HeapGetObjectType(VM *vm, objectref object);

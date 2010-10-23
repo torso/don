@@ -1,6 +1,6 @@
 extern ErrorCode CacheInit(void);
 extern ErrorCode CacheDispose(void);
-extern ErrorCode CacheGet(const byte *hash, cacheref *ref);
+extern void CacheGet(const byte *hash, cacheref *ref);
 extern ErrorCode CacheSetUptodate(cacheref ref);
 extern ErrorCode CacheAddDependency(cacheref ref, fileref file);
 extern boolean CacheUptodate(cacheref ref);

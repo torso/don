@@ -7,13 +7,13 @@ struct intvector
     size_t allocatedSize;
 };
 
-extern nonnull ErrorCode IntVectorInit(intvector *v);
+extern nonnull void IntVectorInit(intvector *v);
 extern nonnull void IntVectorDispose(intvector *v);
 
 extern nonnull pure size_t IntVectorSize(const intvector *v);
-extern nonnull ErrorCode IntVectorSetSize(intvector *v, size_t size);
-extern nonnull ErrorCode IntVectorGrow(intvector *v, size_t size);
-extern nonnull ErrorCode IntVectorGrowZero(intvector *v, size_t size);
+extern nonnull void IntVectorSetSize(intvector *v, size_t size);
+extern nonnull void IntVectorGrow(intvector *v, size_t size);
+extern nonnull void IntVectorGrowZero(intvector *v, size_t size);
 
 extern nonnull pure const uint *IntVectorGetPointer(const intvector *v,
                                                     size_t index);
@@ -25,14 +25,14 @@ extern nonnull void IntVectorMove(intvector *v, size_t src, size_t dst,
                                   size_t size);
 extern nonnull void IntVectorZero(intvector *v, size_t offset, size_t size);
 
-extern nonnull ErrorCode IntVectorAppend(
+extern nonnull void IntVectorAppend(
     const intvector *src, size_t srcOffset,
     intvector *dst, size_t size);
-extern nonnull ErrorCode IntVectorAppendAll(const intvector *src,
+extern nonnull void IntVectorAppendAll(const intvector *src,
                                             intvector *dst);
 
-extern nonnull ErrorCode IntVectorAdd(intvector *v, uint value);
-extern nonnull ErrorCode IntVectorAddRef(intvector *v, ref_t value);
+extern nonnull void IntVectorAdd(intvector *v, uint value);
+extern nonnull void IntVectorAddRef(intvector *v, ref_t value);
 
 extern nonnull uint IntVectorGet(const intvector *v, size_t index);
 extern nonnull ref_t IntVectorGetRef(const intvector *v, size_t index);

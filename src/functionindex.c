@@ -43,22 +43,12 @@ static FunctionInfo *getFunctionInfo(functionref function)
 }
 
 
-ErrorCode FunctionIndexInit(void)
+void FunctionIndexInit(void)
 {
-    ErrorCode error;
-
-    error = ByteVectorInit(&functionTable, 16384);
-    if (error)
-    {
-        return error;
-    }
+    ByteVectorInit(&functionTable, 16384);
     /* Position 0 is reserved to mean invalid function. */
-    error = ByteVectorSetSize(&functionTable, sizeof(int));
-    if (error)
-    {
-        return error;
-    }
-    return IntVectorInit(&localNames);
+    ByteVectorSetSize(&functionTable, sizeof(int));
+    IntVectorInit(&localNames);
 }
 
 void FunctionIndexDispose(void)
@@ -74,10 +64,7 @@ functionref FunctionIndexAddFunction(stringref name, fileref file, uint line,
     functionref function = refFromSize(ByteVectorSize(&functionTable));
     FunctionInfo *info;
 
-    if (ByteVectorGrowZero(&functionTable, sizeof(FunctionInfo)))
-    {
-        return 0;
-    }
+    ByteVectorGrowZero(&functionTable, sizeof(FunctionInfo));
     lastFunction = sizeFromRef(function);
     info = getFunctionInfo(function);
     info->name = name;
@@ -87,19 +74,14 @@ functionref FunctionIndexAddFunction(stringref name, fileref file, uint line,
     return function;
 }
 
-ErrorCode FunctionIndexAddParameter(functionref function, stringref name,
-                                    fieldref value, boolean vararg)
+void FunctionIndexAddParameter(functionref function, stringref name,
+                               fieldref value, boolean vararg)
 {
     FunctionInfo *info;
     ParameterInfo *paramInfo;
     size_t parameterInfoOffset = ByteVectorSize(&functionTable);
-    ErrorCode error;
 
-    error = ByteVectorGrow(&functionTable, sizeof(ParameterInfo));
-    if (error)
-    {
-        return error;
-    }
+    ByteVectorGrow(&functionTable, sizeof(ParameterInfo));
     info = getFunctionInfo(function);
     paramInfo = (ParameterInfo*)ByteVectorGetPointer(&functionTable,
                                                      parameterInfoOffset);
@@ -118,7 +100,6 @@ ErrorCode FunctionIndexAddParameter(functionref function, stringref name,
     }
     paramInfo->name = name;
     paramInfo->value = value;
-    return NO_ERROR;
 }
 
 void FunctionIndexFinishParameters(functionref function,
@@ -238,24 +219,19 @@ stringref FunctionIndexGetLocalName(functionref function, uint16 local)
                            getFunctionInfo(function)->localNamesOffset);
 }
 
-ErrorCode FunctionIndexSetLocals(functionref function, const inthashmap *locals,
-                                 uint count)
+void FunctionIndexSetLocals(functionref function, const inthashmap *locals,
+                            uint count)
 {
     uint offset = (uint)IntVectorSize(&localNames);
     inthashmapiterator iter;
     uint name;
     uint index;
     FunctionInfo *info = getFunctionInfo(function);
-    ErrorCode error;
 
     assert(isValidFunction(function));
     assert(count >= IntHashMapSize(locals));
 
-    error = IntVectorSetSize(&localNames, offset + count);
-    if (error)
-    {
-        return error;
-    }
+    IntVectorSetSize(&localNames, offset + count);
     info->localCount = count;
     info->localNamesOffset = offset;
     IntHashMapIteratorInit(locals, &iter);
@@ -263,5 +239,4 @@ ErrorCode FunctionIndexSetLocals(functionref function, const inthashmap *locals,
     {
         IntVectorSet(&localNames, offset + index - 1, name);
     }
-    return NO_ERROR;
 }

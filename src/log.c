@@ -113,18 +113,14 @@ static ErrorCode processNewData(Pipe *p, size_t newData)
 }
 
 
-ErrorCode LogInit(void)
+void LogInit(void)
 {
-    if (ByteVectorInit(&out.buffer, MIN_READ_BUFFER * 2) ||
-        ByteVectorInit(&err.buffer, MIN_READ_BUFFER * 2) ||
-        ByteVectorInit(&out.bufferStack, sizeof(Buffer) * 2) ||
-        ByteVectorInit(&err.bufferStack, sizeof(Buffer) * 2))
-    {
-        return OUT_OF_MEMORY;
-    }
+    ByteVectorInit(&out.buffer, MIN_READ_BUFFER * 2);
+    ByteVectorInit(&err.buffer, MIN_READ_BUFFER * 2);
+    ByteVectorInit(&out.bufferStack, sizeof(Buffer) * 2);
+    ByteVectorInit(&err.bufferStack, sizeof(Buffer) * 2);
     out.fd = STDOUT_FILENO;
     err.fd = STDERR_FILENO;
-    return NO_ERROR;
 }
 
 void LogDispose(void)
@@ -144,8 +140,6 @@ void LogParseError(fileref file, size_t line, const char *message)
 
 ErrorCode LogPrint(const char *text, size_t length)
 {
-    ErrorCode error;
-
     if (!length)
     {
         return LogNewline();
@@ -157,11 +151,7 @@ ErrorCode LogPrint(const char *text, size_t length)
         write(STDOUT_FILENO, text, length);
         return NO_ERROR;
     }
-    error = ByteVectorAddData(&out.buffer, (const byte*)text, length);
-    if (error)
-    {
-        return error;
-    }
+    ByteVectorAddData(&out.buffer, (const byte*)text, length);
     return processNewData(&out, length);
 }
 
@@ -194,18 +184,13 @@ ErrorCode LogPrintObjectAutoNewline(VM *vm, objectref object)
 {
     size_t length = HeapStringLength(vm, object);
     byte *p;
-    ErrorCode error;
 
     if (!length)
     {
         return LogNewline();
     }
     p = ByteVectorGetAppendPointer(&out.buffer);
-    error = ByteVectorGrow(&out.buffer, length + 1);
-    if (error)
-    {
-        return error;
-    }
+    ByteVectorGrow(&out.buffer, length + 1);
     HeapWriteString(vm, object, (char*)p);
     if (p[length - 1] != '\n')
     {
@@ -307,31 +292,25 @@ ErrorCode LogConsumePipes(int fdOut, int fdErr)
     return NO_ERROR;
 }
 
-static ErrorCode pushBuffer(Pipe *p, boolean echo)
+static void pushBuffer(Pipe *p, boolean echo)
 {
     size_t oldSize = ByteVectorSize(&p->bufferStack);
-    ErrorCode error;
     Buffer *buffer;
 
-    error = ByteVectorSetSize(&p->bufferStack, oldSize + sizeof(Buffer));
-    if (error)
-    {
-        return error;
-    }
+    ByteVectorSetSize(&p->bufferStack, oldSize + sizeof(Buffer));
     buffer = (Buffer*)ByteVectorGetPointer(&p->bufferStack, oldSize);
     buffer->begin = ByteVectorSize(&p->buffer);
     buffer->echo = echo;
-    return NO_ERROR;
 }
 
-ErrorCode LogPushOutBuffer(boolean echo)
+void LogPushOutBuffer(boolean echo)
 {
-    return pushBuffer(&out, echo);
+    pushBuffer(&out, echo);
 }
 
-ErrorCode LogPushErrBuffer(boolean echo)
+void LogPushErrBuffer(boolean echo)
 {
-    return pushBuffer(&err, echo);
+    pushBuffer(&err, echo);
 }
 
 static void getBuffer(Pipe *p, const byte **output, size_t *length)

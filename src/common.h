@@ -31,6 +31,11 @@ typedef uint8 byte;
 #define min(a, b) (a > b ? b : a)
 #define max(a, b) (a < b ? b : a)
 
+#define calloc mycalloc
+#define malloc mymalloc
+extern void *nonnull mycalloc(size_t count, size_t eltsize);
+extern void *nonnull mymalloc(size_t size);
+
 #ifdef DEBUG
 extern void _assert(const char *expression, const char *file, int line);
 #define assert(e) do { if (!(e)) { _assert(#e, __FILE__, __LINE__); } } while (false)

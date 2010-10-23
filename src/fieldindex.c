@@ -22,15 +22,11 @@ static FieldInfo *getFieldInfo(fieldref field)
 }
 
 
-ErrorCode FieldIndexInit(void)
+void FieldIndexInit(void)
 {
-    ErrorCode error = ByteVectorInit(&fieldTable, 1024);
-    if (error)
-    {
-        return error;
-    }
+    ByteVectorInit(&fieldTable, 1024);
     /* Position 0 is reserved to mean invalid function. */
-    return ByteVectorSetSize(&fieldTable, sizeof(int));
+    ByteVectorSetSize(&fieldTable, sizeof(int));
 }
 
 void FieldIndexDispose(void)
@@ -39,48 +35,31 @@ void FieldIndexDispose(void)
 }
 
 
-ErrorCode FieldIndexFinishBytecode(const byte *parsed, bytevector *bytecode)
+void FieldIndexFinishBytecode(const byte *parsed, bytevector *bytecode)
 {
     fieldref field;
     FieldInfo *info;
-    ErrorCode error;
 
     for (field = FieldIndexGetFirstField();
          field;
          field = FieldIndexGetNextField(field))
     {
         info = getFieldInfo(field);
-        error = ByteVectorAddData(bytecode, &parsed[info->bytecodeStart],
-                                  info->bytecodeStop - info->bytecodeStart);
-        if (error)
-        {
-            return error;
-        }
-        error = ByteVectorAdd(bytecode, OP_STORE_FIELD);
-        if (error)
-        {
-            return error;
-        }
-        error = ByteVectorAddUint(bytecode, FieldIndexGetIndex(field));
-        if (error)
-        {
-            return error;
-        }
+        ByteVectorAddData(bytecode, &parsed[info->bytecodeStart],
+                          info->bytecodeStop - info->bytecodeStart);
+        ByteVectorAdd(bytecode, OP_STORE_FIELD);
+        ByteVectorAddUint(bytecode, FieldIndexGetIndex(field));
     }
-    return ByteVectorAdd(bytecode, OP_RETURN_VOID);
+    ByteVectorAdd(bytecode, OP_RETURN_VOID);
 }
 
 
 fieldref FieldIndexAdd(fileref file, uint line, uint fileOffset)
 {
     size_t size = ByteVectorSize(&fieldTable);
-    ErrorCode error = ByteVectorSetSize(&fieldTable, size + sizeof(FieldInfo));
     FieldInfo *info;
 
-    if (error)
-    {
-        return 0;
-    }
+    ByteVectorSetSize(&fieldTable, size + sizeof(FieldInfo));
     fieldCount++;
     info = (FieldInfo*)ByteVectorGetPointer(&fieldTable, size);
     info->file = file;

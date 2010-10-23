@@ -19,13 +19,13 @@
   done, no more functions can be added.
 */
 
-extern ErrorCode FunctionIndexInit(void);
+extern void FunctionIndexInit(void);
 extern void FunctionIndexDispose(void);
 
 extern functionref FunctionIndexAddFunction(stringref name, fileref file,
                                             uint line, uint fileOffset);
-extern ErrorCode FunctionIndexAddParameter(functionref function, stringref name,
-                                           fieldref value, boolean vararg);
+extern void FunctionIndexAddParameter(functionref function, stringref name,
+                                      fieldref value, boolean vararg);
 extern void FunctionIndexFinishParameters(functionref function,
                                           uint line, uint fileOffset);
 
@@ -47,6 +47,6 @@ extern uint FunctionIndexGetVarargIndex(functionref function);
 extern uint FunctionIndexGetLocalsCount(functionref function);
 extern stringref FunctionIndexGetLocalName(functionref function,
                                                 uint16 local);
-extern nonnull ErrorCode FunctionIndexSetLocals(functionref function,
-                                                const inthashmap *locals,
-                                                uint count);
+extern nonnull void FunctionIndexSetLocals(functionref function,
+                                           const inthashmap *locals,
+                                           uint count);

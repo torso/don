@@ -46,7 +46,6 @@ static uint functionIndex[NATIVE_FUNCTION_COUNT];
 static byte *initFunctionInfo = functionInfo;
 static FunctionInfo *currentFunctionInfo;
 static uint initFunctionIndex = 1;
-static boolean failed;
 
 
 static const FunctionInfo *getFunctionInfo(nativefunctionref function)
@@ -61,11 +60,8 @@ static fieldref addValue(bytevector *bytecode, Instruction op)
     size_t start = ByteVectorSize(bytecode);
     fieldref field = FieldIndexAdd(0, 0, 0);
 
-    if (!field || ByteVectorAdd(bytecode, op))
-    {
-        failed = true;
-        return 0;
-    }
+    assert(field);
+    ByteVectorAdd(bytecode, op);
     FieldIndexSetBytecodeOffset(field, start, ByteVectorSize(bytecode));
     return field;
 }
@@ -79,7 +75,6 @@ static void addFunctionInfo(const char *name)
 
     currentFunctionInfo->name = StringPoolAdd(name);
     currentFunctionInfo->parameterCount = 0;
-    failed = failed || currentFunctionInfo->name == 0;
 }
 
 static void addParameter(const char *name, fieldref value, boolean vararg)
@@ -89,7 +84,6 @@ static void addParameter(const char *name, fieldref value, boolean vararg)
     assert(!vararg || !value);
     info->name = StringPoolAdd(name);
     info->value = value;
-    failed = failed || info->name == 0;
     currentFunctionInfo->parameterCount++;
     if (vararg)
     {
@@ -99,7 +93,7 @@ static void addParameter(const char *name, fieldref value, boolean vararg)
     initFunctionInfo += sizeof(ParameterInfo);
 }
 
-ErrorCode NativeInit(bytevector *bytecode)
+void NativeInit(bytevector *bytecode)
 {
     fieldref valueNull = addValue(bytecode, OP_NULL);
     fieldref valueTrue = addValue(bytecode, OP_TRUE);
@@ -132,7 +126,6 @@ ErrorCode NativeInit(bytevector *bytecode)
     addParameter("value", 0, false);
 
     assert(initFunctionInfo == functionInfo + sizeof(functionInfo));
-    return failed ? OUT_OF_MEMORY : NO_ERROR;
 }
 
 static char **createStringArray(VM *vm, objectref collection)
@@ -156,10 +149,6 @@ static char **createStringArray(VM *vm, objectref collection)
     }
 
     strings = (char**)malloc(size);
-    if (!strings)
-    {
-        return null;
-    }
 
     table = strings;
     stringData = (char*)&strings[count];
@@ -207,11 +196,6 @@ static void nativeEcho(VM *vm)
         /* TODO: Avoid malloc */
         length = HeapStringLength(vm, prefix);
         buffer = (char*)malloc(length);
-        if (!buffer)
-        {
-            vm->error = OUT_OF_MEMORY;
-            return;
-        }
         HeapWriteString(vm, prefix, buffer);
         LogSetPrefix(buffer, length);
         vm->error = LogPrintObjectAutoNewline(vm, message);
@@ -243,11 +227,6 @@ static void nativeExec(VM *vm, uint returnValues)
     echoOut = InterpreterPopBoolean(vm);
     failOnError = InterpreterPopBoolean(vm);
     argv = createStringArray(vm, InterpreterPop(vm));
-    if (!argv)
-    {
-        vm->error = OUT_OF_MEMORY;
-        return;
-    }
 
     status = pipe(pipeOut);
     if (status < 0)
@@ -302,19 +281,11 @@ static void nativeExec(VM *vm, uint returnValues)
 
     if (returnValues)
     {
-        vm->error = LogPushOutBuffer(echoOut);
-        if (vm->error)
-        {
-            return;
-        }
+        LogPushOutBuffer(echoOut);
     }
     if (returnValues >= 3)
     {
-        vm->error = LogPushErrBuffer(echoErr);
-        if (vm->error)
-        {
-            return;
-        }
+        LogPushErrBuffer(echoErr);
     }
     LogConsumePipes(pipeOut[0], pipeErr[0]);
 
@@ -339,17 +310,11 @@ static void nativeExec(VM *vm, uint returnValues)
             return;
         }
         LogPopOutBuffer();
-        if (!InterpreterPush(vm, log))
-        {
-            return;
-        }
+        InterpreterPush(vm, log);
     }
     if (returnValues >= 2)
     {
-        if (!InterpreterPush(vm, HeapBoxInteger(vm, status)))
-        {
-            return;
-        }
+        InterpreterPush(vm, HeapBoxInteger(vm, status));
     }
     if (returnValues >= 3)
     {
@@ -360,10 +325,7 @@ static void nativeExec(VM *vm, uint returnValues)
             return;
         }
         LogPopErrBuffer();
-        if (!InterpreterPush(vm, log))
-        {
-            return;
-        }
+        InterpreterPush(vm, log);
     }
     LogAutoNewline();
 }
@@ -417,16 +379,7 @@ void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
             file = HeapGetFile(vm, value);
             size = FileGetNameLength(file);
             text = FileFilename(FileGetName(file), &size);
-            if (!text)
-            {
-                vm->error = OUT_OF_MEMORY;
-                return;
-            }
             value = HeapCreateString(vm, text, size);
-            if (!value)
-            {
-                return;
-            }
             InterpreterPush(vm, value);
         }
         return;

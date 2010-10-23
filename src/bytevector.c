@@ -44,10 +44,6 @@ static byte *grow(bytevector *v, size_t size)
         }
         while (size > newSize);
         newData = (byte*)malloc(newSize);
-        if (!newData)
-        {
-            return null;
-        }
         memcpy(newData, v->data, v->size);
         free(v->data);
         v->data = newData;
@@ -61,29 +57,16 @@ static byte *grow(bytevector *v, size_t size)
 bytevector *ByteVectorCreate(size_t reserveSize)
 {
     bytevector *v = (bytevector*)malloc(sizeof(bytevector));
-    if (!v)
-    {
-        return null;
-    }
-    if (ByteVectorInit(v, reserveSize))
-    {
-        free(v);
-        return null;
-    }
+    ByteVectorInit(v, reserveSize);
     return v;
 }
 
-ErrorCode ByteVectorInit(bytevector *v, size_t reserveSize)
+void ByteVectorInit(bytevector *v, size_t reserveSize)
 {
     reserveSize = max(reserveSize, 4);
     v->data = (byte*)malloc(reserveSize);
-    if (!v->data)
-    {
-        return OUT_OF_MEMORY;
-    }
     v->size = 0;
     v->allocatedSize = reserveSize;
-    return NO_ERROR;
 }
 
 void ByteVectorDispose(bytevector *v)
@@ -104,57 +87,42 @@ size_t ByteVectorSize(const bytevector *v)
     return v->size;
 }
 
-ErrorCode ByteVectorSetSize(bytevector *v, size_t size)
+void ByteVectorSetSize(bytevector *v, size_t size)
 {
     if (size < v->allocatedSize)
     {
         v->size = size;
     }
-    else if (!grow(v, size - v->size))
+    else
     {
-        return OUT_OF_MEMORY;
+        grow(v, size - v->size);
     }
-    return NO_ERROR;
 }
 
-ErrorCode ByteVectorGrow(bytevector *v, size_t size)
+void ByteVectorGrow(bytevector *v, size_t size)
 {
-    if (!grow(v, size))
-    {
-        return OUT_OF_MEMORY;
-    }
-    return NO_ERROR;
+    grow(v, size);
 }
 
-ErrorCode ByteVectorGrowZero(bytevector *v, size_t size)
+void ByteVectorGrowZero(bytevector *v, size_t size)
 {
     byte *p = grow(v, size);
-    if (!p)
-    {
-        return OUT_OF_MEMORY;
-    }
     memset(p, 0, size);
-    return NO_ERROR;
 }
 
-ErrorCode ByteVectorReserveSize(bytevector *v, size_t size)
+void ByteVectorReserveSize(bytevector *v, size_t size)
 {
-    if (size <= v->allocatedSize)
+    if (size > v->allocatedSize)
     {
-        return NO_ERROR;
+        ByteVectorReserveAppendSize(v, size - v->size);
     }
-    return ByteVectorReserveSize(v, v->size + size);
 }
 
-ErrorCode ByteVectorReserveAppendSize(bytevector *v, size_t size)
+void ByteVectorReserveAppendSize(bytevector *v, size_t size)
 {
     size_t oldSize = v->size;
-    if (!grow(v, size))
-    {
-        return OUT_OF_MEMORY;
-    }
+    grow(v, size);
     v->size = oldSize;
-    return NO_ERROR;
 }
 
 size_t ByteVectorGetReservedAppendSize(const bytevector *v)
@@ -206,96 +174,64 @@ void ByteVectorFill(bytevector *v, size_t index, size_t size, byte value)
 }
 
 
-ErrorCode ByteVectorAppend(const bytevector *src, size_t srcOffset,
-                           bytevector *dst, size_t size)
+void ByteVectorAppend(const bytevector *src, size_t srcOffset,
+                      bytevector *dst, size_t size)
 {
     byte *p;
-
     checkByteVectorRange(src, srcOffset, size);
     p = grow(dst, size);
-    if (!p)
-    {
-        return OUT_OF_MEMORY;
-    }
     memcpy(p, ByteVectorGetPointer(src, srcOffset), size);
-    return NO_ERROR;
 }
 
-ErrorCode ByteVectorAppendAll(const bytevector *restrict src,
-                              bytevector *restrict dst)
+void ByteVectorAppendAll(const bytevector *restrict src,
+                         bytevector *restrict dst)
 {
-    return ByteVectorAppend(src, 0, dst, ByteVectorSize(src));
+    ByteVectorAppend(src, 0, dst, ByteVectorSize(src));
 }
 
 
-ErrorCode ByteVectorAdd(bytevector *v, byte value)
+void ByteVectorAdd(bytevector *v, byte value)
 {
     byte *p = grow(v, 1);
-    if (!p)
-    {
-        return OUT_OF_MEMORY;
-    }
     *p = value;
-    return NO_ERROR;
 }
 
-ErrorCode ByteVectorAddInt(bytevector *v, int value)
+void ByteVectorAddInt(bytevector *v, int value)
 {
-    return ByteVectorAddUint(v, (uint)value);
+    ByteVectorAddUint(v, (uint)value);
 }
 
-ErrorCode ByteVectorAddUint(bytevector *v, uint value)
+void ByteVectorAddUint(bytevector *v, uint value)
 {
     uint *p = (uint*)grow(v, sizeof(uint));
-    if (!p)
-    {
-        return OUT_OF_MEMORY;
-    }
     *p = value;
-    return NO_ERROR;
 }
 
-ErrorCode ByteVectorAddUint16(bytevector *v, uint16 value)
+void ByteVectorAddUint16(bytevector *v, uint16 value)
 {
     byte *p = grow(v, sizeof(uint16));
-    if (!p)
-    {
-        return OUT_OF_MEMORY;
-    }
     *p++ = (byte)(value >> 16);
     *p = (byte)value;
-    return NO_ERROR;
 }
 
-ErrorCode ByteVectorAddRef(bytevector *v, ref_t value)
+void ByteVectorAddRef(bytevector *v, ref_t value)
 {
-    return ByteVectorAddUint(v, uintFromRef(value));
+    ByteVectorAddUint(v, uintFromRef(value));
 }
 
-ErrorCode ByteVectorAddData(bytevector *v, const byte *data, size_t size)
+void ByteVectorAddData(bytevector *v, const byte *data, size_t size)
 {
     byte *p = grow(v, size);
-    if (!p)
-    {
-        return OUT_OF_MEMORY;
-    }
     memcpy(p, data, size);
-    return NO_ERROR;
 }
 
-ErrorCode ByteVectorInsertData(bytevector *v, size_t offset,
-                               const byte *data, size_t size)
+void ByteVectorInsertData(bytevector *v, size_t offset,
+                          const byte *data, size_t size)
 {
     byte *p = grow(v, size);
-    byte *insert;
-    if (!p)
-    {
-        return OUT_OF_MEMORY;
-    }
-    insert = ByteVectorGetPointer(v, offset);
+    byte *insert = ByteVectorGetPointer(v, offset);
     memmove(insert + size, insert, (size_t)(p - insert));
     memcpy(insert, data, size);
-    return NO_ERROR;
 }
 
 

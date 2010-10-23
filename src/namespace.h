@@ -1,9 +1,9 @@
-extern ErrorCode NamespaceInit(void);
+extern void NamespaceInit(void);
 extern void NamespaceDispose(void);
 
-extern ErrorCode NamespaceAddField(stringref name, fieldref field);
-extern ErrorCode NamespaceAddFunction(stringref name, functionref function);
-extern ErrorCode NamespaceAddTarget(stringref name, functionref target);
+extern void NamespaceAddField(stringref name, fieldref field);
+extern void NamespaceAddFunction(stringref name, functionref function);
+extern void NamespaceAddTarget(stringref name, functionref target);
 
 extern fieldref NamespaceGetField(stringref name);
 extern functionref NamespaceGetFunction(stringref name);

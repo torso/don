@@ -38,10 +38,6 @@ static pure boolean isInteger(objectref object)
 static objectref boxReference(VM *vm, ObjectType type, ref_t value)
 {
     byte *objectData = HeapAlloc(vm, type, sizeof(ref_t));
-    if (!objectData)
-    {
-        return 0;
-    }
     *(ref_t*)objectData = value;
     return HeapFinishAlloc(vm, objectData);
 }
@@ -189,7 +185,7 @@ static void iterStateInit(VM *vm, IteratorState *state, objectref object,
 }
 
 
-ErrorCode HeapInit(VM *vm)
+void HeapInit(VM *vm)
 {
     vm->heapBase = (byte*)malloc(PAGE_SIZE);
     vm->heapFree = vm->heapBase + sizeof(int);
@@ -197,8 +193,6 @@ ErrorCode HeapInit(VM *vm)
     vm->booleanFalse = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_BOOLEAN_FALSE, 0));
     vm->emptyString = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_STRING, 0));
     vm->emptyList = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_EMPTY_LIST, 0));
-    assert(!vm->error);
-    return vm->heapBase ? NO_ERROR : OUT_OF_MEMORY;
 }
 
 void HeapDispose(VM *vm)
@@ -434,10 +428,6 @@ objectref HeapCreateString(VM *vm, const char *restrict string, size_t length)
     }
 
     objectData = HeapAlloc(vm, TYPE_STRING, length);
-    if (!objectData)
-    {
-        return 0;
-    }
     memcpy(objectData, string, length);
     return HeapFinishAlloc(vm, objectData);
 }
@@ -457,10 +447,6 @@ objectref HeapCreateWrappedString(VM *vm, const char *restrict string,
         return vm->emptyString;
     }
     data = HeapAlloc(vm, TYPE_STRING_WRAPPED, sizeof(char*) + sizeof(size_t));
-    if (!data)
-    {
-        return 0;
-    }
     *(const char**)data = string;
     *(size_t*)&data[sizeof(char*)] = length;
     return HeapFinishAlloc(vm, data);
@@ -512,10 +498,6 @@ objectref HeapCreateSubstring(VM *vm, objectref string, size_t offset,
     }
     data = HeapAlloc(vm, TYPE_SUBSTRING,
                      sizeof(objectref) + 2 * sizeof(size_t));
-    if (!data)
-    {
-        return 0;
-    }
     *(objectref*)data = string;
     sizes = (size_t*)&data[sizeof(objectref)];
     sizes[0] = offset;
@@ -739,10 +721,6 @@ objectref HeapCreateRange(VM *vm, objectref lowObject, objectref highObject)
     assert(low <= high); /* TODO: Reverse range */
     assert(!subOverflow(high, low));
     objectData = HeapAlloc(vm, TYPE_INTEGER_RANGE, 2 * sizeof(int));
-    if (!objectData)
-    {
-        return 0;
-    }
     p = (int*)objectData;
     p[0] = low;
     p[1] = high;
@@ -772,10 +750,6 @@ objectref HeapSplitLines(VM *vm, objectref string, boolean trimEmptyLastLine)
     }
     lines = UtilCountNewlines(text, size);
     data = HeapAlloc(vm, TYPE_ARRAY, (lines + 1) * sizeof(objectref));
-    if (!data)
-    {
-        return 0;
-    }
     array = (objectref*)data;
     offset = 0;
     while (lines--)
@@ -943,10 +917,6 @@ boolean HeapCollectionGet(VM *vm, objectref object, objectref indexObject,
 objectref HeapCreateIterator(VM *vm, objectref object)
 {
     byte *objectData = HeapAlloc(vm, TYPE_ITERATOR, sizeof(Iterator));
-    if (!objectData)
-    {
-        return 0;
-    }
     HeapIteratorInit(vm, (Iterator*)objectData, object, false);
     return HeapFinishAlloc(vm, objectData);
 }
@@ -1013,7 +983,6 @@ boolean HeapIteratorNext(Iterator *iter, objectref *value)
              HeapIsCollection(iter->vm, *value)))
         {
             nextState = (IteratorState*)malloc(sizeof(IteratorState));
-            assert(nextState); /* TODO: Error handling. */
             nextState->nextState = currentState;
             iter->state.nextState = nextState;
             iterStateInit(iter->vm, nextState, *value, currentState->flatten);
@@ -1042,10 +1011,6 @@ objectref HeapCreateFilesetGlob(VM *vm, const char *pattern)
     size_t count;
 
     objectData = heapAlloc(vm, TYPE_ARRAY, 0);
-    if (!objectData)
-    {
-        return 0;
-    }
     files = (ref_t*)objectData;
     vm->error = FileTraverseGlob(pattern, addFile, vm);
     if (vm->error)

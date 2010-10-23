@@ -76,10 +76,6 @@ static FileEntry *getFile(fileref file)
 static char *copyString(const char *restrict string, size_t length)
 {
     char *restrict buffer = (char*)malloc(length + 1);
-    if (!buffer)
-    {
-        return null;
-    }
     memcpy(buffer, string, length);
     buffer[length] = 0;
     return buffer;
@@ -133,10 +129,6 @@ static char *getAbsoluteFilename(const char *restrict base, size_t baseLength,
     }
     assert(path[0] != '/');
     buffer = (char*)malloc(baseLength + length + 2);
-    if (!buffer)
-    {
-        return null;
-    }
     memcpy(buffer, base, baseLength);
     buffer[baseLength] = '/';
     memcpy(&buffer[baseLength + 1], path, length);
@@ -448,7 +440,6 @@ ErrorCode FileMkdir(fileref file)
 static int globTraverse(const char *filename, const struct stat *info unused,
                         int flags unused)
 {
-    fileref file;
     size_t length = strlen(filename);
 
     if (length < globalFilenamePrefixLength)
@@ -459,12 +450,8 @@ static int globTraverse(const char *filename, const struct stat *info unused,
     {
         return 0;
     }
-    file = addFile(copyString(filename, length), length, true);
-    if (!file)
-    {
-        return OUT_OF_MEMORY;
-    }
-    return globalCallback(file, globalUserdata);
+    return globalCallback(addFile(copyString(filename, length), length, true),
+                          globalUserdata);
 }
 
 const char *FileFilename(const char *path, size_t *length)
@@ -486,7 +473,6 @@ ErrorCode FileTraverseGlob(const char *pattern,
     const char *p;
     char *filename;
     size_t length;
-    fileref file;
     int error;
 
     for (p = pattern; *p; p++)
@@ -506,12 +492,7 @@ ErrorCode FileTraverseGlob(const char *pattern,
 
     if (!asterisk)
     {
-        file = FileAdd(pattern, length);
-        if (!file)
-        {
-            return OUT_OF_MEMORY;
-        }
-        return callback(file, userdata);
+        return callback(FileAdd(pattern, length), userdata);
     }
 
     if (slash)
@@ -521,10 +502,6 @@ ErrorCode FileTraverseGlob(const char *pattern,
     else
     {
         filename = cwd;
-    }
-    if (!filename)
-    {
-        return OUT_OF_MEMORY;
     }
 
     globalCallback = callback;

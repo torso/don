@@ -34,12 +34,11 @@ static boolean isSlotEmpty(const inthashmap *map, size_t slot)
     return !getSlotKey(map, slot);
 }
 
-ErrorCode IntHashMapInit(inthashmap *map, size_t capacity)
+void IntHashMapInit(inthashmap *map, size_t capacity)
 {
     map->tableSize = max(roundSizeToPow2(capacity * 4 / 3), capacity + 1);
     map->size = 0;
     map->table = (uint*)calloc(map->tableSize * 2, sizeof(uint));
-    return map->table ? NO_ERROR : OUT_OF_MEMORY;
 }
 
 void IntHashMapDispose(inthashmap *map)
@@ -47,7 +46,7 @@ void IntHashMapDispose(inthashmap *map)
     free(map->table);
 }
 
-ErrorCode IntHashMapAdd(inthashmap *map, uint key, uint value)
+void IntHashMapAdd(inthashmap *map, uint key, uint value)
 {
     size_t slot = getSlotForKey(map, key);
     assert(key);
@@ -64,7 +63,6 @@ ErrorCode IntHashMapAdd(inthashmap *map, uint key, uint value)
     map->size++;
     map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_KEY] = key;
     map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE] = value;
-    return NO_ERROR;
 }
 
 uint IntHashMapGet(const inthashmap *map, uint key)

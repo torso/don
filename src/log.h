@@ -1,4 +1,4 @@
-extern ErrorCode LogInit(void);
+extern void LogInit(void);
 extern void LogDispose(void);
 
 extern nonnull void LogParseError(fileref file, size_t line, const char *message);
@@ -28,8 +28,8 @@ extern void LogSetPrefix(const char *prefix, size_t length);
 
 extern ErrorCode LogConsumePipes(int fdOut, int fdErr);
 
-extern ErrorCode LogPushOutBuffer(boolean echo);
-extern ErrorCode LogPushErrBuffer(boolean echo);
+extern void LogPushOutBuffer(boolean echo);
+extern void LogPushErrBuffer(boolean echo);
 extern void LogGetOutBuffer(const byte **output, size_t *length);
 extern void LogGetErrBuffer(const byte **output, size_t *length);
 extern void LogPopOutBuffer(void);

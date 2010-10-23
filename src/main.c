@@ -109,14 +109,10 @@ int main(int argc, const char **argv)
     const byte *bytecodeLimit;
     size_t bytecodeSize;
 
-    if (handleError(IntVectorInit(&targets)) ||
-        handleError(LogInit()) ||
-        handleError(StringPoolInit()) ||
-        handleError(ParserAddKeywords()) ||
-        handleError(StringPoolAdd("") ? NO_ERROR : OUT_OF_MEMORY))
-    {
-        return 1;
-    }
+    IntVectorInit(&targets);
+    LogInit();
+    StringPoolInit();
+    ParserAddKeywords();
 
     for (i = 1; i < argc; i++)
     {
@@ -173,11 +169,7 @@ int main(int argc, const char **argv)
         else
         {
             name = StringPoolAdd(argv[i]);
-            if (handleError(name ? NO_ERROR : OUT_OF_MEMORY) ||
-                handleError(IntVectorAddRef(&targets, name)))
-            {
-                return 1;
-            }
+            IntVectorAddRef(&targets, name);
         }
     }
     if (!inputFilename)
@@ -187,29 +179,23 @@ int main(int argc, const char **argv)
     if (!IntVectorSize(&targets))
     {
         name = StringPoolAdd("default");
-        if (handleError(name ? NO_ERROR : OUT_OF_MEMORY) ||
-            handleError(IntVectorAddRef(&targets, name)))
-        {
-            return 1;
-        }
+        IntVectorAddRef(&targets, name);
     }
 
-    if (handleError(FileInit()) ||
-        handleError(FunctionIndexInit()) ||
-        handleError(FunctionIndexAddFunction(StringPoolAdd(""), 0, 0, 0) ?
-                    NO_ERROR : OUT_OF_MEMORY) ||
-        handleError(FieldIndexInit()) ||
-        handleError(NamespaceInit()) ||
-        handleError(ByteVectorInit(&parsed, 65536)))
+    if (handleError(FileInit()))
     {
         IntVectorDispose(&targets);
         cleanup();
         return 1;
     }
+    FunctionIndexInit();
+    FunctionIndexAddFunction(StringPoolAdd(""), 0, 0, 0);
+    FieldIndexInit();
+    NamespaceInit();
+    ByteVectorInit(&parsed, 65536);
 
     inputFile = FileAdd(inputFilename, strlen(inputFilename));
-    if (handleError(inputFile ? NO_ERROR : OUT_OF_MEMORY) ||
-        handleError(ParseFile(inputFile)))
+    if (handleError(ParseFile(inputFile)))
     {
         IntVectorDispose(&targets);
         ByteVectorDispose(&parsed);
@@ -260,30 +246,13 @@ int main(int argc, const char **argv)
         }
     }
 
-    if (handleError(NativeInit(&parsed)))
-    {
-        IntVectorDispose(&targets);
-        ByteVectorDispose(&parsed);
-        cleanup();
-        return 1;
-    }
+    NativeInit(&parsed);
 
     bytecode = ByteVectorDisposeContainer(&parsed);
-    if (handleError(ByteVectorInit(&parsed, 65536)))
-    {
-        free(bytecode);
-        cleanup();
-        return 1;
-    }
+    ByteVectorInit(&parsed, 65536);
     if (!parseFailed)
     {
-        if (handleError(FieldIndexFinishBytecode(bytecode, &parsed)))
-        {
-            free(bytecode);
-            ByteVectorDispose(&parsed);
-            cleanup();
-            return 1;
-        }
+        FieldIndexFinishBytecode(bytecode, &parsed);
     }
     free(bytecode);
 
@@ -374,4 +343,28 @@ int main(int argc, const char **argv)
     handleError(CacheDispose());
     cleanup();
     return 0;
+}
+
+#undef calloc
+void *mycalloc(size_t count, size_t eltsize)
+{
+    void *p = calloc(count, eltsize);
+    if (!p)
+    {
+        printf("Out of memory\n");
+        abort();
+    }
+    return p;
+}
+
+#undef malloc
+void *mymalloc(size_t size)
+{
+    void *p = malloc(size);
+    if (!p)
+    {
+        printf("Out of memory\n");
+        abort();
+    }
+    return p;
 }

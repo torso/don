@@ -13,9 +13,9 @@ typedef struct
     size_t position;
 } inthashmapiterator;
 
-extern nonnull ErrorCode IntHashMapInit(inthashmap *map, size_t capacity);
+extern nonnull void IntHashMapInit(inthashmap *map, size_t capacity);
 extern nonnull void IntHashMapDispose(inthashmap *map);
-extern nonnull ErrorCode IntHashMapAdd(inthashmap *map, uint key, uint value);
+extern nonnull void IntHashMapAdd(inthashmap *map, uint key, uint value);
 extern nonnull uint IntHashMapGet(const inthashmap *map, uint key);
 extern nonnull pure size_t IntHashMapSize(const inthashmap *map);
 

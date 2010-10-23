@@ -6,20 +6,11 @@ static inthashmap fieldIndex;
 static inthashmap functionIndex;
 static inthashmap targetIndex;
 
-ErrorCode NamespaceInit(void)
+void NamespaceInit(void)
 {
-    ErrorCode error;
-    error = IntHashMapInit(&fieldIndex, 10);
-    if (error)
-    {
-        return error;
-    }
-    error = IntHashMapInit(&functionIndex, 10);
-    if (error)
-    {
-        return error;
-    }
-    return IntHashMapInit(&targetIndex, 10);
+    IntHashMapInit(&fieldIndex, 10);
+    IntHashMapInit(&functionIndex, 10);
+    IntHashMapInit(&targetIndex, 10);
 }
 
 void NamespaceDispose(void)
@@ -30,25 +21,20 @@ void NamespaceDispose(void)
 }
 
 
-ErrorCode NamespaceAddField(stringref name, fieldref field)
+void NamespaceAddField(stringref name, fieldref field)
 {
-    return IntHashMapAdd(&fieldIndex, uintFromRef(name), uintFromRef(field));
+    IntHashMapAdd(&fieldIndex, uintFromRef(name), uintFromRef(field));
 }
 
-ErrorCode NamespaceAddFunction(stringref name, functionref function)
+void NamespaceAddFunction(stringref name, functionref function)
 {
-    return IntHashMapAdd(&functionIndex,
-                         uintFromRef(name), uintFromRef(function));
+    IntHashMapAdd(&functionIndex, uintFromRef(name), uintFromRef(function));
 }
 
-ErrorCode NamespaceAddTarget(stringref name, functionref target)
+void NamespaceAddTarget(stringref name, functionref target)
 {
-    ErrorCode error = NamespaceAddFunction(name, target);
-    if (error)
-    {
-        return error;
-    }
-    return IntHashMapAdd(&targetIndex, uintFromRef(name), uintFromRef(target));
+    NamespaceAddFunction(name, target);
+    IntHashMapAdd(&targetIndex, uintFromRef(name), uintFromRef(target));
 }
 
 

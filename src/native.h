@@ -1,4 +1,4 @@
-extern ErrorCode NativeInit(bytevector *bytecode);
+extern void NativeInit(bytevector *bytecode);
 extern nonnull void NativeInvoke(VM *vm, nativefunctionref function,
                                  uint returnValues);
 extern nativefunctionref NativeFindFunction(stringref name);

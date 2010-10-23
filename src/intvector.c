@@ -37,17 +37,10 @@ static uint *grow(intvector *v, size_t size)
         do
         {
             newSize *= 2;
-            if (newSize < v->allocatedSize)
-            {
-                return null;
-            }
+            assert(newSize >= v->allocatedSize); /* TODO: Handle error. */
         }
         while (size > newSize);
         newData = (uint*)malloc(newSize * sizeof(uint));
-        if (!newData)
-        {
-            return null;
-        }
         memcpy(newData, v->data, v->size * sizeof(uint));
         free(v->data);
         v->data = newData;
@@ -58,17 +51,12 @@ static uint *grow(intvector *v, size_t size)
 }
 
 
-ErrorCode IntVectorInit(intvector *v)
+void IntVectorInit(intvector *v)
 {
     size_t reserveSize = 4;
     v->data = (uint*)malloc(reserveSize * sizeof(uint));
-    if (!v->data)
-    {
-        return OUT_OF_MEMORY;
-    }
     v->size = 0;
     v->allocatedSize = reserveSize;
-    return NO_ERROR;
 }
 
 void IntVectorDispose(intvector *v)
@@ -84,33 +72,26 @@ size_t IntVectorSize(const intvector *v)
     return v->size;
 }
 
-ErrorCode IntVectorSetSize(intvector *v, size_t size)
+void IntVectorSetSize(intvector *v, size_t size)
 {
     if (size < v->allocatedSize)
     {
         v->size = size;
     }
-    else if (!grow(v, size - v->size))
+    else
     {
-        return OUT_OF_MEMORY;
+        grow(v, size - v->size);
     }
-    return NO_ERROR;
 }
 
-ErrorCode IntVectorGrow(intvector *v, size_t size)
+void IntVectorGrow(intvector *v, size_t size)
 {
-    return grow(v, size) ? NO_ERROR : OUT_OF_MEMORY;
+    grow(v, size);
 }
 
-ErrorCode IntVectorGrowZero(intvector *v, size_t size)
+void IntVectorGrowZero(intvector *v, size_t size)
 {
-    uint *p = grow(v, size);
-    if (!p)
-    {
-        return OUT_OF_MEMORY;
-    }
-    memset(p, 0, size * sizeof(uint));
-    return NO_ERROR;
+    memset(grow(v, size), 0, size * sizeof(uint));
 }
 
 
@@ -143,41 +124,30 @@ void IntVectorZero(intvector *v, size_t offset, size_t size)
 }
 
 
-ErrorCode IntVectorAppend(const intvector *src, size_t srcOffset,
+void IntVectorAppend(const intvector *src, size_t srcOffset,
                           intvector *dst, size_t size)
 {
     uint *p;
-
     checkIntVectorRange(src, srcOffset, size);
     p = grow(dst, size);
-    if (!p)
-    {
-        return OUT_OF_MEMORY;
-    }
     memcpy(p, IntVectorGetPointer(src, srcOffset), size * sizeof(uint));
-    return NO_ERROR;
 }
 
-ErrorCode IntVectorAppendAll(const intvector *src, intvector *dst)
+void IntVectorAppendAll(const intvector *src, intvector *dst)
 {
-    return IntVectorAppend(src, 0, dst, IntVectorSize(src));
+    IntVectorAppend(src, 0, dst, IntVectorSize(src));
 }
 
 
-ErrorCode IntVectorAdd(intvector *v, uint value)
+void IntVectorAdd(intvector *v, uint value)
 {
     uint *p = grow(v, 1);
-    if (!p)
-    {
-        return OUT_OF_MEMORY;
-    }
     *p = value;
-    return NO_ERROR;
 }
 
-ErrorCode IntVectorAddRef(intvector *v, ref_t value)
+void IntVectorAddRef(intvector *v, ref_t value)
 {
-    return IntVectorAdd(v, uintFromRef(value));
+    IntVectorAdd(v, uintFromRef(value));
 }
 
 
