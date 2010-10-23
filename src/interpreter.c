@@ -117,7 +117,6 @@ static void execute(VM *vm, functionref target)
     Iterator *piter;
     functionref function;
     nativefunctionref nativeFunction;
-    fileref file;
     HashState hashState;
     byte hash[DIGEST_SIZE];
 
@@ -148,12 +147,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_STRING:
-            value = HeapCreatePooledString(vm, BytecodeReadRef(&ip));
-            if (!value)
-            {
-                return;
-            }
-            push(vm, value);
+            push(vm, HeapCreatePooledString(vm, BytecodeReadRef(&ip)));
             break;
 
         case OP_EMPTY_LIST:
@@ -175,24 +169,14 @@ static void execute(VM *vm, functionref target)
 
         case OP_FILE:
             string = BytecodeReadRef(&ip);
-            file = FileAdd(StringPoolGetString(string),
-                           StringPoolGetStringLength(string));
-            value = HeapCreateFile(vm, file);
-            if (!value)
-            {
-                return;
-            }
-            push(vm, value);
+            push(vm, HeapCreateFile(
+                     vm, FileAdd(StringPoolGetString(string),
+                                 StringPoolGetStringLength(string))));
             break;
 
         case OP_FILESET:
-            value = HeapCreateFilesetGlob(
-                vm, StringPoolGetString(BytecodeReadRef(&ip)));
-            if (!value)
-            {
-                return;
-            }
-            push(vm, value);
+            push(vm, HeapCreateFilesetGlob(
+                     vm, StringPoolGetString(BytecodeReadRef(&ip))));
             break;
 
         case OP_POP:

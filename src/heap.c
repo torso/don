@@ -757,20 +757,12 @@ objectref HeapSplitLines(VM *vm, objectref string, boolean trimEmptyLastLine)
     {
         lineLength = (size_t)(strchr(text, '\n') - text);
         *array = HeapCreateSubstring(vm, string, offset, lineLength);
-        if (!*array)
-        {
-            return 0;
-        }
         array++;
         lineLength++;
         text += lineLength;
         offset += lineLength;
     }
     *array = HeapCreateSubstring(vm, string, offset, size - offset);
-    if (!*array)
-    {
-        return 0;
-    }
     return HeapFinishAlloc(vm, data);
 }
 
@@ -1023,10 +1015,6 @@ objectref HeapCreateFilesetGlob(VM *vm, const char *pattern)
     for (count = HeapCollectionSize(vm, object); count; count--, files++)
     {
         *files = HeapCreateFile(vm, *files);
-        if (!*files)
-        {
-            return 0;
-        }
     }
     return object;
 }
