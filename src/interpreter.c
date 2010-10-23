@@ -418,7 +418,7 @@ static void execute(VM *vm, functionref target)
         case OP_INVOKE:
             function = BytecodeReadRef(&ip);
             argumentCount = BytecodeReadUint16(&ip);
-            assert(argumentCount == FunctionIndexGetParameterCount(function)); /* TODO */
+            assert(argumentCount == FunctionIndexGetParameterCount(function));
             returnValueCount = *ip++;
             pushStackFrame(vm, &ip, &bp, function, returnValueCount);
             baseIP = ip;
@@ -427,7 +427,7 @@ static void execute(VM *vm, functionref target)
         case OP_INVOKE_NATIVE:
             nativeFunction = refFromUint(*ip++);
             argumentCount = BytecodeReadUint16(&ip);
-            assert(argumentCount == NativeGetParameterCount(nativeFunction)); /* TODO */
+            assert(argumentCount == NativeGetParameterCount(nativeFunction));
             NativeInvoke(vm, nativeFunction, *ip++);
             break;
 
