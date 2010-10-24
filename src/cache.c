@@ -1,9 +1,11 @@
+#include <stdarg.h>
 #include "memory.h"
 #include "common.h"
 #include "bytevector.h"
 #include "cache.h"
 #include "file.h"
 #include "hash.h"
+#include "log.h"
 #include "util.h"
 
 #define FILENAME_DIGEST_SIZE (DIGEST_SIZE - (DIGEST_SIZE % 5))
@@ -16,6 +18,9 @@ typedef struct
     boolean newEntry;
     boolean written;
     bytevector dependencies;
+    size_t outLength;
+    size_t errLength;
+    char *output;
 } Entry;
 
 static fileref cacheDir;
@@ -34,6 +39,7 @@ static void clearEntry(Entry *entry)
 {
     assert(entry->file);
     ByteVectorDispose(&entry->dependencies);
+    free(entry->output);
     entry->file = 0;
 }
 
@@ -62,7 +68,8 @@ static void writeEntry(Entry *restrict entry, fileref indexFile)
     depend = ByteVectorGetPointer(&entry->dependencies, 0);
     dependLimit = depend + ByteVectorSize(&entry->dependencies);
 
-    size = sizeof(size_t) + FILENAME_DIGEST_SIZE;
+    size = 3 * sizeof(size_t) + FILENAME_DIGEST_SIZE +
+        entry->outLength + entry->errLength;
     while (depend < dependLimit)
     {
         file = *(fileref*)depend;
@@ -76,6 +83,15 @@ static void writeEntry(Entry *restrict entry, fileref indexFile)
     *(size_t*)data = size;
     memcpy(data + sizeof(size_t), entry->hash, FILENAME_DIGEST_SIZE);
     size = sizeof(size_t) + FILENAME_DIGEST_SIZE;
+    ((size_t*)(data + size))[0] = entry->outLength;
+    ((size_t*)(data + size))[1] = entry->errLength;
+    size += 2 * sizeof(size_t);
+    if (entry->outLength || entry->errLength)
+    {
+        assert(entry->output);
+        memcpy(data + size, entry->output, entry->outLength + entry->errLength);
+        size += entry->outLength + entry->errLength;
+    }
     depend = ByteVectorGetPointer(&entry->dependencies, 0);
     while (depend < dependLimit)
     {
@@ -120,7 +136,7 @@ static boolean readIndex(fileref file)
             break;
         }
         entrySize = *(size_t*)data;
-        if (entrySize < sizeof(size_t) + FILENAME_DIGEST_SIZE)
+        if (entrySize < 3 * sizeof(size_t) + FILENAME_DIGEST_SIZE)
         {
             break;
         }
@@ -136,6 +152,16 @@ static boolean readIndex(fileref file)
             entry = getEntry(ref);
         }
         data += FILENAME_DIGEST_SIZE;
+        entry->outLength = ((size_t*)data)[0];
+        entry->errLength = ((size_t*)data)[1];
+        data += 2 * sizeof(size_t);
+        entry->output = null;
+        if (entry->outLength || entry->errLength)
+        {
+            entry->output = (char*)malloc(entry->outLength + entry->errLength);
+            memcpy(entry->output, data, entry->outLength + entry->errLength);
+            data += entry->outLength + entry->errLength;
+        }
         while (data < limit)
         {
             if ((size_t)(limit - data) < sizeof(size_t))
@@ -280,18 +306,41 @@ cacheref CacheGetFromFile(fileref file)
     return 0;
 }
 
-void CacheSetUptodate(cacheref ref)
+void CacheAddDependency(cacheref ref, fileref file)
+{
+    addDependency(getEntry(ref), file, FileGetStatusBlob(file));
+}
+
+void CacheSetUptodate(cacheref ref, size_t outLength, size_t errLength,
+                      char *output)
 {
     Entry *entry = getEntry(ref);
+
     assert(!entry->uptodate);
     assert(!entry->written);
+
+    entry->outLength = outLength;
+    entry->errLength = errLength;
+    entry->output = output;
     entry->uptodate = true;
     writeEntry(entry, cacheIndexOut);
 }
 
-void CacheAddDependency(cacheref ref, fileref file)
+void CacheEchoCachedOutput(cacheref ref)
 {
-    addDependency(getEntry(ref), file, FileGetStatusBlob(file));
+    Entry *entry = getEntry(ref);
+
+    assert(entry->uptodate);
+
+    if (entry->outLength)
+    {
+        LogPrintAutoNewline(entry->output, entry->outLength);
+    }
+    if (entry->errLength)
+    {
+        LogPrintErrAutoNewline(entry->output + entry->outLength,
+                               entry->errLength);
+    }
 }
 
 boolean CacheUptodate(cacheref ref)

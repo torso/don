@@ -17,7 +17,7 @@
 #include "stringpool.h"
 #include "task.h"
 
-#define TOTAL_PARAMETER_COUNT 18
+#define TOTAL_PARAMETER_COUNT 21
 
 typedef enum
 {
@@ -126,6 +126,7 @@ void NativeInit(bytevector *bytecode)
     addParameter("label", 0, false);
     addParameter("version", 0, false);
     addParameter("key", 0, true);
+    addParameter("echoCachedOutput", valueTrue, false);
 
     addFunctionInfo("isUptodate");
     addParameter("cacheFile", 0, false);
@@ -139,6 +140,8 @@ void NativeInit(bytevector *bytecode)
 
     addFunctionInfo("setUptodate");
     addParameter("cacheFile", 0, false);
+    addParameter("out", 0, false);
+    addParameter("err", 0, false);
 
     addFunctionInfo("size");
     addParameter("value", 0, false);
@@ -324,10 +327,12 @@ static void nativeGetCache(VM *vm, uint returnValues)
     objectref key;
     objectref value;
     cacheref ref;
+    boolean echoCachedOutput;
     HashState hashState;
     byte hash[DIGEST_SIZE];
     Iterator iter;
 
+    echoCachedOutput = InterpreterPop(vm);
     HashInit(&hashState);
     key = InterpreterPop(vm);
     HeapHash(vm, InterpreterPop(vm), &hashState);
@@ -335,6 +340,10 @@ static void nativeGetCache(VM *vm, uint returnValues)
     HeapHash(vm, key, &hashState);
     HashFinal(&hashState, hash);
     ref = CacheGet(hash);
+    if (echoCachedOutput && CacheUptodate(ref))
+    {
+        CacheEchoCachedOutput(ref);
+    }
     if (CacheIsNewEntry(ref))
     {
         HeapIteratorInit(vm, &iter, key, true);
@@ -363,8 +372,20 @@ static void nativeIsUptodate(VM *vm, uint returnValues)
 
 static void nativeSetUptodate(VM *vm)
 {
+    objectref err = InterpreterPop(vm);
+    objectref out = InterpreterPop(vm);
     cacheref ref = CacheGetFromFile(HeapGetFile(vm, InterpreterPop(vm)));
-    CacheSetUptodate(ref);
+    size_t outLength = HeapStringLength(vm, out);
+    size_t errLength = HeapStringLength(vm, err);
+    char *output = null;
+
+    if (outLength || errLength)
+    {
+        output = (char*)malloc(outLength + errLength);
+        HeapWriteString(vm, out, output);
+        HeapWriteString(vm, err, output + outLength);
+    }
+    CacheSetUptodate(ref, outLength, errLength, output);
 }
 
 void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)

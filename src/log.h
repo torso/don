@@ -9,6 +9,7 @@ extern attrprintf(3, 0) void LogParseError(fileref file, size_t line,
   Prints the specified text to standard output without any formatting.
 */
 extern nonnull void LogPrint(const char *text, size_t length);
+extern nonnull void LogPrintErr(const char *text, size_t length);
 
 /*
   Calls LogPrint after counting the number of characters in the zero terminated
@@ -22,6 +23,7 @@ extern nonnull void LogPrintErrSZ(const char *text);
   string does not end with a newline, one is added automatically.
 */
 extern nonnull void LogPrintAutoNewline(const char *text, size_t length);
+extern nonnull void LogPrintErrAutoNewline(const char *text, size_t length);
 
 extern nonnull void LogPrintObjectAutoNewline(VM *vm, objectref object);
 extern nonnull void LogPrintErrObjectAutoNewline(VM *vm, objectref object);

@@ -258,7 +258,6 @@ int main(int argc, const char **argv)
     {
         return 1;
     }
-    FileMkdir(FileAdd(".don", 4));
     CacheInit();
 
     for (j = 0; j < IntVectorSize(&targets); j++)

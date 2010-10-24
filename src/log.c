@@ -170,6 +170,11 @@ void LogPrint(const char *text, size_t length)
     logPrint(&out, text, length);
 }
 
+void LogPrintErr(const char *text, size_t length)
+{
+    logPrint(&err, text, length);
+}
+
 void LogPrintSZ(const char *text)
 {
     logPrint(&out, text, strlen(text));
@@ -191,6 +196,20 @@ void LogPrintAutoNewline(const char *text, size_t length)
     if (text[length - 1] != '\n')
     {
         LogNewline();
+    }
+}
+
+void LogPrintErrAutoNewline(const char *text, size_t length)
+{
+    if (!length)
+    {
+        LogErrNewline();
+        return;
+    }
+    LogPrintErr(text, length);
+    if (text[length - 1] != '\n')
+    {
+        LogErrNewline();
     }
 }
 

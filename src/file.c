@@ -127,6 +127,32 @@ static char *getAbsoluteFilename(const char *restrict base, size_t baseLength,
     return cleanFilename(buffer, baseLength + length + 1);
 }
 
+static char *stripFilename(const char *filename, size_t length,
+                           size_t *resultLength)
+{
+    const char *p;
+    char *path;
+
+    /* TODO: Handle filenames ending with /. and /.. */
+    if (filename[length - 1] == '/')
+    {
+        return null;
+    }
+    for (p = filename + length; p >= filename; p--)
+    {
+        if (*p == '/')
+        {
+            length = (size_t)(p - filename);
+            path = (char*)malloc(length + 1);
+            memcpy(path, filename, length);
+            path[length] = 0;
+            *resultLength = length;
+            return path;
+        }
+    }
+    return null;
+}
+
 static fileref addFile(const char *filename, size_t filenameLength,
                        boolean filenameOwner)
 {
@@ -158,6 +184,73 @@ static fileref addFile(const char *filename, size_t filenameLength,
     return refFromSize(file + 1);
 }
 
+static void createDirectory(const char *path, size_t length, boolean mutablePath)
+{
+    struct stat s;
+    char *p;
+    char *end;
+    uint level = 0;
+
+    assert(length); /* TODO: Error handling. */
+    assert(!mutablePath || !path[length]);
+    if (path[length - 1] == '/')
+    {
+        length--;
+    }
+    if (mutablePath)
+    {
+        p = (char*)path;
+    }
+    else
+    {
+        p = (char*)malloc(length + 1);
+        memcpy(p, path, length);
+        p[length] = 0;
+    }
+    end = p + length;
+
+    for (;;)
+    {
+        if (!stat(p, &s))
+        {
+            if (S_ISDIR(s.st_mode))
+            {
+                break;
+            }
+            if (p != path)
+            {
+                free(p);
+            }
+            errno = ENOTDIR;
+            TaskFailIO(p);
+        }
+        else if (errno != ENOENT)
+        {
+            TaskFailIO(p);
+        }
+        for (end--; *end != '/'; end--)
+        {
+            assert(end != p); /* TODO: Error handling. */
+        }
+        *end = 0;
+        level++;
+    }
+    while (level)
+    {
+        *end = '/';
+        end += strlen(end);
+        level--;
+        if (mkdir(p, S_IRWXU | S_IRWXG | S_IRWXO))
+        {
+            TaskFailIO(p);
+        }
+    }
+    if (p != path)
+    {
+        free(p);
+    }
+}
+
 static void fileClose(FileEntry *fe)
 {
     if (fe->fd)
@@ -169,6 +262,9 @@ static void fileClose(FileEntry *fe)
 
 static void fileOpen(FileEntry *fe, boolean append, boolean failOnFileNotFound)
 {
+    char *path;
+    size_t length;
+
     if (append)
     {
         if (fe->fd)
@@ -188,6 +284,17 @@ static void fileOpen(FileEntry *fe, boolean append, boolean failOnFileNotFound)
     if (fe->fd == -1)
     {
         fe->fd = 0;
+        if (append && errno == ENOENT)
+        {
+            path = stripFilename(fe->name, fe->nameLength, &length);
+            if (path)
+            {
+                createDirectory(path, length, true);
+                free(path);
+                fileOpen(fe, append, failOnFileNotFound);
+                return;
+            }
+        }
         if (failOnFileNotFound || errno != ENOENT)
         {
             TaskFailIO(fe->name);
@@ -415,15 +522,7 @@ void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
 void FileMkdir(fileref file)
 {
     FileEntry *fe = getFile(file);
-
-    if (fileStat(fe, false) && S_ISDIR(fe->mode))
-    {
-        return;
-    }
-    if (mkdir(fe->name, S_IRWXU | S_IRWXG | S_IRWXO | S_ISUID | S_ISGID))
-    {
-        TaskFailIO(fe->name);
-    }
+    createDirectory(fe->name, fe->nameLength, false);
 }
 
 
