@@ -426,6 +426,11 @@ void FileOpenAppend(fileref file)
     fileOpen(getFile(file), true, true);
 }
 
+void FileClose(fileref file)
+{
+    fileClose(getFile(file));
+}
+
 void FileCloseSync(fileref file)
 {
     FileEntry *fe = getFile(file);

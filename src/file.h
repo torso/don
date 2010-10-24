@@ -25,6 +25,7 @@ extern nonnull const byte *FileGetStatusBlob(fileref file);
 extern pure size_t FileGetStatusBlobSize(void);
 
 extern void FileOpenAppend(fileref file);
+extern void FileClose(fileref file);
 extern void FileCloseSync(fileref file);
 extern nonnull void FileWrite(fileref file, const byte *data, size_t size);
 
