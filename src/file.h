@@ -15,6 +15,9 @@ extern void FileDisposeAll(void);
 extern nonnull fileref FileAdd(const char *filename, size_t length);
 extern nonnull fileref FileAddRelative(const char *base, size_t baseLength,
                                        const char *filename, size_t length);
+extern fileref FileAddRelativeExt(const char *base, size_t baseLength,
+                                  const char *filename, size_t length,
+                                  const char *extension, size_t extLength);
 extern void FileDispose(fileref file);
 
 extern const char *FileGetNameBlob(fileref file);

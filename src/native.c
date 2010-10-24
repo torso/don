@@ -17,7 +17,7 @@
 #include "stringpool.h"
 #include "task.h"
 
-#define TOTAL_PARAMETER_COUNT 21
+#define TOTAL_PARAMETER_COUNT 24
 
 typedef enum
 {
@@ -25,6 +25,7 @@ typedef enum
     NATIVE_ECHO,
     NATIVE_EXEC,
     NATIVE_FAIL,
+    NATIVE_FILE,
     NATIVE_FILENAME,
     NATIVE_GETCACHE,
     NATIVE_ISUPTODATE,
@@ -118,6 +119,11 @@ void NativeInit(bytevector *bytecode)
     addFunctionInfo("fail");
     addParameter("message", valueNull, false);
     addParameter("condition", valueTrue, false);
+
+    addFunctionInfo("file");
+    addParameter("path", 0, false);
+    addParameter("name", 0, false);
+    addParameter("extension", valueNull, false);
 
     addFunctionInfo("filename");
     addParameter("path", 0, false);
@@ -322,6 +328,18 @@ static void nativeExec(VM *vm, uint returnValues)
     LogAutoNewline();
 }
 
+static void nativeFile(VM *vm, uint returnValues)
+{
+    objectref extension = InterpreterPop(vm);
+    objectref name = InterpreterPop(vm);
+    objectref path = InterpreterPop(vm);
+    fileref file = HeapGetFileFromParts(vm, path, name, extension);
+    if (returnValues)
+    {
+        InterpreterPush(vm, HeapCreateFile(vm, file));
+    }
+}
+
 static void nativeGetCache(VM *vm, uint returnValues)
 {
     objectref key;
@@ -428,10 +446,15 @@ void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         TaskFailVM(vm);
         return;
 
+    case NATIVE_FILE:
+        assert(returnValues <= 1);
+        nativeFile(vm, returnValues);
+        return;
+
     case NATIVE_FILENAME:
         assert(returnValues <= 1);
         value = InterpreterPop(vm);
-        assert(HeapGetObjectType(vm, value) == TYPE_FILE);
+        assert(HeapIsFile(vm, value));
         if (returnValues)
         {
             file = HeapGetFile(vm, value);

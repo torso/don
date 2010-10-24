@@ -72,59 +72,146 @@ static char *copyString(const char *restrict string, size_t length)
     return buffer;
 }
 
-static char *cleanFilename(char *filename, size_t length)
+/* TODO: Handle backslashes */
+static char *cleanFilename(char *filename, size_t length, size_t *resultLength)
 {
     char *p;
 
-    /* TODO: Strip /../ */
-    for (p = filename + length; p != filename; p--)
+    assert(length);
+    p = filename + length;
+    do
     {
+        p--;
         if (*p == '/')
         {
-            if (!p[1] || p[1] == '/')
+            if (p[1] == '/')
             {
                 /* Strip // */
                 memmove(p, p + 1, length - (size_t)(p - filename));
                 length--;
             }
-            else if (p[1] == '.' && (!p[2] || p[2] == '/'))
+            else if (p[1] == '.')
             {
-                /* Strip /./ */
-                memmove(p, p + 2, length - (size_t)(p - filename) - 1);
-                length -= 2;
+                if (p[2] == '/')
+                {
+                    /* Strip /./ */
+                    memmove(p, p + 2, length - (size_t)(p - filename) - 1);
+                    length -= 2;
+                }
+                else if (!p[2])
+                {
+                    /* Strip /. */
+                    p[1] = 0;
+                    length--;
+                }
+                else if (p[2] == '.' && p[3] == '/' && !p[4])
+                {
+                    /* Strip /../ -> /.. */
+                    p[3] = 0;
+                    length--;
+                }
             }
         }
     }
+    while (p != filename);
+
+    while (length >= 3 && p[0] == '/' && p[1] == '.' && p[2] == '.')
+    {
+        if (!p[3])
+        {
+            p[1] = 0;
+            length = 1;
+            break;
+        }
+        if (p[3] == '/')
+        {
+            memmove(p, p + 3, length - 2);
+            length -= 3;
+            continue;
+        }
+        break;
+    }
+    *resultLength = length;
     return filename;
 }
 
-static char *getAbsoluteFilename(const char *restrict base, size_t baseLength,
-                                 const char *restrict path, size_t length)
+static char *getAbsoluteFilename(
+    const char *restrict base, size_t baseLength,
+    const char *restrict path, size_t length,
+    const char *restrict extension, size_t extLength,
+    size_t *resultLength)
 {
+    char *restrict base2;
+    size_t base2Length = 0;
     char *restrict buffer;
+    size_t i;
 
-    if (path[0] == '/')
+    if (length && path[0] == '/')
     {
-        return cleanFilename(copyString(path, length), length);
+        baseLength = 0;
     }
-    if (!base)
+    else if (!base)
     {
         base = cwd;
         baseLength = cwdLength;
     }
-
-    assert(base[0] == '/');
-    if (!length || (length == 1 && path[0] == '.'))
+    else if (!baseLength || base[0] != '/')
     {
-        return cleanFilename(copyString(base, baseLength), baseLength);;
+        base2 = cwd;
+        base2Length = cwdLength;
     }
-    assert(path[0] != '/');
-    buffer = (char*)malloc(baseLength + length + 2);
-    memcpy(buffer, base, baseLength);
-    buffer[baseLength] = '/';
-    memcpy(&buffer[baseLength + 1], path, length);
-    buffer[baseLength + length + 1] = 0;
-    return cleanFilename(buffer, baseLength + length + 1);
+
+    buffer = (char*)malloc(base2Length + baseLength + length + extLength + 3);
+    memcpy(buffer, base2, base2Length);
+    memcpy(buffer + base2Length, base, baseLength);
+    buffer[base2Length + baseLength] = '/';
+    memcpy(&buffer[base2Length + baseLength + 1], path, length);
+    buffer[base2Length + baseLength + length + 1] = 0;
+    cleanFilename(buffer, base2Length + baseLength + length + 1, resultLength);
+
+    if (extension &&
+        buffer[*resultLength - 1] != '/' &&
+        (*resultLength < 3 ||
+         buffer[*resultLength - 3] != '/' ||
+         buffer[*resultLength - 2] != '.' ||
+         buffer[*resultLength - 1] != '.'))
+    {
+        if (extLength && extension[0] == '.')
+        {
+            extension++;
+            extLength--;
+        }
+        for (i = *resultLength;; i--)
+        {
+            if (buffer[i] == '/')
+            {
+                if (extLength)
+                {
+                    buffer[*resultLength] = '.';
+                    memcpy(buffer + *resultLength + 1, extension, extLength);
+                    *resultLength += extLength + 1;
+                    buffer[*resultLength] = 0;
+                }
+                break;
+            }
+            if (buffer[i] == '.')
+            {
+                if (extLength)
+                {
+                    memcpy(buffer + i + 1, extension, extLength);
+                    buffer[i + extLength + 1] = 0;
+                    *resultLength = i + 1 + extLength;
+                }
+                else
+                {
+                    buffer[i] = 0;
+                    *resultLength = i;
+                }
+                break;
+            }
+        }
+    }
+    return buffer;
 }
 
 static char *stripFilename(const char *filename, size_t length,
@@ -162,6 +249,8 @@ static fileref addFile(const char *filename, size_t filenameLength,
     {
         return 0;
     }
+
+    assert(!filename[filenameLength]);
 
     file = sizeof(fileIndex) / sizeof(fileIndex[0]);
     for (;;)
@@ -337,12 +426,26 @@ static boolean fileStat(FileEntry *fe, boolean failOnFileNotFound)
 
 void FileInit(void)
 {
+    char *buffer;
+
     cwd = getcwd(null, 0);
     if (!cwd)
     {
         TaskFailOOM();
     }
     cwdLength = strlen(cwd);
+    assert(cwdLength);
+    assert(cwd[0] == '/');
+    if (cwd[cwdLength - 1] != '/')
+    {
+        buffer = (char*)malloc(cwdLength + 2);
+        memcpy(buffer, cwd, cwdLength);
+        free(cwd);
+        buffer[cwdLength] = '/';
+        buffer[cwdLength + 1] = '/';
+        cwd = buffer;
+        cwdLength++;
+    }
 }
 
 void FileDisposeAll(void)
@@ -362,15 +465,25 @@ void FileDisposeAll(void)
 
 fileref FileAdd(const char *filename, size_t length)
 {
-    filename = getAbsoluteFilename(null, 0, filename, length);
-    return addFile(filename, strlen(filename), true);
+    filename = getAbsoluteFilename(null, 0, filename, length, null, 0, &length);
+    return addFile(filename, length, true);
 }
 
 fileref FileAddRelative(const char *base, size_t baseLength,
                         const char *filename, size_t length)
 {
-    filename = getAbsoluteFilename(base, baseLength, filename, length);
-    return addFile(filename, strlen(filename), true);
+    filename = getAbsoluteFilename(base, baseLength, filename, length, null, 0,
+                                   &length);
+    return addFile(filename, length, true);
+}
+
+fileref FileAddRelativeExt(const char *base, size_t baseLength,
+                           const char *filename, size_t length,
+                           const char *extension, size_t extLength)
+{
+    filename = getAbsoluteFilename(base, baseLength, filename, length,
+                                   extension, extLength, &length);
+    return addFile(filename, length, true);
 }
 
 void FileDispose(fileref file)
@@ -593,11 +706,15 @@ void FileTraverseGlob(const char *pattern,
 
     if (slash)
     {
-        filename = getAbsoluteFilename(null, 0, pattern, (size_t)(slash - pattern));
+        filename = getAbsoluteFilename(null, 0,
+                                       pattern, (size_t)(slash - pattern),
+                                       null, 0,
+                                       &length);
     }
     else
     {
         filename = cwd;
+        length = cwdLength;
     }
 
     globalCallback = callback;

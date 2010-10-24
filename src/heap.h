@@ -98,7 +98,12 @@ extern nonnull char *HeapWriteString(VM *restrict vm, objectref object,
 
 
 extern nonnull objectref HeapCreateFile(VM *vm, fileref file);
+extern nonnull boolean HeapIsFile(VM *vm, objectref object);
 extern nonnull fileref HeapGetFile(VM *vm, objectref object);
+extern nonnull fileref HeapGetFileFromParts(VM *vm,
+                                            objectref path,
+                                            objectref name,
+                                            objectref extension);
 
 
 

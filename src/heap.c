@@ -83,6 +83,21 @@ static const char *getString(VM *vm, objectref object)
     return null;
 }
 
+static const char *toString(VM *vm, objectref object, boolean *copy)
+{
+    *copy = false;
+    if (HeapIsString(vm, object))
+    {
+        return getString(vm, object);
+    }
+    if (HeapIsFile(vm, object))
+    {
+        return FileGetName(HeapGetFile(vm, object));
+    }
+    assert(false); /* TODO */
+    return null;
+}
+
 
 static boolean isCollectionType(ObjectType type)
 {
@@ -706,9 +721,59 @@ objectref HeapCreateFile(VM *vm, fileref file)
     return boxReference(vm, TYPE_FILE, file);
 }
 
+boolean HeapIsFile(VM *vm, objectref object)
+{
+    return HeapGetObjectType(vm, object) == TYPE_FILE;
+}
+
 fileref HeapGetFile(VM *vm, objectref object)
 {
     return unboxReference(vm, TYPE_FILE, object);
+}
+
+fileref HeapGetFileFromParts(VM *vm, objectref path, objectref name,
+                             objectref extension)
+{
+    const char *pathString;
+    const char *nameString;
+    const char *extensionString = null;
+    size_t pathLength;
+    size_t nameLength;
+    size_t extensionLength = 0;
+    boolean freePath;
+    boolean freeName;
+    boolean freeExtension = false;
+    fileref file;
+
+    assert(HeapIsString(vm, path) || HeapIsFile(vm, path));
+    assert(HeapIsString(vm, name) || HeapIsFile(vm, name));
+    assert(!extension || HeapIsString(vm, extension));
+
+    pathString = toString(vm, path, &freePath);
+    pathLength = HeapStringLength(vm, path);
+    nameString = toString(vm, name, &freeName);
+    nameLength = HeapStringLength(vm, name);
+    if (extension)
+    {
+        extensionString = toString(vm, extension, &freeExtension);
+        extensionLength = HeapStringLength(vm, extension);
+    }
+    file = FileAddRelativeExt(pathString, pathLength,
+                              nameString, nameLength,
+                              extensionString, extensionLength);
+    if (freePath)
+    {
+        free((void*)pathString);
+    }
+    if (freeName)
+    {
+        free((void*)nameString);
+    }
+    if (freeExtension)
+    {
+        free((void*)extensionString);
+    }
+    return file;
 }
 
 
