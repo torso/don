@@ -204,7 +204,7 @@ void CacheDispose(void)
     {
         if (entry->file)
         {
-            if (!entry->written)
+            if (!entry->written && entry->uptodate)
             {
                 writeEntry(entry, cacheIndexOut);
             }
