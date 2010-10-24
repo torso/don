@@ -127,12 +127,12 @@ static boolean readIndex(fileref file)
         limit = data + entrySize;
         size -= entrySize;
         data += sizeof(size_t);
-        CacheGet(data, &ref);
+        ref = CacheGet(data);
         entry = getEntry(ref);
         if (!entry->newEntry)
         {
             clearEntry(entry);
-            CacheGet(data, &ref);
+            ref = CacheGet(data);
             entry = getEntry(ref);
         }
         data += FILENAME_DIGEST_SIZE;
@@ -216,7 +216,7 @@ void CacheDispose(void)
     FileRename(cacheIndexOut, cacheIndex, false);
 }
 
-void CacheGet(const byte *hash, cacheref *ref)
+cacheref CacheGet(const byte *hash)
 {
     Entry *entry;
     Entry *freeEntry = null;
@@ -234,8 +234,7 @@ void CacheGet(const byte *hash, cacheref *ref)
         {
             if (!memcmp(hash, entry->hash, FILENAME_DIGEST_SIZE))
             {
-                *ref = refFromSize((size_t)(entry - entries));
-                return;
+                return refFromSize((size_t)(entry - entries));
             }
         }
     }
@@ -255,7 +254,25 @@ void CacheGet(const byte *hash, cacheref *ref)
     freeEntry->uptodate = false;
     freeEntry->newEntry = true;
     freeEntry->written = false;
-    *ref = refFromSize((size_t)(freeEntry - entries));
+    return refFromSize((size_t)(freeEntry - entries));
+}
+
+cacheref CacheGetFromFile(fileref file)
+{
+    Entry *entry;
+
+    assert(file);
+    for (entry = entries + 1;
+         entry < entries + sizeof(entries) / sizeof(Entry);
+         entry++)
+    {
+        if (entry->file == file)
+        {
+            return refFromSize((size_t)(entry - entries));
+        }
+    }
+    assert(false); /* TODO: Error handling. */
+    return 0;
 }
 
 void CacheSetUptodate(cacheref ref)

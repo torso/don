@@ -6,8 +6,10 @@
 #include <unistd.h>
 #include "common.h"
 #include "vm.h"
+#include "cache.h"
 #include "fieldindex.h"
 #include "file.h"
+#include "hash.h"
 #include "instruction.h"
 #include "interpreter.h"
 #include "log.h"
@@ -15,7 +17,7 @@
 #include "stringpool.h"
 #include "task.h"
 
-#define TOTAL_PARAMETER_COUNT 13
+#define TOTAL_PARAMETER_COUNT 18
 
 typedef enum
 {
@@ -24,8 +26,11 @@ typedef enum
     NATIVE_EXEC,
     NATIVE_FAIL,
     NATIVE_FILENAME,
+    NATIVE_GETCACHE,
+    NATIVE_ISUPTODATE,
     NATIVE_LINES,
     NATIVE_READFILE,
+    NATIVE_SETUPTODATE,
     NATIVE_SIZE,
 
     NATIVE_FUNCTION_COUNT
@@ -117,12 +122,23 @@ void NativeInit(bytevector *bytecode)
     addFunctionInfo("filename");
     addParameter("path", 0, false);
 
+    addFunctionInfo("getCache");
+    addParameter("label", 0, false);
+    addParameter("version", 0, false);
+    addParameter("key", 0, true);
+
+    addFunctionInfo("isUptodate");
+    addParameter("cacheFile", 0, false);
+
     addFunctionInfo("lines");
     addParameter("value", 0, false);
     addParameter("trimEmptyLastLine", valueTrue, false);
 
     addFunctionInfo("readFile");
     addParameter("file", 0, false);
+
+    addFunctionInfo("setUptodate");
+    addParameter("cacheFile", 0, false);
 
     addFunctionInfo("size");
     addParameter("value", 0, false);
@@ -303,6 +319,54 @@ static void nativeExec(VM *vm, uint returnValues)
     LogAutoNewline();
 }
 
+static void nativeGetCache(VM *vm, uint returnValues)
+{
+    objectref key;
+    objectref value;
+    cacheref ref;
+    HashState hashState;
+    byte hash[DIGEST_SIZE];
+    Iterator iter;
+
+    HashInit(&hashState);
+    key = InterpreterPop(vm);
+    HeapHash(vm, InterpreterPop(vm), &hashState);
+    HeapHash(vm, InterpreterPop(vm), &hashState);
+    HeapHash(vm, key, &hashState);
+    HashFinal(&hashState, hash);
+    ref = CacheGet(hash);
+    if (CacheIsNewEntry(ref))
+    {
+        HeapIteratorInit(vm, &iter, key, true);
+        while (HeapIteratorNext(&iter, &value))
+        {
+            if (HeapGetObjectType(vm, value) == TYPE_FILE)
+            {
+                CacheAddDependency(ref, HeapGetFile(vm, value));
+            }
+        }
+    }
+    if (returnValues)
+    {
+        InterpreterPush(vm, HeapCreateFile(vm, CacheGetFile(ref)));
+    }
+}
+
+static void nativeIsUptodate(VM *vm, uint returnValues)
+{
+    cacheref ref = CacheGetFromFile(HeapGetFile(vm, InterpreterPop(vm)));
+    if (returnValues)
+    {
+        InterpreterPushBoolean(vm, CacheUptodate(ref));
+    }
+}
+
+static void nativeSetUptodate(VM *vm)
+{
+    cacheref ref = CacheGetFromFile(HeapGetFile(vm, InterpreterPop(vm)));
+    CacheSetUptodate(ref);
+}
+
 void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
 {
     objectref value;
@@ -357,6 +421,16 @@ void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
         }
         return;
 
+    case NATIVE_GETCACHE:
+        assert(returnValues <= 1);
+        nativeGetCache(vm, returnValues);
+        return;
+
+    case NATIVE_ISUPTODATE:
+        assert(returnValues <= 1);
+        nativeIsUptodate(vm, returnValues);
+        return;
+
     case NATIVE_LINES:
         assert(returnValues <= 1);
         condition = InterpreterPopBoolean(vm);
@@ -393,6 +467,11 @@ void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
             }
             InterpreterPush(vm, value);
         }
+        return;
+
+    case NATIVE_SETUPTODATE:
+        assert(!returnValues);
+        nativeSetUptodate(vm);
         return;
 
     case NATIVE_SIZE:

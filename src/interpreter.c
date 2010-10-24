@@ -4,11 +4,9 @@
 #include "common.h"
 #include "vm.h"
 #include "bytecode.h"
-#include "cache.h"
 #include "fieldindex.h"
 #include "file.h"
 #include "functionindex.h"
-#include "hash.h"
 #include "instruction.h"
 #include "interpreter.h"
 #include "log.h"
@@ -22,6 +20,7 @@ static const boolean TRACE = false;
 #define peek InterpreterPeek
 #define pop InterpreterPop
 #define push InterpreterPush
+#define pushBoolean InterpreterPushBoolean
 
 objectref InterpreterPeek(VM *vm)
 {
@@ -43,7 +42,7 @@ void InterpreterPush(VM *vm, objectref value)
     IntVectorAddRef(&vm->stack, value);
 }
 
-static void pushBoolean(VM *vm, boolean value)
+void InterpreterPushBoolean(VM *vm, boolean value)
 {
     if (value)
     {
@@ -113,12 +112,9 @@ static void execute(VM *vm, functionref target)
     size_t size2;
     stringref string;
     byte *objectData;
-    Iterator iter;
     Iterator *piter;
     functionref function;
     nativefunctionref nativeFunction;
-    HashState hashState;
-    byte hash[DIGEST_SIZE];
 
     local = FunctionIndexGetLocalsCount(target);
     IntVectorSetSize(&vm->stack, local);
@@ -429,36 +425,6 @@ static void execute(VM *vm, functionref target)
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == NativeGetParameterCount(nativeFunction));
             NativeInvoke(vm, nativeFunction, *ip++);
-            break;
-
-        case OP_UPTODATE:
-            assert(!vm->currentCache);
-            HashInit(&hashState);
-            value = pop(vm);
-            HeapHash(vm, value, &hashState);
-            HashFinal(&hashState, hash);
-            CacheGet(hash, &vm->currentCache);
-            if (CacheIsNewEntry(vm->currentCache))
-            {
-                HeapIteratorInit(vm, &iter, value, true);
-                while (HeapIteratorNext(&iter, &value))
-                {
-                    if (HeapGetObjectType(vm, value) == TYPE_FILE)
-                    {
-                        CacheAddDependency(vm->currentCache,
-                                           HeapGetFile(vm, value));
-                    }
-                }
-            }
-            pushBoolean(vm, CacheUptodate(vm->currentCache));
-            value = HeapCreateFile(vm, CacheGetFile(vm->currentCache));
-            push(vm, value);
-            break;
-
-        case OP_UPTODATE_FINISH:
-            assert(vm->currentCache);
-            CacheSetUptodate(vm->currentCache);
-            vm->currentCache = 0;
             break;
 
         case OP_UNKNOWN_VALUE:
