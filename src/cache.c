@@ -198,6 +198,11 @@ void CacheDispose(void)
 {
     Entry *entry;
 
+    if (!cacheIndexOut)
+    {
+        return;
+    }
+
     for (entry = entries + 1;
          entry < entries + sizeof(entries) / sizeof(Entry);
          entry++)
