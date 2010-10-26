@@ -17,7 +17,7 @@
 #include "stringpool.h"
 #include "task.h"
 
-#define TOTAL_PARAMETER_COUNT 24
+#define TOTAL_PARAMETER_COUNT 26
 
 typedef enum
 {
@@ -28,6 +28,7 @@ typedef enum
     NATIVE_FILE,
     NATIVE_FILENAME,
     NATIVE_GETCACHE,
+    NATIVE_INDEXOF,
     NATIVE_ISUPTODATE,
     NATIVE_LINES,
     NATIVE_READFILE,
@@ -133,6 +134,10 @@ void NativeInit(bytevector *bytecode)
     addParameter("version", 0, false);
     addParameter("key", 0, true);
     addParameter("echoCachedOutput", valueTrue, false);
+
+    addFunctionInfo("indexOf");
+    addParameter("data", 0, false);
+    addParameter("element", 0, false);
 
     addFunctionInfo("isUptodate");
     addParameter("cacheFile", 0, false);
@@ -379,6 +384,20 @@ static void nativeGetCache(VM *vm, uint returnValues)
     }
 }
 
+static void nativeIndexOf(VM *vm, uint returnValues)
+{
+    objectref element = InterpreterPop(vm);
+    objectref data = InterpreterPop(vm);
+
+    /* TODO: Support collections */
+    assert(HeapIsString(vm, data));
+    assert(HeapIsString(vm, element));
+    if (returnValues)
+    {
+        InterpreterPush(vm, HeapStringIndexOf(vm, data, element));
+    }
+}
+
 static void nativeIsUptodate(VM *vm, uint returnValues)
 {
     cacheref ref = CacheGetFromFile(HeapGetFile(vm, InterpreterPop(vm)));
@@ -468,6 +487,11 @@ void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
     case NATIVE_GETCACHE:
         assert(returnValues <= 1);
         nativeGetCache(vm, returnValues);
+        return;
+
+    case NATIVE_INDEXOF:
+        assert(returnValues <= 1);
+        nativeIndexOf(vm, returnValues);
         return;
 
     case NATIVE_ISUPTODATE:

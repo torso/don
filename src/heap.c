@@ -715,6 +715,35 @@ char *HeapWriteString(VM *vm, objectref object, char *dst)
     return null;
 }
 
+objectref HeapStringIndexOf(VM *vm, objectref text, objectref substring)
+{
+    size_t textLength = HeapStringLength(vm, text);
+    size_t subLength = HeapStringLength(vm, substring);
+    const char *pstart = getString(vm, text);
+    const char *p = pstart;
+    const char *plimit = p + textLength - subLength + 1;
+    const char *s = getString(vm, substring);
+
+    if (!subLength || subLength > textLength)
+    {
+        return HeapBoxInteger(vm, -1);
+    }
+    while (p < plimit)
+    {
+        p = (const char*)memchr(p, *s, (size_t)(plimit - p));
+        if (!p)
+        {
+            return HeapBoxInteger(vm, -1);
+        }
+        if (!memcmp(p, s, subLength))
+        {
+            return HeapBoxSize(vm, (size_t)(p - pstart));
+        }
+        p++;
+    }
+    return HeapBoxInteger(vm, -1);
+}
+
 
 objectref HeapCreateFile(VM *vm, fileref file)
 {

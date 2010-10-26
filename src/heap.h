@@ -95,6 +95,9 @@ extern nonnull size_t HeapStringLength(VM *vm, objectref object);
 extern nonnull char *HeapWriteString(VM *restrict vm, objectref object,
                                      char *restrict dst);
 
+extern nonnull objectref HeapStringIndexOf(VM *vm, objectref text,
+                                           objectref substring);
+
 
 
 extern nonnull objectref HeapCreateFile(VM *vm, fileref file);
