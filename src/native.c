@@ -19,6 +19,8 @@
 
 #define TOTAL_PARAMETER_COUNT 29
 
+typedef void (*nativeInvoke)(VM *, uint);
+
 typedef enum
 {
     NATIVE_NULL,
@@ -52,6 +54,7 @@ static byte functionInfo[
      sizeof(ParameterInfo)) * (NATIVE_FUNCTION_COUNT - 1) +
     sizeof(ParameterInfo) * TOTAL_PARAMETER_COUNT];
 static uint functionIndex[NATIVE_FUNCTION_COUNT];
+static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT];
 
 static byte *initFunctionInfo = functionInfo;
 static FunctionInfo *currentFunctionInfo;
@@ -211,15 +214,14 @@ static objectref readFile(VM *vm, objectref object)
     return HeapCreateWrappedString(vm, text, size);
 }
 
-static void nativeEcho(VM *vm)
+static void nativeEcho(VM *vm, uint returnValues)
 {
-    objectref prefix;
-    objectref message;
+    objectref prefix = InterpreterPop(vm);
+    objectref message = InterpreterPop(vm);
     char *buffer;
     size_t length;
 
-    prefix = InterpreterPop(vm);
-    message = InterpreterPop(vm);
+    assert(!returnValues);
     if (prefix)
     {
         /* TODO: Avoid malloc */
@@ -239,23 +241,21 @@ static void nativeEcho(VM *vm)
 
 static void nativeExec(VM *vm, uint returnValues)
 {
+    boolean echoErr = InterpreterPopBoolean(vm);
+    boolean echoOut = InterpreterPopBoolean(vm);
+    boolean failOnError = InterpreterPopBoolean(vm);
+    objectref command = InterpreterPop(vm);
     char **argv;
     pid_t pid;
     int status;
     int pipeOut[2];
     int pipeErr[2];
-    boolean echoOut;
-    boolean echoErr;
-    boolean failOnError;
     objectref log;
     const byte *p;
     size_t length;
 
     assert(returnValues <= 3);
-    echoErr = InterpreterPopBoolean(vm);
-    echoOut = InterpreterPopBoolean(vm);
-    failOnError = InterpreterPopBoolean(vm);
-    argv = createStringArray(vm, InterpreterPop(vm));
+    argv = createStringArray(vm, command);
 
     status = pipe(pipeOut);
     if (status == -1)
@@ -339,34 +339,78 @@ static void nativeExec(VM *vm, uint returnValues)
     LogAutoNewline();
 }
 
+static void nativeFail(VM *vm, uint returnValues)
+{
+    boolean condition = InterpreterPopBoolean(vm);
+    objectref message = InterpreterPop(vm);
+
+    assert(!returnValues);
+    if (!condition)
+    {
+        return;
+    }
+    LogPrintErrSZ("BUILD FAILED");
+    if (!message || !HeapStringLength(vm, message))
+    {
+        LogErrNewline();
+    }
+    else
+    {
+        LogPrintErrSZ(": ");
+        LogPrintErrObjectAutoNewline(vm, message);
+    }
+    TaskFailVM(vm);
+}
+
 static void nativeFile(VM *vm, uint returnValues)
 {
     objectref extension = InterpreterPop(vm);
     objectref name = InterpreterPop(vm);
     objectref path = InterpreterPop(vm);
     fileref file = HeapGetFileFromParts(vm, path, name, extension);
+
+    assert(returnValues <= 1);
     if (returnValues)
     {
         InterpreterPush(vm, HeapCreateFile(vm, file));
     }
 }
 
+static void nativeFilename(VM *vm, uint returnValues)
+{
+    objectref path = InterpreterPop(vm);
+    fileref file;
+    size_t size;
+    const char *text;
+
+    assert(returnValues <= 1);
+    assert(HeapIsFile(vm, path));
+    if (returnValues)
+    {
+        file = HeapGetFile(vm, path);
+        size = FileGetNameLength(file);
+        text = FileFilename(FileGetName(file), &size);
+        InterpreterPush(vm, HeapCreateString(vm, text, size));
+    }
+}
+
 static void nativeGetCache(VM *vm, uint returnValues)
 {
-    objectref key;
-    objectref value;
+    boolean echoCachedOutput = InterpreterPopBoolean(vm);
+    objectref key = InterpreterPop(vm);
+    objectref version = InterpreterPop(vm);
+    objectref label = InterpreterPop(vm);
     cacheref ref;
+    objectref value;
     fileref file;
-    boolean echoCachedOutput;
     HashState hashState;
     byte hash[DIGEST_SIZE];
     Iterator iter;
 
-    echoCachedOutput = InterpreterPop(vm);
+    assert(returnValues <= 1);
     HashInit(&hashState);
-    key = InterpreterPop(vm);
-    HeapHash(vm, InterpreterPop(vm), &hashState);
-    HeapHash(vm, InterpreterPop(vm), &hashState);
+    HeapHash(vm, label, &hashState);
+    HeapHash(vm, version, &hashState);
     HeapHash(vm, key, &hashState);
     HashFinal(&hashState, hash);
     ref = CacheGet(hash);
@@ -399,6 +443,7 @@ static void nativeIndexOf(VM *vm, uint returnValues)
     objectref data = InterpreterPop(vm);
 
     /* TODO: Support collections */
+    assert(returnValues <= 1);
     assert(HeapIsString(vm, data));
     assert(HeapIsString(vm, element));
     if (returnValues)
@@ -410,9 +455,39 @@ static void nativeIndexOf(VM *vm, uint returnValues)
 static void nativeIsUptodate(VM *vm, uint returnValues)
 {
     cacheref ref = CacheGetFromFile(HeapGetFile(vm, InterpreterPop(vm)));
+
+    assert(returnValues <= 1);
     if (returnValues)
     {
         InterpreterPushBoolean(vm, CacheUptodate(ref));
+    }
+}
+
+static void nativeLines(VM *vm, uint returnValues)
+{
+    boolean trimEmptyLastLine = InterpreterPopBoolean(vm);
+    objectref value = InterpreterPop(vm);
+
+    assert(returnValues <= 1);
+    if (returnValues)
+    {
+        if (HeapGetObjectType(vm, value) == TYPE_FILE)
+        {
+            value = readFile(vm, value);
+        }
+        assert(HeapIsString(vm, value));
+        InterpreterPush(vm, HeapSplitLines(vm, value, trimEmptyLastLine));
+    }
+}
+
+static void nativeReadFile(VM *vm, uint returnValues)
+{
+    objectref file = InterpreterPop(vm);
+
+    assert(returnValues <= 1);
+    if (returnValues)
+    {
+        InterpreterPush(vm, readFile(vm, file));
     }
 }
 
@@ -430,6 +505,7 @@ static void nativeReplace(VM *vm, uint returnValues)
     char *p;
     uint replacements = 0;
 
+    assert(returnValues <= 2);
     if (!returnValues)
     {
         return;
@@ -478,7 +554,7 @@ static void nativeReplace(VM *vm, uint returnValues)
     HeapWriteSubstring(vm, data, offset, dataLength - offset, p);
 }
 
-static void nativeSetUptodate(VM *vm)
+static void nativeSetUptodate(VM *vm, uint returnValues)
 {
     objectref err = InterpreterPop(vm);
     objectref out = InterpreterPop(vm);
@@ -487,6 +563,7 @@ static void nativeSetUptodate(VM *vm)
     size_t errLength = HeapStringLength(vm, err);
     char *output = null;
 
+    assert(!returnValues);
     if (outLength || errLength)
     {
         output = (char*)malloc(outLength + errLength);
@@ -496,151 +573,29 @@ static void nativeSetUptodate(VM *vm)
     CacheSetUptodate(ref, outLength, errLength, output);
 }
 
-void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
+static void nativeSize(VM *vm, uint returnValues)
 {
-    objectref value;
-    size_t size;
-    fileref file;
-    const char *text;
-    boolean condition;
+    objectref value = InterpreterPop(vm);
 
-    switch ((NativeFunction)function)
+    assert(returnValues <= 1);
+    if (returnValues)
     {
-    case NATIVE_ECHO:
-        assert(!returnValues);
-        nativeEcho(vm);
-        return;
-
-    case NATIVE_EXEC:
-        nativeExec(vm, returnValues);
-        return;
-
-    case NATIVE_FAIL:
-        assert(!returnValues);
-        if (!HeapIsTrue(vm, InterpreterPop(vm)))
+        if (HeapIsCollection(vm, value))
         {
-            InterpreterPop(vm);
-            return;
-        }
-        value = InterpreterPop(vm);
-        LogPrintErrSZ("BUILD FAILED");
-        if (!value || !HeapStringLength(vm, value))
-        {
-            LogErrNewline();
+            assert(HeapCollectionSize(vm, value) <= INT_MAX);
+            InterpreterPush(vm, HeapBoxSize(vm, HeapCollectionSize(vm, value)));
         }
         else
         {
-            LogPrintErrSZ(": ");
-            LogPrintErrObjectAutoNewline(vm, value);
-        }
-        TaskFailVM(vm);
-        return;
-
-    case NATIVE_FILE:
-        assert(returnValues <= 1);
-        nativeFile(vm, returnValues);
-        return;
-
-    case NATIVE_FILENAME:
-        assert(returnValues <= 1);
-        value = InterpreterPop(vm);
-        assert(HeapIsFile(vm, value));
-        if (returnValues)
-        {
-            file = HeapGetFile(vm, value);
-            size = FileGetNameLength(file);
-            text = FileFilename(FileGetName(file), &size);
-            value = HeapCreateString(vm, text, size);
-            InterpreterPush(vm, value);
-        }
-        return;
-
-    case NATIVE_GETCACHE:
-        assert(returnValues <= 1);
-        nativeGetCache(vm, returnValues);
-        return;
-
-    case NATIVE_INDEXOF:
-        assert(returnValues <= 1);
-        nativeIndexOf(vm, returnValues);
-        return;
-
-    case NATIVE_ISUPTODATE:
-        assert(returnValues <= 1);
-        nativeIsUptodate(vm, returnValues);
-        return;
-
-    case NATIVE_LINES:
-        assert(returnValues <= 1);
-        condition = InterpreterPopBoolean(vm);
-        value = InterpreterPop(vm);
-        if (returnValues)
-        {
-            if (HeapGetObjectType(vm, value) == TYPE_FILE)
-            {
-                value = readFile(vm, value);
-                if (!value)
-                {
-                    return;
-                }
-            }
             assert(HeapIsString(vm, value));
-            value = HeapSplitLines(vm, value, condition);
-            if (!value)
-            {
-                return;
-            }
-            InterpreterPush(vm, value);
+            InterpreterPush(vm, HeapBoxSize(vm, HeapStringLength(vm, value)));
         }
-        return;
-
-    case NATIVE_READFILE:
-        assert(returnValues <= 1);
-        value = InterpreterPop(vm);
-        if (returnValues)
-        {
-            value = readFile(vm, value);
-            if (!value)
-            {
-                return;
-            }
-            InterpreterPush(vm, value);
-        }
-        return;
-
-    case NATIVE_REPLACE:
-        assert(returnValues <= 2);
-        nativeReplace(vm, returnValues);
-        return;
-
-    case NATIVE_SETUPTODATE:
-        assert(!returnValues);
-        nativeSetUptodate(vm);
-        return;
-
-    case NATIVE_SIZE:
-        value = InterpreterPop(vm);
-        if (returnValues)
-        {
-            assert(returnValues == 1);
-            if (HeapIsCollection(vm, value))
-            {
-                assert(HeapCollectionSize(vm, value) <= INT_MAX);
-                InterpreterPush(vm, HeapBoxSize(vm, HeapCollectionSize(vm, value)));
-            }
-            else
-            {
-                assert(HeapIsString(vm, value));
-                InterpreterPush(vm, HeapBoxSize(vm, HeapStringLength(vm, value)));
-            }
-        }
-        return;
-
-    case NATIVE_NULL:
-    case NATIVE_FUNCTION_COUNT:
-        break;
     }
-    assert(false);
+}
+
+void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
+{
+    invokeTable[function](vm, returnValues);
 }
 
 nativefunctionref NativeFindFunction(stringref name)
@@ -681,3 +636,21 @@ uint NativeGetVarargIndex(nativefunctionref function)
     assert(NativeHasVararg(function));
     return getFunctionInfo(function)->vararg - 1;
 }
+
+static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT] =
+{
+    null,
+    nativeEcho,
+    nativeExec,
+    nativeFail,
+    nativeFile,
+    nativeFilename,
+    nativeGetCache,
+    nativeIndexOf,
+    nativeIsUptodate,
+    nativeLines,
+    nativeReadFile,
+    nativeReplace,
+    nativeSetUptodate,
+    nativeSize
+};
