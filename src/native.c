@@ -309,7 +309,7 @@ static void nativeExec(VM *vm, uint returnValues)
     }
     if (failOnError && status)
     {
-        printf("BUILD ERROR: Process exited with status %d.\n", status);
+        fprintf(stderr, "BUILD ERROR: Process exited with status %d.\n", status);
         TaskFailVM(vm);
     }
     if (returnValues)
