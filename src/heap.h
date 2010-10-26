@@ -69,6 +69,7 @@ extern nonnull boolean HeapIsTrue(VM *vm, objectref object);
 extern nonnull objectref HeapBoxInteger(VM *vm, int value);
 extern nonnull objectref HeapBoxSize(VM *vm, size_t value);
 extern nonnull int HeapUnboxInteger(VM *vm, objectref object);
+extern nonnull size_t HeapUnboxSize(VM *vm, objectref object);
 
 
 
@@ -112,6 +113,12 @@ extern nonnull fileref HeapGetFileFromParts(VM *vm,
 
 extern nonnull objectref HeapCreateRange(VM *vm, objectref lowObject,
                                          objectref highObject);
+extern nonnull boolean HeapIsRange(VM *vm, objectref object);
+extern nonnull objectref HeapRangeLow(VM *vm, objectref range);
+extern nonnull objectref HeapRangeHigh(VM *vm, objectref range);
+
+
+
 extern nonnull objectref HeapSplitLines(VM *vm, objectref string,
                                         boolean trimEmptyLastLine);
 

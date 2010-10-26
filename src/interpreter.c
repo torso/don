@@ -337,7 +337,24 @@ static void execute(VM *vm, functionref target)
         case OP_INDEXED_ACCESS:
             value = pop(vm);
             value2 = pop(vm);
-            HeapCollectionGet(vm, value2, value, &value);
+            if (HeapIsString(vm, value2))
+            {
+                if (HeapIsRange(vm, value))
+                {
+                    size1 = HeapUnboxSize(vm, HeapRangeLow(vm, value));
+                    size2 = HeapUnboxSize(vm, HeapRangeHigh(vm, value));
+                    assert(size2 >= size1); /* TODO: Support inverted ranges. */
+                    value = HeapCreateSubstring(vm, value2, size1, size2 - size1 + 1);
+                }
+                else
+                {
+                    value = HeapCreateSubstring(vm, value2, HeapUnboxSize(vm, value), 1);
+                }
+            }
+            else
+            {
+                HeapCollectionGet(vm, value2, value, &value);
+            }
             push(vm, value);
             break;
 

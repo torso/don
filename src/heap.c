@@ -433,6 +433,13 @@ int HeapUnboxInteger(VM *vm unused, objectref object)
     return ((signed)uintFromRef(object) << 1) >> 1;
 }
 
+size_t HeapUnboxSize(VM *vm unused, objectref object)
+{
+    assert(isInteger(object));
+    assert(HeapUnboxInteger(vm, object) >= 0);
+    return (size_t)HeapUnboxInteger(vm, object);
+}
+
 
 objectref HeapCreateString(VM *vm, const char *restrict string, size_t length)
 {
@@ -821,6 +828,22 @@ objectref HeapCreateRange(VM *vm, objectref lowObject, objectref highObject)
     p[1] = high;
     return HeapFinishAlloc(vm, objectData);
 }
+
+boolean HeapIsRange(VM *vm, objectref object)
+{
+    return HeapGetObjectType(vm, object) == TYPE_INTEGER_RANGE;
+}
+
+objectref HeapRangeLow(VM *vm, objectref range)
+{
+    return HeapBoxInteger(vm, ((int*)HeapGetObjectData(vm, range))[0]);
+}
+
+objectref HeapRangeHigh(VM *vm, objectref range)
+{
+    return HeapBoxInteger(vm, ((int*)HeapGetObjectData(vm, range))[1]);
+}
+
 
 objectref HeapSplitLines(VM *vm, objectref string, boolean trimEmptyLastLine)
 {
