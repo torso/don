@@ -26,4 +26,4 @@ test:
 
 default:
    compile()
-   exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "./don", "-i", "input", "-d")
+   exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "./don", "-i", "input")
