@@ -17,7 +17,7 @@
 #include "stringpool.h"
 #include "task.h"
 
-#define TOTAL_PARAMETER_COUNT 26
+#define TOTAL_PARAMETER_COUNT 29
 
 typedef enum
 {
@@ -32,6 +32,7 @@ typedef enum
     NATIVE_ISUPTODATE,
     NATIVE_LINES,
     NATIVE_READFILE,
+    NATIVE_REPLACE,
     NATIVE_SETUPTODATE,
     NATIVE_SIZE,
 
@@ -148,6 +149,11 @@ void NativeInit(bytevector *bytecode)
 
     addFunctionInfo("readFile");
     addParameter("file", 0, false);
+
+    addFunctionInfo("replace");
+    addParameter("data", 0, false);
+    addParameter("original", 0, false);
+    addParameter("replacement", 0, false);
 
     addFunctionInfo("setUptodate");
     addParameter("cacheFile", 0, false);
@@ -350,6 +356,7 @@ static void nativeGetCache(VM *vm, uint returnValues)
     objectref key;
     objectref value;
     cacheref ref;
+    fileref file;
     boolean echoCachedOutput;
     HashState hashState;
     byte hash[DIGEST_SIZE];
@@ -363,10 +370,12 @@ static void nativeGetCache(VM *vm, uint returnValues)
     HeapHash(vm, key, &hashState);
     HashFinal(&hashState, hash);
     ref = CacheGet(hash);
+    file = CacheGetFile(ref);
     if (echoCachedOutput && CacheUptodate(ref))
     {
         CacheEchoCachedOutput(ref);
     }
+    FileMkdir(file);
     if (CacheIsNewEntry(ref))
     {
         HeapIteratorInit(vm, &iter, key, true);
@@ -380,7 +389,7 @@ static void nativeGetCache(VM *vm, uint returnValues)
     }
     if (returnValues)
     {
-        InterpreterPush(vm, HeapCreateFile(vm, CacheGetFile(ref)));
+        InterpreterPush(vm, HeapCreateFile(vm, file));
     }
 }
 
@@ -394,7 +403,7 @@ static void nativeIndexOf(VM *vm, uint returnValues)
     assert(HeapIsString(vm, element));
     if (returnValues)
     {
-        InterpreterPush(vm, HeapStringIndexOf(vm, data, element));
+        InterpreterPush(vm, HeapStringIndexOf(vm, data, 0, element));
     }
 }
 
@@ -405,6 +414,68 @@ static void nativeIsUptodate(VM *vm, uint returnValues)
     {
         InterpreterPushBoolean(vm, CacheUptodate(ref));
     }
+}
+
+static void nativeReplace(VM *vm, uint returnValues)
+{
+    objectref replacement = InterpreterPop(vm);
+    objectref original = InterpreterPop(vm);
+    objectref data = InterpreterPop(vm);
+    size_t dataLength = HeapStringLength(vm, data);
+    size_t originalLength = HeapStringLength(vm, original);
+    size_t replacementLength = HeapStringLength(vm, replacement);
+    size_t offset;
+    size_t newOffset;
+    objectref offsetRef;
+    char *p;
+    uint replacements = 0;
+
+    if (!returnValues)
+    {
+        return;
+    }
+
+    if (originalLength)
+    {
+        for (offset = 0;; offset++)
+        {
+            offsetRef = HeapStringIndexOf(vm, data, offset, original);
+            if (HeapIntegerSign(vm, offsetRef) < 0)
+            {
+                break;
+            }
+            replacements++;
+            offset = HeapUnboxSize(vm, offsetRef);
+        }
+    }
+    if (!replacements)
+    {
+        InterpreterPush(vm, data);
+        if (returnValues > 1)
+        {
+            InterpreterPush(vm, HeapBoxInteger(vm, 0));
+        }
+        return;
+    }
+    InterpreterPush(
+        vm, HeapCreateUninitialisedString(
+            vm,
+            dataLength + replacements * (replacementLength - originalLength),
+            &p));
+    if (returnValues > 1)
+    {
+        InterpreterPush(vm, HeapBoxUint(vm, replacements));
+    }
+    offset = 0;
+    while (replacements--)
+    {
+        newOffset = HeapUnboxSize(vm, HeapStringIndexOf(vm, data,
+                                                        offset, original));
+        p = HeapWriteSubstring(vm, data, offset, newOffset - offset, p);
+        p = HeapWriteString(vm, replacement, p);
+        offset = newOffset + originalLength;
+    }
+    HeapWriteSubstring(vm, data, offset, dataLength - offset, p);
 }
 
 static void nativeSetUptodate(VM *vm)
@@ -535,6 +606,11 @@ void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
             }
             InterpreterPush(vm, value);
         }
+        return;
+
+    case NATIVE_REPLACE:
+        assert(returnValues <= 2);
+        nativeReplace(vm, returnValues);
         return;
 
     case NATIVE_SETUPTODATE:

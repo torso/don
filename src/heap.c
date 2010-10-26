@@ -421,6 +421,12 @@ objectref HeapBoxInteger(VM *vm, int value)
     return refFromUint((uint)value | INTEGER_LITERAL_MARK);
 }
 
+objectref HeapBoxUint(VM *vm, uint value)
+{
+    assert(value <= INT_MAX);
+    return HeapBoxInteger(vm, (int)value);
+}
+
 objectref HeapBoxSize(VM *vm, size_t value)
 {
     assert(value <= INT_MAX);
@@ -433,11 +439,21 @@ int HeapUnboxInteger(VM *vm unused, objectref object)
     return ((signed)uintFromRef(object) << 1) >> 1;
 }
 
-size_t HeapUnboxSize(VM *vm unused, objectref object)
+size_t HeapUnboxSize(VM *vm, objectref object)
 {
     assert(isInteger(object));
     assert(HeapUnboxInteger(vm, object) >= 0);
     return (size_t)HeapUnboxInteger(vm, object);
+}
+
+int HeapIntegerSign(VM *vm, objectref object)
+{
+    int i = HeapUnboxInteger(vm, object);
+    if (i > 0)
+    {
+        return 1;
+    }
+    return i >> (sizeof(int) * 8 - 1);
 }
 
 
@@ -453,6 +469,12 @@ objectref HeapCreateString(VM *vm, const char *restrict string, size_t length)
     objectData = HeapAlloc(vm, TYPE_STRING, length);
     memcpy(objectData, string, length);
     return HeapFinishAlloc(vm, objectData);
+}
+
+objectref HeapCreateUninitialisedString(VM *vm, size_t length, char **data)
+{
+    *(byte**)data = HeapAlloc(vm, TYPE_STRING, length);
+    return HeapFinishAlloc(vm, (byte*)*data);
 }
 
 objectref HeapCreatePooledString(VM *vm, stringref string)
@@ -722,13 +744,22 @@ char *HeapWriteString(VM *vm, objectref object, char *dst)
     return null;
 }
 
-objectref HeapStringIndexOf(VM *vm, objectref text, objectref substring)
+char *HeapWriteSubstring(VM *vm, objectref object, size_t offset, size_t length,
+                         char *dst)
+{
+    assert(HeapStringLength(vm, object) >= offset + length);
+    memcpy(dst, getString(vm, object) + offset, length);
+    return dst + length;
+}
+
+objectref HeapStringIndexOf(VM *vm, objectref text, size_t startOffset,
+                            objectref substring)
 {
     size_t textLength = HeapStringLength(vm, text);
     size_t subLength = HeapStringLength(vm, substring);
     const char *pstart = getString(vm, text);
-    const char *p = pstart;
-    const char *plimit = p + textLength - subLength + 1;
+    const char *p = pstart + startOffset;
+    const char *plimit = pstart + textLength - subLength + 1;
     const char *s = getString(vm, substring);
 
     if (!subLength || subLength > textLength)

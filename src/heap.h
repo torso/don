@@ -67,14 +67,18 @@ extern nonnull boolean HeapIsTrue(VM *vm, objectref object);
 
 
 extern nonnull objectref HeapBoxInteger(VM *vm, int value);
+extern nonnull objectref HeapBoxUint(VM *vm, uint value);
 extern nonnull objectref HeapBoxSize(VM *vm, size_t value);
 extern nonnull int HeapUnboxInteger(VM *vm, objectref object);
 extern nonnull size_t HeapUnboxSize(VM *vm, objectref object);
+extern nonnull int HeapIntegerSign(VM *vm, objectref object);
 
 
 
 extern nonnull objectref HeapCreateString(VM *vm, const char *string,
                                           size_t length);
+extern nonnull objectref HeapCreateUninitialisedString(VM *vm, size_t length,
+                                                       char **data);
 extern nonnull objectref HeapCreatePooledString(VM *vm, stringref string);
 extern nonnull objectref HeapCreateWrappedString(VM *vm, const char *string,
                                                  size_t length);
@@ -96,7 +100,12 @@ extern nonnull size_t HeapStringLength(VM *vm, objectref object);
 extern nonnull char *HeapWriteString(VM *restrict vm, objectref object,
                                      char *restrict dst);
 
+extern nonnull char *HeapWriteSubstring(VM *restrict vm, objectref object,
+                                        size_t offset, size_t length,
+                                        char *restrict dst);
+
 extern nonnull objectref HeapStringIndexOf(VM *vm, objectref text,
+                                           size_t startOffset,
                                            objectref substring);
 
 
