@@ -292,6 +292,10 @@ static stringref readString(ParseState *state)
             state->current++;
             switch (state->current[0])
             {
+            case '\\':
+                ByteVectorAdd(&string, '\\');
+                break;
+
             case 'n':
                 ByteVectorAdd(&string, '\n');
                 break;
