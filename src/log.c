@@ -24,6 +24,8 @@ typedef struct
     bytevector buffer;
     bytevector bufferStack;
     int fd;
+    int echoDisable;
+    size_t flushed;
     const char *prefix;
     size_t prefixLength;
 } Pipe;
@@ -42,15 +44,15 @@ static void flush(Pipe *p, size_t size)
 {
     size_t keep;
 
-    if (buffered(p))
+    if (p->echoDisable)
     {
         return;
     }
     keep = ByteVectorSize(&p->buffer) - size;
     /* TODO: Error handling */
-    write(p->fd, ByteVectorGetPointer(&p->buffer, 0), size);
-    ByteVectorMove(&p->buffer, size, 0, keep);
-    ByteVectorSetSize(&p->buffer, keep);
+    write(p->fd, ByteVectorGetPointer(&p->buffer, p->flushed), size - p->flushed);
+    ByteVectorMove(&p->buffer, size, p->flushed, keep);
+    ByteVectorSetSize(&p->buffer, p->flushed + keep);
 }
 
 static void autoflush(Pipe *p, size_t newData)
@@ -58,7 +60,7 @@ static void autoflush(Pipe *p, size_t newData)
     size_t i;
     const byte *data;
 
-    if (buffered(p))
+    if (p->echoDisable)
     {
         return;
     }
@@ -346,6 +348,10 @@ static void pushBuffer(Pipe *p, boolean echo)
     buffer = (Buffer*)ByteVectorGetPointer(&p->bufferStack, oldSize);
     buffer->begin = ByteVectorSize(&p->buffer);
     buffer->echo = echo;
+    if (!echo)
+    {
+        p->echoDisable++;
+    }
 }
 
 void LogPushOutBuffer(boolean echo)
@@ -387,11 +393,11 @@ static void popBuffer(Pipe *p)
     {
         ByteVectorSetSize(&p->buffer, buffer->begin);
         ByteVectorSetSize(&p->bufferStack, bufferOffset);
+        p->echoDisable--;
     }
     else
     {
         ByteVectorSetSize(&p->bufferStack, bufferOffset);
-        autoflush(p, ByteVectorSize(&p->buffer) - buffer->begin);
     }
 }
 
