@@ -17,7 +17,7 @@
 #include "stringpool.h"
 #include "task.h"
 
-#define TOTAL_PARAMETER_COUNT 32
+#define TOTAL_PARAMETER_COUNT 34
 
 typedef void (*nativeInvoke)(VM *, uint);
 
@@ -29,6 +29,7 @@ typedef enum
     NATIVE_FAIL,
     NATIVE_FILE,
     NATIVE_FILENAME,
+    NATIVE_FILESET,
     NATIVE_GETCACHE,
     NATIVE_INDEXOF,
     NATIVE_ISUPTODATE,
@@ -148,6 +149,9 @@ void NativeInit(bytevector *bytecode)
     addFunctionInfo("filename");
     addParameter("path", 0, false);
 
+    addFunctionInfo("fileset");
+    addParameter("value", 0, false);
+
     addFunctionInfo("getCache");
     addParameter("label", 0, false);
     addParameter("version", 0, false);
@@ -175,8 +179,9 @@ void NativeInit(bytevector *bytecode)
 
     addFunctionInfo("setUptodate");
     addParameter("cacheFile", 0, false);
-    addParameter("out", 0, false);
-    addParameter("err", 0, false);
+    addParameter("out", valueNull, false);
+    addParameter("err", valueNull, false);
+    addParameter("accessedFiles", valueNull, false);
 
     addFunctionInfo("size");
     addParameter("value", 0, false);
@@ -414,6 +419,39 @@ static void nativeFilename(VM *vm, uint returnValues)
     }
 }
 
+static void nativeFileset(VM *vm, uint returnValues)
+{
+    objectref value = InterpreterPop(vm);
+    objectref o;
+    intvector files;
+    Iterator iter;
+    boolean isFileset;
+
+    assert(returnValues <= 1);
+    if (returnValues)
+    {
+        IntVectorInit(&files);
+        HeapIteratorInit(vm, &iter, value, true);
+        isFileset = true;
+        while (HeapIteratorNext(&iter, &o))
+        {
+            if (!HeapIsFile(vm, o))
+            {
+                isFileset = false;
+                IntVectorAddRef(
+                    &files,
+                    HeapCreateFile(vm, HeapGetFileFromParts(vm, 0, o, 0)));
+            }
+            else
+            {
+                IntVectorAddRef(&files, o);
+            }
+        }
+        InterpreterPush(vm, isFileset ? value : HeapCreateArray(vm, &files));
+        IntVectorDispose(&files);
+    }
+}
+
 static void nativeGetCache(VM *vm, uint returnValues)
 {
     boolean echoCachedOutput = InterpreterPopBoolean(vm);
@@ -577,14 +615,25 @@ static void nativeReplace(VM *vm, uint returnValues)
 
 static void nativeSetUptodate(VM *vm, uint returnValues)
 {
+    objectref accessedFiles = InterpreterPop(vm);
     objectref err = InterpreterPop(vm);
     objectref out = InterpreterPop(vm);
     cacheref ref = CacheGetFromFile(HeapGetFile(vm, InterpreterPop(vm)));
+    objectref value;
+    Iterator iter;
     size_t outLength = HeapStringLength(vm, out);
     size_t errLength = HeapStringLength(vm, err);
     char *output = null;
 
     assert(!returnValues);
+    if (accessedFiles)
+    {
+        HeapIteratorInit(vm, &iter, accessedFiles, true);
+        while (HeapIteratorNext(&iter, &value))
+        {
+            CacheAddDependency(ref, HeapGetFile(vm, value));
+        }
+    }
     if (outLength || errLength)
     {
         output = (char*)malloc(outLength + errLength);
@@ -686,6 +735,7 @@ static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT] =
     nativeFail,
     nativeFile,
     nativeFilename,
+    nativeFileset,
     nativeGetCache,
     nativeIndexOf,
     nativeIsUptodate,

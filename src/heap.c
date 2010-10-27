@@ -804,23 +804,26 @@ fileref HeapGetFile(VM *vm, objectref object)
 fileref HeapGetFileFromParts(VM *vm, objectref path, objectref name,
                              objectref extension)
 {
-    const char *pathString;
+    const char *pathString = null;
     const char *nameString;
     const char *extensionString = null;
-    size_t pathLength;
+    size_t pathLength = 0;
     size_t nameLength;
     size_t extensionLength = 0;
-    boolean freePath;
+    boolean freePath = false;
     boolean freeName;
     boolean freeExtension = false;
     fileref file;
 
-    assert(HeapIsString(vm, path) || HeapIsFile(vm, path));
+    assert(!path || HeapIsString(vm, path) || HeapIsFile(vm, path));
     assert(HeapIsString(vm, name) || HeapIsFile(vm, name));
     assert(!extension || HeapIsString(vm, extension));
 
-    pathString = toString(vm, path, &freePath);
-    pathLength = HeapStringLength(vm, path);
+    if (path)
+    {
+        pathString = toString(vm, path, &freePath);
+        pathLength = HeapStringLength(vm, path);
+    }
     nameString = toString(vm, name, &freeName);
     nameLength = HeapStringLength(vm, name);
     if (extension)
@@ -882,13 +885,12 @@ objectref HeapRangeHigh(VM *vm, objectref range)
 objectref HeapSplit(VM *vm, objectref string, objectref delimiter,
                     boolean removeEmpty, boolean trimEmptyLastLine)
 {
-    byte *data;
-    size_t size;
     size_t length;
     size_t delimiterLength;
     size_t offset;
     size_t lastOffset;
     objectref offsetref;
+    objectref value;
     intvector substrings;
 
     assert(HeapIsString(vm, string));
@@ -928,13 +930,19 @@ objectref HeapSplit(VM *vm, objectref string, objectref delimiter,
         offset += delimiterLength;
         lastOffset = offset;
     }
-    size = IntVectorSize(&substrings) * sizeof(objectref);
-    data = HeapAlloc(vm, TYPE_ARRAY, size);
-    memcpy(data, IntVectorGetPointer(&substrings, 0), size);
+    value = HeapCreateArray(vm, &substrings);
     IntVectorDispose(&substrings);
-    return HeapFinishAlloc(vm, data);
+    return value;
 }
 
+
+objectref HeapCreateArray(VM *vm, const intvector *values)
+{
+    size_t size = IntVectorSize(values) * sizeof(objectref);
+    byte *data = HeapAlloc(vm, TYPE_ARRAY, size);
+    memcpy(data, IntVectorGetPointer(values, 0), size);
+    return HeapFinishAlloc(vm, data);
+}
 
 objectref HeapConcatList(VM *vm, objectref list1, objectref list2)
 {

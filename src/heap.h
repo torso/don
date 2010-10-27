@@ -133,6 +133,7 @@ extern nonnull objectref HeapSplit(VM *vm, objectref string,
                                    boolean removeEmpty,
                                    boolean trimEmptyLastLine);
 
+extern nonnull objectref HeapCreateArray(VM *vm, const intvector *values);
 extern nonnull objectref HeapConcatList(VM *vm, objectref list1, objectref list2);
 extern nonnull boolean HeapIsCollection(VM *vm, objectref object);
 extern nonnull size_t HeapCollectionSize(VM *vm, objectref object);
