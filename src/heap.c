@@ -505,9 +505,8 @@ objectref HeapCreateWrappedString(VM *vm, const char *restrict string,
 objectref HeapCreateSubstring(VM *vm, objectref string, size_t offset,
                               size_t length)
 {
-    const SubString *ss;
+    SubString *ss;
     byte *data;
-    size_t *sizes;
 
     assert(HeapIsString(vm, string));
     assert(HeapStringLength(vm, string) >= offset + length);
@@ -529,7 +528,7 @@ objectref HeapCreateSubstring(VM *vm, objectref string, size_t offset,
         return HeapCreateWrappedString(vm, &getString(vm, string)[offset], length);
 
     case TYPE_SUBSTRING:
-        ss = (const SubString*)HeapGetObjectData(vm, string);
+        ss = (SubString*)HeapGetObjectData(vm, string);
         string = ss->string;
         offset += ss->offset;
         break;
@@ -546,12 +545,11 @@ objectref HeapCreateSubstring(VM *vm, objectref string, size_t offset,
         assert(false);
         break;
     }
-    data = HeapAlloc(vm, TYPE_SUBSTRING,
-                     sizeof(objectref) + 2 * sizeof(size_t));
-    *(objectref*)data = string;
-    sizes = (size_t*)&data[sizeof(objectref)];
-    sizes[0] = offset;
-    sizes[1] = length;
+    data = HeapAlloc(vm, TYPE_SUBSTRING, sizeof(SubString));
+    ss = (SubString*)data;
+    ss->string = string;
+    ss->offset = offset;
+    ss->length = length;
     return HeapFinishAlloc(vm, data);
 }
 
