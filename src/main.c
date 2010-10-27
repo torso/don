@@ -45,23 +45,6 @@ uint uintFromRef(ref_t r)
 }
 
 
-#ifdef DEBUG
-#include <execinfo.h>
-#include <signal.h>
-
-void _assert(const char *expression, const char *file, int line)
-{
-    void *backtraceData[128];
-    uint frames;
-
-    fflush(stdout);
-    fprintf(stderr, "Assertion failed: %s:%d: %s\n", file, line, expression);
-    frames = (uint)backtrace(backtraceData, sizeof(backtraceData) / sizeof(void*));
-    backtrace_symbols_fd(&backtraceData[1], (int)frames - 1, 1);
-    raise(SIGABRT);
-}
-#endif
-
 static void cleanup(void)
 {
     IntVectorDispose(&targets);
@@ -76,6 +59,24 @@ static void cleanup(void)
     StringPoolDispose();
     LogDispose();
 }
+
+#ifdef DEBUG
+#include <execinfo.h>
+#include <signal.h>
+
+void _assert(const char *expression, const char *file, int line)
+{
+    void *backtraceData[128];
+    uint frames;
+
+    fflush(stdout);
+    fprintf(stderr, "Assertion failed: %s:%d: %s\n", file, line, expression);
+    frames = (uint)backtrace(backtraceData, sizeof(backtraceData) / sizeof(void*));
+    backtrace_symbols_fd(&backtraceData[1], (int)frames - 1, 1);
+    cleanup();
+    raise(SIGABRT);
+}
+#endif
 
 int main(int argc, const char **argv)
 {
