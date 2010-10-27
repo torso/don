@@ -1,4 +1,4 @@
-extern void CacheInit(void);
+extern void CacheInit(fileref cacheDirectory);
 extern void CacheDispose(void);
 extern cacheref CacheGet(const byte *hash);
 extern cacheref CacheGetFromFile(fileref file);

@@ -85,6 +85,7 @@ int main(int argc, const char **argv)
     const char *options;
     const char *inputFilename = null;
     fileref inputFile;
+    fileref cacheDirectory = 0;
     stringref name;
     fieldref field;
     functionref function;
@@ -100,6 +101,7 @@ int main(int argc, const char **argv)
     LogInit();
     StringPoolInit();
     ParserAddKeywords();
+    FileInit();
 
     for (i = 1; i < argc; i++)
     {
@@ -136,15 +138,29 @@ int main(int argc, const char **argv)
                 case 'i':
                     if (inputFilename)
                     {
-                        fprintf(stderr, "Input file already specified\n");
+                        fprintf(stderr, "More than one input file specified.\n");
                         return 1;
                     }
                     if (++i >= argc)
                     {
-                        fprintf(stderr, "Option \"-i\" requires an argument\n");
+                        fprintf(stderr, "Option \"-i\" requires an argument.\n");
                         return 1;
                     }
                     inputFilename = argv[i];
+                    break;
+
+                case 'o':
+                    if (cacheDirectory)
+                    {
+                        fprintf(stderr, "More than one cache directory specified.\n");
+                        return 1;
+                    }
+                    if (++i >= argc)
+                    {
+                        fprintf(stderr, "Option \"-o\" requires an argument.\n");
+                        return 1;
+                    }
+                    cacheDirectory = FileAdd(argv[i], strlen(argv[i]));
                     break;
 
                 default:
@@ -163,13 +179,16 @@ int main(int argc, const char **argv)
     {
         inputFilename = "build.don";
     }
+    if (!cacheDirectory)
+    {
+        cacheDirectory = FileAdd(".don", 4);
+    }
     if (!IntVectorSize(&targets))
     {
         name = StringPoolAdd("default");
         IntVectorAddRef(&targets, name);
     }
 
-    FileInit();
     FunctionIndexInit();
     FunctionIndexAddFunction(StringPoolAdd(""), 0, 0, 0);
     FieldIndexInit();
@@ -259,7 +278,7 @@ int main(int argc, const char **argv)
     {
         return 1;
     }
-    CacheInit();
+    CacheInit(cacheDirectory);
 
     for (j = 0; j < IntVectorSize(&targets); j++)
     {

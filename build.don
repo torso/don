@@ -7,7 +7,7 @@ test:
    fail = 0
    hasOutput = false
    for f in @test/*
-      out, exitcode, err = exec("./don", "-i", f, failOnError:false, echo:false, echoStderr:false)
+      out, exitcode, err = exec("./don", "-o", ".don-test", "-i", f, failOnError:false, echo:false, echoStderr:false)
       if exitcode || out != "PASS\n" || err != ""
          fail += 1
          if hasOutput
@@ -26,4 +26,4 @@ test:
 
 default:
    compile()
-   exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "./don", "-i", "input")
+   exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "./don", "-o", ".don-test", "-i", "input")

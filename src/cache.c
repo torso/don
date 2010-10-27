@@ -187,15 +187,17 @@ static boolean readIndex(fileref file)
 }
 
 
-void CacheInit(void)
+void CacheInit(fileref cacheDirectory)
 {
     Entry *entry;
     fileref tempfile;
+    const char *base = FileGetName(cacheDirectory);
+    size_t baseLength = FileGetNameLength(cacheDirectory);
 
-    cacheDir = FileAdd(".don/cache", 10);
-    cacheIndex = FileAdd(".don/cache/index", 16);
-    cacheIndexOut = FileAdd(".don/cache/index.1", 18);
-    tempfile = FileAdd(".don/cache/index.2", 18);
+    cacheDir = FileAddRelative(base, baseLength, "cache/", 6);
+    cacheIndex = FileAddRelative(base, baseLength, "cache/index", 11);
+    cacheIndexOut = FileAddRelative(base, baseLength, "cache/index.1", 13);
+    tempfile = FileAddRelative(base, baseLength, "cache/index.2", 13);
     FileMkdir(cacheDir);
     FileDelete(tempfile);
     readIndex(cacheIndex);
