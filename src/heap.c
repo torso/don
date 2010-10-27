@@ -768,14 +768,14 @@ objectref HeapStringIndexOf(VM *vm, objectref text, size_t startOffset,
 
     if (!subLength || subLength > textLength)
     {
-        return HeapBoxInteger(vm, -1);
+        return 0;
     }
     while (p < plimit)
     {
         p = (const char*)memchr(p, *s, (size_t)(plimit - p));
         if (!p)
         {
-            return HeapBoxInteger(vm, -1);
+            return 0;
         }
         if (!memcmp(p, s, subLength))
         {
@@ -783,7 +783,7 @@ objectref HeapStringIndexOf(VM *vm, objectref text, size_t startOffset,
         }
         p++;
     }
-    return HeapBoxInteger(vm, -1);
+    return 0;
 }
 
 

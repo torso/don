@@ -516,7 +516,7 @@ static void nativeReplace(VM *vm, uint returnValues)
         for (offset = 0;; offset++)
         {
             offsetRef = HeapStringIndexOf(vm, data, offset, original);
-            if (HeapIntegerSign(vm, offsetRef) < 0)
+            if (!offsetRef)
             {
                 break;
             }
