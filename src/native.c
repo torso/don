@@ -415,25 +415,23 @@ static void nativeFilename(VM *vm, uint returnValues)
     }
 }
 
+/* TODO: Remove duplicate files. */
 static void nativeFileset(VM *vm, uint returnValues)
 {
     objectref value = InterpreterPop(vm);
     objectref o;
     intvector files;
     Iterator iter;
-    boolean isFileset;
 
     assert(returnValues <= 1);
     if (returnValues)
     {
         IntVectorInit(&files);
         HeapIteratorInit(vm, &iter, value, true);
-        isFileset = true;
         while (HeapIteratorNext(&iter, &o))
         {
             if (!HeapIsFile(vm, o))
             {
-                isFileset = false;
                 IntVectorAddRef(
                     &files,
                     HeapCreateFile(vm, HeapGetFileFromParts(vm, 0, o, 0)));
@@ -443,7 +441,8 @@ static void nativeFileset(VM *vm, uint returnValues)
                 IntVectorAddRef(&files, o);
             }
         }
-        InterpreterPush(vm, isFileset ? value : HeapCreateArray(vm, &files));
+        /* TODO: Reuse collection if possible. */
+        InterpreterPush(vm, HeapCreateArray(vm, &files));
         IntVectorDispose(&files);
     }
 }
