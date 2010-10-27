@@ -25,7 +25,7 @@ typedef struct
 static fileref cacheDir;
 static fileref cacheIndex;
 static fileref cacheIndexOut;
-static Entry entries[16];
+static Entry entries[256];
 
 
 static Entry *getEntry(cacheref ref)

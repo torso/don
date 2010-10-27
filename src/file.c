@@ -13,7 +13,7 @@
 #include "stringpool.h"
 #include "task.h"
 
-#define INITIAL_FILE_SIZE 128
+#define INITIAL_FILE_SIZE 2048
 
 #define FLAG_FREE_FILENAME 1
 
