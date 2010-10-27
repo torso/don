@@ -26,6 +26,7 @@ extern size_t FileGetNameLength(fileref file);
 extern nonnull size_t FileGetSize(fileref file);
 extern nonnull const byte *FileGetStatusBlob(fileref file);
 extern pure size_t FileGetStatusBlobSize(void);
+extern boolean FileHasChanged(fileref file, const byte *blob);
 
 extern void FileOpenAppend(fileref file);
 extern void FileClose(fileref file);

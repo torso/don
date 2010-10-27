@@ -17,7 +17,7 @@
 #include "stringpool.h"
 #include "task.h"
 
-#define TOTAL_PARAMETER_COUNT 34
+#define TOTAL_PARAMETER_COUNT 33
 
 typedef void (*nativeInvoke)(VM *, uint);
 
@@ -32,7 +32,6 @@ typedef enum
     NATIVE_FILESET,
     NATIVE_GETCACHE,
     NATIVE_INDEXOF,
-    NATIVE_ISUPTODATE,
     NATIVE_LINES,
     NATIVE_READFILE,
     NATIVE_REPLACE,
@@ -161,9 +160,6 @@ void NativeInit(bytevector *bytecode)
     addFunctionInfo("indexOf");
     addParameter("data", 0, false);
     addParameter("element", 0, false);
-
-    addFunctionInfo("isUptodate");
-    addParameter("cacheFile", 0, false);
 
     addFunctionInfo("lines");
     addParameter("value", 0, false);
@@ -459,39 +455,36 @@ static void nativeGetCache(VM *vm, uint returnValues)
     objectref version = InterpreterPop(vm);
     objectref label = InterpreterPop(vm);
     cacheref ref;
-    objectref value;
-    fileref file;
     HashState hashState;
     byte hash[DIGEST_SIZE];
-    Iterator iter;
+    boolean uptodate;
 
-    assert(returnValues <= 1);
+    assert(returnValues <= 2);
     HashInit(&hashState);
     HeapHash(vm, label, &hashState);
     HeapHash(vm, version, &hashState);
     HeapHash(vm, key, &hashState);
     HashFinal(&hashState, hash);
     ref = CacheGet(hash);
-    file = CacheGetFile(ref);
-    if (echoCachedOutput && CacheUptodate(ref))
+    uptodate = CacheCheckUptodate(ref);
+    if (uptodate)
     {
-        CacheEchoCachedOutput(ref);
-    }
-    FileMkdir(file);
-    if (CacheIsNewEntry(ref))
-    {
-        HeapIteratorInit(vm, &iter, key, true);
-        while (HeapIteratorNext(&iter, &value))
+        if (echoCachedOutput)
         {
-            if (HeapIsFile(vm, value))
-            {
-                CacheAddDependency(ref, HeapGetFile(vm, value));
-            }
+            CacheEchoCachedOutput(ref);
         }
+    }
+    else
+    {
+        FileMkdir(CacheGetFile(ref));
     }
     if (returnValues)
     {
-        InterpreterPush(vm, HeapCreateFile(vm, file));
+        InterpreterPush(vm, HeapCreateFile(vm, CacheGetFile(ref)));
+    }
+    if (returnValues > 1)
+    {
+        InterpreterPushBoolean(vm, uptodate);
     }
 }
 
@@ -507,17 +500,6 @@ static void nativeIndexOf(VM *vm, uint returnValues)
     if (returnValues)
     {
         InterpreterPush(vm, HeapStringIndexOf(vm, data, 0, element));
-    }
-}
-
-static void nativeIsUptodate(VM *vm, uint returnValues)
-{
-    cacheref ref = CacheGetFromFile(HeapGetFile(vm, InterpreterPop(vm)));
-
-    assert(returnValues <= 1);
-    if (returnValues)
-    {
-        InterpreterPushBoolean(vm, CacheUptodate(ref));
     }
 }
 
@@ -738,7 +720,6 @@ static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT] =
     nativeFileset,
     nativeGetCache,
     nativeIndexOf,
-    nativeIsUptodate,
     nativeLines,
     nativeReadFile,
     nativeReplace,

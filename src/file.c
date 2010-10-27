@@ -533,6 +533,11 @@ size_t FileGetStatusBlobSize(void)
     return sizeof(StatusBlob);
 }
 
+boolean FileHasChanged(fileref file, const byte *blob)
+{
+    return memcmp(FileGetStatusBlob(file), blob, FileGetStatusBlobSize()) != 0;
+}
+
 
 void FileOpenAppend(fileref file)
 {

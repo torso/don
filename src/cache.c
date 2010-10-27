@@ -14,7 +14,6 @@ typedef struct
 {
     byte hash[FILENAME_DIGEST_SIZE];
     fileref file;
-    boolean uptodate;
     boolean newEntry;
     boolean written;
     bytevector dependencies;
@@ -48,7 +47,7 @@ static void addDependency(Entry *entry, fileref file, const byte *blob)
     size_t oldSize = ByteVectorSize(&entry->dependencies);
     byte *p;
 
-    assert(!entry->uptodate);
+    assert(entry->newEntry);
     ByteVectorGrow(&entry->dependencies,
                    sizeof(fileref) + FileGetStatusBlobSize());
     p = ByteVectorGetPointer(&entry->dependencies, oldSize);
@@ -181,7 +180,6 @@ static boolean readIndex(fileref file)
             addDependency(entry, dependFile, data);
             data += FileGetStatusBlobSize();
         }
-        entry->uptodate = true;
         entry->newEntry = false;
     }
     FileMUnmap(file);
@@ -235,7 +233,7 @@ void CacheDispose(void)
     {
         if (entry->file)
         {
-            if (!entry->written && entry->uptodate)
+            if (!entry->written && !entry->newEntry)
             {
                 writeEntry(entry, cacheIndexOut);
             }
@@ -282,7 +280,6 @@ cacheref CacheGet(const byte *hash)
                                       FILENAME_DIGEST_SIZE / 5 * 8);
     ByteVectorInit(&freeEntry->dependencies, 0);
     memcpy(freeEntry->hash, hash, FILENAME_DIGEST_SIZE);
-    freeEntry->uptodate = false;
     freeEntry->newEntry = true;
     freeEntry->written = false;
     return refFromSize((size_t)(freeEntry - entries));
@@ -316,13 +313,13 @@ void CacheSetUptodate(cacheref ref, size_t outLength, size_t errLength,
 {
     Entry *entry = getEntry(ref);
 
-    assert(!entry->uptodate);
+    assert(entry->newEntry);
     assert(!entry->written);
 
     entry->outLength = outLength;
     entry->errLength = errLength;
     entry->output = output;
-    entry->uptodate = true;
+    entry->newEntry = false;
     writeEntry(entry, cacheIndexOut);
 }
 
@@ -330,7 +327,7 @@ void CacheEchoCachedOutput(cacheref ref)
 {
     Entry *entry = getEntry(ref);
 
-    assert(entry->uptodate);
+    assert(!entry->newEntry);
 
     if (entry->outLength)
     {
@@ -343,9 +340,37 @@ void CacheEchoCachedOutput(cacheref ref)
     }
 }
 
-boolean CacheUptodate(cacheref ref)
+boolean CacheCheckUptodate(cacheref ref)
 {
-    return getEntry(ref)->uptodate;
+    Entry *entry = getEntry(ref);
+    fileref file;
+    const byte *restrict depend;
+    const byte *restrict dependLimit;
+
+    if (entry->newEntry)
+    {
+        return false;
+    }
+
+    depend = ByteVectorGetPointer(&entry->dependencies, 0);
+    dependLimit = depend + ByteVectorSize(&entry->dependencies);
+    while (depend < dependLimit)
+    {
+        file = *(fileref*)depend;
+        depend += sizeof(fileref);
+        if (FileHasChanged(file, depend))
+        {
+            entry->newEntry = true;
+            entry->written = false;
+            ByteVectorSetSize(&entry->dependencies, 0);
+            entry->outLength = 0;
+            entry->errLength = 0;
+            free(entry->output);
+            return false;
+        }
+        depend += FileGetStatusBlobSize();
+    }
+    return true;
 }
 
 boolean CacheIsNewEntry(cacheref ref)
