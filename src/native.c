@@ -483,7 +483,7 @@ static void nativeGetCache(VM *vm, uint returnValues)
         HeapIteratorInit(vm, &iter, key, true);
         while (HeapIteratorNext(&iter, &value))
         {
-            if (HeapGetObjectType(vm, value) == TYPE_FILE)
+            if (HeapIsFile(vm, value))
             {
                 CacheAddDependency(ref, HeapGetFile(vm, value));
             }
