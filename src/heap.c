@@ -321,6 +321,10 @@ boolean HeapEquals(VM *vm, objectref object1, objectref object2)
     {
         return true;
     }
+    if (!object1 || !object2)
+    {
+        return false;
+    }
     switch (HeapGetObjectType(vm, object1))
     {
     case TYPE_BOOLEAN_TRUE:
