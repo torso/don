@@ -17,7 +17,7 @@
 #include "stringpool.h"
 #include "task.h"
 
-#define TOTAL_PARAMETER_COUNT 29
+#define TOTAL_PARAMETER_COUNT 32
 
 typedef void (*nativeInvoke)(VM *, uint);
 
@@ -37,6 +37,7 @@ typedef enum
     NATIVE_REPLACE,
     NATIVE_SETUPTODATE,
     NATIVE_SIZE,
+    NATIVE_SPLIT,
 
     NATIVE_FUNCTION_COUNT
 } NativeFunction;
@@ -79,6 +80,18 @@ static fieldref addValue(bytevector *bytecode, Instruction op)
     return field;
 }
 
+static fieldref addStringValue(bytevector *bytecode, const char *string)
+{
+    size_t start = ByteVectorSize(bytecode);
+    fieldref field = FieldIndexAdd(0, 0, 0);
+
+    assert(field);
+    ByteVectorAdd(bytecode, OP_STRING);
+    ByteVectorAddRef(bytecode, StringPoolAdd(string));
+    FieldIndexSetBytecodeOffset(field, start, ByteVectorSize(bytecode));
+    return field;
+}
+
 static void addFunctionInfo(const char *name)
 {
     functionIndex[initFunctionIndex++] =
@@ -109,7 +122,9 @@ static void addParameter(const char *name, fieldref value, boolean vararg)
 void NativeInit(bytevector *bytecode)
 {
     fieldref valueNull = addValue(bytecode, OP_NULL);
+    fieldref valueFalse = addValue(bytecode, OP_FALSE);
     fieldref valueTrue = addValue(bytecode, OP_TRUE);
+    fieldref valueSpace = addStringValue(bytecode, " ");
 
     addFunctionInfo("echo");
     addParameter("message", 0, false);
@@ -165,6 +180,11 @@ void NativeInit(bytevector *bytecode)
 
     addFunctionInfo("size");
     addParameter("value", 0, false);
+
+    addFunctionInfo("split");
+    addParameter("value", 0, false);
+    addParameter("delimiter", valueSpace, false);
+    addParameter("removeEmpty", valueFalse, false);
 
     assert(initFunctionInfo == functionInfo + sizeof(functionInfo));
 }
@@ -471,12 +491,13 @@ static void nativeLines(VM *vm, uint returnValues)
     assert(returnValues <= 1);
     if (returnValues)
     {
-        if (HeapGetObjectType(vm, value) == TYPE_FILE)
+        if (HeapIsFile(vm, value))
         {
             value = readFile(vm, value);
         }
         assert(HeapIsString(vm, value));
-        InterpreterPush(vm, HeapSplitLines(vm, value, trimEmptyLastLine));
+        InterpreterPush(vm, HeapSplit(vm, value, vm->stringNewline, false,
+                                      trimEmptyLastLine));
     }
 }
 
@@ -593,6 +614,26 @@ static void nativeSize(VM *vm, uint returnValues)
     }
 }
 
+static void nativeSplit(VM *vm, uint returnValues)
+{
+    boolean removeEmpty = InterpreterPopBoolean(vm);
+    objectref delimiter = InterpreterPop(vm);
+    objectref value = InterpreterPop(vm);
+
+    assert(HeapIsString(vm, delimiter));
+    assert(returnValues <= 1);
+    if (returnValues)
+    {
+        if (HeapIsFile(vm, value))
+        {
+            value = readFile(vm, value);
+        }
+        assert(HeapIsString(vm, value));
+        InterpreterPush(
+            vm, HeapSplit(vm, value, delimiter, removeEmpty, false));
+    }
+}
+
 void NativeInvoke(VM *vm, nativefunctionref function, uint returnValues)
 {
     invokeTable[function](vm, returnValues);
@@ -652,5 +693,6 @@ static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT] =
     nativeReadFile,
     nativeReplace,
     nativeSetUptodate,
-    nativeSize
+    nativeSize,
+    nativeSplit
 };

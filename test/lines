@@ -1,4 +1,11 @@
+test(a, b, expected)
+   result = lines(a, b)
+   if result != expected
+      echo("FAIL: " a " " b ": " result)
+
 default:
-   if lines("a\nb") == ["a", "b"] && lines("a\nb\n") == ["a", "b"]
-      if lines("a\nb", false) == ["a", "b"] && lines("a\nb\n", false) == ["a", "b", ""]
-         echo("PASS")
+   test("a\nb", true, ["a", "b"])
+   test("a\nb\n", true, ["a", "b"])
+   test("a\nb", false, ["a", "b"])
+   test("a\nb\n", false, ["a", "b", ""])
+   echo("PASS")

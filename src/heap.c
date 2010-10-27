@@ -208,6 +208,7 @@ void HeapInit(VM *vm)
     vm->booleanFalse = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_BOOLEAN_FALSE, 0));
     vm->emptyString = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_STRING, 0));
     vm->emptyList = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_EMPTY_LIST, 0));
+    vm->stringNewline = HeapCreateString(vm, "\n", 1);
 }
 
 void HeapDispose(VM *vm)
@@ -880,41 +881,59 @@ objectref HeapRangeHigh(VM *vm, objectref range)
 }
 
 
-objectref HeapSplitLines(VM *vm, objectref string, boolean trimEmptyLastLine)
+objectref HeapSplit(VM *vm, objectref string, objectref delimiter,
+                    boolean removeEmpty, boolean trimEmptyLastLine)
 {
     byte *data;
-    objectref *array;
-    const char *text;
     size_t size;
+    size_t length;
+    size_t delimiterLength;
     size_t offset;
-    size_t lineLength;
-    size_t lines;
+    size_t lastOffset;
+    objectref offsetref;
+    intvector substrings;
 
     assert(HeapIsString(vm, string));
-    size = HeapStringLength(vm, string);
-    if (!size)
+    length = HeapStringLength(vm, string);
+    if (!length)
     {
         return vm->emptyList;
     }
-    text = getString(vm, string);
-    if (trimEmptyLastLine && text[size - 1] == '\n')
+    delimiterLength = HeapStringLength(vm, delimiter);
+    if (!delimiterLength || length < delimiterLength)
     {
-        size--;
+        return string;
     }
-    lines = UtilCountNewlines(text, size);
-    data = HeapAlloc(vm, TYPE_ARRAY, (lines + 1) * sizeof(objectref));
-    array = (objectref*)data;
+    IntVectorInit(&substrings);
     offset = 0;
-    while (lines--)
+    lastOffset = 0;
+    for (;;)
     {
-        lineLength = (size_t)(strchr(text, '\n') - text);
-        *array = HeapCreateSubstring(vm, string, offset, lineLength);
-        array++;
-        lineLength++;
-        text += lineLength;
-        offset += lineLength;
+        offsetref = HeapStringIndexOf(vm, string, offset, delimiter);
+        if (!offsetref)
+        {
+            if (length != lastOffset || !(removeEmpty || trimEmptyLastLine))
+            {
+                IntVectorAddRef(&substrings,
+                                HeapCreateSubstring(vm, string, lastOffset,
+                                                    length - lastOffset));
+            }
+            break;
+        }
+        offset = HeapUnboxSize(vm, offsetref);
+        if (offset != lastOffset || !removeEmpty)
+        {
+            IntVectorAddRef(&substrings,
+                            HeapCreateSubstring(vm, string, lastOffset,
+                                                offset - lastOffset));
+        }
+        offset += delimiterLength;
+        lastOffset = offset;
     }
-    *array = HeapCreateSubstring(vm, string, offset, size - offset);
+    size = IntVectorSize(&substrings) * sizeof(objectref);
+    data = HeapAlloc(vm, TYPE_ARRAY, size);
+    memcpy(data, IntVectorGetPointer(&substrings, 0), size);
+    IntVectorDispose(&substrings);
     return HeapFinishAlloc(vm, data);
 }
 

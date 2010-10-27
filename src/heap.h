@@ -128,8 +128,10 @@ extern nonnull objectref HeapRangeHigh(VM *vm, objectref range);
 
 
 
-extern nonnull objectref HeapSplitLines(VM *vm, objectref string,
-                                        boolean trimEmptyLastLine);
+extern nonnull objectref HeapSplit(VM *vm, objectref string,
+                                   objectref delimiter,
+                                   boolean removeEmpty,
+                                   boolean trimEmptyLastLine);
 
 extern nonnull objectref HeapConcatList(VM *vm, objectref list1, objectref list2);
 extern nonnull boolean HeapIsCollection(VM *vm, objectref object);
