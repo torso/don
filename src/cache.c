@@ -135,7 +135,8 @@ static boolean readIndex(fileref file)
             break;
         }
         entrySize = *(size_t*)data;
-        if (entrySize < 3 * sizeof(size_t) + FILENAME_DIGEST_SIZE)
+        if (entrySize < 3 * sizeof(size_t) + FILENAME_DIGEST_SIZE ||
+            entrySize > size)
         {
             break;
         }
@@ -157,6 +158,11 @@ static boolean readIndex(fileref file)
         entry->output = null;
         if (entry->outLength || entry->errLength)
         {
+            if (data + entry->outLength + entry->errLength > limit)
+            {
+                clearEntry(entry);
+                break;
+            }
             entry->output = (char*)malloc(entry->outLength + entry->errLength);
             memcpy(entry->output, data, entry->outLength + entry->errLength);
             data += entry->outLength + entry->errLength;
