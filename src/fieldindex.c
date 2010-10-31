@@ -79,8 +79,8 @@ fieldref FieldIndexAdd(fileref file, uint line, uint fileOffset)
 void FieldIndexSetBytecodeOffset(fieldref field, size_t start, size_t stop)
 {
     FieldInfo *info = getFieldInfo(field);
-    assert(start <= UINT_MAX);
-    assert(stop <= UINT_MAX);
+    assert(start <= UINT_MAX - 1);
+    assert(stop <= UINT_MAX - 1);
     assert(stop > start);
     info->bytecodeStart = (uint)start;
     info->bytecodeStop = (uint)stop;

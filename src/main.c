@@ -30,7 +30,7 @@ ref_t refFromUint(uint i)
 
 ref_t refFromSize(size_t i)
 {
-    assert(i <= UINT_MAX);
+    assert(i <= UINT_MAX - 1);
     return refFromUint((uint)i);
 }
 

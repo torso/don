@@ -1046,7 +1046,7 @@ boolean HeapCollectionGet(VM *vm, objectref object, objectref indexObject,
 
     case TYPE_INTEGER_RANGE:
         intData = (const int *)HeapGetObjectData(vm, object);
-        assert(i <= INT_MAX);
+        assert(i <= INT_MAX - 1);
         assert(!addOverflow((int)i, intData[0]));
         *value = HeapBoxInteger(vm, (int)i + intData[0]);
         return true;

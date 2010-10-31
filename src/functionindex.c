@@ -186,7 +186,7 @@ uint FunctionIndexGetBytecodeOffset(functionref function)
 
 void FunctionIndexSetBytecodeOffset(functionref function, size_t offset)
 {
-    assert(offset <= UINT_MAX);
+    assert(offset <= UINT_MAX - 1);
     getFunctionInfo(function)->bytecodeOffset = (uint)offset;
 }
 
