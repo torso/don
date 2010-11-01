@@ -1,4 +1,4 @@
-cc(files..., flags = null)
+cc(files..., flags = [])
    result = []
    for f in fileset(files)
       cache, uptodate = getCache("cc", 0, f, flags)
