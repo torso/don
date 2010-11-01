@@ -86,6 +86,8 @@ int main(int argc, const char **argv)
     const char *inputFilename = null;
     fileref inputFile;
     fileref cacheDirectory = 0;
+    fileref donNamespaceFile;
+    namespaceref defaultNamespace;
     stringref name;
     fieldref field;
     functionref function;
@@ -195,7 +197,11 @@ int main(int argc, const char **argv)
     NamespaceInit();
     ByteVectorInit(&parsed, 65536);
 
+    donNamespaceFile = FileAdd("data/don.don", 12);
+    NamespaceCreate(donNamespaceFile, StringPoolAdd("don"));
+    ParseFile(donNamespaceFile);
     inputFile = FileAdd(inputFilename, strlen(inputFilename));
+    defaultNamespace = NamespaceCreate(inputFile, 0);
     ParseFile(inputFile);
 
     for (field = FieldIndexGetFirstField();
@@ -229,6 +235,7 @@ int main(int argc, const char **argv)
         ParseFunctionBody(function, &parsed);
     }
 
+    FileDispose(donNamespaceFile);
     FileDispose(inputFile);
     bytecodeSize = ByteVectorSize(&parsed);
     bytecode = ByteVectorDisposeContainer(&parsed);
@@ -267,7 +274,7 @@ int main(int argc, const char **argv)
     for (j = 0; j < IntVectorSize(&targets); j++)
     {
         name = IntVectorGetRef(&targets, j);
-        if (!NamespaceGetTarget(name))
+        if (!NamespaceGetTarget(defaultNamespace, name))
         {
             fprintf(stderr, "'%s' is not a target.\n",
                     StringPoolGetString(name));
@@ -282,7 +289,8 @@ int main(int argc, const char **argv)
 
     for (j = 0; j < IntVectorSize(&targets); j++)
     {
-        function = NamespaceGetTarget(IntVectorGetRef(&targets, j));
+        function = NamespaceGetTarget(defaultNamespace,
+                                      IntVectorGetRef(&targets, j));
         assert(function);
         InterpreterInit(&vm, bytecode);
         InterpreterExecute(&vm, function);

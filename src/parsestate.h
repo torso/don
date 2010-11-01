@@ -10,6 +10,7 @@ typedef struct
     const byte *start;
     const byte *current;
     const byte *limit;
+    namespaceref ns;
     functionref function;
     fileref file;
     uint line;

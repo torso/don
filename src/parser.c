@@ -482,7 +482,7 @@ static boolean finishLValue(ParseState *state, ExpressionState *estate)
         return false;
 
     case VALUE_VARIABLE:
-        field = NamespaceGetField(estate->valueIdentifier);
+        field = NamespaceGetField(state->ns, estate->valueIdentifier);
         if (field)
         {
             ParseStateSetField(state, field);
@@ -504,7 +504,7 @@ static boolean finishRValue(ParseState *state, ExpressionState *estate)
         return true;
 
     case VALUE_VARIABLE:
-        field = NamespaceGetField(estate->valueIdentifier);
+        field = NamespaceGetField(state->ns, estate->valueIdentifier);
         if (field)
         {
             ParseStateGetField(state, field);
@@ -568,7 +568,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     }
     else
     {
-        function = NamespaceGetFunction(name);
+        function = NamespaceGetFunction(state->ns, name);
         if (!function)
         {
             statementError(state, "Unknown function '%s'.",
@@ -1701,19 +1701,6 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
                     error(state, "Expected parameter name or ')'.");
                     return false;
                 }
-                if (NamespaceGetField(parameterName))
-                {
-                    error(state,
-                          "Invalid parameter name. '%s' is a global variable.",
-                          StringPoolGetString(parameterName));
-                    return false;
-                }
-                if (NamespaceGetFunction(parameterName))
-                {
-                    error(state, "Invalid parameter name. '%s' is a function.",
-                          StringPoolGetString(parameterName));
-                    return false;
-                }
                 skipWhitespace(state);
                 if (readOperator(state, '='))
                 {
@@ -1781,7 +1768,7 @@ static void parseScript(ParseState *state)
             name = readIdentifier(state);
             if (peekOperator(state, ':'))
             {
-                NamespaceAddTarget(name, FunctionIndexAddFunction(
+                NamespaceAddTarget(state->ns, name, FunctionIndexAddFunction(
                                        name, state->file, state->line,
                                        getOffset(state, state->start)));
                 skipEndOfLine(state);
@@ -1789,7 +1776,7 @@ static void parseScript(ParseState *state)
             }
             else if (peekOperator(state, '('))
             {
-                NamespaceAddFunction(name, FunctionIndexAddFunction(
+                NamespaceAddFunction(state->ns, name, FunctionIndexAddFunction(
                                          name, state->file, state->line,
                                          getOffset(state, state->start)));
                 skipEndOfLine(state);
@@ -1806,7 +1793,7 @@ static void parseScript(ParseState *state)
                     continue;
                 }
                 skipWhitespace(state);
-                NamespaceAddField(name, FieldIndexAdd(
+                NamespaceAddField(state->ns, name, FieldIndexAdd(
                                       state->file, state->line,
                                       getOffset(state, state->start)));
                 skipEndOfLine(state);

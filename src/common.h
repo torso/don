@@ -56,6 +56,7 @@ typedef ref_t cacheref;
 typedef ref_t fieldref;
 typedef ref_t fileref;
 typedef ref_t functionref;
+typedef ref_t namespaceref;
 typedef ref_t nativefunctionref;
 typedef ref_t objectref;
 typedef ref_t stringref;

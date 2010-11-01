@@ -1,0 +1,24 @@
+cc(files..., flags = [])
+   result = []
+   for f in fileset(files)
+      cache, uptodate = getCache("cc", 0, f, flags)
+      ofile = file(cache, filename(f), "o")
+      if !uptodate
+         dependFile = file(cache, filename(f), "d")
+         out, exitcode, err = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f)
+         depend = readFile(dependFile)
+         depend = depend[indexOf(depend, ": ") + 2 .. size(depend) - 2]
+         depend = replace(depend, "\\\n", "")
+         depend = split(depend, removeEmpty:true)
+         setUptodate(cache, out, err, accessedFiles:fileset(depend))
+      result = result::[ofile]
+   return result
+
+link(files..., name = "a.out")
+   files = fileset(files)
+   cache, uptodate = getCache("link", 0, files)
+   program = file(cache, name)
+   if !uptodate
+      out, exitcode, err = exec("cc", "-o", program, files)
+      setUptodate(cache, out, err, accessedFiles:files)
+   return program

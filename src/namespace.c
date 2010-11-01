@@ -1,54 +1,118 @@
 #include "common.h"
+#include "bytevector.h"
 #include "inthashmap.h"
 #include "namespace.h"
 
-static inthashmap fieldIndex;
-static inthashmap functionIndex;
-static inthashmap targetIndex;
+typedef struct
+{
+    inthashmap namespaces;
+    inthashmap fieldIndex;
+    inthashmap functionIndex;
+    inthashmap targetIndex;
+} Namespace;
+
+static bytevector namespaceData;
+static inthashmap fileNamespace;
+
+
+static Namespace *getNamespace(namespaceref ns)
+{
+    return (Namespace*)ByteVectorGetPointer(
+        &namespaceData, sizeFromRef(ns) * sizeof(Namespace));
+}
+
+static void disposeNamespace(Namespace *ns)
+{
+    IntHashMapDispose(&ns->namespaces);
+    IntHashMapDispose(&ns->fieldIndex);
+    IntHashMapDispose(&ns->functionIndex);
+    IntHashMapDispose(&ns->targetIndex);
+}
 
 void NamespaceInit(void)
 {
-    IntHashMapInit(&fieldIndex, 10);
-    IntHashMapInit(&functionIndex, 10);
-    IntHashMapInit(&targetIndex, 10);
+    ByteVectorInit(&namespaceData, sizeof(Namespace) * 4);
+    IntHashMapInit(&fileNamespace, 4);
 }
 
 void NamespaceDispose(void)
 {
-    IntHashMapDispose(&fieldIndex);
-    IntHashMapDispose(&functionIndex);
-    IntHashMapDispose(&targetIndex);
+    Namespace *ns;
+    Namespace *limit = (Namespace*)ByteVectorGetAppendPointer(&namespaceData);
+
+    for (ns = getNamespace(0); ns < limit; ns++)
+    {
+        disposeNamespace(ns);
+    }
+    ByteVectorDispose(&namespaceData);
+    IntHashMapDispose(&fileNamespace);
 }
 
 
-void NamespaceAddField(stringref name, fieldref field)
+namespaceref NamespaceCreate(fileref file, stringref name unused)
 {
-    IntHashMapAdd(&fieldIndex, uintFromRef(name), uintFromRef(field));
+    Namespace *entry;
+    namespaceref ref =
+        refFromSize(ByteVectorSize(&namespaceData) / sizeof(Namespace));
+
+    ByteVectorGrow(&namespaceData, sizeof(Namespace));
+    entry = getNamespace(ref);
+    IntHashMapInit(&entry->namespaces, 10);
+    IntHashMapInit(&entry->fieldIndex, 10);
+    IntHashMapInit(&entry->functionIndex, 10);
+    IntHashMapInit(&entry->targetIndex, 10);
+    IntHashMapAdd(&fileNamespace, uintFromRef(file), uintFromRef(ref));
+    return ref;
 }
 
-void NamespaceAddFunction(stringref name, functionref function)
+namespaceref NamespaceGet(fileref file)
 {
-    IntHashMapAdd(&functionIndex, uintFromRef(name), uintFromRef(function));
-}
-
-void NamespaceAddTarget(stringref name, functionref target)
-{
-    NamespaceAddFunction(name, target);
-    IntHashMapAdd(&targetIndex, uintFromRef(name), uintFromRef(target));
+    return refFromUint(IntHashMapGet(&fileNamespace, uintFromRef(file)));
 }
 
 
-fieldref NamespaceGetField(stringref name)
+void NamespaceAddField(namespaceref ns, stringref name, fieldref field)
 {
-    return refFromUint(IntHashMapGet(&fieldIndex, uintFromRef(name)));
+    IntHashMapAdd(&getNamespace(ns)->fieldIndex,
+                  uintFromRef(name), uintFromRef(field));
 }
 
-functionref NamespaceGetFunction(stringref name)
+void NamespaceAddFunction(namespaceref ns, stringref name, functionref function)
 {
-    return refFromUint(IntHashMapGet(&functionIndex, uintFromRef(name)));
+    IntHashMapAdd(&getNamespace(ns)->functionIndex,
+                  uintFromRef(name), uintFromRef(function));
 }
 
-functionref NamespaceGetTarget(stringref name)
+void NamespaceAddTarget(namespaceref ns, stringref name, functionref target)
 {
-    return refFromUint(IntHashMapGet(&targetIndex, uintFromRef(name)));
+    NamespaceAddFunction(ns, name, target);
+    IntHashMapAdd(&getNamespace(ns)->targetIndex,
+                  uintFromRef(name), uintFromRef(target));
+}
+
+
+fieldref NamespaceGetField(namespaceref ns, stringref name)
+{
+    uint i = IntHashMapGet(&getNamespace(ns)->fieldIndex, uintFromRef(name));
+    if (!i)
+    {
+        i = IntHashMapGet(&getNamespace(0)->fieldIndex, uintFromRef(name));
+    }
+    return refFromUint(i);
+}
+
+functionref NamespaceGetFunction(namespaceref ns, stringref name)
+{
+    uint i = IntHashMapGet(&getNamespace(ns)->functionIndex, uintFromRef(name));
+    if (!i)
+    {
+        i = IntHashMapGet(&getNamespace(0)->functionIndex, uintFromRef(name));
+    }
+    return refFromUint(i);
+}
+
+functionref NamespaceGetTarget(namespaceref ns, stringref name)
+{
+    return refFromUint(IntHashMapGet(&getNamespace(ns)->targetIndex,
+                                     uintFromRef(name)));
 }

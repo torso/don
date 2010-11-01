@@ -1,10 +1,15 @@
 extern void NamespaceInit(void);
 extern void NamespaceDispose(void);
 
-extern void NamespaceAddField(stringref name, fieldref field);
-extern void NamespaceAddFunction(stringref name, functionref function);
-extern void NamespaceAddTarget(stringref name, functionref target);
+extern namespaceref NamespaceCreate(fileref file, stringref name);
+extern namespaceref NamespaceGet(fileref file);
 
-extern fieldref NamespaceGetField(stringref name);
-extern functionref NamespaceGetFunction(stringref name);
-extern functionref NamespaceGetTarget(stringref name);
+extern void NamespaceAddField(namespaceref ns, stringref name, fieldref field);
+extern void NamespaceAddFunction(namespaceref ns, stringref name,
+                                 functionref function);
+extern void NamespaceAddTarget(namespaceref ns, stringref name,
+                               functionref target);
+
+extern fieldref NamespaceGetField(namespaceref ns, stringref name);
+extern functionref NamespaceGetFunction(namespaceref ns, stringref name);
+extern functionref NamespaceGetTarget(namespaceref ns, stringref name);

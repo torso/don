@@ -9,6 +9,7 @@
 #include "inthashmap.h"
 #include "intvector.h"
 #include "log.h"
+#include "namespace.h"
 #include "parsestate.h"
 #include "stringpool.h"
 
@@ -95,6 +96,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
     FileMMap(file, &state->start, &size, true);
     state->current = state->start + offset;
     state->limit = state->start + size;
+    state->ns = NamespaceGet(file);
     state->function = function;
     state->file = file;
     state->line = line;
