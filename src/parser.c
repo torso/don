@@ -22,6 +22,7 @@ typedef enum
     VALUE_SIMPLE,
     VALUE_NONNUMBER,
     VALUE_VARIABLE,
+    VALUE_FIELD,
     VALUE_INVOCATION
 } ValueType;
 
@@ -30,6 +31,7 @@ typedef struct
     stringref identifier;
     ValueType valueType;
     stringref valueIdentifier;
+    fieldref field;
     nativefunctionref nativeFunction;
     functionref function;
     uint argumentCount;
@@ -472,7 +474,6 @@ static boolean parseReturnRest(ParseState *state)
 
 static boolean finishLValue(ParseState *state, ExpressionState *estate)
 {
-    fieldref field;
     switch (estate->valueType)
     {
     case VALUE_SIMPLE:
@@ -482,16 +483,11 @@ static boolean finishLValue(ParseState *state, ExpressionState *estate)
         return false;
 
     case VALUE_VARIABLE:
-        if (!ParseStateIsParameter(state, estate->valueIdentifier))
-        {
-            field = NamespaceGetField(state->ns, estate->valueIdentifier);
-            if (field)
-            {
-                ParseStateSetField(state, field);
-                return true;
-            }
-        }
         return ParseStateSetVariable(state, estate->valueIdentifier);
+
+    case VALUE_FIELD:
+        ParseStateSetField(state, estate->field);
+        return true;
     }
     assert(false);
     return false;
@@ -499,7 +495,6 @@ static boolean finishLValue(ParseState *state, ExpressionState *estate)
 
 static boolean finishRValue(ParseState *state, ExpressionState *estate)
 {
-    fieldref field;
     switch (estate->valueType)
     {
     case VALUE_SIMPLE:
@@ -507,16 +502,11 @@ static boolean finishRValue(ParseState *state, ExpressionState *estate)
         return true;
 
     case VALUE_VARIABLE:
-        if (!ParseStateIsParameter(state, estate->valueIdentifier))
-        {
-            field = NamespaceGetField(state->ns, estate->valueIdentifier);
-            if (field)
-            {
-                ParseStateGetField(state, field);
-                return true;
-            }
-        }
         return ParseStateGetVariable(state, estate->valueIdentifier);
+
+    case VALUE_FIELD:
+        ParseStateGetField(state, estate->field);
+        return true;
 
     case VALUE_INVOCATION:
         ParseStateWriteInvocation(state, estate->nativeFunction,
@@ -534,6 +524,7 @@ static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
     case VALUE_SIMPLE:
     case VALUE_NONNUMBER:
     case VALUE_VARIABLE:
+    case VALUE_FIELD:
         statementError(state, "Not a statement.");
         return false;
 
@@ -547,7 +538,7 @@ static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
 }
 
 static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
-                                   stringref name)
+                                   namespaceref ns, stringref name)
 {
     ExpressionState estateArgument;
     nativefunctionref nativeFunction = NativeFindFunction(name);
@@ -574,12 +565,26 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     }
     else
     {
-        function = NamespaceGetFunction(state->ns, name);
-        if (!function)
+        if (ns)
         {
-            statementError(state, "Unknown function '%s'.",
-                           StringPoolGetString(name));
-            return false;
+            function = NamespaceGetFunction(ns, name);
+            if (!function)
+            {
+                statementError(state, "Unknown function '%s.%s'.",
+                               StringPoolGetString(NamespaceGetName(ns)),
+                               StringPoolGetString(name));
+                return false;
+            }
+        }
+        else
+        {
+            function = NamespaceLookupFunction(state->ns, name);
+            if (!function)
+            {
+                statementError(state, "Unknown function '%s'.",
+                               StringPoolGetString(name));
+                return false;
+            }
         }
         parameterCount = FunctionIndexGetParameterCount(function);
         parameterInfo = FunctionIndexGetParameterInfo(function);
@@ -799,6 +804,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
 {
     stringref identifier = estate->identifier;
     stringref string;
+    namespaceref ns;
     uint size;
 
     ParseStateCheck(state);
@@ -837,9 +843,46 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             statementError(state, "Expected constant.");
             return false;
         }
+        if (!peekOperator2(state, '.', '.') &&
+            readOperator(state, '.'))
+        {
+            ns = NamespaceGetNamespace(state->ns, identifier);
+            if (!ns)
+            {
+                statementError(state, "Unknown namespace '%s'.",
+                               StringPoolGetString(identifier));
+                return false;
+            }
+            identifier = readVariableName(state);
+            if (readOperator(state, '('))
+            {
+                return parseInvocationRest(state, estate, ns, identifier);
+            }
+            estate->valueType = VALUE_FIELD;
+            estate->field = NamespaceGetField(ns, identifier);
+            if (!estate->field)
+            {
+                statementError(state, "Unknown field '%s.%s'.",
+                               StringPoolGetString(NamespaceGetName(ns)),
+                               StringPoolGetString(identifier));
+            }
+            return true;
+        }
+        if (ParseStateIsParameter(state, identifier))
+        {
+            estate->valueType = VALUE_VARIABLE;
+            estate->valueIdentifier = identifier;
+            return true;
+        }
         if (readOperator(state, '('))
         {
-            return parseInvocationRest(state, estate, identifier);
+            return parseInvocationRest(state, estate, 0, identifier);
+        }
+        estate->field = NamespaceLookupField(state->ns, identifier);
+        if (estate->field)
+        {
+            estate->valueType = VALUE_FIELD;
+            return true;
         }
         estate->valueType = VALUE_VARIABLE;
         estate->valueIdentifier = identifier;

@@ -10,6 +10,11 @@ extern void NamespaceAddFunction(namespaceref ns, stringref name,
 extern void NamespaceAddTarget(namespaceref ns, stringref name,
                                functionref target);
 
+extern stringref NamespaceGetName(namespaceref ns);
+extern namespaceref NamespaceGetNamespace(namespaceref ns, stringref name);
 extern fieldref NamespaceGetField(namespaceref ns, stringref name);
 extern functionref NamespaceGetFunction(namespaceref ns, stringref name);
 extern functionref NamespaceGetTarget(namespaceref ns, stringref name);
+
+extern fieldref NamespaceLookupField(namespaceref ns, stringref name);
+extern functionref NamespaceLookupFunction(namespaceref ns, stringref name);
