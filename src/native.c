@@ -358,6 +358,7 @@ static void nativeExec(VM *vm, uint returnValues)
         InterpreterPush(vm, log);
     }
     LogAutoNewline();
+    LogErrAutoNewline();
 }
 
 static void nativeFail(VM *vm, uint returnValues)

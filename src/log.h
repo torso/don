@@ -30,6 +30,7 @@ extern nonnull void LogPrintErrObjectAutoNewline(VM *vm, objectref object);
 extern void LogNewline(void);
 extern void LogErrNewline(void);
 extern void LogAutoNewline(void);
+extern void LogErrAutoNewline(void);
 
 extern void LogSetPrefix(const char *prefix, size_t length);
 

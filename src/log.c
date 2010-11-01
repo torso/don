@@ -274,6 +274,14 @@ void LogAutoNewline(void)
     }
 }
 
+void LogErrAutoNewline(void)
+{
+    if (ByteVectorSize(&err.buffer) && ByteVectorPeek(&err.buffer) != '\n')
+    {
+        LogErrNewline();
+    }
+}
+
 void LogSetPrefix(const char *prefix, size_t length)
 {
     out.prefix = prefix;
