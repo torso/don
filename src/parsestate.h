@@ -42,6 +42,7 @@ extern nonnull void ParseStateFinishJump(ParseState *state, size_t branch);
 extern nonnull void ParseStateSetIndent(ParseState *state, uint indent);
 extern nonnull uint ParseStateBlockIndent(ParseState *state);
 
+extern nonnull boolean ParseStateIsParameter(ParseState *state, stringref name);
 extern nonnull boolean ParseStateGetVariable(ParseState *state, stringref name);
 extern nonnull boolean ParseStateSetVariable(ParseState *state, stringref name);
 extern nonnull boolean ParseStateCreateUnnamedVariable(ParseState *state,

@@ -482,11 +482,14 @@ static boolean finishLValue(ParseState *state, ExpressionState *estate)
         return false;
 
     case VALUE_VARIABLE:
-        field = NamespaceGetField(state->ns, estate->valueIdentifier);
-        if (field)
+        if (!ParseStateIsParameter(state, estate->valueIdentifier))
         {
-            ParseStateSetField(state, field);
-            return true;
+            field = NamespaceGetField(state->ns, estate->valueIdentifier);
+            if (field)
+            {
+                ParseStateSetField(state, field);
+                return true;
+            }
         }
         return ParseStateSetVariable(state, estate->valueIdentifier);
     }
@@ -504,11 +507,14 @@ static boolean finishRValue(ParseState *state, ExpressionState *estate)
         return true;
 
     case VALUE_VARIABLE:
-        field = NamespaceGetField(state->ns, estate->valueIdentifier);
-        if (field)
+        if (!ParseStateIsParameter(state, estate->valueIdentifier))
         {
-            ParseStateGetField(state, field);
-            return true;
+            field = NamespaceGetField(state->ns, estate->valueIdentifier);
+            if (field)
+            {
+                ParseStateGetField(state, field);
+                return true;
+            }
         }
         return ParseStateGetVariable(state, estate->valueIdentifier);
 

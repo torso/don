@@ -288,6 +288,16 @@ uint ParseStateBlockIndent(ParseState *state)
 }
 
 
+boolean ParseStateIsParameter(ParseState *state, stringref name)
+{
+    uint local = IntHashMapGet(&state->locals, uintFromRef(name));
+    if (!local)
+    {
+        return false;
+    }
+    return local <= FunctionIndexGetParameterCount(state->function);
+}
+
 boolean ParseStateGetVariable(ParseState *state, stringref name)
 {
     uint16 local = getLocalIndex(state, name);
