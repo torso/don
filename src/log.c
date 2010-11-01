@@ -51,8 +51,15 @@ static void flush(Pipe *p, size_t size)
     keep = ByteVectorSize(&p->buffer) - size;
     /* TODO: Error handling */
     write(p->fd, ByteVectorGetPointer(&p->buffer, p->flushed), size - p->flushed);
-    ByteVectorMove(&p->buffer, size, p->flushed, keep);
-    ByteVectorSetSize(&p->buffer, p->flushed + keep);
+    if (buffered(p))
+    {
+        p->flushed = size;
+    }
+    else
+    {
+        ByteVectorMove(&p->buffer, size, p->flushed, keep);
+        ByteVectorSetSize(&p->buffer, p->flushed + keep);
+    }
 }
 
 static void autoflush(Pipe *p, size_t newData)
