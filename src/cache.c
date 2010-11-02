@@ -374,6 +374,7 @@ boolean CacheCheckUptodate(cacheref ref)
             entry->outLength = 0;
             entry->errLength = 0;
             free(entry->output);
+            entry->output = null;
             return false;
         }
         depend += FileGetStatusBlobSize();
