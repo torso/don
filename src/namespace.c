@@ -3,6 +3,8 @@
 #include "inthashmap.h"
 #include "namespace.h"
 
+#define NAMESPACE_DON 1
+
 typedef struct
 {
     stringref name;
@@ -136,7 +138,7 @@ fieldref NamespaceLookupField(namespaceref ns, stringref name)
     uint i = IntHashMapGet(&getNamespace(ns)->fieldIndex, uintFromRef(name));
     if (!i)
     {
-        i = IntHashMapGet(&getNamespace(1)->fieldIndex, uintFromRef(name));
+        i = IntHashMapGet(&getNamespace(NAMESPACE_DON)->fieldIndex, uintFromRef(name));
     }
     return refFromUint(i);
 }
@@ -146,7 +148,7 @@ functionref NamespaceLookupFunction(namespaceref ns, stringref name)
     uint i = IntHashMapGet(&getNamespace(ns)->functionIndex, uintFromRef(name));
     if (!i)
     {
-        i = IntHashMapGet(&getNamespace(1)->functionIndex, uintFromRef(name));
+        i = IntHashMapGet(&getNamespace(NAMESPACE_DON)->functionIndex, uintFromRef(name));
     }
     return refFromUint(i);
 }
