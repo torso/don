@@ -295,13 +295,15 @@ static stringref readString(ParseState *state)
             state->current++;
             switch (state->current[0])
             {
-            case '\\':
-                ByteVectorAdd(&string, '\\');
-                break;
-
-            case 'n':
-                ByteVectorAdd(&string, '\n');
-                break;
+            case '\\': ByteVectorAdd(&string, '\\'); break;
+            case '\'': ByteVectorAdd(&string, '\''); break;
+            case '"': ByteVectorAdd(&string, '"'); break;
+            case '0': ByteVectorAdd(&string, '\0'); break;
+            case 'f': ByteVectorAdd(&string, '\f'); break;
+            case 'n': ByteVectorAdd(&string, '\n'); break;
+            case 'r': ByteVectorAdd(&string, '\r'); break;
+            case 't': ByteVectorAdd(&string, '\t'); break;
+            case 'v': ByteVectorAdd(&string, '\v'); break;
 
             default:
                 error(state, "Invalid escape sequence.");
