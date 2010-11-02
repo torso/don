@@ -28,7 +28,7 @@ filename(path)
 fileset(value)
    return native.fileset(value)
 
-getCache(label, version, key, echoCachedOutput = true)
+getCache(label, version, key..., echoCachedOutput = true)
    cacheFile, uptodate = native.getCache([label, version, key], echoCachedOutput)
    return cacheFile, uptodate
 
