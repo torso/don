@@ -854,6 +854,10 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
                 return false;
             }
             identifier = readVariableName(state);
+            if (!identifier)
+            {
+                return false;
+            }
             if (readOperator(state, '('))
             {
                 return parseInvocationRest(state, estate, ns, identifier);
