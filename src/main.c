@@ -85,6 +85,7 @@ int main(int argc, const char **argv)
     const char *options;
     const char *inputFilename = null;
     const char *env;
+    const char *filename;
     fileref inputFile;
     fileref cacheDirectory = 0;
     fileref donNamespaceFile;
@@ -199,7 +200,8 @@ int main(int argc, const char **argv)
     NativeInit();
 
     ByteVectorInit(&parsed, 65536);
-    donNamespaceFile = FileAdd("data/don.don", 12);
+    filename = DATADIR "don.don";
+    donNamespaceFile = FileAdd(filename, strlen(filename));
     NamespaceCreate(donNamespaceFile, StringPoolAdd("don"));
     ParseFile(donNamespaceFile);
     inputFile = FileAdd(inputFilename, strlen(inputFilename));

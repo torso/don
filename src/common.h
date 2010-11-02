@@ -2,6 +2,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifndef DATADIR
+#define DATADIR "data/"
+#endif
+
 typedef int8_t int8;
 typedef uint8_t uint8;
 typedef uint16_t uint16;
