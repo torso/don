@@ -16,8 +16,10 @@ test:
          echo("FAIL: " filename(f))
          hasOutput = out != "" || err != ""
          if hasOutput
-            echo(out, prefix:"> ")
-            echo(err, prefix:"> ")
+            if out
+               echo(out, prefix:"> ")
+            if err
+               echo(err, prefix:"> ")
       else
          pass += 1
    if fail
