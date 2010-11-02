@@ -12,6 +12,7 @@ typedef struct
     inthashmap targetIndex;
 } Namespace;
 
+static boolean initialised;
 static bytevector namespaceData;
 static inthashmap fileNamespace;
 static inthashmap nameNamespace;
@@ -38,20 +39,25 @@ void NamespaceInit(void)
     ByteVectorSetSize(&namespaceData, sizeof(Namespace));
     IntHashMapInit(&fileNamespace, 4);
     IntHashMapInit(&nameNamespace, 4);
+    initialised = true;
 }
 
 void NamespaceDispose(void)
 {
     Namespace *ns;
-    Namespace *limit = (Namespace*)ByteVectorGetAppendPointer(&namespaceData);
+    Namespace *limit;
 
-    for (ns = getNamespace(1); ns < limit; ns++)
+    if (initialised)
     {
-        disposeNamespace(ns);
+        limit = (Namespace*)ByteVectorGetAppendPointer(&namespaceData);
+        for (ns = getNamespace(1); ns < limit; ns++)
+        {
+            disposeNamespace(ns);
+        }
+        ByteVectorDispose(&namespaceData);
+        IntHashMapDispose(&fileNamespace);
+        IntHashMapDispose(&nameNamespace);
     }
-    ByteVectorDispose(&namespaceData);
-    IntHashMapDispose(&fileNamespace);
-    IntHashMapDispose(&nameNamespace);
 }
 
 
