@@ -1466,7 +1466,10 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     skipWhitespace(state);
     estate.identifier = 0;
     estate.constant = false;
-    parseExpression(state, &estate);
+    if (!parseExpression(state, &estate))
+    {
+        return false;
+    }
     if (estate.valueType != VALUE_INVOCATION)
     {
         statementError(state, "Expected function invocation.");
