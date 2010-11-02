@@ -64,10 +64,10 @@ namespaceref NamespaceCreate(fileref file, stringref name)
     ByteVectorGrow(&namespaceData, sizeof(Namespace));
     entry = getNamespace(ref);
     entry->name = name;
-    IntHashMapInit(&entry->namespaces, 10);
-    IntHashMapInit(&entry->fieldIndex, 10);
-    IntHashMapInit(&entry->functionIndex, 10);
-    IntHashMapInit(&entry->targetIndex, 10);
+    IntHashMapInit(&entry->namespaces, 1);
+    IntHashMapInit(&entry->fieldIndex, 32);
+    IntHashMapInit(&entry->functionIndex, 32);
+    IntHashMapInit(&entry->targetIndex, 32);
     IntHashMapAdd(&fileNamespace, uintFromRef(file), uintFromRef(ref));
     if (name)
     {
