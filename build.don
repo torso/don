@@ -8,7 +8,7 @@ test:
    fail = 0
    hasOutput = false
    for f in @test/*
-      out, exitcode, err = exec(program, "-o", ".don-test", "-i", f, failOnError:false, echo:false, echoStderr:false)
+      out, exitcode, err = exec(program, "-i", f, failOnError:false, echo:false, echoStderr:false, env:["XDG_CACHE_HOME", "tempcache"])
       if exitcode || out != "PASS\n" || err != ""
          fail += 1
          if hasOutput
@@ -29,4 +29,4 @@ test:
 
 default:
    program = compile()
-   exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", program, "-o", ".don-test", "-i", "input")
+   exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", program, "-i", "input", env:["XDG_CACHE_HOME", "tempcache"])

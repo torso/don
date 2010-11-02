@@ -84,6 +84,7 @@ int main(int argc, const char **argv)
     uint j;
     const char *options;
     const char *inputFilename = null;
+    const char *env;
     fileref inputFile;
     fileref cacheDirectory = 0;
     fileref donNamespaceFile;
@@ -151,20 +152,6 @@ int main(int argc, const char **argv)
                     inputFilename = argv[i];
                     break;
 
-                case 'o':
-                    if (cacheDirectory)
-                    {
-                        fprintf(stderr, "More than one cache directory specified.\n");
-                        return 1;
-                    }
-                    if (++i >= argc)
-                    {
-                        fprintf(stderr, "Option \"-o\" requires an argument.\n");
-                        return 1;
-                    }
-                    cacheDirectory = FileAdd(argv[i], strlen(argv[i]));
-                    break;
-
                 default:
                     fprintf(stderr, "Unknown option: %c\n", argv[i][1]);
                     return 1;
@@ -181,10 +168,24 @@ int main(int argc, const char **argv)
     {
         inputFilename = "build.don";
     }
-    if (!cacheDirectory)
+
+    env = getenv("XDG_CACHE_HOME");
+    if (env && env[0])
     {
-        cacheDirectory = FileAdd(".don", 4);
+        cacheDirectory = FileAddRelative(env, strlen(env), "don", 3);
     }
+    else
+    {
+        env = getenv("HOME");
+        if (!env || !env[0])
+        {
+            fprintf(stderr,
+                    "No suitable location for cache directory found.\n");
+            return 1;
+        }
+        cacheDirectory = FileAddRelative(env, strlen(env), ".cache/don", 10);
+    }
+
     if (!IntVectorSize(&targets))
     {
         name = StringPoolAdd("default");

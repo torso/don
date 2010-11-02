@@ -200,10 +200,10 @@ void CacheInit(fileref cacheDirectory)
     const char *base = FileGetName(cacheDirectory);
     size_t baseLength = FileGetNameLength(cacheDirectory);
 
-    cacheDir = FileAddRelative(base, baseLength, "cache/", 6);
-    cacheIndex = FileAddRelative(base, baseLength, "cache/index", 11);
-    cacheIndexOut = FileAddRelative(base, baseLength, "cache/index.1", 13);
-    tempfile = FileAddRelative(base, baseLength, "cache/index.2", 13);
+    cacheDir = cacheDirectory;
+    cacheIndex = FileAddRelative(base, baseLength, "index", 5);
+    cacheIndexOut = FileAddRelative(base, baseLength, "index.1", 7);
+    tempfile = FileAddRelative(base, baseLength, "index.2", 7);
     FileMkdir(cacheDir);
     FileDelete(tempfile);
     readIndex(cacheIndex);
