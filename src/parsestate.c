@@ -479,26 +479,24 @@ void ParseStateWriteReturnVoid(ParseState *state)
 }
 
 void ParseStateWriteInvocation(ParseState *state,
-                               nativefunctionref nativeFunction,
                                functionref function, uint argumentCount,
                                uint returnValues)
 {
     assert(argumentCount <= UINT16_MAX); /* TODO: report error */
     assert(returnValues <= UINT8_MAX); /* TODO: report error */
     ParseStateCheck(state);
-    if (nativeFunction)
-    {
-        assert(!function);
-        ByteVectorAdd(state->bytecode, OP_INVOKE_NATIVE);
-        ByteVectorAdd(state->bytecode, (byte)uintFromRef(nativeFunction));
-    }
-    else
-    {
-        ByteVectorAdd(state->bytecode, OP_INVOKE);
-        ByteVectorAddRef(state->bytecode, function);
-    }
+    ByteVectorAdd(state->bytecode, OP_INVOKE);
+    ByteVectorAddRef(state->bytecode, function);
     ByteVectorAddUint16(state->bytecode, (uint16)argumentCount);
     ByteVectorAdd(state->bytecode, (uint8)returnValues);
+}
+
+void ParseStateWriteNativeInvocation(ParseState *state,
+                                     nativefunctionref function)
+{
+    ParseStateCheck(state);
+    ByteVectorAdd(state->bytecode, OP_INVOKE_NATIVE);
+    ByteVectorAdd(state->bytecode, (byte)uintFromRef(function));
 }
 
 void ParseStateReorderStack(ParseState *state,

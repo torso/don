@@ -3,8 +3,6 @@
 #include "inthashmap.h"
 #include "namespace.h"
 
-#define NAMESPACE_DON 1
-
 typedef struct
 {
     stringref name;

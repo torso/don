@@ -1,3 +1,5 @@
+#define NAMESPACE_DON 1
+
 extern void NamespaceInit(void);
 extern void NamespaceDispose(void);
 

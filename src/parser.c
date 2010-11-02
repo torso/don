@@ -23,7 +23,8 @@ typedef enum
     VALUE_NONNUMBER,
     VALUE_VARIABLE,
     VALUE_FIELD,
-    VALUE_INVOCATION
+    VALUE_INVOCATION,
+    VALUE_NATIVE_INVOCATION
 } ValueType;
 
 typedef struct
@@ -472,6 +473,20 @@ static boolean parseReturnRest(ParseState *state)
     }
 }
 
+static boolean checkNativeFunctionReturnValueCount(ParseState *state,
+                                                   nativefunctionref function,
+                                                   uint returnValues)
+{
+    if (NativeGetReturnValueCount(function) != returnValues)
+    {
+        statementError(
+            state, "Native function returns %d values, but %d are handled.",
+            NativeGetReturnValueCount(function), returnValues);
+        return false;
+    }
+    return true;
+}
+
 static boolean finishLValue(ParseState *state, ExpressionState *estate)
 {
     switch (estate->valueType)
@@ -479,6 +494,7 @@ static boolean finishLValue(ParseState *state, ExpressionState *estate)
     case VALUE_SIMPLE:
     case VALUE_NONNUMBER:
     case VALUE_INVOCATION:
+    case VALUE_NATIVE_INVOCATION:
         statementError(state, "Invalid target for assignment.");
         return false;
 
@@ -509,8 +525,17 @@ static boolean finishRValue(ParseState *state, ExpressionState *estate)
         return true;
 
     case VALUE_INVOCATION:
-        ParseStateWriteInvocation(state, estate->nativeFunction,
-                                  estate->function, estate->argumentCount, 1);
+        ParseStateWriteInvocation(state, estate->function,
+                                  estate->argumentCount, 1);
+        return true;
+
+    case VALUE_NATIVE_INVOCATION:
+        if (!checkNativeFunctionReturnValueCount(state,
+                                                 estate->nativeFunction, 1))
+        {
+            return false;
+        }
+        ParseStateWriteNativeInvocation(state, estate->nativeFunction);
         return true;
     }
     assert(false);
@@ -529,8 +554,17 @@ static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
         return false;
 
     case VALUE_INVOCATION:
-        ParseStateWriteInvocation(state, estate->nativeFunction,
-                                  estate->function, estate->argumentCount, 0);
+        ParseStateWriteInvocation(state, estate->function,
+                                  estate->argumentCount, 0);
+        return true;
+
+    case VALUE_NATIVE_INVOCATION:
+        if (!checkNativeFunctionReturnValueCount(state,
+                                                 estate->nativeFunction, 0))
+        {
+            return false;
+        }
+        ParseStateWriteNativeInvocation(state, estate->nativeFunction);
         return true;
     }
     assert(false);
@@ -541,7 +575,6 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                                    namespaceref ns, stringref name)
 {
     ExpressionState estateArgument;
-    nativefunctionref nativeFunction = NativeFindFunction(name);
     functionref function = 0;
     uint parameterCount;
     const ParameterInfo *parameterInfo;
@@ -556,42 +589,31 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     uint i;
 
     ParseStateCheck(state);
-    if (nativeFunction)
+    if (ns)
     {
-        parameterCount = NativeGetParameterCount(nativeFunction);
-        parameterInfo = NativeGetParameterInfo(nativeFunction);
-        varargIndex = NativeHasVararg(nativeFunction) ?
-            NativeGetVarargIndex(nativeFunction) : UINT_MAX;
+        function = NamespaceGetFunction(ns, name);
+        if (!function)
+        {
+            statementError(state, "Unknown function '%s.%s'.",
+                           StringPoolGetString(NamespaceGetName(ns)),
+                           StringPoolGetString(name));
+            return false;
+        }
     }
     else
     {
-        if (ns)
+        function = NamespaceLookupFunction(state->ns, name);
+        if (!function)
         {
-            function = NamespaceGetFunction(ns, name);
-            if (!function)
-            {
-                statementError(state, "Unknown function '%s.%s'.",
-                               StringPoolGetString(NamespaceGetName(ns)),
-                               StringPoolGetString(name));
-                return false;
-            }
+            statementError(state, "Unknown function '%s'.",
+                           StringPoolGetString(name));
+            return false;
         }
-        else
-        {
-            function = NamespaceLookupFunction(state->ns, name);
-            if (!function)
-            {
-                statementError(state, "Unknown function '%s'.",
-                               StringPoolGetString(name));
-                return false;
-            }
-        }
-        parameterCount = FunctionIndexGetParameterCount(function);
-        parameterInfo = FunctionIndexGetParameterInfo(function);
-        varargIndex = FunctionIndexHasVararg(function) ?
-            FunctionIndexGetVarargIndex(function) : UINT_MAX;
     }
-    assert(parameterInfo || !parameterCount);
+    parameterCount = FunctionIndexGetParameterCount(function);
+    parameterInfo = FunctionIndexGetParameterInfo(function);
+    varargIndex = FunctionIndexHasVararg(function) ?
+        FunctionIndexGetVarargIndex(function) : UINT_MAX;
 
     if (!readOperator(state, ')'))
     {
@@ -776,9 +798,40 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         while (argumentCount < parameterCount);
     }
     estate->valueType = VALUE_INVOCATION;
-    estate->nativeFunction = nativeFunction;
     estate->function = function;
     estate->argumentCount = argumentCount;
+    return true;
+}
+
+static boolean parseNativeInvocationRest(ParseState *state,
+                                         ExpressionState *estate,
+                                         stringref name)
+{
+    nativefunctionref function = NativeFindFunction(name);
+    uint parameterCount;
+
+    ParseStateCheck(state);
+    if (!function)
+    {
+        statementError(state, "Unknown native function '%s'.",
+                       StringPoolGetString(name));
+        return false;
+    }
+    parameterCount = NativeGetParameterCount(function);
+    estate->valueType = VALUE_NATIVE_INVOCATION;
+    estate->nativeFunction = function;
+    estate->argumentCount = parameterCount;
+
+    assert(parameterCount);
+    while (parameterCount--)
+    {
+        if (!parseRValue(state, false) ||
+            !readExpectedOperator(state, parameterCount ? ',' : ')'))
+        {
+            return false;
+        }
+        skipWhitespace(state);
+    }
     return true;
 }
 
@@ -849,6 +902,16 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             ns = NamespaceGetNamespace(state->ns, identifier);
             if (!ns)
             {
+                if (state->ns == NAMESPACE_DON &&
+                    identifier == StringPoolAdd("native"))
+                {
+                    identifier = readVariableName(state);
+                    if (!identifier || !readExpectedOperator(state, '('))
+                    {
+                        return false;
+                    }
+                    return parseNativeInvocationRest(state, estate, identifier);
+                }
                 statementError(state, "Unknown namespace '%s'.",
                                StringPoolGetString(identifier));
                 return false;
@@ -1444,6 +1507,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
 {
     ExpressionState estate;
     bytevector lvalues;
+    uint returnValueCount;
 
     ByteVectorInit(&lvalues, 16);
     do
@@ -1453,6 +1517,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
         estate.constant = false;
         if (!parseExpression(state, &estate))
         {
+            ByteVectorDispose(&lvalues);
             return false;
         }
         ByteVectorAddData(&lvalues, (byte*)&estate, sizeof(estate));
@@ -1461,6 +1526,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     while (readOperator(state, ','));
     if (!readExpectedOperator(state, '='))
     {
+        ByteVectorDispose(&lvalues);
         return false;
     }
     skipWhitespace(state);
@@ -1468,21 +1534,38 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     estate.constant = false;
     if (!parseExpression(state, &estate))
     {
+        ByteVectorDispose(&lvalues);
         return false;
     }
-    if (estate.valueType != VALUE_INVOCATION)
+    returnValueCount = (uint)(ByteVectorSize(&lvalues) / sizeof(estate) + 1);
+    if (estate.valueType == VALUE_INVOCATION)
     {
+        ParseStateWriteInvocation(
+            state, estate.function, estate.argumentCount,
+            returnValueCount);
+    }
+    else if (estate.valueType == VALUE_NATIVE_INVOCATION)
+    {
+        if (!checkNativeFunctionReturnValueCount(
+                state, estate.nativeFunction, returnValueCount))
+        {
+            ByteVectorDispose(&lvalues);
+            return false;
+        }
+        ParseStateWriteNativeInvocation(state, estate.nativeFunction);
+    }
+    else
+    {
+        ByteVectorDispose(&lvalues);
         statementError(state, "Expected function invocation.");
         return false;
     }
-    ParseStateWriteInvocation(
-        state, estate.nativeFunction, estate.function, estate.argumentCount,
-        (uint)(ByteVectorSize(&lvalues) / sizeof(estate) + 1));
     while (ByteVectorSize(&lvalues))
     {
         ByteVectorPopData(&lvalues, (byte*)&estate, sizeof(estate));
         if (!finishLValue(state, &estate))
         {
+            ByteVectorDispose(&lvalues);
             return false;
         }
     }

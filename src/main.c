@@ -195,8 +195,9 @@ int main(int argc, const char **argv)
     FunctionIndexAddFunction(StringPoolAdd(""), 0, 0, 0);
     FieldIndexInit();
     NamespaceInit();
-    ByteVectorInit(&parsed, 65536);
+    NativeInit();
 
+    ByteVectorInit(&parsed, 65536);
     donNamespaceFile = FileAdd("data/don.don", 12);
     NamespaceCreate(donNamespaceFile, StringPoolAdd("don"));
     ParseFile(donNamespaceFile);
@@ -218,8 +219,6 @@ int main(int argc, const char **argv)
     {
         ParseFunctionDeclaration(function, &parsed);
     }
-
-    NativeInit(&parsed);
 
     bytecode = ByteVectorDisposeContainer(&parsed);
     ByteVectorInit(&parsed, 65536);

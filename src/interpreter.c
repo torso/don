@@ -439,9 +439,7 @@ static void execute(VM *vm, functionref target)
 
         case OP_INVOKE_NATIVE:
             nativeFunction = refFromUint(*ip++);
-            argumentCount = BytecodeReadUint16(&ip);
-            assert(argumentCount == NativeGetParameterCount(nativeFunction));
-            NativeInvoke(vm, nativeFunction, *ip++);
+            NativeInvoke(vm, nativeFunction);
             break;
 
         case OP_UNKNOWN_VALUE:

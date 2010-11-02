@@ -240,12 +240,8 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_INVOKE_NATIVE:
         nativeFunction = refFromUint(*bytecode++);
-        arguments = BytecodeReadUint16(&bytecode);
-        value = *bytecode++;
-        printf(" %u: invoke native \"%s\" arguments: %u return: %u\n",
-               ip,
-               StringPoolGetString(NativeGetName(nativeFunction)),
-               arguments, value);
+        printf(" %u: invoke native \"%s\"\n",
+               ip, StringPoolGetString(NativeGetName(nativeFunction)));
         break;
 
     case OP_UNKNOWN_VALUE:

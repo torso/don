@@ -1,3 +1,57 @@
+echo(message, prefix = null)
+   native.echo(message, prefix)
+
+exec(command..., failOnError = true, echo = true, echoStderr = true)
+   out, exitcode, err = native.exec(command, failOnError, echo, echoStderr)
+   return out, exitcode, err
+
+fail(message = null, condition = true)
+   if condition
+      if message == null
+         message = ""
+      else
+         message = "" message
+      if message != ""
+         native.fail("BUILD FAILED: " message)
+      else
+         native.fail("BUILD FAILED")
+
+file(path, name, extension = null)
+   return native.file(path, name, extension)
+
+filename(path)
+   return native.filename(path)
+
+fileset(value)
+   return native.fileset(value)
+
+getCache(label, version, key, echoCachedOutput = true)
+   cacheFile, uptodate = native.getCache([label, version, key], echoCachedOutput)
+   return cacheFile, uptodate
+
+indexOf(data, element)
+   return native.indexOf(data, element)
+
+lines(value, trimEmptyLastLine = true)
+   return native.lines(value, trimEmptyLastLine)
+
+readFile(file)
+   return native.readFile(file)
+
+replace(data, original, replacement)
+   result, count = native.replace(data, original, replacement)
+   return result, count
+
+setUptodate(cacheFile, out, err, accessedFiles = [])
+   native.setUptodate(cacheFile, out, err, accessedFiles)
+
+size(value)
+   return native.size(value)
+
+split(value, delimiter = " ", removeEmpty = false)
+   return native.split(value, delimiter, removeEmpty)
+
+
 cc(files..., flags = [])
    result = []
    for f in fileset(files)
