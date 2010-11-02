@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE 600
 #include <memory.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -72,7 +73,7 @@ static void addFunctionInfo(const char *name, uint parameterCount,
 void NativeInit(void)
 {
     addFunctionInfo("echo", 2, 0);
-    addFunctionInfo("exec", 4, 3);
+    addFunctionInfo("exec", 5, 3);
     addFunctionInfo("fail", 1, 0);
     addFunctionInfo("file", 3, 1);
     addFunctionInfo("filename", 1, 1);
@@ -161,7 +162,13 @@ static void nativeExec(VM *vm)
     boolean echoErr = InterpreterPopBoolean(vm);
     boolean echoOut = InterpreterPopBoolean(vm);
     boolean failOnError = InterpreterPopBoolean(vm);
+    objectref env = InterpreterPop(vm);
     objectref command = InterpreterPop(vm);
+    Iterator iter;
+    objectref name;
+    objectref value;
+    char *pname;
+    char *pvalue;
     char **argv;
     pid_t pid;
     int status;
@@ -170,6 +177,8 @@ static void nativeExec(VM *vm)
     objectref log;
     const byte *p;
     size_t length;
+
+    assert(HeapCollectionSize(vm, env) % 2 == 0);
 
     argv = createStringArray(vm, command);
 
@@ -202,6 +211,29 @@ static void nativeExec(VM *vm)
             TaskFailErrno(true);
         }
         close(pipeErr[1]);
+
+        HeapIteratorInit(vm, &iter, env, true);
+        while (HeapIteratorNext(&iter, &name))
+        {
+            HeapIteratorNext(&iter, &value);
+            if (value)
+            {
+                pname = (char*)malloc(HeapStringLength(vm, name) +
+                                      HeapStringLength(vm, value) + 2);
+                pvalue = HeapWriteString(vm, name, pname);
+                *pvalue++ = 0;
+                *HeapWriteString(vm, value, pvalue) = 0;
+                setenv(pname, pvalue, 1);
+                free(pname);
+            }
+            else
+            {
+                pname = (char*)malloc(HeapStringLength(vm, name) + 1);
+                *HeapWriteString(vm, name, pname) = 0;
+                unsetenv(pname);
+                free(pname);
+            }
+        }
 
         execvp(argv[0], argv);
         _exit(EXIT_FAILURE);

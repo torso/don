@@ -1,8 +1,11 @@
+contains(data, element)
+   return indexOf(data, element) != null
+
 echo(message, prefix = null)
    native.echo(message, prefix)
 
-exec(command..., failOnError = true, echo = true, echoStderr = true)
-   out, exitcode, err = native.exec(command, failOnError, echo, echoStderr)
+exec(command..., env = [], failOnError = true, echo = true, echoStderr = true)
+   out, exitcode, err = native.exec(command, env, failOnError, echo, echoStderr)
    return out, exitcode, err
 
 fail(message = null, condition = true)
