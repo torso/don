@@ -1,6 +1,7 @@
 #include <string.h>
 #include "common.h"
 #include "stringpool.h"
+#include "util.h"
 
 #define TABLE_SIZE 0
 #define TABLE_DATA_BEGIN 2
@@ -88,7 +89,6 @@ stringref StringPoolAdd(const char *token)
 
 stringref StringPoolAdd2(const char *token, size_t length)
 {
-    uint i;
     uint hash;
     uint slot;
     stringref ref;
@@ -99,12 +99,7 @@ stringref StringPoolAdd2(const char *token, size_t length)
     assert(cachedTable);
     assert(length <= 127); /* TODO: Increase string length limit */
 
-    hash = 1;
-    for (i = 0; i < length; i++)
-    {
-        assert(token[i]);
-        hash = (uint)31 * hash + (uint)token[i];
-    }
+    hash = UtilHashString(token, length);
     slot = getSlotForHash(cachedTable, hash);
     while (!isSlotEmpty(cachedTable, slot))
     {

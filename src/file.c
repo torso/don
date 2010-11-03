@@ -12,6 +12,7 @@
 #include "glob.h"
 #include "stringpool.h"
 #include "task.h"
+#include "util.h"
 
 #define INITIAL_FILE_SIZE 1024
 
@@ -30,7 +31,7 @@ struct _FileEntry
     fileref next;
     uint refCount;
 
-    const char *name;
+    char *name;
     size_t nameLength;
     int flags;
 
@@ -46,6 +47,7 @@ struct _FileEntry
     StatusBlob blob;
 };
 
+static uint *fileTable;
 static FileEntry *fileIndex;
 static uint fileIndexSize;
 static uint freeFile;
@@ -65,7 +67,7 @@ static void checkFile(fileref file)
     assert(fileIndex[sizeFromRef(file) - 1].refCount);
 }
 
-static FileEntry *getFile(fileref file)
+static FileEntry *getFileEntry(fileref file)
 {
     checkFile(file);
     return &fileIndex[sizeFromRef(file) - 1];
@@ -423,6 +425,10 @@ static void initFileIndex(uint start)
 
 static void disposeFile(FileEntry *fe)
 {
+    FileEntry *prev;
+    uint slot = UtilHashString(fe->name, fe->nameLength) & (fileIndexSize - 1);
+    uint file = (uint)(fe - fileIndex) + 1;
+
     if (fe->flags & FLAG_FREE_FILENAME)
     {
         free((void*)fe->name);
@@ -432,16 +438,35 @@ static void disposeFile(FileEntry *fe)
         fileMUnmap(fe);
         fileClose(fe);
     }
+    if (fileTable[slot] == file)
+    {
+        fileTable[slot] = fe->next;
+    }
+    else
+    {
+        prev = getFileEntry(fileTable[slot]);
+        for (;;)
+        {
+            if (prev->next == file)
+            {
+                prev->next = fe->next;
+                break;
+            }
+            prev = getFileEntry(prev->next);
+        }
+    }
     fe->next = freeFile;
-    freeFile = (uint)(fe - fileIndex) + 1;
+    freeFile = file;
 }
 
-static fileref addFile(const char *filename, size_t filenameLength,
+static fileref addFile(char *filename, size_t filenameLength,
                        boolean filenameOwner)
 {
     FileEntry *fe;
     fileref file;
     uint oldSize;
+    uint slot;
+    uint i;
 
     assert(filename);
     assert(!filename[filenameLength]);
@@ -454,14 +479,44 @@ static fileref addFile(const char *filename, size_t filenameLength,
         fileIndex = (FileEntry*)malloc(fileIndexSize * sizeof(FileEntry));
         memcpy(fileIndex, fe, oldSize * sizeof(FileEntry));
         free(fe);
+        free(fileTable);
+        fileTable = (uint*)calloc(fileIndexSize, sizeof(uint));
+        i = oldSize;
+        while (i--)
+        {
+            fe = &fileIndex[i];
+            if (fe->refCount)
+            {
+                slot = UtilHashString(fe->name, fe->nameLength) & (fileIndexSize - 1);
+                fe->next = fileTable[slot];
+                fileTable[slot] = i + 1;
+            }
+        }
         initFileIndex(oldSize);
     }
+    slot = UtilHashString(filename, filenameLength) & (fileIndexSize - 1);
+    file = fileTable[slot];
+    while (file)
+    {
+        fe = getFileEntry(file);
+        if (filenameLength == fe->nameLength &&
+            !memcmp(filename, fe->name, filenameLength))
+        {
+            if (filenameOwner)
+            {
+                free(filename);
+            }
+            return file;
+        }
+        file = fe->next;
+    }
+
     fe = &fileIndex[freeFile - 1];
     assert(!fe->refCount);
     file = refFromUint(freeFile);
     freeFile = fe->next;
-    fe->next = 0;
-    fe->name = (const char*)filename;
+    fe->next = fileTable[slot];
+    fe->name = filename;
     fe->nameLength = filenameLength;
     fe->flags = filenameOwner ? FLAG_FREE_FILENAME : 0;
     fe->refCount = 1;
@@ -469,6 +524,7 @@ static fileref addFile(const char *filename, size_t filenameLength,
     fe->hasStat = false;
     fe->data = null;
     fe->dataRefCount = 0;
+    fileTable[slot] = file;
     return file;
 }
 
@@ -477,6 +533,7 @@ void FileInit(void)
 {
     char *buffer;
 
+    fileTable = (uint*)calloc(INITIAL_FILE_SIZE, sizeof(uint));
     fileIndexSize = INITIAL_FILE_SIZE;
     fileIndex = (FileEntry*)malloc(INITIAL_FILE_SIZE * sizeof(FileEntry));
     initFileIndex(0);
@@ -504,15 +561,17 @@ void FileInit(void)
 void FileDisposeAll(void)
 {
     FileEntry *fe;
-    while (fileIndexSize--)
+    uint i = fileIndexSize;
+    while (i--)
     {
-        fe = &fileIndex[fileIndexSize];
+        fe = &fileIndex[i];
         if (fe->refCount)
         {
             fe->refCount = 0;
             disposeFile(fe);
         }
     }
+    free(fileTable);
     free(fileIndex);
     free(cwd);
 }
@@ -520,30 +579,30 @@ void FileDisposeAll(void)
 
 fileref FileAdd(const char *filename, size_t length)
 {
-    filename = getAbsoluteFilename(null, 0, filename, length, null, 0, &length);
-    return addFile(filename, length, true);
+    char *name = getAbsoluteFilename(null, 0, filename, length, null, 0, &length);
+    return addFile(name, length, true);
 }
 
 fileref FileAddRelative(const char *base, size_t baseLength,
                         const char *filename, size_t length)
 {
-    filename = getAbsoluteFilename(base, baseLength, filename, length, null, 0,
-                                   &length);
-    return addFile(filename, length, true);
+    char *name = getAbsoluteFilename(base, baseLength, filename, length, null, 0,
+                                     &length);
+    return addFile(name, length, true);
 }
 
 fileref FileAddRelativeExt(const char *base, size_t baseLength,
                            const char *filename, size_t length,
                            const char *extension, size_t extLength)
 {
-    filename = getAbsoluteFilename(base, baseLength, filename, length,
-                                   extension, extLength, &length);
-    return addFile(filename, length, true);
+    char *name = getAbsoluteFilename(base, baseLength, filename, length,
+                                     extension, extLength, &length);
+    return addFile(name, length, true);
 }
 
 void FileDispose(fileref file)
 {
-    FileEntry *fe = getFile(file);
+    FileEntry *fe = getFileEntry(file);
     assert(fe->refCount);
     if (!--fe->refCount)
     {
@@ -554,24 +613,24 @@ void FileDispose(fileref file)
 
 const char *FileGetName(fileref file)
 {
-    return getFile(file)->name;
+    return getFileEntry(file)->name;
 }
 
 size_t FileGetNameLength(fileref file)
 {
-    return getFile(file)->nameLength;
+    return getFileEntry(file)->nameLength;
 }
 
 size_t FileGetSize(fileref file)
 {
-    FileEntry *restrict fe = getFile(file);
+    FileEntry *restrict fe = getFileEntry(file);
     fileStat(fe, true);
     return fe->blob.size;
 }
 
 const byte *FileGetStatusBlob(fileref file)
 {
-    FileEntry *fe = getFile(file);
+    FileEntry *fe = getFileEntry(file);
     fileStat(fe, true);
     return (const byte*)&fe->blob;
 }
@@ -589,17 +648,17 @@ boolean FileHasChanged(fileref file, const byte *blob)
 
 void FileOpenAppend(fileref file)
 {
-    fileOpen(getFile(file), true, true);
+    fileOpen(getFileEntry(file), true, true);
 }
 
 void FileClose(fileref file)
 {
-    fileClose(getFile(file));
+    fileClose(getFileEntry(file));
 }
 
 void FileCloseSync(fileref file)
 {
-    FileEntry *fe = getFile(file);
+    FileEntry *fe = getFileEntry(file);
     if (fe->fd)
     {
         /* Sync is best-effort only. Ignore errors. */
@@ -611,7 +670,7 @@ void FileCloseSync(fileref file)
 
 void FileWrite(fileref file, const byte *data, size_t size)
 {
-    FileEntry *restrict fe = getFile(file);
+    FileEntry *restrict fe = getFileEntry(file);
     ssize_t written;
 
     assert(fe->fd);
@@ -632,7 +691,7 @@ void FileWrite(fileref file, const byte *data, size_t size)
 void FileMMap(fileref file, const byte **p, size_t *size,
               boolean failOnFileNotFound)
 {
-    FileEntry *fe = getFile(file);
+    FileEntry *fe = getFileEntry(file);
 
     if (!fe->data)
     {
@@ -658,7 +717,7 @@ void FileMMap(fileref file, const byte **p, size_t *size,
 
 void FileMUnmap(fileref file)
 {
-    FileEntry *fe = getFile(file);
+    FileEntry *fe = getFileEntry(file);
 
     if (!--fe->dataRefCount)
     {
@@ -669,7 +728,7 @@ void FileMUnmap(fileref file)
 
 void FileDelete(fileref file)
 {
-    FileEntry *fe = getFile(file);
+    FileEntry *fe = getFileEntry(file);
     fileClose(fe);
     if (remove(fe->name) && errno != ENOENT)
     {
@@ -679,8 +738,8 @@ void FileDelete(fileref file)
 
 void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
 {
-    FileEntry *oldFE = getFile(oldFile);
-    FileEntry *newFE = getFile(newFile);
+    FileEntry *oldFE = getFileEntry(oldFile);
+    FileEntry *newFE = getFileEntry(newFile);
     fileClose(oldFE);
     fileClose(newFE);
     if (rename(oldFE->name, newFE->name) == -1)
@@ -694,7 +753,7 @@ void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
 
 void FileMkdir(fileref file)
 {
-    FileEntry *fe = getFile(file);
+    FileEntry *fe = getFileEntry(file);
     createDirectory(fe->name, fe->nameLength, false);
 }
 
