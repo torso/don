@@ -27,7 +27,6 @@ static byte *grow(bytevector *v, size_t size)
 {
     size_t oldSize = v->size;
     size_t newSize;
-    byte *newData;
 
     checkByteVector(v);
     size += v->size;
@@ -43,10 +42,7 @@ static byte *grow(bytevector *v, size_t size)
             }
         }
         while (size > newSize);
-        newData = (byte*)malloc(newSize);
-        memcpy(newData, v->data, v->size);
-        free(v->data);
-        v->data = newData;
+        v->data = (byte*)realloc(v->data, newSize);
         v->allocatedSize = newSize;
     }
     v->size = size;

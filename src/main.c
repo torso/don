@@ -328,3 +328,14 @@ void *mymalloc(size_t size)
     }
     return p;
 }
+
+#undef realloc
+void *myrealloc(void *ptr, size_t size)
+{
+    void *p = realloc(ptr, size);
+    if (!p)
+    {
+        TaskFailOOM();
+    }
+    return p;
+}

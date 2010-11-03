@@ -27,7 +27,6 @@ static uint *grow(intvector *v, size_t size)
 {
     size_t oldSize = v->size;
     size_t newSize;
-    uint *newData;
 
     checkIntVector(v);
     size += v->size;
@@ -40,10 +39,7 @@ static uint *grow(intvector *v, size_t size)
             assert(newSize >= v->allocatedSize); /* TODO: Handle error. */
         }
         while (size > newSize);
-        newData = (uint*)malloc(newSize * sizeof(uint));
-        memcpy(newData, v->data, v->size * sizeof(uint));
-        free(v->data);
-        v->data = newData;
+        v->data = (uint*)realloc(v->data, newSize * sizeof(uint));
         v->allocatedSize = newSize;
     }
     v->size = size;

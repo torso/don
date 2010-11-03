@@ -473,12 +473,9 @@ static fileref addFile(char *filename, size_t filenameLength,
 
     if (!freeFile)
     {
-        fe = fileIndex;
         oldSize = fileIndexSize;
         fileIndexSize *= 2;
-        fileIndex = (FileEntry*)malloc(fileIndexSize * sizeof(FileEntry));
-        memcpy(fileIndex, fe, oldSize * sizeof(FileEntry));
-        free(fe);
+        fileIndex = (FileEntry*)realloc(fileIndex, fileIndexSize * sizeof(FileEntry));
         free(fileTable);
         fileTable = (uint*)calloc(fileIndexSize, sizeof(uint));
         i = oldSize;
@@ -548,9 +545,7 @@ void FileInit(void)
     assert(cwd[0] == '/');
     if (cwd[cwdLength - 1] != '/')
     {
-        buffer = (char*)malloc(cwdLength + 2);
-        memcpy(buffer, cwd, cwdLength);
-        free(cwd);
+        buffer = (char*)realloc(cwd, cwdLength + 2);
         buffer[cwdLength] = '/';
         buffer[cwdLength + 1] = '/';
         cwd = buffer;

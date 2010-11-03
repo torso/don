@@ -39,8 +39,10 @@ typedef uint8 byte;
 
 #define calloc mycalloc
 #define malloc mymalloc
+#define realloc myrealloc
 extern void *nonnull mycalloc(size_t count, size_t eltsize);
 extern void *nonnull mymalloc(size_t size);
+extern void *nonnull myrealloc(void *ptr, size_t size);
 
 #ifdef DEBUG
 extern void _assert(const char *expression, const char *file, int line);
