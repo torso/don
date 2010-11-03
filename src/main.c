@@ -96,7 +96,8 @@ int main(int argc, const char **argv)
     boolean parseOptions = true;
     boolean disassemble = false;
     const byte *bytecodeLimit;
-    size_t bytecodeSize;
+    const byte *p;
+    size_t size;
     boolean fail;
 
     atexit(cleanup);
@@ -202,9 +203,11 @@ int main(int argc, const char **argv)
     ByteVectorInit(&parsed, 65536);
     filename = DATADIR "don.don";
     donNamespaceFile = FileAdd(filename, strlen(filename));
+    FileMMap(donNamespaceFile, &p, &size, true);
     NamespaceCreate(donNamespaceFile, StringPoolAdd("don"));
     ParseFile(donNamespaceFile);
     inputFile = FileAdd(inputFilename, strlen(inputFilename));
+    FileMMap(inputFile, &p, &size, true);
     defaultNamespace = NamespaceCreate(inputFile, 0);
     ParseFile(inputFile);
 
@@ -237,11 +240,13 @@ int main(int argc, const char **argv)
         ParseFunctionBody(function, &parsed);
     }
 
+    FileMUnmap(donNamespaceFile);
+    FileMUnmap(inputFile);
     FileDispose(donNamespaceFile);
     FileDispose(inputFile);
-    bytecodeSize = ByteVectorSize(&parsed);
+    size = ByteVectorSize(&parsed);
     bytecode = ByteVectorDisposeContainer(&parsed);
-    bytecodeLimit = bytecode + bytecodeSize;
+    bytecodeLimit = bytecode + size;
 
     if (disassemble)
     {

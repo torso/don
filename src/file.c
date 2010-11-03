@@ -13,7 +13,7 @@
 #include "stringpool.h"
 #include "task.h"
 
-#define INITIAL_FILE_SIZE 2048
+#define INITIAL_FILE_SIZE 1024
 
 #define FLAG_FREE_FILENAME 1
 
@@ -23,12 +23,16 @@ typedef struct
     filetime_t mtime;
 } StatusBlob;
 
-typedef struct
+struct _FileEntry;
+typedef struct _FileEntry FileEntry;
+struct _FileEntry
 {
+    fileref next;
+    uint refCount;
+
     const char *name;
     size_t nameLength;
     int flags;
-    uint refCount;
 
     int fd;
     boolean append;
@@ -37,11 +41,14 @@ typedef struct
     mode_t mode;
 
     byte *data;
+    uint dataRefCount;
 
     StatusBlob blob;
-} FileEntry;
+};
 
-static FileEntry fileIndex[INITIAL_FILE_SIZE];
+static FileEntry *fileIndex;
+static uint fileIndexSize;
+static uint freeFile;
 
 static TraverseCallback globalCallback;
 static void *globalUserdata;
@@ -54,7 +61,7 @@ static size_t cwdLength;
 static void checkFile(fileref file)
 {
     assert(file);
-    assert(sizeFromRef(file) <= sizeof(fileIndex) / sizeof(fileIndex[0]));
+    assert(sizeFromRef(file) <= fileIndexSize);
     assert(fileIndex[sizeFromRef(file) - 1].refCount);
 }
 
@@ -240,39 +247,6 @@ static char *stripFilename(const char *filename, size_t length,
     return null;
 }
 
-static fileref addFile(const char *filename, size_t filenameLength,
-                       boolean filenameOwner)
-{
-    size_t file;
-
-    if (!filename)
-    {
-        return 0;
-    }
-
-    assert(!filename[filenameLength]);
-
-    file = sizeof(fileIndex) / sizeof(fileIndex[0]);
-    for (;;)
-    {
-        assert(file); /* TODO: grow file index */
-        file--;
-        if (!fileIndex[file].refCount)
-        {
-            break;
-        }
-    }
-
-    fileIndex[file].name = (const char*)filename;
-    fileIndex[file].nameLength = filenameLength;
-    fileIndex[file].flags = filenameOwner ? FLAG_FREE_FILENAME : 0;
-    fileIndex[file].refCount = 1;
-    fileIndex[file].fd = 0;
-    fileIndex[file].hasStat = false;
-    fileIndex[file].data = null;
-    return refFromSize(file + 1);
-}
-
 static void createDirectory(const char *path, size_t length, boolean mutablePath)
 {
     struct stat s;
@@ -340,8 +314,19 @@ static void createDirectory(const char *path, size_t length, boolean mutablePath
     }
 }
 
+static void fileMUnmap(FileEntry *fe)
+{
+    int error;
+
+    assert(fe->data);
+    error = munmap(fe->data, fe->blob.size);
+    fe->data = null;
+    assert(!error);
+}
+
 static void fileClose(FileEntry *fe)
 {
+    assert(!fe->data);
     if (fe->fd)
     {
         close(fe->fd);
@@ -423,10 +408,78 @@ static boolean fileStat(FileEntry *fe, boolean failOnFileNotFound)
     return true;
 }
 
+static void initFileIndex(uint start)
+{
+    uint index = start;
+
+    for (index = start; index < fileIndexSize; index++)
+    {
+        fileIndex[index].refCount = 0;
+        fileIndex[index].next = index + 2;
+    }
+    fileIndex[fileIndexSize - 1].next = 0;
+    freeFile = start + 1;
+}
+
+static void disposeFile(FileEntry *fe)
+{
+    if (fe->flags & FLAG_FREE_FILENAME)
+    {
+        free((void*)fe->name);
+    }
+    if (fe->data)
+    {
+        fileMUnmap(fe);
+        fileClose(fe);
+    }
+    fe->next = freeFile;
+    freeFile = (uint)(fe - fileIndex) + 1;
+}
+
+static fileref addFile(const char *filename, size_t filenameLength,
+                       boolean filenameOwner)
+{
+    FileEntry *fe;
+    fileref file;
+    uint oldSize;
+
+    assert(filename);
+    assert(!filename[filenameLength]);
+
+    if (!freeFile)
+    {
+        fe = fileIndex;
+        oldSize = fileIndexSize;
+        fileIndexSize *= 2;
+        fileIndex = (FileEntry*)malloc(fileIndexSize * sizeof(FileEntry));
+        memcpy(fileIndex, fe, oldSize * sizeof(FileEntry));
+        free(fe);
+        initFileIndex(oldSize);
+    }
+    fe = &fileIndex[freeFile - 1];
+    assert(!fe->refCount);
+    file = refFromUint(freeFile);
+    freeFile = fe->next;
+    fe->next = 0;
+    fe->name = (const char*)filename;
+    fe->nameLength = filenameLength;
+    fe->flags = filenameOwner ? FLAG_FREE_FILENAME : 0;
+    fe->refCount = 1;
+    fe->fd = 0;
+    fe->hasStat = false;
+    fe->data = null;
+    fe->dataRefCount = 0;
+    return file;
+}
+
 
 void FileInit(void)
 {
     char *buffer;
+
+    fileIndexSize = INITIAL_FILE_SIZE;
+    fileIndex = (FileEntry*)malloc(INITIAL_FILE_SIZE * sizeof(FileEntry));
+    initFileIndex(0);
 
     cwd = getcwd(null, 0);
     if (!cwd)
@@ -450,15 +503,17 @@ void FileInit(void)
 
 void FileDisposeAll(void)
 {
-    size_t i = sizeof(fileIndex) / sizeof(fileIndex[0]);
-    while (--i)
+    FileEntry *fe;
+    while (fileIndexSize--)
     {
-        if (fileIndex[i].refCount)
+        fe = &fileIndex[fileIndexSize];
+        if (fe->refCount)
         {
-            fileIndex[i].refCount = 1;
-            FileDispose(refFromSize(i + 1));
+            fe->refCount = 0;
+            disposeFile(fe);
         }
     }
+    free(fileIndex);
     free(cwd);
 }
 
@@ -489,18 +544,11 @@ fileref FileAddRelativeExt(const char *base, size_t baseLength,
 void FileDispose(fileref file)
 {
     FileEntry *fe = getFile(file);
-    if (fe->refCount == 1)
+    assert(fe->refCount);
+    if (!--fe->refCount)
     {
-        if (fe->flags & FLAG_FREE_FILENAME)
-        {
-            free((void*)fe->name);
-        }
-        if (fe->data)
-        {
-            FileMUnmap(file);
-        }
+        disposeFile(fe);
     }
-    fe->refCount--;
 }
 
 
@@ -598,10 +646,12 @@ void FileMMap(fileref file, const byte **p, size_t *size,
         fe->data = (byte*)mmap(null, fe->blob.size, PROT_READ, MAP_PRIVATE, fe->fd, 0);
         if (fe->data == (byte*)-1)
         {
+            fe->data = null;
             /* TODO: Read file fallback */
             TaskFailIO(fe->name);
         }
     }
+    fe->dataRefCount++;
     *p = fe->data;
     *size = fe->blob.size;
 }
@@ -609,11 +659,11 @@ void FileMMap(fileref file, const byte **p, size_t *size,
 void FileMUnmap(fileref file)
 {
     FileEntry *fe = getFile(file);
-    int error;
 
-    assert(fe->data);
-    error = munmap(fe->data, fe->blob.size);
-    assert(!error);
+    if (!--fe->dataRefCount)
+    {
+        fileMUnmap(fe);
+    }
 }
 
 

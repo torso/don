@@ -128,6 +128,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
 void ParseStateDispose(ParseState *state)
 {
     ParseStateCheck(state);
+    FileMUnmap(state->file);
     IntVectorDispose(&state->blockStack);
     IntHashMapDispose(&state->locals);
 }
