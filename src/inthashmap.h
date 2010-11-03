@@ -5,6 +5,7 @@ struct inthashmap
     uint *table;
     size_t tableSize;
     size_t size;
+    size_t growLimit;
 };
 
 typedef struct

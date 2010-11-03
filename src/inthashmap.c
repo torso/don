@@ -34,23 +34,10 @@ static boolean isSlotEmpty(const inthashmap *map, size_t slot)
     return !getSlotKey(map, slot);
 }
 
-void IntHashMapInit(inthashmap *map, size_t capacity)
-{
-    map->tableSize = max(roundSizeToPow2(capacity * 4 / 3), capacity + 1);
-    map->size = 0;
-    map->table = (uint*)calloc(map->tableSize * 2, sizeof(uint));
-}
-
-void IntHashMapDispose(inthashmap *map)
-{
-    free(map->table);
-}
-
-void IntHashMapAdd(inthashmap *map, uint key, uint value)
+static void addEntry(inthashmap *map, uint key, uint value)
 {
     size_t slot = getSlotForKey(map, key);
-    assert(key);
-    assert(map->size < map->tableSize);
+
     while (!isSlotEmpty(map, slot))
     {
         assert(getSlotKey(map, slot) != key);
@@ -63,6 +50,47 @@ void IntHashMapAdd(inthashmap *map, uint key, uint value)
     map->size++;
     map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_KEY] = key;
     map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE] = value;
+}
+
+
+void IntHashMapInit(inthashmap *map, size_t capacity)
+{
+    map->tableSize = max(roundSizeToPow2(capacity * 4 / 3), capacity + 1);
+    map->growLimit = map->tableSize * 3 / 4;
+    map->size = 0;
+    map->table = (uint*)calloc(map->tableSize * 2, sizeof(uint));
+}
+
+void IntHashMapDispose(inthashmap *map)
+{
+    free(map->table);
+}
+
+void IntHashMapAdd(inthashmap *map, uint key, uint value)
+{
+    uint *oldTable;
+    uint *restrict p;
+    uint *restrict limit;
+
+    assert(key);
+    if (map->size > map->growLimit)
+    {
+        oldTable = map->table;
+        map->tableSize *= 2;
+        map->size = 0;
+        map->growLimit = map->tableSize * 3 / 4;
+        map->table = (uint*)calloc(map->tableSize * 2, sizeof(uint));
+        limit = oldTable + map->tableSize;
+        for (p = oldTable; p < limit; p += 2)
+        {
+            if (*p)
+            {
+                addEntry(map, *p, *(p + 1));
+            }
+        }
+        free(oldTable);
+    }
+    addEntry(map, key, value);
 }
 
 uint IntHashMapGet(const inthashmap *map, uint key)
