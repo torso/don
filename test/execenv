@@ -1,4 +1,4 @@
 default:
-   if contains("\n" exec("env", env:["TEST", "value"], echo:false) "\n", "\nTEST=value\n")
-      if !contains("\n" exec("env", env:["TEST", null], echo:false) "\n", "\nTEST=")
+   if contains("\n" exec("env", env:["TEST", "value"], echo:false)[0] "\n", "\nTEST=value\n")
+      if !contains("\n" exec("env", env:["TEST", null], echo:false)[0] "\n", "\nTEST=")
          echo("PASS")

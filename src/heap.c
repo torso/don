@@ -930,18 +930,25 @@ objectref HeapSplit(VM *vm, objectref string, objectref delimiter,
         offset += delimiterLength;
         lastOffset = offset;
     }
-    value = HeapCreateArray(vm, &substrings);
+    value = HeapCreateArrayFromVector(vm, &substrings);
     IntVectorDispose(&substrings);
     return value;
 }
 
 
-objectref HeapCreateArray(VM *vm, const intvector *values)
+objectref HeapCreateArray(VM *vm, const objectref *values, size_t size)
 {
-    size_t size = IntVectorSize(values) * sizeof(objectref);
-    byte *data = HeapAlloc(vm, TYPE_ARRAY, size);
-    memcpy(data, IntVectorGetPointer(values, 0), size);
+    byte *data;
+    size *= sizeof(objectref);
+    data = HeapAlloc(vm, TYPE_ARRAY, size);
+    memcpy(data, values, size);
     return HeapFinishAlloc(vm, data);
+}
+
+objectref HeapCreateArrayFromVector(VM *vm, const intvector *values)
+{
+    return HeapCreateArray(vm, IntVectorGetPointer(values, 0),
+                           IntVectorSize(values));
 }
 
 objectref HeapConcatList(VM *vm, objectref list1, objectref list2)

@@ -73,7 +73,7 @@ static void addFunctionInfo(const char *name, uint parameterCount,
 void NativeInit(void)
 {
     addFunctionInfo("echo", 2, 0);
-    addFunctionInfo("exec", 5, 3);
+    addFunctionInfo("exec", 5, 2);
     addFunctionInfo("fail", 1, 0);
     addFunctionInfo("file", 3, 1);
     addFunctionInfo("filename", 1, 1);
@@ -174,7 +174,7 @@ static void nativeExec(VM *vm)
     int status;
     int pipeOut[2];
     int pipeErr[2];
-    objectref log;
+    objectref output[2];
     const byte *p;
     size_t length;
 
@@ -261,16 +261,15 @@ static void nativeExec(VM *vm)
         TaskFailVM(vm);
     }
     LogGetOutBuffer(&p, &length);
-    log = HeapCreateString(vm, (const char*)p, length);
+    output[0] = HeapCreateString(vm, (const char*)p, length);
     LogPopOutBuffer();
-    InterpreterPush(vm, log);
-    InterpreterPush(vm, HeapBoxInteger(vm, status));
     LogGetErrBuffer(&p, &length);
-    log = HeapCreateString(vm, (const char*)p, length);
+    output[1] = HeapCreateString(vm, (const char*)p, length);
     LogPopErrBuffer();
-    InterpreterPush(vm, log);
     LogAutoNewline();
     LogErrAutoNewline();
+    InterpreterPush(vm, HeapCreateArray(vm, output, 2));
+    InterpreterPush(vm, HeapBoxInteger(vm, status));
 }
 
 static noreturn void nativeFail(VM *vm)
@@ -329,7 +328,7 @@ static void nativeFileset(VM *vm)
         }
     }
     /* TODO: Reuse collection if possible. */
-    InterpreterPush(vm, HeapCreateArray(vm, &files));
+    InterpreterPush(vm, HeapCreateArrayFromVector(vm, &files));
     IntVectorDispose(&files);
 }
 

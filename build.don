@@ -8,18 +8,18 @@ test:
    fail = 0
    hasOutput = false
    for f in @test/*
-      out, exitcode, err = exec(program, "-i", f, failOnError:false, echo:false, echoStderr:false, env:["XDG_CACHE_HOME", "tempcache"])
-      if exitcode || out != "PASS\n" || err != ""
+      out, exitcode = exec(program, "-i", f, failOnError:false, echo:false, echoStderr:false, env:["XDG_CACHE_HOME", "tempcache"])
+      if exitcode || out[0] != "PASS\n" || out[1] != ""
          fail += 1
          if hasOutput
             echo("")
          echo("FAIL: " filename(f))
-         hasOutput = out != "" || err != ""
+         hasOutput = out[0] != "" || out[1] != ""
          if hasOutput
-            if out
-               echo(out, prefix:"> ")
-            if err
-               echo(err, prefix:"> ")
+            if out[0]
+               echo(out[0], prefix:"> ")
+            if out[1]
+               echo(out[1], prefix:"> ")
       else
          pass += 1
    if fail

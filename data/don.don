@@ -5,8 +5,8 @@ echo(message, prefix = null)
    native.echo(message, prefix)
 
 exec(command..., env = [], failOnError = true, echo = true, echoStderr = true)
-   out, exitcode, err = native.exec(command, env, failOnError, echo, echoStderr)
-   return out, exitcode, err
+   output, exitcode = native.exec(command, env, failOnError, echo, echoStderr)
+   return output, exitcode
 
 fail(message = null, condition = true)
    if condition
@@ -45,8 +45,8 @@ replace(data, original, replacement)
    result, count = native.replace(data, original, replacement)
    return result, count
 
-setUptodate(cacheFile, out, err, accessedFiles = [])
-   native.setUptodate(cacheFile, out, err, accessedFiles)
+setUptodate(cacheFile, output, accessedFiles = [])
+   native.setUptodate(cacheFile, output[0], output[1], accessedFiles)
 
 size(value)
    return native.size(value)
@@ -62,12 +62,12 @@ cc(files..., flags = [])
       ofile = file(cache, filename(f), "o")
       if !uptodate
          dependFile = file(cache, filename(f), "d")
-         out, exitcode, err = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f)
+         out, exitcode = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f)
          depend = readFile(dependFile)
          depend = depend[indexOf(depend, ": ") + 2 .. size(depend) - 2]
          depend = replace(depend, "\\\n", "")
          depend = split(depend, removeEmpty:true)
-         setUptodate(cache, out, err, accessedFiles:fileset(depend))
+         setUptodate(cache, out, accessedFiles:fileset(depend))
       result = result::[ofile]
    return result
 
@@ -76,6 +76,6 @@ link(files..., name = "a.out")
    cache, uptodate = getCache("link", 0, files)
    program = file(cache, name)
    if !uptodate
-      out, exitcode, err = exec("cc", "-o", program, files)
-      setUptodate(cache, out, err, accessedFiles:files)
+      out, exitcode = exec("cc", "-o", program, files)
+      setUptodate(cache, out, accessedFiles:files)
    return program
