@@ -1458,6 +1458,7 @@ static boolean parseExpression(ParseState *state, ExpressionState *estate)
         {
             return false;
         }
+        ParseStateWriteInstruction(state, OP_CAST_BOOLEAN);
         ParseStateWriteBeginCondition(state);
         if (!parseRValue(state, estate->constant) ||
             !readExpectedOperator(state, ':') ||
