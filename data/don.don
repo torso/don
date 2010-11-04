@@ -60,18 +60,22 @@ split(value, delimiter = " ", removeEmpty = false)
 
 cc(files..., flags = [])
    result = []
+   failed = false
    for f in fileset(files)
       cache, uptodate = getCache("cc", 0, f, flags)
       ofile = file(cache, filename(f), "o")
       if !uptodate
          dependFile = file(cache, filename(f), "d")
-         out, exitcode = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f)
+         out, exitcode = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f, failOnError:false)
+         failed = failed || exitcode
          depend = readFile(dependFile)
          depend = depend[indexOf(depend, ": ") + 2 .. size(depend) - 2]
          depend = replace(depend, "\\\n", "")
          depend = split(depend, removeEmpty:true)
          setUptodate(cache, out, accessedFiles:fileset(depend))
       result = result::[ofile]
+   if failed
+      fail()
    return result
 
 link(files..., name = "a.out")
