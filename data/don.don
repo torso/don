@@ -61,8 +61,9 @@ split(value, delimiter = " ", removeEmpty = false)
 cc(files..., flags = [])
    result = []
    failed = false
+   env = [getenv("LANG"), getenv("LC_CTYPE"), getenv("LC_MESSAGES"), getenv("LC_ALL"), getenv("GCC_EXEC_PREFIX"), getenv("COMPILER_PATH"), getenv("LIBRARY_PATH"), getenv("CPATH"), getenv("C_INCLUDE_PATH"), getenv("CPLUS_INCLUDE_PATH"), getenv("OBJC_INCLUDE_PATH")]
    for f in fileset(files)
-      cache, uptodate = getCache("cc", 0, f, flags)
+      cache, uptodate = getCache("cc", 0, f, flags, env)
       ofile = file(cache, filename(f), "o")
       if !uptodate
          dependFile = file(cache, filename(f), "d")
@@ -80,7 +81,8 @@ cc(files..., flags = [])
 
 link(files..., name = "a.out")
    files = fileset(files)
-   cache, uptodate = getCache("link", 0, files)
+   env = [getenv("LANG"), getenv("LC_CTYPE"), getenv("LC_MESSAGES"), getenv("LC_ALL"), getenv("GCC_EXEC_PREFIX"), getenv("COMPILER_PATH"), getenv("LIBRARY_PATH"), getenv("CPATH"), getenv("C_INCLUDE_PATH"), getenv("CPLUS_INCLUDE_PATH"), getenv("OBJC_INCLUDE_PATH")]
+   cache, uptodate = getCache("link", 0, files, env)
    program = file(cache, name)
    if !uptodate
       out, exitcode = exec("cc", "-o", program, files)
