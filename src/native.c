@@ -31,6 +31,7 @@ typedef enum
     NATIVE_FILENAME,
     NATIVE_FILESET,
     NATIVE_GETCACHE,
+    NATIVE_GETENV,
     NATIVE_INDEXOF,
     NATIVE_LINES,
     NATIVE_READFILE,
@@ -79,6 +80,7 @@ void NativeInit(void)
     addFunctionInfo("filename", 1, 1);
     addFunctionInfo("fileset", 1, 1);
     addFunctionInfo("getCache", 2, 2);
+    addFunctionInfo("getenv", 1, 1);
     addFunctionInfo("indexOf", 2, 1);
     addFunctionInfo("lines", 2, 1);
     addFunctionInfo("readFile", 1, 1);
@@ -361,6 +363,20 @@ static void nativeGetCache(VM *vm)
     InterpreterPushBoolean(vm, uptodate);
 }
 
+static void nativeGetenv(VM *vm)
+{
+    objectref name = InterpreterPop(vm);
+    char *buffer;
+    size_t nameLength = HeapStringLength(vm, name);
+    const char *value;
+
+    buffer = (char*)malloc(nameLength + 1);
+    *HeapWriteString(vm, name, buffer) = 0;
+    value = getenv(buffer);
+    free(buffer);
+    InterpreterPush(vm, value ? HeapCreateString(vm, value, strlen(value)) : 0);
+}
+
 static void nativeIndexOf(VM *vm)
 {
     objectref element = InterpreterPop(vm);
@@ -547,6 +563,7 @@ static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT] =
     nativeFilename,
     nativeFileset,
     nativeGetCache,
+    nativeGetenv,
     nativeIndexOf,
     nativeLines,
     nativeReadFile,

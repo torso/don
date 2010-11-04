@@ -32,6 +32,9 @@ getCache(label, version, key..., echoCachedOutput = true)
    cacheFile, uptodate = native.getCache([label, version, key], echoCachedOutput)
    return cacheFile, uptodate
 
+getenv(name)
+   return native.getenv(name)
+
 indexOf(data, element)
    return native.indexOf(data, element)
 
