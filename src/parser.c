@@ -1688,6 +1688,10 @@ static boolean parseFunctionBody(ParseState *state)
                     return false;
                 }
             }
+            else if (!indent)
+            {
+                return true;
+            }
             state->statementLine = state->line;
             if (identifier)
             {
