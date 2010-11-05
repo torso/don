@@ -36,6 +36,7 @@ typedef enum
     NATIVE_LINES,
     NATIVE_READFILE,
     NATIVE_REPLACE,
+    NATIVE_RM,
     NATIVE_SETUPTODATE,
     NATIVE_SIZE,
     NATIVE_SPLIT,
@@ -85,6 +86,7 @@ void NativeInit(void)
     addFunctionInfo("lines", 2, 1);
     addFunctionInfo("readFile", 1, 1);
     addFunctionInfo("replace", 3, 2);
+    addFunctionInfo("rm", 1, 0);
     addFunctionInfo("setUptodate", 4, 0);
     addFunctionInfo("size", 1, 1);
     addFunctionInfo("split", 3, 1);
@@ -129,7 +131,7 @@ static objectref readFile(VM *vm, objectref object)
 {
     const char *text;
     size_t size;
-    fileref file = HeapGetFile(vm, object);
+    fileref file = HeapGetAsFile(vm, object);
 
     FileMMap(file, (const byte**)&text, &size, true);
     return HeapCreateWrappedString(vm, text, size);
@@ -318,16 +320,7 @@ static void nativeFileset(VM *vm)
     HeapIteratorInit(vm, &iter, value, true);
     while (HeapIteratorNext(&iter, &o))
     {
-        if (!HeapIsFile(vm, o))
-        {
-            IntVectorAddRef(
-                &files,
-                HeapCreateFile(vm, HeapGetFileFromParts(vm, 0, o, 0)));
-        }
-        else
-        {
-            IntVectorAddRef(&files, o);
-        }
+        IntVectorAddRef(&files, HeapGetAsFile(vm, o));
     }
     /* TODO: Reuse collection if possible. */
     InterpreterPush(vm, HeapCreateArrayFromVector(vm, &files));
@@ -459,6 +452,12 @@ static void nativeReplace(VM *vm)
     HeapWriteSubstring(vm, data, offset, dataLength - offset, p);
 }
 
+static void nativeRm(VM *vm)
+{
+    objectref file = InterpreterPop(vm);
+    FileDelete(HeapGetAsFile(vm, file));
+}
+
 static void nativeSetUptodate(VM *vm)
 {
     objectref accessedFiles = InterpreterPop(vm);
@@ -568,6 +567,7 @@ static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT] =
     nativeLines,
     nativeReadFile,
     nativeReplace,
+    nativeRm,
     nativeSetUptodate,
     nativeSize,
     nativeSplit

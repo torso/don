@@ -48,6 +48,9 @@ replace(data, original, replacement)
    result, count = native.replace(data, original, replacement)
    return result, count
 
+rm(file)
+   native.rm(file)
+
 setUptodate(cacheFile, output, accessedFiles = [])
    native.setUptodate(cacheFile, output[0], output[1], accessedFiles)
 

@@ -801,6 +801,15 @@ fileref HeapGetFile(VM *vm, objectref object)
     return unboxReference(vm, TYPE_FILE, object);
 }
 
+fileref HeapGetAsFile(VM *vm, objectref object)
+{
+    if (HeapIsString(vm, object))
+    {
+        return FileAdd(getString(vm, object), HeapStringLength(vm, object));
+    }
+    return HeapGetFile(vm, object);
+}
+
 fileref HeapGetFileFromParts(VM *vm, objectref path, objectref name,
                              objectref extension)
 {

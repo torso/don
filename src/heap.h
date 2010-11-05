@@ -113,6 +113,7 @@ extern nonnull objectref HeapStringIndexOf(VM *vm, objectref text,
 extern nonnull objectref HeapCreateFile(VM *vm, fileref file);
 extern nonnull boolean HeapIsFile(VM *vm, objectref object);
 extern nonnull fileref HeapGetFile(VM *vm, objectref object);
+extern nonnull fileref HeapGetAsFile(VM *vm, objectref object);
 extern nonnull fileref HeapGetFileFromParts(VM *vm,
                                             objectref path,
                                             objectref name,
