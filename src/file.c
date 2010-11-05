@@ -721,14 +721,32 @@ void FileMUnmap(fileref file)
 }
 
 
+static int fileDeleteCallback(const char *filename, const struct stat *s unused,
+                              int flags unused, struct FTW *f unused)
+{
+    if (remove(filename) && errno != ENOENT)
+    {
+        TaskFailIO(filename);
+    }
+    return 0;
+}
+
 void FileDelete(fileref file)
 {
     FileEntry *fe = getFileEntry(file);
     fileClose(fe);
-    if (remove(fe->name) && errno != ENOENT)
+    if (!remove(fe->name) || errno == ENOENT)
     {
-        TaskFailIO(fe->name);
+        return;
     }
+    if (errno == ENOTEMPTY)
+    {
+        if (!nftw(fe->name, fileDeleteCallback, 10, FTW_PHYS | FTW_MOUNT | FTW_DEPTH))
+        {
+            return;
+        }
+    }
+    TaskFailIO(fe->name);
 }
 
 void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
