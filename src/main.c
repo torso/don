@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE 600
 #include <stdarg.h>
 #include <stdio.h>
 #include <memory.h>
@@ -169,6 +170,12 @@ int main(int argc, const char **argv)
     if (!inputFilename)
     {
         inputFilename = "build.don";
+    }
+
+    unsetenv("COLORTERM");
+    if (setenv("TERM", "dumb", 1))
+    {
+        TaskFailErrno(false);
     }
 
     env = getenv("XDG_CACHE_HOME");
