@@ -320,7 +320,11 @@ static void nativeFileset(VM *vm)
     HeapIteratorInit(vm, &iter, value, true);
     while (HeapIteratorNext(&iter, &o))
     {
-        IntVectorAddRef(&files, HeapGetAsFile(vm, o));
+        if (!HeapIsFile(vm, o))
+        {
+            o = HeapCreateFile(vm, HeapGetAsFile(vm, o));
+        }
+        IntVectorAddRef(&files, o);
     }
     /* TODO: Reuse collection if possible. */
     InterpreterPush(vm, HeapCreateArrayFromVector(vm, &files));
