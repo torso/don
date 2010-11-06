@@ -34,6 +34,7 @@ typedef enum
     NATIVE_GETENV,
     NATIVE_INDEXOF,
     NATIVE_LINES,
+    NATIVE_MV,
     NATIVE_READFILE,
     NATIVE_REPLACE,
     NATIVE_RM,
@@ -84,6 +85,7 @@ void NativeInit(void)
     addFunctionInfo("getenv", 1, 1);
     addFunctionInfo("indexOf", 2, 1);
     addFunctionInfo("lines", 2, 1);
+    addFunctionInfo("mv", 2, 0);
     addFunctionInfo("readFile", 1, 1);
     addFunctionInfo("replace", 3, 2);
     addFunctionInfo("rm", 1, 0);
@@ -399,6 +401,16 @@ static void nativeLines(VM *vm)
                                   trimEmptyLastLine));
 }
 
+static void nativeMv(VM *vm)
+{
+    objectref dst = InterpreterPop(vm);
+    objectref src = InterpreterPop(vm);
+
+    assert(HeapIsFile(vm, src));
+    assert(HeapIsFile(vm, dst));
+    FileRename(HeapGetFile(vm, src), HeapGetFile(vm, dst), true);
+}
+
 static void nativeReadFile(VM *vm)
 {
     objectref file = InterpreterPop(vm);
@@ -569,6 +581,7 @@ static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT] =
     nativeGetenv,
     nativeIndexOf,
     nativeLines,
+    nativeMv,
     nativeReadFile,
     nativeReplace,
     nativeRm,

@@ -41,6 +41,9 @@ indexOf(data, element)
 lines(value, trimEmptyLastLine = true)
    return native.lines(value, trimEmptyLastLine)
 
+mv(src, dst)
+   native.mv(src, dst)
+
 readFile(file)
    return native.readFile(file)
 

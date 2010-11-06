@@ -755,12 +755,21 @@ void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
     FileEntry *newFE = getFileEntry(newFile);
     fileClose(oldFE);
     fileClose(newFE);
-    if (rename(oldFE->name, newFE->name) == -1)
+    if (!rename(oldFE->name, newFE->name))
     {
-        if (failOnFileNotFound || errno != ENOENT)
+        return;
+    }
+    if (errno == ENOTEMPTY || errno == EEXIST || errno == EISDIR)
+    {
+        FileDelete(newFile);
+        if (!rename(oldFE->name, newFE->name))
         {
-            TaskFailIO(oldFE->name);
+            return;
         }
+    }
+    if (failOnFileNotFound || errno != ENOENT)
+    {
+        TaskFailIO(oldFE->name);
     }
 }
 
