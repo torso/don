@@ -38,6 +38,7 @@ extern void FileMMap(fileref file, const byte **p, size_t *size,
                      boolean failOnFileNotFound);
 extern void FileMUnmap(fileref file);
 
+extern void FileCopy(fileref srcFile, fileref dstFile);
 extern void FileDelete(fileref file);
 extern void FileRename(fileref oldFile, fileref newFile,
                        boolean failOnFileNotFound);

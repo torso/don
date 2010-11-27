@@ -24,6 +24,7 @@ typedef void (*nativeInvoke)(VM*);
 typedef enum
 {
     NATIVE_NULL,
+    NATIVE_CP,
     NATIVE_ECHO,
     NATIVE_EXEC,
     NATIVE_FAIL,
@@ -75,6 +76,7 @@ static void addFunctionInfo(const char *name, uint parameterCount,
 
 void NativeInit(void)
 {
+    addFunctionInfo("cp", 2, 0);
     addFunctionInfo("echo", 2, 0);
     addFunctionInfo("exec", 5, 2);
     addFunctionInfo("fail", 1, 0);
@@ -137,6 +139,16 @@ static objectref readFile(VM *vm, objectref object)
 
     FileMMap(file, (const byte**)&text, &size, true);
     return HeapCreateWrappedString(vm, text, size);
+}
+
+static void nativeCp(VM *vm)
+{
+    objectref dst = InterpreterPop(vm);
+    objectref src = InterpreterPop(vm);
+
+    assert(HeapIsFile(vm, src));
+    assert(HeapIsFile(vm, dst));
+    FileCopy(HeapGetFile(vm, src), HeapGetFile(vm, dst));
 }
 
 static void nativeEcho(VM *vm)
@@ -571,6 +583,7 @@ uint NativeGetReturnValueCount(nativefunctionref function)
 static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT] =
 {
     null,
+    nativeCp,
     nativeEcho,
     nativeExec,
     nativeFail,

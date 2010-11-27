@@ -40,6 +40,8 @@ struct _FileEntry
 
     boolean hasStat;
     mode_t mode;
+    dev_t dev;
+    ino_t ino;
 
     byte *data;
     uint dataRefCount;
@@ -56,6 +58,7 @@ static TraverseCallback globalCallback;
 static void *globalUserdata;
 static const char *globalPattern;
 static size_t globalFilenamePrefixLength;
+static FileEntry *globalFE;
 static char *cwd;
 static size_t cwdLength;
 
@@ -321,9 +324,13 @@ static void fileMUnmap(FileEntry *fe)
     int error;
 
     assert(fe->data);
-    error = munmap(fe->data, fe->blob.size);
-    fe->data = null;
-    assert(!error);
+    assert(fe->dataRefCount);
+    if (!--fe->dataRefCount)
+    {
+        error = munmap(fe->data, fe->blob.size);
+        fe->data = null;
+        assert(!error);
+    }
 }
 
 static void fileClose(FileEntry *fe)
@@ -379,6 +386,17 @@ static void fileOpen(FileEntry *fe, boolean append, boolean failOnFileNotFound)
     fe->append = append;
 }
 
+static void fileSetStat(FileEntry *fe, const struct stat *s)
+{
+    fe->hasStat = true;
+    fe->blob.size = (size_t)s->st_size;
+    fe->mode = s->st_mode;
+    fe->dev = s->st_dev;
+    fe->ino = s->st_ino;
+    fe->blob.mtime.seconds = s->st_mtime;
+    fe->blob.mtime.fraction = s->st_mtimensec;
+}
+
 static boolean fileStat(FileEntry *fe, boolean failOnFileNotFound)
 {
     struct stat s;
@@ -402,12 +420,69 @@ static boolean fileStat(FileEntry *fe, boolean failOnFileNotFound)
         }
         TaskFailIO(fe->name);
     }
-    fe->hasStat = true;
-    fe->blob.size = (size_t)s.st_size;
-    fe->mode = s.st_mode;
-    fe->blob.mtime.seconds = s.st_mtime;
-    fe->blob.mtime.fraction = s.st_mtimensec;
+    fileSetStat(fe, &s);
     return true;
+}
+
+static boolean fileLStat(FileEntry *fe, struct stat *s)
+{
+    if (lstat(fe->name, s))
+    {
+        if (errno == ENOENT)
+        {
+            return false;
+        }
+        TaskFailIO(fe->name);
+    }
+    if (!S_ISLNK(s->st_mode))
+    {
+        fileSetStat(fe, s);
+    }
+    return true;
+}
+
+static void fileMMap(FileEntry *fe, const byte **p, size_t *size,
+                     boolean failOnFileNotFound)
+{
+    if (!fe->data)
+    {
+        fileOpen(fe, false, failOnFileNotFound);
+        if (!fe->fd)
+        {
+            *p = null;
+            return;
+        }
+        fileStat(fe, true);
+        fe->data = (byte*)mmap(null, fe->blob.size, PROT_READ, MAP_PRIVATE,
+                               fe->fd, 0);
+        if (fe->data == (byte*)-1)
+        {
+            fe->data = null;
+            /* TODO: Read file fallback */
+            TaskFailIO(fe->name);
+        }
+    }
+    fe->dataRefCount++;
+    *p = fe->data;
+    *size = fe->blob.size;
+}
+
+static void fileWrite(FileEntry *fe, const byte *data, size_t size)
+{
+    ssize_t written;
+
+    assert(fe->fd);
+    assert(fe->append);
+    while (size)
+    {
+        written = write(fe->fd, data, size);
+        if (written < 0)
+        {
+            TaskFailIO(fe->name);
+        }
+        assert((size_t)written <= size);
+        size -= (size_t)written;
+    }
 }
 
 static void initFileIndex(uint start)
@@ -665,61 +740,166 @@ void FileCloseSync(fileref file)
 
 void FileWrite(fileref file, const byte *data, size_t size)
 {
-    FileEntry *restrict fe = getFileEntry(file);
-    ssize_t written;
-
-    assert(fe->fd);
-    assert(fe->append);
-    while (size)
-    {
-        written = write(fe->fd, data, size);
-        if (written < 0)
-        {
-            TaskFailIO(fe->name);
-        }
-        assert((size_t)written <= size);
-        size -= (size_t)written;
-    }
+    fileWrite(getFileEntry(file), data, size);
 }
 
 
 void FileMMap(fileref file, const byte **p, size_t *size,
               boolean failOnFileNotFound)
 {
-    FileEntry *fe = getFileEntry(file);
-
-    if (!fe->data)
-    {
-        fileOpen(fe, false, failOnFileNotFound);
-        if (!fe->fd)
-        {
-            *p = null;
-            return;
-        }
-        fileStat(fe, true);
-        fe->data = (byte*)mmap(null, fe->blob.size, PROT_READ, MAP_PRIVATE, fe->fd, 0);
-        if (fe->data == (byte*)-1)
-        {
-            fe->data = null;
-            /* TODO: Read file fallback */
-            TaskFailIO(fe->name);
-        }
-    }
-    fe->dataRefCount++;
-    *p = fe->data;
-    *size = fe->blob.size;
+    fileMMap(getFileEntry(file), p, size, failOnFileNotFound);
 }
 
 void FileMUnmap(fileref file)
 {
-    FileEntry *fe = getFileEntry(file);
-
-    if (!--fe->dataRefCount)
-    {
-        fileMUnmap(fe);
-    }
+    fileMUnmap(getFileEntry(file));
 }
 
+
+static void fileCopySingle(FileEntry *src, FileEntry *dst)
+{
+    const byte *p;
+    size_t size;
+
+    if (src == dst)
+    {
+        return;
+    }
+    assert(src->hasStat);
+    if (fileStat(dst, false))
+    {
+        if (src->dev == dst->dev && src->ino == dst->ino)
+        {
+            return;
+        }
+    }
+    fileClose(dst);
+    dst->append = true;
+    dst->fd = open(dst->name, O_CREAT | O_WRONLY | O_APPEND | O_TRUNC,
+                   S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+    if (dst->fd == -1)
+    {
+        TaskFailIO(dst->name);
+    }
+    if (src->blob.size)
+    {
+        fileMMap(src, &p, &size, true);
+        fileWrite(dst, p, size);
+        fileMUnmap(src);
+    }
+    fileClose(dst);
+}
+
+static int fileCopyCallback(const char *filename, const struct stat *s,
+                            int flags, struct FTW *f)
+{
+    FileEntry *srcFE;
+    FileEntry *dstFE;
+    size_t length;
+
+    if (!f->level)
+    {
+        return 0;
+    }
+    length = (size_t)f->base + strlen(filename + f->base);
+    srcFE = getFileEntry(addFile(copyString(filename, length), length, true));
+    fileSetStat(srcFE, s);
+    dstFE = getFileEntry(FileAddRelative(globalFE->name, globalFE->nameLength,
+                                         filename + globalFilenamePrefixLength,
+                                         length - globalFilenamePrefixLength));
+    if (flags == FTW_D)
+    {
+        if (mkdir(dstFE->name, S_IRWXU | S_IRWXG | S_IRWXO) &&
+            errno != EEXIST)
+        {
+            TaskFailIO(dstFE->name);
+        }
+        return 0;
+    }
+    if (flags == FTW_F)
+    {
+        fileCopySingle(srcFE, dstFE);
+        return 0;
+    }
+    TaskFailIO(filename);
+}
+
+void FileCopy(fileref srcFile, fileref dstFile)
+{
+    FileEntry *srcFE;
+    FileEntry *dstFE;
+    struct stat s;
+    const char *name;
+    size_t size;
+
+    if (srcFile == dstFile)
+    {
+        return;
+    }
+    srcFE = getFileEntry(srcFile);
+    dstFE = getFileEntry(dstFile);
+    fileOpen(srcFE, false, true);
+    fileStat(srcFE, true);
+    if (S_ISDIR(srcFE->mode))
+    {
+        if (fileLStat(dstFE, &s))
+        {
+            if (S_ISLNK(s.st_mode))
+            {
+                if (!fileStat(dstFE, false))
+                {
+                    TaskFail("Cannot copy directory '%s' through dangling symlink '%s'.\n",
+                             srcFE->name, dstFE->name);
+                }
+            }
+            if (!S_ISDIR(dstFE->mode))
+            {
+                TaskFail("Cannot copy directory '%s' to non-directory '%s'.\n",
+                         srcFE->name, dstFE->name);
+            }
+            size = srcFE->nameLength;
+            name = FileFilename(srcFE->name, &size);
+            dstFE = getFileEntry(FileAddRelative(
+                                     dstFE->name, dstFE->nameLength,
+                                     name, size));
+        }
+        if (mkdir(dstFE->name, S_IRWXU | S_IRWXG | S_IRWXO) &&
+            errno != EEXIST)
+        {
+            TaskFailIO(dstFE->name);
+        }
+        globalFE = dstFE;
+        globalFilenamePrefixLength = srcFE->name[srcFE->nameLength - 1] == '/' ?
+            srcFE->nameLength : srcFE->nameLength + 1;
+        if (nftw(srcFE->name, fileCopyCallback, 10, 0))
+        {
+            TaskFailIO(srcFE->name);
+        }
+        return;
+    }
+    if (fileLStat(dstFE, &s))
+    {
+        if (S_ISLNK(s.st_mode))
+        {
+            if (!fileStat(dstFE, false))
+            {
+                TaskFail("Cannot copy '%s' through dangling symlink '%s'.\n",
+                         srcFE->name, dstFE->name);
+            }
+        }
+        if (S_ISDIR(dstFE->mode))
+        {
+            size = srcFE->nameLength;
+            name = FileFilename(srcFE->name, &size);
+            fileCopySingle(srcFE,
+                           getFileEntry(FileAddRelative(
+                                            dstFE->name, dstFE->nameLength,
+                                            name, size)));
+            return;
+        }
+    }
+    fileCopySingle(srcFE, dstFE);
+}
 
 static int fileDeleteCallback(const char *filename, const struct stat *s unused,
                               int flags unused, struct FTW *f unused)

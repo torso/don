@@ -1,6 +1,9 @@
 contains(data, element)
    return indexOf(data, element) != null
 
+cp(src, dst)
+   native.cp(src, dst)
+
 echo(message, prefix = null)
    native.echo(message, prefix)
 
