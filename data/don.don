@@ -86,12 +86,14 @@ cc(files..., flags = [])
       if !uptodate
          dependFile = file(cache, filename(f), "d")
          out, exitcode = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f, failOnError:false)
-         failed = failed || exitcode
-         depend = readFile(dependFile)
-         depend = depend[indexOf(depend, ": ") + 2 .. size(depend) - 2]
-         depend = replace(depend, "\\\n", "")
-         depend = split(depend, removeEmpty:true)
-         setUptodate(cache, out, accessedFiles:fileset(depend))
+         if exitcode != 0
+            failed = true
+         else
+            depend = readFile(dependFile)
+            depend = depend[indexOf(depend, ": ") + 2 .. size(depend) - 2]
+            depend = replace(depend, "\\\n", "")
+            depend = split(depend, removeEmpty:true)
+            setUptodate(cache, out, accessedFiles:fileset(depend))
       result = result::[ofile]
    if failed
       fail()
