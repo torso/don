@@ -939,6 +939,13 @@ void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
     {
         return;
     }
+    if (errno == EXDEV)
+    {
+        FileDelete(newFile);
+        FileCopy(oldFile, newFile);
+        FileDelete(oldFile);
+        return;
+    }
     if (errno == ENOTEMPTY || errno == EEXIST || errno == EISDIR)
     {
         FileDelete(newFile);
