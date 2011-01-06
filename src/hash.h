@@ -1,12 +1,11 @@
 #define DIGEST_SIZE  64
-#define BLOCK_SIZE  128
 
 struct HashState
 {
-    uint64 pipe[16];
-    byte buffer[BLOCK_SIZE];
-    size_t processed;
-    uint unprocessed;
+    size_t bufferSize;
+    byte buffer[64];
+    uint64 t[2];
+    uint64 x[8];
 };
 
 extern nonnull void HashInit(HashState *state);
