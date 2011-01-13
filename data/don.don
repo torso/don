@@ -57,7 +57,7 @@ setUptodate(cacheFile, output, accessedFiles = [])
    native.setUptodate(cacheFile, output[0], output[1], accessedFiles)
 
 sign(n)
-   return n ? n > 0 ? 1 : -1 : 0
+   return n > 0 ? 1 : n ? -1 : 0
 
 size(value)
    return native.size(value)
