@@ -44,14 +44,7 @@ void InterpreterPush(VM *vm, objectref value)
 
 void InterpreterPushBoolean(VM *vm, boolean value)
 {
-    if (value)
-    {
-        push(vm, vm->booleanTrue);
-    }
-    else
-    {
-        push(vm, vm->booleanFalse);
-    }
+    push(vm, value ? vm->booleanTrue : vm->booleanFalse);
 }
 
 
