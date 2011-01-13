@@ -13,14 +13,10 @@ exec(command..., env = [], failOnError = true, echo = true, echoStderr = true)
 
 fail(message = null, condition = true)
    if condition
-      if message == null
-         message = ""
-      else
-         message = "" message
+      message = message == null ? "" : "" message
       if message != ""
          native.fail("BUILD FAILED: " message)
-      else
-         native.fail("BUILD FAILED")
+      native.fail("BUILD FAILED")
 
 file(path, name, extension = null)
    return native.file(path, name, extension)
@@ -86,7 +82,7 @@ cc(files..., flags = [])
       if !uptodate
          dependFile = file(cache, filename(f), "d")
          out, exitcode = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f, failOnError:false)
-         if exitcode != 0
+         if exitcode
             failed = true
          else
             depend = readFile(dependFile)
