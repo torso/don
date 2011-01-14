@@ -91,8 +91,7 @@ cc(files..., flags = [])
             depend = split(depend, removeEmpty:true)
             setUptodate(cache, out, accessedFiles:fileset(depend))
       result = result::[ofile]
-   if failed
-      fail()
+   fail(condition:failed)
    return result
 
 link(files..., name = "a.out")
