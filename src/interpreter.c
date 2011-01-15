@@ -44,7 +44,7 @@ void InterpreterPush(VM *vm, objectref value)
 
 void InterpreterPushBoolean(VM *vm, boolean value)
 {
-    push(vm, value ? vmTrue : vmFalse);
+    push(vm, value ? HeapTrue : HeapFalse);
 }
 
 
@@ -63,10 +63,10 @@ static void pushStackFrame(VM *vm, const byte **ip, uint *bp,
                            functionref function, uint returnValues)
 {
     uint localsCount;
-    IntVectorAdd(&vm->callStack, (uint)(*ip - vm->bytecode));
+    IntVectorAdd(&vm->callStack, (uint)(*ip - vmBytecode));
     IntVectorAdd(&vm->callStack, *bp);
     IntVectorAdd(&vm->callStack, returnValues);
-    *ip = vm->bytecode + FunctionIndexGetBytecodeOffset(function);
+    *ip = vmBytecode + FunctionIndexGetBytecodeOffset(function);
     *bp = (uint)IntVectorSize(&vm->stack) -
         FunctionIndexGetParameterCount(function);
     localsCount = FunctionIndexGetLocalsCount(function);
@@ -86,13 +86,13 @@ static void popStackFrame(VM *vm, const byte **ip, uint *bp,
     IntVectorSetSize(&vm->stack, *bp + expectedReturnValues);
 
     *bp = IntVectorPop(&vm->callStack);
-    *ip = vm->bytecode + IntVectorPop(&vm->callStack);
+    *ip = vmBytecode + IntVectorPop(&vm->callStack);
 }
 
 
 static void execute(VM *vm, functionref target)
 {
-    const byte *ip = vm->bytecode + FunctionIndexGetBytecodeOffset(target);
+    const byte *ip = vmBytecode + FunctionIndexGetBytecodeOffset(target);
     const byte *baseIP = ip;
     uint bp = 0;
     uint argumentCount;
@@ -124,11 +124,11 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_TRUE:
-            push(vm, vmTrue);
+            push(vm, HeapTrue);
             break;
 
         case OP_FALSE:
-            push(vm, vmFalse);
+            push(vm, HeapFalse);
             break;
 
         case OP_INTEGER:
@@ -140,7 +140,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_EMPTY_LIST:
-            push(vm, vmEmptyList);
+            push(vm, HeapEmptyList);
             break;
 
         case OP_LIST:
@@ -246,8 +246,8 @@ static void execute(VM *vm, functionref target)
 
         case OP_NOT:
             value = pop(vm);
-            assert(value == vmTrue || value == vmFalse);
-            pushBoolean(vm, value == vmFalse);
+            assert(value == HeapTrue || value == HeapFalse);
+            pushBoolean(vm, value == HeapFalse);
             break;
 
         case OP_NEG:
@@ -310,7 +310,7 @@ static void execute(VM *vm, functionref target)
             size2 = HeapStringLength(vm, value);
             if (!size1 && !size2)
             {
-                push(vm, vmEmptyString);
+                push(vm, HeapEmptyString);
                 break;
             }
             objectData = HeapAlloc(vm, TYPE_STRING, size1 + size2);
@@ -378,18 +378,18 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_BRANCH_TRUE:
-            assert(peek(vm) == vmTrue || peek(vm) == vmFalse);
+            assert(peek(vm) == HeapTrue || peek(vm) == HeapFalse);
             jumpOffset = BytecodeReadInt(&ip);
-            if (pop(vm) == vmTrue)
+            if (pop(vm) == HeapTrue)
             {
                 ip += jumpOffset;
             }
             break;
 
         case OP_BRANCH_FALSE:
-            assert(peek(vm) == vmTrue || peek(vm) == vmFalse);
+            assert(peek(vm) == HeapTrue || peek(vm) == HeapFalse);
             jumpOffset = BytecodeReadInt(&ip);
-            if (pop(vm) != vmTrue)
+            if (pop(vm) != HeapTrue)
             {
                 ip += jumpOffset;
             }
@@ -398,10 +398,10 @@ static void execute(VM *vm, functionref target)
         case OP_RETURN:
             assert(IntVectorSize(&vm->callStack));
             popStackFrame(vm, &ip, &bp, *ip++);
-            baseIP = vm->bytecode +
+            baseIP = vmBytecode +
                 FunctionIndexGetBytecodeOffset(
                     FunctionIndexGetFunctionFromBytecode(
-                        (uint)(ip - vm->bytecode)));
+                        (uint)(ip - vmBytecode)));
             break;
 
         case OP_RETURN_VOID:
@@ -412,10 +412,10 @@ static void execute(VM *vm, functionref target)
                 return;
             }
             popStackFrame(vm, &ip, &bp, 0);
-            baseIP = vm->bytecode +
+            baseIP = vmBytecode +
                 FunctionIndexGetBytecodeOffset(
                     FunctionIndexGetFunctionFromBytecode(
-                        (uint)(ip - vm->bytecode)));
+                        (uint)(ip - vmBytecode)));
             break;
 
         case OP_INVOKE:
@@ -439,12 +439,11 @@ static void execute(VM *vm, functionref target)
     }
 }
 
-void InterpreterInit(VM *vm, const byte *bytecode)
+void InterpreterInit(VM *vm)
 {
     uint fieldCount = FieldIndexGetCount();
 
     memset(vm, 0, sizeof(VM));
-    vm->bytecode = bytecode;
     vm->fields = (objectref*)malloc(fieldCount * sizeof(int));
     HeapInit(vm);
     IntVectorInit(&vm->callStack);

@@ -3,8 +3,6 @@
 
 struct VM
 {
-    const byte *restrict bytecode;
-
     objectref *fields;
     intvector callStack;
     intvector stack;
@@ -12,10 +10,12 @@ struct VM
     byte *heapFree;
 };
 
-extern objectref vmTrue;
-extern objectref vmFalse;
-extern objectref vmEmptyString;
-extern objectref vmEmptyList;
-extern objectref vmNewline;
-
 #include "heap.h"
+
+extern const byte *vmBytecode;
+
+/*
+  The VM takes ownership of the bytecode.
+*/
+extern void VMInit(byte *bytecode);
+extern void VMDispose(void);

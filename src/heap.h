@@ -46,6 +46,12 @@ typedef struct
     IteratorState state;
 } Iterator;
 
+extern objectref HeapTrue;
+extern objectref HeapFalse;
+extern objectref HeapEmptyString;
+extern objectref HeapEmptyList;
+extern objectref HeapNewline;
+
 
 extern nonnull void HeapInit(VM *vm);
 extern nonnull void HeapDispose(VM *vm);

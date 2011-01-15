@@ -20,7 +20,6 @@
 
 static intvector targets;
 static bytevector parsed;
-static byte *bytecode;
 static VM vm;
 
 
@@ -50,8 +49,8 @@ static void cleanup(void)
 {
     IntVectorDispose(&targets);
     ByteVectorDispose(&parsed);
-    free(bytecode);
     InterpreterDispose(&vm);
+    VMDispose();
     NamespaceDispose();
     FieldIndexDispose();
     FunctionIndexDispose();
@@ -96,6 +95,7 @@ int main(int argc, const char **argv)
     functionref function;
     boolean parseOptions = true;
     boolean disassemble = false;
+    byte *bytecode;
     const byte *bytecodeLimit;
     const byte *p;
     size_t size;
@@ -306,7 +306,8 @@ int main(int argc, const char **argv)
         function = NamespaceGetTarget(defaultNamespace,
                                       IntVectorGetRef(&targets, j));
         assert(function);
-        InterpreterInit(&vm, bytecode);
+        VMInit(bytecode);
+        InterpreterInit(&vm);
         InterpreterExecute(&vm, function);
         InterpreterDispose(&vm);
     }
