@@ -12,8 +12,8 @@ typedef struct
     uint bytecodeStop;
 } FieldInfo;
 
-bytevector fieldTable;
-uint fieldCount;
+static bytevector fieldTable;
+static uint fieldCount;
 
 
 static FieldInfo *getFieldInfo(fieldref field)
