@@ -42,7 +42,6 @@ struct IteratorState
 
 typedef struct
 {
-    VM *vm;
     IteratorState state;
 } Iterator;
 
@@ -53,101 +52,91 @@ extern objectref HeapEmptyList;
 extern objectref HeapNewline;
 
 
-extern nonnull void HeapInit(VM *vm);
-extern nonnull void HeapDispose(VM *vm);
+extern void HeapInit(void);
+extern void HeapDispose(void);
 
-extern nonnull ObjectType HeapGetObjectType(VM *vm, objectref object);
-extern nonnull size_t HeapGetObjectSize(VM *vm, objectref object);
-extern nonnull const byte *HeapGetObjectData(VM *vm, objectref object);
-extern nonnull void HeapHash(VM *vm, objectref object, HashState *hash);
-extern nonnull boolean HeapEquals(VM *vm, objectref object1, objectref object2);
-extern nonnull int HeapCompare(VM *vm, objectref object1, objectref object2);
+extern nonnull ObjectType HeapGetObjectType(objectref object);
+extern nonnull size_t HeapGetObjectSize(objectref object);
+extern nonnull const byte *HeapGetObjectData(objectref object);
+extern nonnull void HeapHash(objectref object, HashState *hash);
+extern nonnull boolean HeapEquals(objectref object1, objectref object2);
+extern nonnull int HeapCompare(objectref object1, objectref object2);
 
-extern nonnull byte *HeapAlloc(VM *vm, ObjectType type, size_t size);
-extern nonnull objectref HeapFinishAlloc(VM *vm, byte *objectData);
-
-
-
-extern nonnull boolean HeapIsTrue(VM *vm, objectref object);
+extern nonnull byte *HeapAlloc(ObjectType type, size_t size);
+extern nonnull objectref HeapFinishAlloc(byte *objectData);
 
 
 
-extern nonnull objectref HeapBoxInteger(VM *vm, int value);
-extern nonnull objectref HeapBoxUint(VM *vm, uint value);
-extern nonnull objectref HeapBoxSize(VM *vm, size_t value);
-extern nonnull int HeapUnboxInteger(VM *vm, objectref object);
-extern nonnull size_t HeapUnboxSize(VM *vm, objectref object);
-extern nonnull int HeapIntegerSign(VM *vm, objectref object);
+extern nonnull boolean HeapIsTrue(objectref object);
 
 
 
-extern nonnull objectref HeapCreateString(VM *vm, const char *string,
-                                          size_t length);
-extern nonnull objectref HeapCreateUninitialisedString(VM *vm, size_t length,
+extern nonnull objectref HeapBoxInteger(int value);
+extern nonnull objectref HeapBoxUint(uint value);
+extern nonnull objectref HeapBoxSize(size_t value);
+extern nonnull int HeapUnboxInteger(objectref object);
+extern nonnull size_t HeapUnboxSize(objectref object);
+extern nonnull int HeapIntegerSign(objectref object);
+
+
+
+extern nonnull objectref HeapCreateString(const char *string, size_t length);
+extern nonnull objectref HeapCreateUninitialisedString(size_t length,
                                                        char **data);
-extern nonnull objectref HeapCreatePooledString(VM *vm, stringref string);
-extern nonnull objectref HeapCreateWrappedString(VM *vm, const char *string,
+extern nonnull objectref HeapCreatePooledString(stringref string);
+extern nonnull objectref HeapCreateWrappedString(const char *string,
                                                  size_t length);
-extern nonnull objectref HeapCreateSubstring(VM *vm, objectref string,
-                                             size_t offset, size_t length);
-extern nonnull boolean HeapIsString(VM *vm, objectref object);
+extern nonnull objectref HeapCreateSubstring(objectref string, size_t offset,
+                                             size_t length);
+extern nonnull boolean HeapIsString(objectref object);
 
 /*
   Returns the size of the string in bytes. If the value isn't a string, the
   length of the value converted to a string (of the default form) is returned.
 */
-extern nonnull size_t HeapStringLength(VM *vm, objectref object);
+extern nonnull size_t HeapStringLength(objectref object);
 
 /*
   Converts the object to a string and writes it to dst. The written string will
   be exactly as long as HeapStringLength returned. The string will not be zero
   terminated. A pointer just past the end of the written string is returned.
 */
-extern nonnull char *HeapWriteString(VM *restrict vm, objectref object,
-                                     char *restrict dst);
+extern nonnull char *HeapWriteString(objectref object, char *restrict dst);
 
-extern nonnull char *HeapWriteSubstring(VM *restrict vm, objectref object,
-                                        size_t offset, size_t length,
-                                        char *restrict dst);
+extern nonnull char *HeapWriteSubstring(objectref object, size_t offset,
+                                        size_t length, char *restrict dst);
 
-extern nonnull objectref HeapStringIndexOf(VM *vm, objectref text,
-                                           size_t startOffset,
+extern nonnull objectref HeapStringIndexOf(objectref text, size_t startOffset,
                                            objectref substring);
 
 
 
-extern nonnull objectref HeapCreateFile(VM *vm, fileref file);
-extern nonnull boolean HeapIsFile(VM *vm, objectref object);
-extern nonnull fileref HeapGetFile(VM *vm, objectref object);
-extern nonnull fileref HeapGetAsFile(VM *vm, objectref object);
-extern nonnull fileref HeapGetFileFromParts(VM *vm,
-                                            objectref path,
-                                            objectref name,
+extern nonnull objectref HeapCreateFile(fileref file);
+extern nonnull boolean HeapIsFile(objectref object);
+extern nonnull fileref HeapGetFile(objectref object);
+extern nonnull fileref HeapGetAsFile(objectref object);
+extern nonnull fileref HeapGetFileFromParts(objectref path, objectref name,
                                             objectref extension);
 
 
 
-extern nonnull objectref HeapCreateRange(VM *vm, objectref lowObject,
+extern nonnull objectref HeapCreateRange(objectref lowObject,
                                          objectref highObject);
-extern nonnull boolean HeapIsRange(VM *vm, objectref object);
-extern nonnull objectref HeapRangeLow(VM *vm, objectref range);
-extern nonnull objectref HeapRangeHigh(VM *vm, objectref range);
+extern nonnull boolean HeapIsRange(objectref object);
+extern nonnull objectref HeapRangeLow(objectref range);
+extern nonnull objectref HeapRangeHigh(objectref range);
 
 
 
-extern nonnull objectref HeapSplit(VM *vm, objectref string,
-                                   objectref delimiter,
+extern nonnull objectref HeapSplit(objectref string, objectref delimiter,
                                    boolean removeEmpty,
                                    boolean trimEmptyLastLine);
 
-extern nonnull objectref HeapCreateArray(VM *vm, const objectref *values,
-                                         size_t size);
-extern nonnull objectref HeapCreateArrayFromVector(VM *vm,
-                                                   const intvector *values);
-extern nonnull objectref HeapConcatList(VM *vm, objectref list1,
-                                        objectref list2);
-extern nonnull boolean HeapIsCollection(VM *vm, objectref object);
-extern nonnull size_t HeapCollectionSize(VM *vm, objectref object);
+extern nonnull objectref HeapCreateArray(const objectref *values, size_t size);
+extern nonnull objectref HeapCreateArrayFromVector(const intvector *values);
+extern nonnull objectref HeapConcatList(objectref list1, objectref list2);
+extern nonnull boolean HeapIsCollection(objectref object);
+extern nonnull size_t HeapCollectionSize(objectref object);
 
 /*
   Reads one value from the collection and returns it. The key is stored in
@@ -155,15 +144,15 @@ extern nonnull size_t HeapCollectionSize(VM *vm, objectref object);
 
   Returns true if successful.
 */
-extern nonnull boolean HeapCollectionGet(VM *vm, objectref object,
+extern nonnull boolean HeapCollectionGet(objectref object,
                                          objectref indexObject,
                                          objectref *value);
 
 
 
-extern nonnull objectref HeapCreateIterator(VM *vm, objectref object);
-extern nonnull void HeapIteratorInit(VM *vm, Iterator *iter, objectref object,
+extern nonnull objectref HeapCreateIterator(objectref object);
+extern nonnull void HeapIteratorInit(Iterator *iter, objectref object,
                                      boolean flatten);
 extern nonnull boolean HeapIteratorNext(Iterator *iter, objectref *value);
 
-extern nonnull objectref HeapCreateFilesetGlob(VM *vm, const char *pattern);
+extern nonnull objectref HeapCreateFilesetGlob(const char *pattern);

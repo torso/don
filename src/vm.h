@@ -6,8 +6,6 @@ struct VM
     objectref *fields;
     intvector callStack;
     intvector stack;
-    byte *heapBase;
-    byte *heapFree;
 };
 
 #include "heap.h"
@@ -15,7 +13,8 @@ struct VM
 extern const byte *vmBytecode;
 
 /*
+  The VM will create and dispose the heap.
   The VM takes ownership of the bytecode.
 */
-extern void VMInit(byte *bytecode);
+extern nonnull void VMInit(byte *bytecode);
 extern void VMDispose(void);

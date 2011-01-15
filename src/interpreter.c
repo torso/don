@@ -34,7 +34,7 @@ objectref InterpreterPop(VM *vm)
 
 boolean InterpreterPopBoolean(VM *vm)
 {
-    return HeapIsTrue(vm, IntVectorPopRef(&vm->stack));
+    return HeapIsTrue(IntVectorPopRef(&vm->stack));
 }
 
 void InterpreterPush(VM *vm, objectref value)
@@ -132,11 +132,11 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_INTEGER:
-            push(vm, HeapBoxInteger(vm, BytecodeReadInt(&ip)));
+            push(vm, HeapBoxInteger(BytecodeReadInt(&ip)));
             break;
 
         case OP_STRING:
-            push(vm, HeapCreatePooledString(vm, BytecodeReadRef(&ip)));
+            push(vm, HeapCreatePooledString(BytecodeReadRef(&ip)));
             break;
 
         case OP_EMPTY_LIST:
@@ -146,26 +146,26 @@ static void execute(VM *vm, functionref target)
         case OP_LIST:
             size1 = BytecodeReadUint(&ip);
             assert(size1);
-            objectData = HeapAlloc(vm, TYPE_ARRAY, size1 * sizeof(objectref));
+            objectData = HeapAlloc(TYPE_ARRAY, size1 * sizeof(objectref));
             objectData += size1 * sizeof(objectref);
             while (size1--)
             {
                 objectData -= sizeof(objectref);
                 *(objectref*)objectData = pop(vm);
             }
-            push(vm, HeapFinishAlloc(vm, objectData));
+            push(vm, HeapFinishAlloc(objectData));
             break;
 
         case OP_FILE:
             string = BytecodeReadRef(&ip);
             push(vm, HeapCreateFile(
-                     vm, FileAdd(StringPoolGetString(string),
-                                 StringPoolGetStringLength(string))));
+                     FileAdd(StringPoolGetString(string),
+                             StringPoolGetStringLength(string))));
             break;
 
         case OP_FILESET:
             push(vm, HeapCreateFilesetGlob(
-                     vm, StringPoolGetString(BytecodeReadRef(&ip))));
+                     StringPoolGetString(BytecodeReadRef(&ip))));
             break;
 
         case OP_POP:
@@ -213,35 +213,35 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_EQUALS:
-            pushBoolean(vm, HeapEquals(vm, pop(vm), pop(vm)));
+            pushBoolean(vm, HeapEquals(pop(vm), pop(vm)));
             break;
 
         case OP_NOT_EQUALS:
-            pushBoolean(vm, !HeapEquals(vm, pop(vm), pop(vm)));
+            pushBoolean(vm, !HeapEquals(pop(vm), pop(vm)));
             break;
 
         case OP_LESS_EQUALS:
             value = pop(vm);
             value2 = pop(vm);
-            pushBoolean(vm, HeapCompare(vm, value2, value) <= 0);
+            pushBoolean(vm, HeapCompare(value2, value) <= 0);
             break;
 
         case OP_GREATER_EQUALS:
             value = pop(vm);
             value2 = pop(vm);
-            pushBoolean(vm, HeapCompare(vm, value2, value) >= 0);
+            pushBoolean(vm, HeapCompare(value2, value) >= 0);
             break;
 
         case OP_LESS:
             value = pop(vm);
             value2 = pop(vm);
-            pushBoolean(vm, HeapCompare(vm, value2, value) < 0);
+            pushBoolean(vm, HeapCompare(value2, value) < 0);
             break;
 
         case OP_GREATER:
             value = pop(vm);
             value2 = pop(vm);
-            pushBoolean(vm, HeapCompare(vm, value2, value) > 0);
+            pushBoolean(vm, HeapCompare(value2, value) > 0);
             break;
 
         case OP_NOT:
@@ -251,101 +251,96 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_NEG:
-            assert(HeapUnboxInteger(vm, peek(vm)) != INT_MIN);
-            push(vm, HeapBoxInteger(vm, -HeapUnboxInteger(vm, pop(vm))));
+            assert(HeapUnboxInteger(peek(vm)) != INT_MIN);
+            push(vm, HeapBoxInteger(-HeapUnboxInteger(pop(vm))));
             break;
 
         case OP_INV:
-            push(vm, HeapBoxInteger(vm, ~HeapUnboxInteger(vm, pop(vm))));
+            push(vm, HeapBoxInteger(~HeapUnboxInteger(pop(vm))));
             break;
 
         case OP_ADD:
             value = pop(vm);
             value2 = pop(vm);
-            push(vm, HeapBoxInteger(vm,
-                                    HeapUnboxInteger(vm, value2) +
-                                    HeapUnboxInteger(vm, value)));
+            push(vm, HeapBoxInteger(HeapUnboxInteger(value2) +
+                                    HeapUnboxInteger(value)));
             break;
 
         case OP_SUB:
             value = pop(vm);
             value2 = pop(vm);
-            push(vm, HeapBoxInteger(vm,
-                                    HeapUnboxInteger(vm, value2) -
-                                    HeapUnboxInteger(vm, value)));
+            push(vm, HeapBoxInteger(HeapUnboxInteger(value2) -
+                                    HeapUnboxInteger(value)));
             break;
 
         case OP_MUL:
             value = pop(vm);
             value2 = pop(vm);
-            push(vm, HeapBoxInteger(vm,
-                                    HeapUnboxInteger(vm, value2) *
-                                    HeapUnboxInteger(vm, value)));
+            push(vm, HeapBoxInteger(HeapUnboxInteger(value2) *
+                                    HeapUnboxInteger(value)));
             break;
 
         case OP_DIV:
             value = pop(vm);
             value2 = pop(vm);
-            assert((HeapUnboxInteger(vm, value2) /
-                    HeapUnboxInteger(vm, value)) *
-                   HeapUnboxInteger(vm, value) ==
-                   HeapUnboxInteger(vm, value2)); /* TODO: fraction */
-            push(vm, HeapBoxInteger(vm,
-                                    HeapUnboxInteger(vm, value2) /
-                                    HeapUnboxInteger(vm, value)));
+            assert((HeapUnboxInteger(value2) /
+                    HeapUnboxInteger(value)) *
+                   HeapUnboxInteger(value) ==
+                   HeapUnboxInteger(value2)); /* TODO: fraction */
+            push(vm, HeapBoxInteger(HeapUnboxInteger(value2) /
+                                    HeapUnboxInteger(value)));
             break;
 
         case OP_REM:
             value = pop(vm);
             value2 = pop(vm);
-            push(vm, HeapBoxInteger(vm,
-                                    HeapUnboxInteger(vm, value2) %
-                                    HeapUnboxInteger(vm, value)));
+            push(vm, HeapBoxInteger(HeapUnboxInteger(value2) %
+                                    HeapUnboxInteger(value)));
             break;
 
         case OP_CONCAT_STRING:
             value = pop(vm);
             value2 = pop(vm);
-            size1 = HeapStringLength(vm, value2);
-            size2 = HeapStringLength(vm, value);
+            size1 = HeapStringLength(value2);
+            size2 = HeapStringLength(value);
             if (!size1 && !size2)
             {
                 push(vm, HeapEmptyString);
                 break;
             }
-            objectData = HeapAlloc(vm, TYPE_STRING, size1 + size2);
-            HeapWriteString(vm, value2, (char*)objectData);
-            HeapWriteString(vm, value, (char*)objectData + size1);
-            push(vm, HeapFinishAlloc(vm, objectData));
+            objectData = HeapAlloc(TYPE_STRING, size1 + size2);
+            HeapWriteString(value2, (char*)objectData);
+            HeapWriteString(value, (char*)objectData + size1);
+            push(vm, HeapFinishAlloc(objectData));
             break;
 
         case OP_CONCAT_LIST:
             value = pop(vm);
             value2 = pop(vm);
-            value = HeapConcatList(vm, value2, value);
+            value = HeapConcatList(value2, value);
             push(vm, value);
             break;
 
         case OP_INDEXED_ACCESS:
             value = pop(vm);
             value2 = pop(vm);
-            if (HeapIsString(vm, value2))
+            if (HeapIsString(value2))
             {
-                if (HeapIsRange(vm, value))
+                if (HeapIsRange(value))
                 {
-                    size1 = HeapUnboxSize(vm, HeapRangeLow(vm, value));
-                    size2 = HeapUnboxSize(vm, HeapRangeHigh(vm, value));
+                    size1 = HeapUnboxSize(HeapRangeLow(value));
+                    size2 = HeapUnboxSize(HeapRangeHigh(value));
                     assert(size2 >= size1); /* TODO: Support inverted ranges. */
-                    value = HeapCreateSubstring(vm, value2, size1, size2 - size1 + 1);
+                    value = HeapCreateSubstring(value2, size1, size2 - size1 + 1);
                 }
                 else
                 {
-                    value = HeapCreateSubstring(vm, value2, HeapUnboxSize(vm, value), 1);
+                    value = HeapCreateSubstring(value2, HeapUnboxSize(value), 1);
                 }
             }
             else
             {
-                HeapCollectionGet(vm, value2, value, &value);
+                HeapCollectionGet(value2, value, &value);
             }
             push(vm, value);
             break;
@@ -353,20 +348,20 @@ static void execute(VM *vm, functionref target)
         case OP_RANGE:
             value = pop(vm);
             value2 = pop(vm);
-            value = HeapCreateRange(vm, value2, value);
+            value = HeapCreateRange(value2, value);
             push(vm, value);
             break;
 
         case OP_ITER_INIT:
-            value = HeapCreateIterator(vm, pop(vm));
+            value = HeapCreateIterator(pop(vm));
             push(vm, value);
             break;
 
         case OP_ITER_NEXT:
             value = pop(vm);
-            assert(HeapGetObjectType(vm, value) == TYPE_ITERATOR);
-            assert(HeapGetObjectSize(vm, value) == sizeof(Iterator));
-            piter = (Iterator*)HeapGetObjectData(vm, value);
+            assert(HeapGetObjectType(value) == TYPE_ITERATOR);
+            assert(HeapGetObjectSize(value) == sizeof(Iterator));
+            piter = (Iterator*)HeapGetObjectData(value);
             value = 0;
             pushBoolean(vm, HeapIteratorNext(piter, &value));
             push(vm, value);
@@ -439,29 +434,20 @@ static void execute(VM *vm, functionref target)
     }
 }
 
-void InterpreterInit(VM *vm)
+void InterpreterExecute(functionref target)
 {
-    uint fieldCount = FieldIndexGetCount();
+    VM vm;
 
-    memset(vm, 0, sizeof(VM));
-    vm->fields = (objectref*)malloc(fieldCount * sizeof(int));
-    HeapInit(vm);
-    IntVectorInit(&vm->callStack);
-    IntVectorInit(&vm->stack);
+    memset(&vm, 0, sizeof(VM));
+    vm.fields = (objectref*)malloc(FieldIndexGetCount() * sizeof(int));
+    IntVectorInit(&vm.callStack);
+    IntVectorInit(&vm.stack);
 
-    execute(vm, FunctionIndexGetFirstFunction());
-}
+    execute(&vm, FunctionIndexGetFirstFunction());
+    execute(&vm, target);
 
-void InterpreterDispose(VM *vm)
-{
-    HeapDispose(vm);
-    free(vm->fields);
-    vm->fields = null;
-    IntVectorDispose(&vm->callStack);
-    IntVectorDispose(&vm->stack);
-}
-
-void InterpreterExecute(VM *vm, functionref target)
-{
-    execute(vm, target);
+    free(vm.fields);
+    vm.fields = null;
+    IntVectorDispose(&vm.callStack);
+    IntVectorDispose(&vm.stack);
 }

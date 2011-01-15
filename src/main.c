@@ -20,7 +20,6 @@
 
 static intvector targets;
 static bytevector parsed;
-static VM vm;
 
 
 ref_t refFromUint(uint i)
@@ -49,7 +48,6 @@ static void cleanup(void)
 {
     IntVectorDispose(&targets);
     ByteVectorDispose(&parsed);
-    InterpreterDispose(&vm);
     VMDispose();
     NamespaceDispose();
     FieldIndexDispose();
@@ -301,15 +299,11 @@ int main(int argc, const char **argv)
     }
     CacheInit(cacheDirectory);
 
+    VMInit(bytecode);
     for (j = 0; j < IntVectorSize(&targets); j++)
     {
-        function = NamespaceGetTarget(defaultNamespace,
-                                      IntVectorGetRef(&targets, j));
-        assert(function);
-        VMInit(bytecode);
-        InterpreterInit(&vm);
-        InterpreterExecute(&vm, function);
-        InterpreterDispose(&vm);
+        InterpreterExecute(NamespaceGetTarget(defaultNamespace,
+                                              IntVectorGetRef(&targets, j)));
     }
 
     return 0;

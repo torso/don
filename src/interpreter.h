@@ -4,6 +4,4 @@ extern nonnull boolean InterpreterPopBoolean(VM *vm);
 extern nonnull void InterpreterPush(VM *vm, objectref value);
 extern nonnull void InterpreterPushBoolean(VM *vm, boolean value);
 
-extern nonnull void InterpreterInit(VM *vm);
-extern nonnull void InterpreterDispose(VM *vm);
-extern nonnull void InterpreterExecute(VM *vm, functionref target);
+extern nonnull void InterpreterExecute(functionref target);

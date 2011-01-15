@@ -25,8 +25,8 @@ extern nonnull void LogPrintErrSZ(const char *text);
 extern nonnull void LogPrintAutoNewline(const char *text, size_t length);
 extern nonnull void LogPrintErrAutoNewline(const char *text, size_t length);
 
-extern nonnull void LogPrintObjectAutoNewline(VM *vm, objectref object);
-extern nonnull void LogPrintErrObjectAutoNewline(VM *vm, objectref object);
+extern nonnull void LogPrintObjectAutoNewline(objectref object);
+extern nonnull void LogPrintErrObjectAutoNewline(objectref object);
 extern void LogNewline(void);
 extern void LogErrNewline(void);
 extern void LogAutoNewline(void);

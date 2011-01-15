@@ -5,10 +5,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "common.h"
+#include "bytevector.h"
 #include "file.h"
+#include "heap.h"
 #include "log.h"
 #include "task.h"
-#include "vm.h"
 
 #define MIN_READ_BUFFER 1024
 
@@ -222,9 +223,9 @@ void LogPrintErrAutoNewline(const char *text, size_t length)
     }
 }
 
-static void logPrintObjectAutoNewline(Pipe *p, VM *vm, objectref object)
+static void logPrintObjectAutoNewline(Pipe *p, objectref object)
 {
-    size_t length = HeapStringLength(vm, object);
+    size_t length = HeapStringLength(object);
     byte *data;
 
     if (!length)
@@ -234,7 +235,7 @@ static void logPrintObjectAutoNewline(Pipe *p, VM *vm, objectref object)
     }
     data = ByteVectorGetAppendPointer(&p->buffer);
     ByteVectorGrow(&p->buffer, length + 1);
-    HeapWriteString(vm, object, (char*)data);
+    HeapWriteString(object, (char*)data);
     if (data[length - 1] != '\n')
     {
         data[length] = '\n';
@@ -246,14 +247,14 @@ static void logPrintObjectAutoNewline(Pipe *p, VM *vm, objectref object)
     processNewData(p, ByteVectorSize(&p->buffer));
 }
 
-void LogPrintObjectAutoNewline(VM *vm, objectref object)
+void LogPrintObjectAutoNewline(objectref object)
 {
-    logPrintObjectAutoNewline(&out, vm, object);
+    logPrintObjectAutoNewline(&out, object);
 }
 
-void LogPrintErrObjectAutoNewline(VM *vm, objectref object)
+void LogPrintErrObjectAutoNewline(objectref object)
 {
-    logPrintObjectAutoNewline(&err, vm, object);
+    logPrintObjectAutoNewline(&err, object);
 }
 
 void LogNewline(void)
