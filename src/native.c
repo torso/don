@@ -409,7 +409,7 @@ static void nativeLines(VM *vm)
         value = readFile(vm, value);
     }
     assert(HeapIsString(vm, value));
-    InterpreterPush(vm, HeapSplit(vm, value, vm->stringNewline, false,
+    InterpreterPush(vm, HeapSplit(vm, value, vmNewline, false,
                                   trimEmptyLastLine));
 }
 

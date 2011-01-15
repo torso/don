@@ -10,12 +10,12 @@ struct VM
     intvector stack;
     byte *heapBase;
     byte *heapFree;
-
-    objectref booleanTrue;
-    objectref booleanFalse;
-    objectref emptyString;
-    objectref emptyList;
-    objectref stringNewline;
 };
+
+extern objectref vmTrue;
+extern objectref vmFalse;
+extern objectref vmEmptyString;
+extern objectref vmEmptyList;
+extern objectref vmNewline;
 
 #include "heap.h"

@@ -23,6 +23,12 @@ typedef struct
     size_t length;
 } SubString;
 
+objectref vmTrue;
+objectref vmFalse;
+objectref vmEmptyString;
+objectref vmEmptyList;
+objectref vmNewline;
+
 
 static void checkObject(VM *vm, objectref object)
 {
@@ -204,11 +210,11 @@ void HeapInit(VM *vm)
 {
     vm->heapBase = (byte*)malloc(PAGE_SIZE);
     vm->heapFree = vm->heapBase + sizeof(int);
-    vm->booleanTrue = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_BOOLEAN_TRUE, 0));
-    vm->booleanFalse = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_BOOLEAN_FALSE, 0));
-    vm->emptyString = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_STRING, 0));
-    vm->emptyList = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_EMPTY_LIST, 0));
-    vm->stringNewline = HeapCreateString(vm, "\n", 1);
+    vmTrue = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_BOOLEAN_TRUE, 0));
+    vmFalse = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_BOOLEAN_FALSE, 0));
+    vmEmptyString = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_STRING, 0));
+    vmEmptyList = HeapFinishAlloc(vm, heapAlloc(vm, TYPE_EMPTY_LIST, 0));
+    vmNewline = HeapCreateString(vm, "\n", 1);
 }
 
 void HeapDispose(VM *vm)
@@ -395,11 +401,11 @@ objectref HeapFinishAlloc(VM *vm, byte *objectData)
 
 boolean HeapIsTrue(VM *vm, objectref object)
 {
-    if (object == vm->booleanTrue)
+    if (object == vmTrue)
     {
         return true;
     }
-    if (object == vm->booleanFalse || !object)
+    if (object == vmFalse || !object)
     {
         return false;
     }
@@ -468,7 +474,7 @@ objectref HeapCreateString(VM *vm, const char *restrict string, size_t length)
 
     if (!length)
     {
-        return vm->emptyString;
+        return vmEmptyString;
     }
 
     objectData = HeapAlloc(vm, TYPE_STRING, length);
@@ -494,7 +500,7 @@ objectref HeapCreateWrappedString(VM *vm, const char *restrict string,
 
     if (!length)
     {
-        return vm->emptyString;
+        return vmEmptyString;
     }
     data = HeapAlloc(vm, TYPE_STRING_WRAPPED, sizeof(char*) + sizeof(size_t));
     *(const char**)data = string;
@@ -512,7 +518,7 @@ objectref HeapCreateSubstring(VM *vm, objectref string, size_t offset,
     assert(HeapStringLength(vm, string) >= offset + length);
     if (!length)
     {
-        return vm->emptyString;
+        return vmEmptyString;
     }
     if (length == HeapStringLength(vm, string))
     {
@@ -906,7 +912,7 @@ objectref HeapSplit(VM *vm, objectref string, objectref delimiter,
     length = HeapStringLength(vm, string);
     if (!length)
     {
-        return vm->emptyList;
+        return vmEmptyList;
     }
     delimiterLength = HeapStringLength(vm, delimiter);
     if (!delimiterLength || length < delimiterLength)
@@ -1201,7 +1207,7 @@ objectref HeapCreateFilesetGlob(VM *vm, const char *pattern)
     if (vm->heapFree == objectData)
     {
         vm->heapFree = oldFree;
-        return vm->emptyList;
+        return vmEmptyList;
     }
     object = finishAllocResize(vm, objectData,
                                (uint32)(vm->heapFree - objectData));

@@ -44,7 +44,7 @@ void InterpreterPush(VM *vm, objectref value)
 
 void InterpreterPushBoolean(VM *vm, boolean value)
 {
-    push(vm, value ? vm->booleanTrue : vm->booleanFalse);
+    push(vm, value ? vmTrue : vmFalse);
 }
 
 
@@ -124,11 +124,11 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_TRUE:
-            push(vm, vm->booleanTrue);
+            push(vm, vmTrue);
             break;
 
         case OP_FALSE:
-            push(vm, vm->booleanFalse);
+            push(vm, vmFalse);
             break;
 
         case OP_INTEGER:
@@ -140,7 +140,7 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_EMPTY_LIST:
-            push(vm, vm->emptyList);
+            push(vm, vmEmptyList);
             break;
 
         case OP_LIST:
@@ -246,9 +246,8 @@ static void execute(VM *vm, functionref target)
 
         case OP_NOT:
             value = pop(vm);
-            assert(value == vm->booleanTrue ||
-                   value == vm->booleanFalse);
-            pushBoolean(vm, value == vm->booleanFalse);
+            assert(value == vmTrue || value == vmFalse);
+            pushBoolean(vm, value == vmFalse);
             break;
 
         case OP_NEG:
@@ -311,7 +310,7 @@ static void execute(VM *vm, functionref target)
             size2 = HeapStringLength(vm, value);
             if (!size1 && !size2)
             {
-                push(vm, vm->emptyString);
+                push(vm, vmEmptyString);
                 break;
             }
             objectData = HeapAlloc(vm, TYPE_STRING, size1 + size2);
@@ -379,20 +378,18 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_BRANCH_TRUE:
-            assert(peek(vm) == vm->booleanTrue ||
-                   peek(vm) == vm->booleanFalse);
+            assert(peek(vm) == vmTrue || peek(vm) == vmFalse);
             jumpOffset = BytecodeReadInt(&ip);
-            if (pop(vm) == vm->booleanTrue)
+            if (pop(vm) == vmTrue)
             {
                 ip += jumpOffset;
             }
             break;
 
         case OP_BRANCH_FALSE:
-            assert(peek(vm) == vm->booleanTrue ||
-                   peek(vm) == vm->booleanFalse);
+            assert(peek(vm) == vmTrue || peek(vm) == vmFalse);
             jumpOffset = BytecodeReadInt(&ip);
-            if (pop(vm) != vm->booleanTrue)
+            if (pop(vm) != vmTrue)
             {
                 ip += jumpOffset;
             }
