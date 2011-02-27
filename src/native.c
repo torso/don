@@ -19,32 +19,9 @@
 #include "stringpool.h"
 #include "task.h"
 
+#define NATIVE_FUNCTION_COUNT 19
+
 typedef void (*nativeInvoke)(VM*);
-
-typedef enum
-{
-    NATIVE_NULL,
-    NATIVE_CP,
-    NATIVE_ECHO,
-    NATIVE_EXEC,
-    NATIVE_FAIL,
-    NATIVE_FILE,
-    NATIVE_FILENAME,
-    NATIVE_FILESET,
-    NATIVE_GETCACHE,
-    NATIVE_GETENV,
-    NATIVE_INDEXOF,
-    NATIVE_LINES,
-    NATIVE_MV,
-    NATIVE_READFILE,
-    NATIVE_REPLACE,
-    NATIVE_RM,
-    NATIVE_SETUPTODATE,
-    NATIVE_SIZE,
-    NATIVE_SPLIT,
-
-    NATIVE_FUNCTION_COUNT
-} NativeFunction;
 
 typedef struct
 {
