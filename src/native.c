@@ -11,8 +11,6 @@
 #include "fieldindex.h"
 #include "file.h"
 #include "hash.h"
-#include "instruction.h"
-#include "interpreter.h"
 #include "log.h"
 #include "namespace.h"
 #include "native.h"
@@ -120,8 +118,8 @@ static objectref readFile(objectref object)
 
 static void nativeCp(VM *vm)
 {
-    objectref dst = InterpreterPop(vm);
-    objectref src = InterpreterPop(vm);
+    objectref dst = VMPop(vm);
+    objectref src = VMPop(vm);
 
     assert(HeapIsFile(src));
     assert(HeapIsFile(dst));
@@ -130,8 +128,8 @@ static void nativeCp(VM *vm)
 
 static void nativeEcho(VM *vm)
 {
-    objectref prefix = InterpreterPop(vm);
-    objectref message = InterpreterPop(vm);
+    objectref prefix = VMPop(vm);
+    objectref message = VMPop(vm);
     char *buffer;
     size_t length;
 
@@ -154,11 +152,11 @@ static void nativeEcho(VM *vm)
 
 static void nativeExec(VM *vm)
 {
-    boolean echoErr = InterpreterPopBoolean(vm);
-    boolean echoOut = InterpreterPopBoolean(vm);
-    boolean failOnError = InterpreterPopBoolean(vm);
-    objectref env = InterpreterPop(vm);
-    objectref command = InterpreterPop(vm);
+    boolean echoErr = VMPopBoolean(vm);
+    boolean echoOut = VMPopBoolean(vm);
+    boolean failOnError = VMPopBoolean(vm);
+    objectref env = VMPop(vm);
+    objectref command = VMPop(vm);
     Iterator iter;
     objectref name;
     objectref value;
@@ -263,13 +261,13 @@ static void nativeExec(VM *vm)
     LogPopErrBuffer();
     LogAutoNewline();
     LogErrAutoNewline();
-    InterpreterPush(vm, HeapCreateArray(output, 2));
-    InterpreterPush(vm, HeapBoxInteger(status));
+    VMPush(vm, HeapCreateArray(output, 2));
+    VMPush(vm, HeapBoxInteger(status));
 }
 
 static noreturn void nativeFail(VM *vm)
 {
-    objectref message = InterpreterPop(vm);
+    objectref message = VMPop(vm);
 
     LogPrintErrObjectAutoNewline(message);
     TaskFailVM(vm);
@@ -277,17 +275,17 @@ static noreturn void nativeFail(VM *vm)
 
 static void nativeFile(VM *vm)
 {
-    objectref extension = InterpreterPop(vm);
-    objectref name = InterpreterPop(vm);
-    objectref path = InterpreterPop(vm);
+    objectref extension = VMPop(vm);
+    objectref name = VMPop(vm);
+    objectref path = VMPop(vm);
     fileref file = HeapGetFileFromParts(path, name, extension);
 
-    InterpreterPush(vm, HeapCreateFile(file));
+    VMPush(vm, HeapCreateFile(file));
 }
 
 static void nativeFilename(VM *vm)
 {
-    objectref path = InterpreterPop(vm);
+    objectref path = VMPop(vm);
     fileref file;
     size_t size;
     const char *text;
@@ -296,13 +294,13 @@ static void nativeFilename(VM *vm)
     file = HeapGetFile(path);
     size = FileGetNameLength(file);
     text = FileFilename(FileGetName(file), &size);
-    InterpreterPush(vm, HeapCreateString(text, size));
+    VMPush(vm, HeapCreateString(text, size));
 }
 
 /* TODO: Remove duplicate files. */
 static void nativeFileset(VM *vm)
 {
-    objectref value = InterpreterPop(vm);
+    objectref value = VMPop(vm);
     objectref o;
     intvector files;
     Iterator iter;
@@ -318,14 +316,14 @@ static void nativeFileset(VM *vm)
         IntVectorAddRef(&files, o);
     }
     /* TODO: Reuse collection if possible. */
-    InterpreterPush(vm, HeapCreateArrayFromVector(&files));
+    VMPush(vm, HeapCreateArrayFromVector(&files));
     IntVectorDispose(&files);
 }
 
 static void nativeGetCache(VM *vm)
 {
-    boolean echoCachedOutput = InterpreterPopBoolean(vm);
-    objectref key = InterpreterPop(vm);
+    boolean echoCachedOutput = VMPopBoolean(vm);
+    objectref key = VMPop(vm);
     cacheref ref;
     HashState hashState;
     byte hash[DIGEST_SIZE];
@@ -347,13 +345,13 @@ static void nativeGetCache(VM *vm)
     {
         FileMkdir(CacheGetFile(ref));
     }
-    InterpreterPush(vm, HeapCreateFile(CacheGetFile(ref)));
-    InterpreterPushBoolean(vm, uptodate);
+    VMPush(vm, HeapCreateFile(CacheGetFile(ref)));
+    VMPushBoolean(vm, uptodate);
 }
 
 static void nativeGetenv(VM *vm)
 {
-    objectref name = InterpreterPop(vm);
+    objectref name = VMPop(vm);
     char *buffer;
     size_t nameLength = HeapStringLength(name);
     const char *value;
@@ -362,38 +360,38 @@ static void nativeGetenv(VM *vm)
     *HeapWriteString(name, buffer) = 0;
     value = getenv(buffer);
     free(buffer);
-    InterpreterPush(vm, value ? HeapCreateString(value, strlen(value)) : 0);
+    VMPush(vm, value ? HeapCreateString(value, strlen(value)) : 0);
 }
 
 static void nativeIndexOf(VM *vm)
 {
-    objectref element = InterpreterPop(vm);
-    objectref data = InterpreterPop(vm);
+    objectref element = VMPop(vm);
+    objectref data = VMPop(vm);
 
     /* TODO: Support collections */
     assert(HeapIsString(data));
     assert(HeapIsString(element));
-    InterpreterPush(vm, HeapStringIndexOf(data, 0, element));
+    VMPush(vm, HeapStringIndexOf(data, 0, element));
 }
 
 static void nativeLines(VM *vm)
 {
-    boolean trimEmptyLastLine = InterpreterPopBoolean(vm);
-    objectref value = InterpreterPop(vm);
+    boolean trimEmptyLastLine = VMPopBoolean(vm);
+    objectref value = VMPop(vm);
 
     if (HeapIsFile(value))
     {
         value = readFile(value);
     }
     assert(HeapIsString(value));
-    InterpreterPush(vm, HeapSplit(value, HeapNewline, false,
-                                  trimEmptyLastLine));
+    VMPush(vm, HeapSplit(value, HeapNewline, false,
+                         trimEmptyLastLine));
 }
 
 static void nativeMv(VM *vm)
 {
-    objectref dst = InterpreterPop(vm);
-    objectref src = InterpreterPop(vm);
+    objectref dst = VMPop(vm);
+    objectref src = VMPop(vm);
 
     assert(HeapIsFile(src));
     assert(HeapIsFile(dst));
@@ -402,15 +400,15 @@ static void nativeMv(VM *vm)
 
 static void nativeReadFile(VM *vm)
 {
-    objectref file = InterpreterPop(vm);
-    InterpreterPush(vm, readFile(file));
+    objectref file = VMPop(vm);
+    VMPush(vm, readFile(file));
 }
 
 static void nativeReplace(VM *vm)
 {
-    objectref replacement = InterpreterPop(vm);
-    objectref original = InterpreterPop(vm);
-    objectref data = InterpreterPop(vm);
+    objectref replacement = VMPop(vm);
+    objectref original = VMPop(vm);
+    objectref data = VMPop(vm);
     size_t dataLength = HeapStringLength(data);
     size_t originalLength = HeapStringLength(original);
     size_t replacementLength = HeapStringLength(replacement);
@@ -435,15 +433,15 @@ static void nativeReplace(VM *vm)
     }
     if (!replacements)
     {
-        InterpreterPush(vm, data);
-        InterpreterPush(vm, HeapBoxInteger(0));
+        VMPush(vm, data);
+        VMPush(vm, HeapBoxInteger(0));
         return;
     }
-    InterpreterPush(
+    VMPush(
         vm, HeapCreateUninitialisedString(
             dataLength + replacements * (replacementLength - originalLength),
             &p));
-    InterpreterPush(vm, HeapBoxUint(replacements));
+    VMPush(vm, HeapBoxUint(replacements));
     offset = 0;
     while (replacements--)
     {
@@ -457,16 +455,16 @@ static void nativeReplace(VM *vm)
 
 static void nativeRm(VM *vm)
 {
-    objectref file = InterpreterPop(vm);
+    objectref file = VMPop(vm);
     FileDelete(HeapGetAsFile(file));
 }
 
 static void nativeSetUptodate(VM *vm)
 {
-    objectref accessedFiles = InterpreterPop(vm);
-    objectref err = InterpreterPop(vm);
-    objectref out = InterpreterPop(vm);
-    cacheref ref = CacheGetFromFile(HeapGetFile(InterpreterPop(vm)));
+    objectref accessedFiles = VMPop(vm);
+    objectref err = VMPop(vm);
+    objectref out = VMPop(vm);
+    cacheref ref = CacheGetFromFile(HeapGetFile(VMPop(vm)));
     objectref value;
     Iterator iter;
     size_t outLength = HeapStringLength(out);
@@ -492,25 +490,25 @@ static void nativeSetUptodate(VM *vm)
 
 static void nativeSize(VM *vm)
 {
-    objectref value = InterpreterPop(vm);
+    objectref value = VMPop(vm);
 
     if (HeapIsCollection(value))
     {
         assert(HeapCollectionSize(value) <= INT_MAX);
-        InterpreterPush(vm, HeapBoxSize(HeapCollectionSize(value)));
+        VMPush(vm, HeapBoxSize(HeapCollectionSize(value)));
     }
     else
     {
         assert(HeapIsString(value));
-        InterpreterPush(vm, HeapBoxSize(HeapStringLength(value)));
+        VMPush(vm, HeapBoxSize(HeapStringLength(value)));
     }
 }
 
 static void nativeSplit(VM *vm)
 {
-    boolean removeEmpty = InterpreterPopBoolean(vm);
-    objectref delimiter = InterpreterPop(vm);
-    objectref value = InterpreterPop(vm);
+    boolean removeEmpty = VMPopBoolean(vm);
+    objectref delimiter = VMPop(vm);
+    objectref value = VMPop(vm);
 
     assert(HeapIsString(delimiter));
     if (HeapIsFile(value))
@@ -518,8 +516,7 @@ static void nativeSplit(VM *vm)
         value = readFile(value);
     }
     assert(HeapIsString(value));
-    InterpreterPush(
-        vm, HeapSplit(value, delimiter, removeEmpty, false));
+    VMPush(vm, HeapSplit(value, delimiter, removeEmpty, false));
 }
 
 void NativeInvoke(VM *vm, nativefunctionref function)
