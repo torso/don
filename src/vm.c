@@ -32,6 +32,15 @@ boolean VMPopBoolean(VM *vm)
     return HeapIsTrue(IntVectorPopRef(&vm->stack));
 }
 
+void VMPopMany(VM *vm, objectref *dst, uint count)
+{
+    dst += count - 1;
+    while (count--)
+    {
+        *dst-- = VMPop(vm);
+    }
+}
+
 void VMPush(VM *vm, objectref value)
 {
     IntVectorAddRef(&vm->stack, value);
@@ -40,4 +49,12 @@ void VMPush(VM *vm, objectref value)
 void VMPushBoolean(VM *vm, boolean value)
 {
     VMPush(vm, value ? HeapTrue : HeapFalse);
+}
+
+void VMPushMany(VM *vm, const objectref *values, uint count)
+{
+    while (count--)
+    {
+        VMPush(vm, *values++);
+    }
 }

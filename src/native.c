@@ -18,8 +18,9 @@
 #include "task.h"
 
 #define NATIVE_FUNCTION_COUNT 19
+#define MAX_ENV 7
 
-typedef void (*nativeInvoke)(VM*);
+typedef void (*nativeInvoke)(VM*, objectref*);
 
 typedef struct
 {
@@ -116,47 +117,61 @@ static objectref readFile(objectref object)
     return HeapCreateWrappedString(text, size);
 }
 
-static void nativeCp(VM *vm)
+typedef struct
 {
-    objectref dst = VMPop(vm);
-    objectref src = VMPop(vm);
+    objectref src;
+    objectref dst;
+} CpEnv;
 
-    assert(HeapIsFile(src));
-    assert(HeapIsFile(dst));
-    FileCopy(HeapGetFile(src), HeapGetFile(dst));
+static void nativeCp(VM *vm unused, CpEnv *env)
+{
+    assert(HeapIsFile(env->src));
+    assert(HeapIsFile(env->dst));
+    FileCopy(HeapGetFile(env->src), HeapGetFile(env->dst));
 }
 
-static void nativeEcho(VM *vm)
+typedef struct
 {
-    objectref prefix = VMPop(vm);
-    objectref message = VMPop(vm);
+    objectref message;
+    objectref prefix;
+} EchoEnv;
+
+static void nativeEcho(VM *vm unused, EchoEnv *env)
+{
     char *buffer;
     size_t length;
 
-    if (prefix)
+    if (env->prefix)
     {
         /* TODO: Avoid malloc */
-        length = HeapStringLength(prefix);
+        length = HeapStringLength(env->prefix);
         buffer = (char*)malloc(length);
-        HeapWriteString(prefix, buffer);
+        HeapWriteString(env->prefix, buffer);
         LogSetPrefix(buffer, length);
-        LogPrintObjectAutoNewline(message);
+        LogPrintObjectAutoNewline(env->message);
         LogSetPrefix(null, 0);
         free(buffer);
     }
     else
     {
-        LogPrintObjectAutoNewline(message);
+        LogPrintObjectAutoNewline(env->message);
     }
 }
 
-static void nativeExec(VM *vm)
+typedef struct
 {
-    boolean echoErr = VMPopBoolean(vm);
-    boolean echoOut = VMPopBoolean(vm);
-    boolean failOnError = VMPopBoolean(vm);
-    objectref env = VMPop(vm);
-    objectref command = VMPop(vm);
+    objectref command;
+    objectref env;
+    objectref failOnError;
+    objectref echoOut;
+    objectref echoErr;
+
+    objectref output;
+    objectref status;
+} ExecEnv;
+
+static void nativeExec(VM *vm, ExecEnv *env)
+{
     Iterator iter;
     objectref name;
     objectref value;
@@ -171,9 +186,9 @@ static void nativeExec(VM *vm)
     const byte *p;
     size_t length;
 
-    assert(HeapCollectionSize(env) % 2 == 0);
+    assert(HeapCollectionSize(env->env) % 2 == 0);
 
-    argv = createStringArray(command);
+    argv = createStringArray(env->command);
 
     status = pipe(pipeOut);
     if (status == -1)
@@ -205,7 +220,7 @@ static void nativeExec(VM *vm)
         }
         close(pipeErr[1]);
 
-        HeapIteratorInit(&iter, env, true);
+        HeapIteratorInit(&iter, env->env, true);
         while (HeapIteratorNext(&iter, &name))
         {
             HeapIteratorNext(&iter, &value);
@@ -239,8 +254,8 @@ static void nativeExec(VM *vm)
         TaskFailOOM();
     }
 
-    LogPushOutBuffer(echoOut);
-    LogPushErrBuffer(echoErr);
+    LogPushOutBuffer(HeapIsTrue(env->echoOut));
+    LogPushErrBuffer(HeapIsTrue(env->echoErr));
     LogConsumePipes(pipeOut[0], pipeErr[0]);
 
     pid = waitpid(pid, &status, 0);
@@ -248,7 +263,7 @@ static void nativeExec(VM *vm)
     {
         TaskFailErrno(false);
     }
-    if (failOnError && status)
+    if (HeapIsTrue(env->failOnError) && status)
     {
         fprintf(stderr, "BUILD ERROR: Process exited with status %d.\n", status);
         TaskFailVM(vm);
@@ -261,52 +276,73 @@ static void nativeExec(VM *vm)
     LogPopErrBuffer();
     LogAutoNewline();
     LogErrAutoNewline();
-    VMPush(vm, HeapCreateArray(output, 2));
-    VMPush(vm, HeapBoxInteger(status));
+    env->output = HeapCreateArray(output, 2);
+    env->status = HeapBoxInteger(status);
 }
 
-static noreturn void nativeFail(VM *vm)
+typedef struct
 {
-    objectref message = VMPop(vm);
+    objectref message;
+} FailEnv;
 
-    LogPrintErrObjectAutoNewline(message);
+static noreturn void nativeFail(VM *vm, FailEnv *env)
+{
+    LogPrintErrObjectAutoNewline(env->message);
     TaskFailVM(vm);
 }
 
-static void nativeFile(VM *vm)
+typedef struct
 {
-    objectref extension = VMPop(vm);
-    objectref name = VMPop(vm);
-    objectref path = VMPop(vm);
-    fileref file = HeapGetFileFromParts(path, name, extension);
+    objectref path;
+    objectref name;
+    objectref extension;
 
-    VMPush(vm, HeapCreateFile(file));
+    objectref result;
+} FileEnv;
+
+static void nativeFile(VM *vm unused, FileEnv *env)
+{
+    fileref file = HeapGetFileFromParts(env->path, env->name, env->extension);
+
+    env->result = HeapCreateFile(file);
 }
 
-static void nativeFilename(VM *vm)
+typedef struct
 {
-    objectref path = VMPop(vm);
+    objectref path;
+
+    objectref result;
+} FilenameEnv;
+
+static void nativeFilename(VM *vm unused, FilenameEnv *env)
+{
     fileref file;
     size_t size;
     const char *text;
 
-    assert(HeapIsFile(path));
-    file = HeapGetFile(path);
+    assert(HeapIsFile(env->path));
+    file = HeapGetFile(env->path);
     size = FileGetNameLength(file);
     text = FileFilename(FileGetName(file), &size);
-    VMPush(vm, HeapCreateString(text, size));
+    env->result = HeapCreateString(text, size);
 }
 
-/* TODO: Remove duplicate files. */
-static void nativeFileset(VM *vm)
+typedef struct
 {
-    objectref value = VMPop(vm);
+    objectref value;
+
+    objectref result;
+} FilesetEnv;
+
+/* TODO: Remove duplicate files. */
+static void nativeFileset(VM *vm unused, FilesetEnv *env)
+{
     objectref o;
     intvector files;
     Iterator iter;
 
     IntVectorInit(&files);
-    HeapIteratorInit(&iter, value, true);
+    HeapIteratorInit(&iter, env->value, true);
     while (HeapIteratorNext(&iter, &o))
     {
         if (!HeapIsFile(o))
@@ -316,27 +352,34 @@ static void nativeFileset(VM *vm)
         IntVectorAddRef(&files, o);
     }
     /* TODO: Reuse collection if possible. */
-    VMPush(vm, HeapCreateArrayFromVector(&files));
+    env->result = HeapCreateArrayFromVector(&files);
     IntVectorDispose(&files);
 }
 
-static void nativeGetCache(VM *vm)
+typedef struct
 {
-    boolean echoCachedOutput = VMPopBoolean(vm);
-    objectref key = VMPop(vm);
+    objectref key;
+    objectref echoCachedOutput;
+
+    objectref cacheFile;
+    objectref uptodate;
+} GetCacheEnv;
+
+static void nativeGetCache(VM *vm unused, GetCacheEnv *env)
+{
     cacheref ref;
     HashState hashState;
     byte hash[DIGEST_SIZE];
     boolean uptodate;
 
     HashInit(&hashState);
-    HeapHash(key, &hashState);
+    HeapHash(env->key, &hashState);
     HashFinal(&hashState, hash);
     ref = CacheGet(hash);
     uptodate = CacheCheckUptodate(ref);
     if (uptodate)
     {
-        if (echoCachedOutput)
+        if (HeapIsTrue(env->echoCachedOutput))
         {
             CacheEchoCachedOutput(ref);
         }
@@ -345,73 +388,104 @@ static void nativeGetCache(VM *vm)
     {
         FileMkdir(CacheGetFile(ref));
     }
-    VMPush(vm, HeapCreateFile(CacheGetFile(ref)));
-    VMPushBoolean(vm, uptodate);
+    env->cacheFile = HeapCreateFile(CacheGetFile(ref));
+    env->uptodate = uptodate ? HeapTrue : HeapFalse;
 }
 
-static void nativeGetenv(VM *vm)
+typedef struct
 {
-    objectref name = VMPop(vm);
+    objectref name;
+
+    objectref result;
+} GetenvEnv;
+
+static void nativeGetenv(VM *vm unused, GetenvEnv *env)
+{
     char *buffer;
-    size_t nameLength = HeapStringLength(name);
+    size_t nameLength = HeapStringLength(env->name);
     const char *value;
 
     buffer = (char*)malloc(nameLength + 1);
-    *HeapWriteString(name, buffer) = 0;
+    *HeapWriteString(env->name, buffer) = 0;
     value = getenv(buffer);
     free(buffer);
-    VMPush(vm, value ? HeapCreateString(value, strlen(value)) : 0);
+    env->result = value ? HeapCreateString(value, strlen(value)) : 0;
 }
 
-static void nativeIndexOf(VM *vm)
+typedef struct
 {
-    objectref element = VMPop(vm);
-    objectref data = VMPop(vm);
+    objectref data;
+    objectref element;
 
+    objectref result;
+} IndexOfEnv;
+
+static void nativeIndexOf(VM *vm unused, IndexOfEnv *env)
+{
     /* TODO: Support collections */
-    assert(HeapIsString(data));
-    assert(HeapIsString(element));
-    VMPush(vm, HeapStringIndexOf(data, 0, element));
+    assert(HeapIsString(env->data));
+    assert(HeapIsString(env->element));
+    env->result = HeapStringIndexOf(env->data, 0, env->element);
 }
 
-static void nativeLines(VM *vm)
+typedef struct
 {
-    boolean trimEmptyLastLine = VMPopBoolean(vm);
-    objectref value = VMPop(vm);
+    objectref value;
+    objectref trimEmptyLastLine;
 
-    if (HeapIsFile(value))
-    {
-        value = readFile(value);
-    }
-    assert(HeapIsString(value));
-    VMPush(vm, HeapSplit(value, HeapNewline, false,
-                         trimEmptyLastLine));
+    objectref result;
+} LinesEnv;
+
+static void nativeLines(VM *vm unused, LinesEnv *env)
+{
+    objectref content;
+
+    content = HeapIsFile(env->value) ? readFile(env->value) : env->value;
+    assert(HeapIsString(content));
+    env->result = HeapSplit(content, HeapNewline, false,
+                            HeapIsTrue(env->trimEmptyLastLine));
 }
 
-static void nativeMv(VM *vm)
+typedef struct
 {
-    objectref dst = VMPop(vm);
-    objectref src = VMPop(vm);
+    objectref src;
+    objectref dst;
+} MvEnv;
 
-    assert(HeapIsFile(src));
-    assert(HeapIsFile(dst));
-    FileRename(HeapGetFile(src), HeapGetFile(dst), true);
+static void nativeMv(VM *vm unused, MvEnv *env)
+{
+    assert(HeapIsFile(env->src));
+    assert(HeapIsFile(env->dst));
+    FileRename(HeapGetFile(env->src), HeapGetFile(env->dst), true);
 }
 
-static void nativeReadFile(VM *vm)
+typedef struct
 {
-    objectref file = VMPop(vm);
-    VMPush(vm, readFile(file));
+    objectref file;
+
+    objectref result;
+} ReadFileEnv;
+
+static void nativeReadFile(VM *vm unused, ReadFileEnv *env)
+{
+    env->result = readFile(env->file);
 }
 
-static void nativeReplace(VM *vm)
+typedef struct
 {
-    objectref replacement = VMPop(vm);
-    objectref original = VMPop(vm);
-    objectref data = VMPop(vm);
-    size_t dataLength = HeapStringLength(data);
-    size_t originalLength = HeapStringLength(original);
-    size_t replacementLength = HeapStringLength(replacement);
+    objectref data;
+    objectref original;
+    objectref replacement;
+
+    objectref result;
+    objectref count;
+} ReplaceEnv;
+
+static void nativeReplace(VM *vm unused, ReplaceEnv *env)
+{
+    size_t dataLength = HeapStringLength(env->data);
+    size_t originalLength = HeapStringLength(env->original);
+    size_t replacementLength = HeapStringLength(env->replacement);
     size_t offset;
     size_t newOffset;
     objectref offsetRef;
@@ -422,7 +496,7 @@ static void nativeReplace(VM *vm)
     {
         for (offset = 0;; offset++)
         {
-            offsetRef = HeapStringIndexOf(data, offset, original);
+            offsetRef = HeapStringIndexOf(env->data, offset, env->original);
             if (!offsetRef)
             {
                 break;
@@ -433,47 +507,55 @@ static void nativeReplace(VM *vm)
     }
     if (!replacements)
     {
-        VMPush(vm, data);
-        VMPush(vm, HeapBoxInteger(0));
+        env->result = env->data;
+        env->count = HeapBoxInteger(0);
         return;
     }
-    VMPush(
-        vm, HeapCreateUninitialisedString(
-            dataLength + replacements * (replacementLength - originalLength),
-            &p));
-    VMPush(vm, HeapBoxUint(replacements));
+    env->result = HeapCreateUninitialisedString(
+        dataLength + replacements * (replacementLength - originalLength),
+        &p);
+    env->count = HeapBoxUint(replacements);
     offset = 0;
     while (replacements--)
     {
-        newOffset = HeapUnboxSize(HeapStringIndexOf(data, offset, original));
-        p = HeapWriteSubstring(data, offset, newOffset - offset, p);
-        p = HeapWriteString(replacement, p);
+        newOffset = HeapUnboxSize(HeapStringIndexOf(env->data, offset, env->original));
+        p = HeapWriteSubstring(env->data, offset, newOffset - offset, p);
+        p = HeapWriteString(env->replacement, p);
         offset = newOffset + originalLength;
     }
-    HeapWriteSubstring(data, offset, dataLength - offset, p);
+    HeapWriteSubstring(env->data, offset, dataLength - offset, p);
 }
 
-static void nativeRm(VM *vm)
+typedef struct
 {
-    objectref file = VMPop(vm);
-    FileDelete(HeapGetAsFile(file));
+    objectref file;
+} RmEnv;
+
+static void nativeRm(VM *vm unused, RmEnv *env)
+{
+    FileDelete(HeapGetAsFile(env->file));
 }
 
-static void nativeSetUptodate(VM *vm)
+typedef struct
 {
-    objectref accessedFiles = VMPop(vm);
-    objectref err = VMPop(vm);
-    objectref out = VMPop(vm);
-    cacheref ref = CacheGetFromFile(HeapGetFile(VMPop(vm)));
+    objectref cacheFile;
+    objectref out;
+    objectref err;
+    objectref accessedFiles;
+} SetUptodateEnv;
+
+static void nativeSetUptodate(VM *vm unused, SetUptodateEnv *env)
+{
+    cacheref ref = CacheGetFromFile(HeapGetFile(env->cacheFile));
     objectref value;
     Iterator iter;
-    size_t outLength = HeapStringLength(out);
-    size_t errLength = HeapStringLength(err);
+    size_t outLength = HeapStringLength(env->out);
+    size_t errLength = HeapStringLength(env->err);
     char *output = null;
 
-    if (accessedFiles)
+    if (env->accessedFiles)
     {
-        HeapIteratorInit(&iter, accessedFiles, true);
+        HeapIteratorInit(&iter, env->accessedFiles, true);
         while (HeapIteratorNext(&iter, &value))
         {
             CacheAddDependency(ref, HeapGetFile(value));
@@ -482,46 +564,61 @@ static void nativeSetUptodate(VM *vm)
     if (outLength || errLength)
     {
         output = (char*)malloc(outLength + errLength);
-        HeapWriteString(out, output);
-        HeapWriteString(err, output + outLength);
+        HeapWriteString(env->out, output);
+        HeapWriteString(env->err, output + outLength);
     }
     CacheSetUptodate(ref, outLength, errLength, output);
 }
 
-static void nativeSize(VM *vm)
+typedef struct
 {
-    objectref value = VMPop(vm);
+    objectref value;
 
-    if (HeapIsCollection(value))
+    objectref result;
+} SizeEnv;
+
+static void nativeSize(VM *vm unused, SizeEnv *env)
+{
+    if (HeapIsCollection(env->value))
     {
-        assert(HeapCollectionSize(value) <= INT_MAX);
-        VMPush(vm, HeapBoxSize(HeapCollectionSize(value)));
+        assert(HeapCollectionSize(env->value) <= INT_MAX);
+        env->result = HeapBoxSize(HeapCollectionSize(env->value));
     }
     else
     {
-        assert(HeapIsString(value));
-        VMPush(vm, HeapBoxSize(HeapStringLength(value)));
+        assert(HeapIsString(env->value));
+        env->result = HeapBoxSize(HeapStringLength(env->value));
     }
 }
 
-static void nativeSplit(VM *vm)
+typedef struct
 {
-    boolean removeEmpty = VMPopBoolean(vm);
-    objectref delimiter = VMPop(vm);
-    objectref value = VMPop(vm);
+    objectref value;
+    objectref delimiter;
+    objectref removeEmpty;
 
-    assert(HeapIsString(delimiter));
-    if (HeapIsFile(value))
-    {
-        value = readFile(value);
-    }
-    assert(HeapIsString(value));
-    VMPush(vm, HeapSplit(value, delimiter, removeEmpty, false));
+    objectref result;
+} SplitEnv;
+
+static void nativeSplit(VM *vm unused, SplitEnv *env)
+{
+    objectref data = HeapIsFile(env->value) ? readFile(env->value) : env->value;
+    assert(HeapIsString(data));
+    assert(HeapIsString(env->delimiter));
+    env->result = HeapSplit(data, env->delimiter, HeapIsTrue(env->removeEmpty),
+                            false);
 }
 
 void NativeInvoke(VM *vm, nativefunctionref function)
 {
-    invokeTable[function](vm);
+    const FunctionInfo *info = getFunctionInfo(function);
+    objectref env[MAX_ENV];
+
+    assert(info->parameterCount + info->returnValueCount <= MAX_ENV);
+    VMPopMany(vm, env, info->parameterCount);
+    memset(env + info->parameterCount, 0, info->returnValueCount);
+    invokeTable[function](vm, env);
+    VMPushMany(vm, env + info->parameterCount, info->returnValueCount);
 }
 
 nativefunctionref NativeFindFunction(stringref name)
@@ -555,22 +652,22 @@ uint NativeGetReturnValueCount(nativefunctionref function)
 static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT] =
 {
     null,
-    nativeCp,
-    nativeEcho,
-    nativeExec,
-    nativeFail,
-    nativeFile,
-    nativeFilename,
-    nativeFileset,
-    nativeGetCache,
-    nativeGetenv,
-    nativeIndexOf,
-    nativeLines,
-    nativeMv,
-    nativeReadFile,
-    nativeReplace,
-    nativeRm,
-    nativeSetUptodate,
-    nativeSize,
-    nativeSplit
+    (nativeInvoke)nativeCp,
+    (nativeInvoke)nativeEcho,
+    (nativeInvoke)nativeExec,
+    (nativeInvoke)nativeFail,
+    (nativeInvoke)nativeFile,
+    (nativeInvoke)nativeFilename,
+    (nativeInvoke)nativeFileset,
+    (nativeInvoke)nativeGetCache,
+    (nativeInvoke)nativeGetenv,
+    (nativeInvoke)nativeIndexOf,
+    (nativeInvoke)nativeLines,
+    (nativeInvoke)nativeMv,
+    (nativeInvoke)nativeReadFile,
+    (nativeInvoke)nativeReplace,
+    (nativeInvoke)nativeRm,
+    (nativeInvoke)nativeSetUptodate,
+    (nativeInvoke)nativeSize,
+    (nativeInvoke)nativeSplit
 };
