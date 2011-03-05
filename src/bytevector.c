@@ -130,6 +130,13 @@ size_t ByteVectorGetReservedAppendSize(const bytevector *v)
 }
 
 
+void ByteVectorRemoveRange(bytevector *v, size_t offset, size_t size)
+{
+    ByteVectorMove(v, offset + size, offset, ByteVectorSize(v) - offset - size);
+    ByteVectorSetSize(v, ByteVectorSize(v) - size);
+}
+
+
 byte *ByteVectorGetPointer(const bytevector *v, size_t index)
 {
     if (index)

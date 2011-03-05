@@ -16,6 +16,7 @@
 #include "parser.h"
 #include "stringpool.h"
 #include "task.h"
+#include "work.h"
 
 
 static intvector targets;
@@ -48,6 +49,7 @@ static void cleanup(void)
 {
     IntVectorDispose(&targets);
     ByteVectorDispose(&parsed);
+    WorkDispose();
     VMDispose();
     NamespaceDispose();
     FieldIndexDispose();
@@ -299,6 +301,7 @@ int main(int argc, const char **argv)
     }
     CacheInit(cacheDirectory);
 
+    WorkInit();
     VMInit(bytecode);
     for (j = 0; j < IntVectorSize(&targets); j++)
     {

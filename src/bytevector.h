@@ -20,6 +20,8 @@ extern nonnull void ByteVectorReserveSize(bytevector *v, size_t size);
 extern nonnull void ByteVectorReserveAppendSize(bytevector *v, size_t size);
 extern nonnull size_t ByteVectorGetReservedAppendSize(const bytevector *v);
 
+extern nonnull void ByteVectorRemoveRange(bytevector *v, size_t offset, size_t size);
+
 extern nonnull pure byte *ByteVectorGetPointer(const bytevector *v,
                                                size_t index);
 extern nonnull byte *ByteVectorGetAppendPointer(bytevector *v);

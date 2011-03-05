@@ -8,6 +8,7 @@
 #include "math.h"
 #include "stringpool.h"
 #include "util.h"
+#include "work.h"
 
 #define INITIAL_HEAP_INDEX_SIZE 1
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))
@@ -1291,6 +1292,10 @@ objectref HeapWait(objectref object)
         return object;
     }
     value = *(const objectref*)HeapGetObjectData(object);
-    assert(value);
+    while (!value)
+    {
+        WorkExecute();
+        value = *(const objectref*)HeapGetObjectData(object);
+    }
     return value;
 }
