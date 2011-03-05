@@ -175,62 +175,6 @@ static objectref finishAllocResize(byte *objectData, uint32 newSize)
     return object;
 }
 
-static void iterStateInit(IteratorState *state, objectref object,
-                          boolean flatten)
-{
-    size_t size;
-
-    object = waitFutureValue(object);
-
-    state->object = object;
-    state->flatten = flatten;
-    switch (HeapGetObjectType(object))
-    {
-    case TYPE_EMPTY_LIST:
-        state->type = ITER_EMPTY;
-        return;
-
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-        size = HeapCollectionSize(object);
-        if (!size)
-        {
-            state->type = ITER_EMPTY;
-            return;
-        }
-        state->type = ITER_INDEXED;
-        state->current.index = 0;
-        state->limit.index = size - 1;
-        return;
-
-    case TYPE_CONCAT_LIST:
-        size = HeapGetObjectSize(object) / sizeof(objectref);
-        if (!size)
-        {
-            state->type = ITER_EMPTY;
-            return;
-        }
-        state->type = ITER_CONCAT_LIST;
-        state->current.index = 0;
-        state->limit.index = size - 1;
-        return;
-
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_STRING:
-    case TYPE_STRING_POOLED:
-    case TYPE_STRING_WRAPPED:
-    case TYPE_SUBSTRING:
-    case TYPE_FILE:
-    case TYPE_ITERATOR:
-    case TYPE_FUTURE:
-    default:
-        assert(false);
-        return;
-    }
-}
-
 
 void HeapInit(void)
 {
@@ -1181,51 +1125,102 @@ objectref HeapCreateIterator(objectref object)
 
 void HeapIteratorInit(Iterator *iter, objectref object, boolean flatten)
 {
-    iter->state.nextState = &iter->state;
-    iterStateInit(&iter->state, object, flatten);
+    size_t size;
+
+    object = waitFutureValue(object);
+
+    iter->next = 0;
+    iter->object = object;
+    iter->flatten = flatten;
+    switch (HeapGetObjectType(object))
+    {
+    case TYPE_EMPTY_LIST:
+        iter->type = ITER_EMPTY;
+        return;
+
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+        size = HeapCollectionSize(object);
+        if (!size)
+        {
+            iter->type = ITER_EMPTY;
+            return;
+        }
+        iter->type = ITER_INDEXED;
+        iter->current.index = 0;
+        iter->limit.index = size - 1;
+        return;
+
+    case TYPE_CONCAT_LIST:
+        size = HeapGetObjectSize(object) / sizeof(objectref);
+        if (!size)
+        {
+            iter->type = ITER_EMPTY;
+            return;
+        }
+        iter->type = ITER_CONCAT_LIST;
+        iter->current.index = 0;
+        iter->limit.index = size - 1;
+        return;
+
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_STRING:
+    case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
+    case TYPE_FILE:
+    case TYPE_ITERATOR:
+    case TYPE_FUTURE:
+    default:
+        assert(false);
+        return;
+    }
 }
 
 boolean HeapIteratorNext(Iterator *iter, objectref *value)
 {
-    IteratorState *currentState;
-    IteratorState *nextState;
+    Iterator *current;
+    Iterator *next;
+    byte *data;
     boolean flatten;
 
     for (;;)
     {
         flatten = false;
-        currentState = iter->state.nextState;
-        switch (currentState->type)
+        current = iter->next ?
+            (Iterator*)HeapGetObjectData(iter->next) :
+            iter;
+        switch (current->type)
         {
         case ITER_EMPTY:
-            if (currentState == &iter->state)
+            if (current == iter)
             {
                 return false;
             }
-            nextState = currentState->nextState;
-            free(currentState);
-            iter->state.nextState = nextState;
+            iter->next = current->next;
             continue;
 
         case ITER_INDEXED:
-            HeapCollectionGet(currentState->object,
-                              HeapBoxSize(currentState->current.index), value);
-            if (currentState->current.index == currentState->limit.index)
+            HeapCollectionGet(current->object,
+                              HeapBoxSize(current->current.index), value);
+            if (current->current.index == current->limit.index)
             {
-                currentState->type = ITER_EMPTY;
+                current->type = ITER_EMPTY;
             }
-            currentState->current.index++;
+            current->current.index++;
             break;
 
         case ITER_CONCAT_LIST:
             *value = ((const objectref*)HeapGetObjectData(
-                          currentState->object))[currentState->current.index];
+                          current->object))[current->current.index];
             assert(HeapIsCollection(*value));
-            if (currentState->current.index == currentState->limit.index)
+            if (current->current.index == current->limit.index)
             {
-                currentState->type = ITER_EMPTY;
+                current->type = ITER_EMPTY;
             }
-            currentState->current.index++;
+            current->current.index++;
             flatten = true;
             break;
 
@@ -1234,14 +1229,15 @@ boolean HeapIteratorNext(Iterator *iter, objectref *value)
             break;
         }
         if (flatten ||
-            (currentState->flatten &&
+            (current->flatten &&
              *value &&
              HeapIsCollection(*value)))
         {
-            nextState = (IteratorState*)malloc(sizeof(IteratorState));
-            nextState->nextState = currentState;
-            iter->state.nextState = nextState;
-            iterStateInit(nextState, *value, currentState->flatten);
+            data = HeapAlloc(TYPE_ITERATOR, sizeof(Iterator));
+            next = (Iterator*)data;
+            HeapIteratorInit(next, *value, current->flatten);
+            next->next = iter->next;
+            iter->next = HeapFinishAlloc(data);
             continue;
         }
         return true;

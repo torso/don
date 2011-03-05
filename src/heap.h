@@ -23,11 +23,23 @@ typedef enum
     ITER_CONCAT_LIST
 } IteratorType;
 
-typedef struct IteratorState IteratorState;
-
-struct IteratorState
+typedef struct
 {
-    IteratorState *nextState;
+    /*
+      Since an iterator can visit several collections, several iterators are
+      needed. This field connects those states in proper order. For the main
+      iterator, the meaning is special.
+
+      For the main iterator, this will point to the currently active iterator.
+      If null, the main iterator is the active iterator.
+
+      For all other iterators, this will point to the immediate parent. If null,
+      the main iterator is the parent. (Note that the main iterator might not
+      have been allocated on the heap, and is thus not addressable through this
+      field.)
+    */
+    objectref next;
+
     IteratorType type;
     objectref object;
     boolean flatten;
@@ -39,11 +51,6 @@ struct IteratorState
     {
         size_t index;
     } limit;
-};
-
-typedef struct
-{
-    IteratorState state;
 } Iterator;
 
 extern objectref HeapTrue;
