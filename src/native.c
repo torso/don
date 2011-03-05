@@ -20,7 +20,12 @@
 #define NATIVE_FUNCTION_COUNT 19
 #define MAX_ENV 7
 
-typedef void (*nativeInvoke)(VM*, objectref*);
+typedef struct
+{
+    VM *vm;
+} FunctionEnv;
+
+typedef void (*nativeInvoke)(FunctionEnv*);
 
 typedef struct
 {
@@ -119,11 +124,13 @@ static objectref readFile(objectref object)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref src;
     objectref dst;
 } CpEnv;
 
-static void nativeCp(VM *vm unused, CpEnv *env)
+static void nativeCp(CpEnv *env)
 {
     assert(HeapIsFile(env->src));
     assert(HeapIsFile(env->dst));
@@ -132,11 +139,13 @@ static void nativeCp(VM *vm unused, CpEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref message;
     objectref prefix;
 } EchoEnv;
 
-static void nativeEcho(VM *vm unused, EchoEnv *env)
+static void nativeEcho(EchoEnv *env)
 {
     char *buffer;
     size_t length;
@@ -160,6 +169,8 @@ static void nativeEcho(VM *vm unused, EchoEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref command;
     objectref env;
     objectref failOnError;
@@ -170,7 +181,7 @@ typedef struct
     objectref status;
 } ExecEnv;
 
-static void nativeExec(VM *vm, ExecEnv *env)
+static void nativeExec(ExecEnv *env)
 {
     Iterator iter;
     objectref name;
@@ -266,7 +277,7 @@ static void nativeExec(VM *vm, ExecEnv *env)
     if (HeapIsTrue(env->failOnError) && status)
     {
         fprintf(stderr, "BUILD ERROR: Process exited with status %d.\n", status);
-        TaskFailVM(vm);
+        TaskFailVM(env->fenv.vm);
     }
     LogGetOutBuffer(&p, &length);
     output[0] = HeapCreateString((const char*)p, length);
@@ -282,17 +293,21 @@ static void nativeExec(VM *vm, ExecEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref message;
 } FailEnv;
 
-static noreturn void nativeFail(VM *vm, FailEnv *env)
+static noreturn void nativeFail(FailEnv *env)
 {
     LogPrintErrObjectAutoNewline(env->message);
-    TaskFailVM(vm);
+    TaskFailVM(env->fenv.vm);
 }
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref path;
     objectref name;
     objectref extension;
@@ -300,7 +315,7 @@ typedef struct
     objectref result;
 } FileEnv;
 
-static void nativeFile(VM *vm unused, FileEnv *env)
+static void nativeFile(FileEnv *env)
 {
     fileref file = HeapGetFileFromParts(env->path, env->name, env->extension);
 
@@ -309,12 +324,14 @@ static void nativeFile(VM *vm unused, FileEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref path;
 
     objectref result;
 } FilenameEnv;
 
-static void nativeFilename(VM *vm unused, FilenameEnv *env)
+static void nativeFilename(FilenameEnv *env)
 {
     fileref file;
     size_t size;
@@ -329,13 +346,15 @@ static void nativeFilename(VM *vm unused, FilenameEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref value;
 
     objectref result;
 } FilesetEnv;
 
 /* TODO: Remove duplicate files. */
-static void nativeFileset(VM *vm unused, FilesetEnv *env)
+static void nativeFileset(FilesetEnv *env)
 {
     objectref o;
     intvector files;
@@ -358,6 +377,8 @@ static void nativeFileset(VM *vm unused, FilesetEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref key;
     objectref echoCachedOutput;
 
@@ -365,7 +386,7 @@ typedef struct
     objectref uptodate;
 } GetCacheEnv;
 
-static void nativeGetCache(VM *vm unused, GetCacheEnv *env)
+static void nativeGetCache(GetCacheEnv *env)
 {
     cacheref ref;
     HashState hashState;
@@ -394,12 +415,14 @@ static void nativeGetCache(VM *vm unused, GetCacheEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref name;
 
     objectref result;
 } GetenvEnv;
 
-static void nativeGetenv(VM *vm unused, GetenvEnv *env)
+static void nativeGetenv(GetenvEnv *env)
 {
     char *buffer;
     size_t nameLength = HeapStringLength(env->name);
@@ -414,13 +437,15 @@ static void nativeGetenv(VM *vm unused, GetenvEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref data;
     objectref element;
 
     objectref result;
 } IndexOfEnv;
 
-static void nativeIndexOf(VM *vm unused, IndexOfEnv *env)
+static void nativeIndexOf(IndexOfEnv *env)
 {
     /* TODO: Support collections */
     assert(HeapIsString(env->data));
@@ -430,13 +455,15 @@ static void nativeIndexOf(VM *vm unused, IndexOfEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref value;
     objectref trimEmptyLastLine;
 
     objectref result;
 } LinesEnv;
 
-static void nativeLines(VM *vm unused, LinesEnv *env)
+static void nativeLines(LinesEnv *env)
 {
     objectref content;
 
@@ -448,11 +475,13 @@ static void nativeLines(VM *vm unused, LinesEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref src;
     objectref dst;
 } MvEnv;
 
-static void nativeMv(VM *vm unused, MvEnv *env)
+static void nativeMv(MvEnv *env)
 {
     assert(HeapIsFile(env->src));
     assert(HeapIsFile(env->dst));
@@ -461,18 +490,22 @@ static void nativeMv(VM *vm unused, MvEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref file;
 
     objectref result;
 } ReadFileEnv;
 
-static void nativeReadFile(VM *vm unused, ReadFileEnv *env)
+static void nativeReadFile(ReadFileEnv *env)
 {
     env->result = readFile(env->file);
 }
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref data;
     objectref original;
     objectref replacement;
@@ -481,7 +514,7 @@ typedef struct
     objectref count;
 } ReplaceEnv;
 
-static void nativeReplace(VM *vm unused, ReplaceEnv *env)
+static void nativeReplace(ReplaceEnv *env)
 {
     size_t dataLength = HeapStringLength(env->data);
     size_t originalLength = HeapStringLength(env->original);
@@ -528,23 +561,27 @@ static void nativeReplace(VM *vm unused, ReplaceEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref file;
 } RmEnv;
 
-static void nativeRm(VM *vm unused, RmEnv *env)
+static void nativeRm(RmEnv *env)
 {
     FileDelete(HeapGetAsFile(env->file));
 }
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref cacheFile;
     objectref out;
     objectref err;
     objectref accessedFiles;
 } SetUptodateEnv;
 
-static void nativeSetUptodate(VM *vm unused, SetUptodateEnv *env)
+static void nativeSetUptodate(SetUptodateEnv *env)
 {
     cacheref ref = CacheGetFromFile(HeapGetFile(env->cacheFile));
     objectref value;
@@ -572,12 +609,14 @@ static void nativeSetUptodate(VM *vm unused, SetUptodateEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref value;
 
     objectref result;
 } SizeEnv;
 
-static void nativeSize(VM *vm unused, SizeEnv *env)
+static void nativeSize(SizeEnv *env)
 {
     if (HeapIsCollection(env->value))
     {
@@ -593,6 +632,8 @@ static void nativeSize(VM *vm unused, SizeEnv *env)
 
 typedef struct
 {
+    FunctionEnv fenv;
+
     objectref value;
     objectref delimiter;
     objectref removeEmpty;
@@ -600,7 +641,7 @@ typedef struct
     objectref result;
 } SplitEnv;
 
-static void nativeSplit(VM *vm unused, SplitEnv *env)
+static void nativeSplit(SplitEnv *env)
 {
     objectref data = HeapIsFile(env->value) ? readFile(env->value) : env->value;
     assert(HeapIsString(data));
@@ -612,13 +653,18 @@ static void nativeSplit(VM *vm unused, SplitEnv *env)
 void NativeInvoke(VM *vm, nativefunctionref function)
 {
     const FunctionInfo *info = getFunctionInfo(function);
-    objectref env[MAX_ENV];
+    struct
+    {
+        FunctionEnv fenv;
+        objectref values[MAX_ENV];
+    } env;
 
     assert(info->parameterCount + info->returnValueCount <= MAX_ENV);
-    VMPopMany(vm, env, info->parameterCount);
-    memset(env + info->parameterCount, 0, info->returnValueCount);
-    invokeTable[function](vm, env);
-    VMPushMany(vm, env + info->parameterCount, info->returnValueCount);
+    env.fenv.vm = vm;
+    VMPopMany(vm, env.values, info->parameterCount);
+    memset(env.values + info->parameterCount, 0, info->returnValueCount);
+    invokeTable[function](&env.fenv);
+    VMPushMany(vm, env.values + info->parameterCount, info->returnValueCount);
 }
 
 nativefunctionref NativeFindFunction(stringref name)
