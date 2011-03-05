@@ -624,6 +624,7 @@ static void nativeSplit(SplitEnv *env)
 static void addFunctionInfo(const char *name, nativeInvoke function,
                             uint parameterCount, uint returnValueCount)
 {
+    assert(parameterCount + returnValueCount <= MAX_ENV);
     functionInfo[initFunctionIndex].name = StringPoolAdd(name);
     functionInfo[initFunctionIndex].function = function;
     functionInfo[initFunctionIndex].parameterCount = parameterCount;
