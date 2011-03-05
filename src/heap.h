@@ -12,7 +12,8 @@ typedef enum
     TYPE_ARRAY,
     TYPE_INTEGER_RANGE,
     TYPE_CONCAT_LIST,
-    TYPE_ITERATOR
+    TYPE_ITERATOR,
+    TYPE_FUTURE
 } ObjectType;
 
 typedef enum
@@ -156,3 +157,8 @@ extern nonnull void HeapIteratorInit(Iterator *iter, objectref object,
 extern nonnull boolean HeapIteratorNext(Iterator *iter, objectref *value);
 
 extern nonnull objectref HeapCreateFilesetGlob(const char *pattern);
+
+
+
+extern objectref HeapCreateFutureValue(void);
+extern void HeapSetFutureValue(objectref object, objectref value);

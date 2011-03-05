@@ -44,6 +44,19 @@ static void checkObject(objectref object)
     assert(object);
 }
 
+static objectref waitFutureValue(objectref object)
+{
+    objectref value;
+
+    if (!object || HeapGetObjectType(object) != TYPE_FUTURE)
+    {
+        return object;
+    }
+    value = *(const objectref*)HeapGetObjectData(object);
+    assert(value);
+    return value;
+}
+
 static pure boolean isInteger(objectref object)
 {
     return (object & INTEGER_LITERAL_MARK) != 0;
@@ -65,6 +78,8 @@ static ref_t unboxReference(ObjectType type, objectref object)
 static const char *getString(objectref object)
 {
     const SubString *ss;
+
+    object = waitFutureValue(object);
 
     switch (HeapGetObjectType(object))
     {
@@ -91,6 +106,7 @@ static const char *getString(objectref object)
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
     case TYPE_ITERATOR:
+    case TYPE_FUTURE:
         break;
     }
     assert(false);
@@ -133,6 +149,9 @@ static boolean isCollectionType(ObjectType type)
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
         return true;
+
+    case TYPE_FUTURE:
+        break;
     }
     assert(false);
     return false;
@@ -160,6 +179,8 @@ static void iterStateInit(IteratorState *state, objectref object,
                           boolean flatten)
 {
     size_t size;
+
+    object = waitFutureValue(object);
 
     state->object = object;
     state->flatten = flatten;
@@ -203,6 +224,7 @@ static void iterStateInit(IteratorState *state, objectref object,
     case TYPE_SUBSTRING:
     case TYPE_FILE:
     case TYPE_ITERATOR:
+    case TYPE_FUTURE:
     default:
         assert(false);
         return;
@@ -263,6 +285,8 @@ void HeapHash(objectref object, HashState *hash)
     Iterator iter;
     fileref file;
     byte value;
+
+    object = waitFutureValue(object);
 
     if (!object)
     {
@@ -326,6 +350,7 @@ void HeapHash(objectref object, HashState *hash)
         break;
 
     case TYPE_ITERATOR:
+    case TYPE_FUTURE:
         assert(false);
         break;
     }
@@ -338,6 +363,9 @@ boolean HeapEquals(objectref object1, objectref object2)
     size_t size1;
     size_t size2;
     boolean success;
+
+    object1 = waitFutureValue(object1);
+    object2 = waitFutureValue(object2);
 
     if (object1 == object2)
     {
@@ -386,6 +414,9 @@ boolean HeapEquals(objectref object1, objectref object2)
             }
         }
         return true;
+
+    case TYPE_FUTURE:
+        break;
     }
     assert(false);
     return false;
@@ -528,6 +559,8 @@ objectref HeapCreateSubstring(objectref string, size_t offset, size_t length)
     SubString *ss;
     byte *data;
 
+    string = waitFutureValue(string);
+
     assert(HeapIsString(string));
     assert(HeapStringLength(string) >= offset + length);
     if (!length)
@@ -562,6 +595,7 @@ objectref HeapCreateSubstring(objectref string, size_t offset, size_t length)
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
     case TYPE_ITERATOR:
+    case TYPE_FUTURE:
         assert(false);
         break;
     }
@@ -575,6 +609,8 @@ objectref HeapCreateSubstring(objectref string, size_t offset, size_t length)
 
 boolean HeapIsString(objectref object)
 {
+    object = waitFutureValue(object);
+
     switch (HeapGetObjectType(object))
     {
     case TYPE_STRING:
@@ -593,6 +629,9 @@ boolean HeapIsString(objectref object)
     case TYPE_CONCAT_LIST:
     case TYPE_ITERATOR:
         return false;
+
+    case TYPE_FUTURE:
+        break;
     }
     assert(false);
     return false;
@@ -603,6 +642,8 @@ size_t HeapStringLength(objectref object)
     Iterator iter;
     uint i;
     size_t size;
+
+    object = waitFutureValue(object);
 
     if (!object)
     {
@@ -665,6 +706,7 @@ size_t HeapStringLength(objectref object)
         return size;
 
     case TYPE_ITERATOR:
+    case TYPE_FUTURE:
         break;
     }
     assert(false);
@@ -678,6 +720,8 @@ char *HeapWriteString(objectref object, char *dst)
     fileref file;
     uint i;
     boolean first;
+
+    object = waitFutureValue(object);
 
     if (!object)
     {
@@ -761,6 +805,7 @@ char *HeapWriteString(objectref object, char *dst)
         return dst;
 
     case TYPE_ITERATOR:
+    case TYPE_FUTURE:
         break;
     }
     assert(false);
@@ -1015,6 +1060,8 @@ size_t HeapCollectionSize(objectref object)
     const objectref *limit;
     size_t size;
 
+    object = waitFutureValue(object);
+
     switch (HeapGetObjectType(object))
     {
     case TYPE_EMPTY_LIST:
@@ -1048,6 +1095,7 @@ size_t HeapCollectionSize(objectref object)
     case TYPE_SUBSTRING:
     case TYPE_FILE:
     case TYPE_ITERATOR:
+    case TYPE_FUTURE:
     default:
         assert(false);
         return 0;
@@ -1060,10 +1108,14 @@ boolean HeapCollectionGet(objectref object, objectref indexObject,
     const objectref *restrict data;
     const objectref *restrict limit;
     const int *restrict intData;
-    ssize_t i = HeapUnboxInteger(indexObject);
+    ssize_t i;
     size_t index;
     size_t size;
 
+    object = waitFutureValue(object);
+    indexObject = waitFutureValue(indexObject);
+
+    i = HeapUnboxInteger(indexObject);
     if (i < 0)
     {
         return false;
@@ -1112,6 +1164,7 @@ boolean HeapCollectionGet(objectref object, objectref indexObject,
     case TYPE_SUBSTRING:
     case TYPE_FILE:
     case TYPE_ITERATOR:
+    case TYPE_FUTURE:
     default:
         assert(false);
         return false;
@@ -1225,4 +1278,18 @@ objectref HeapCreateFilesetGlob(const char *pattern)
         *files = HeapCreateFile(*files);
     }
     return object;
+}
+
+
+objectref HeapCreateFutureValue(void)
+{
+    byte *objectData = HeapAlloc(TYPE_FUTURE, sizeof(ref_t));
+    *(ref_t*)objectData = 0;
+    return HeapFinishAlloc(objectData);
+}
+
+void HeapSetFutureValue(objectref object, objectref value)
+{
+    objectref *data = (objectref*)HeapGetObjectData(object);
+    *data = value;
 }
