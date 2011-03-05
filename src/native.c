@@ -270,7 +270,10 @@ typedef struct
 
 static noreturn void nativeFail(FailEnv *env)
 {
-    LogPrintErrObjectAutoNewline(env->message);
+    if (env->message)
+    {
+        LogPrintErrObjectAutoNewline(env->message);
+    }
     TaskFailVM(env->fenv.vm);
 }
 

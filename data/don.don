@@ -11,8 +11,10 @@ exec(command..., env = [], failOnError = true, echo = true, echoStderr = true)
    output, exitcode = native.exec(command, env, failOnError, echo, echoStderr)
    return output, exitcode
 
-fail(message = null, condition = true)
+fail(message = null, condition = true, silent = false)
    if condition
+      if silent
+         native.fail(null)
       message = message == null ? "" : "" message
       if message != ""
          native.fail("BUILD FAILED: " message)
