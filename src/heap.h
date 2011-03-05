@@ -169,3 +169,4 @@ extern nonnull objectref HeapCreateFilesetGlob(const char *pattern);
 
 extern objectref HeapCreateFutureValue(void);
 extern void HeapSetFutureValue(objectref object, objectref value);
+extern objectref HeapWait(objectref object);

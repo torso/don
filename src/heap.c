@@ -44,19 +44,6 @@ static void checkObject(objectref object)
     assert(object);
 }
 
-static objectref waitFutureValue(objectref object)
-{
-    objectref value;
-
-    if (!object || HeapGetObjectType(object) != TYPE_FUTURE)
-    {
-        return object;
-    }
-    value = *(const objectref*)HeapGetObjectData(object);
-    assert(value);
-    return value;
-}
-
 static pure boolean isInteger(objectref object)
 {
     return (object & INTEGER_LITERAL_MARK) != 0;
@@ -79,7 +66,7 @@ static const char *getString(objectref object)
 {
     const SubString *ss;
 
-    object = waitFutureValue(object);
+    object = HeapWait(object);
 
     switch (HeapGetObjectType(object))
     {
@@ -230,7 +217,7 @@ void HeapHash(objectref object, HashState *hash)
     fileref file;
     byte value;
 
-    object = waitFutureValue(object);
+    object = HeapWait(object);
 
     if (!object)
     {
@@ -308,8 +295,8 @@ boolean HeapEquals(objectref object1, objectref object2)
     size_t size2;
     boolean success;
 
-    object1 = waitFutureValue(object1);
-    object2 = waitFutureValue(object2);
+    object1 = HeapWait(object1);
+    object2 = HeapWait(object2);
 
     if (object1 == object2)
     {
@@ -391,6 +378,7 @@ objectref HeapFinishAlloc(byte *objectData)
 
 boolean HeapIsTrue(objectref object)
 {
+    object = HeapWait(object);
     if (object == HeapTrue)
     {
         return true;
@@ -503,7 +491,7 @@ objectref HeapCreateSubstring(objectref string, size_t offset, size_t length)
     SubString *ss;
     byte *data;
 
-    string = waitFutureValue(string);
+    string = HeapWait(string);
 
     assert(HeapIsString(string));
     assert(HeapStringLength(string) >= offset + length);
@@ -553,7 +541,7 @@ objectref HeapCreateSubstring(objectref string, size_t offset, size_t length)
 
 boolean HeapIsString(objectref object)
 {
-    object = waitFutureValue(object);
+    object = HeapWait(object);
 
     switch (HeapGetObjectType(object))
     {
@@ -587,7 +575,7 @@ size_t HeapStringLength(objectref object)
     uint i;
     size_t size;
 
-    object = waitFutureValue(object);
+    object = HeapWait(object);
 
     if (!object)
     {
@@ -665,7 +653,7 @@ char *HeapWriteString(objectref object, char *dst)
     uint i;
     boolean first;
 
-    object = waitFutureValue(object);
+    object = HeapWait(object);
 
     if (!object)
     {
@@ -832,6 +820,10 @@ fileref HeapGetFileFromParts(objectref path, objectref name,
     boolean freeName;
     boolean freeExtension = false;
     fileref file;
+
+    path = HeapWait(path);
+    name = HeapWait(name);
+    extension = HeapWait(extension);
 
     assert(!path || HeapIsString(path) || HeapIsFile(path));
     assert(HeapIsString(name) || HeapIsFile(name));
@@ -1004,7 +996,7 @@ size_t HeapCollectionSize(objectref object)
     const objectref *limit;
     size_t size;
 
-    object = waitFutureValue(object);
+    object = HeapWait(object);
 
     switch (HeapGetObjectType(object))
     {
@@ -1056,8 +1048,8 @@ boolean HeapCollectionGet(objectref object, objectref indexObject,
     size_t index;
     size_t size;
 
-    object = waitFutureValue(object);
-    indexObject = waitFutureValue(indexObject);
+    object = HeapWait(object);
+    indexObject = HeapWait(indexObject);
 
     i = HeapUnboxInteger(indexObject);
     if (i < 0)
@@ -1127,7 +1119,7 @@ void HeapIteratorInit(Iterator *iter, objectref object, boolean flatten)
 {
     size_t size;
 
-    object = waitFutureValue(object);
+    object = HeapWait(object);
 
     iter->next = 0;
     iter->object = object;
@@ -1288,4 +1280,17 @@ void HeapSetFutureValue(objectref object, objectref value)
 {
     objectref *data = (objectref*)HeapGetObjectData(object);
     *data = value;
+}
+
+objectref HeapWait(objectref object)
+{
+    objectref value;
+
+    if (!object || HeapGetObjectType(object) != TYPE_FUTURE)
+    {
+        return object;
+    }
+    value = *(const objectref*)HeapGetObjectData(object);
+    assert(value);
+    return value;
 }
