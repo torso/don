@@ -16,21 +16,19 @@
 #include "native.h"
 #include "stringpool.h"
 #include "task.h"
+#include "work.h"
 
 #define NATIVE_FUNCTION_COUNT 19
 #define MAX_ENV 7
 
-typedef struct
-{
-    VM *vm;
-} FunctionEnv;
-
-typedef void (*nativeInvoke)(FunctionEnv*);
+typedef void (*invoke)(Work*);
+typedef void (*workinvoke)(const struct _Work*);
 
 typedef struct
 {
     stringref name;
-    nativeInvoke function;
+    invoke function;
+    workinvoke functionWork;
     uint parameterCount;
     uint returnValueCount;
 } FunctionInfo;
@@ -94,13 +92,13 @@ static objectref readFile(objectref object)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref src;
     objectref dst;
 } CpEnv;
 
-static void nativeCp(CpEnv *env)
+static void nativeCpWork(const CpEnv *env)
 {
     assert(HeapIsFile(env->src));
     assert(HeapIsFile(env->dst));
@@ -109,7 +107,7 @@ static void nativeCp(CpEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref message;
     objectref prefix;
@@ -139,7 +137,7 @@ static void nativeEcho(EchoEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref command;
     objectref env;
@@ -153,6 +151,14 @@ typedef struct
 
 static void nativeExec(ExecEnv *env)
 {
+    objectref output[2];
+    output[0] = HeapCreateFutureValue();
+    output[1] = HeapCreateFutureValue();
+    env->output = HeapCreateArray(output, 2);
+}
+
+static void nativeExecWork(const ExecEnv *env)
+{
     Iterator iter;
     objectref name;
     objectref value;
@@ -163,7 +169,6 @@ static void nativeExec(ExecEnv *env)
     int status;
     int pipeOut[2];
     int pipeErr[2];
-    objectref output[2];
     const byte *p;
     size_t length;
 
@@ -247,23 +252,24 @@ static void nativeExec(ExecEnv *env)
     if (HeapIsTrue(env->failOnError) && status)
     {
         fprintf(stderr, "BUILD ERROR: Process exited with status %d.\n", status);
-        TaskFailVM(env->fenv.vm);
+        TaskFailVM(env->work.vm);
     }
     LogGetOutBuffer(&p, &length);
-    output[0] = HeapCreateString((const char*)p, length);
+    HeapCollectionGet(env->output, HeapBoxInteger(0), &value);
+    HeapSetFutureValue(value, HeapCreateString((const char*)p, length));
     LogPopOutBuffer();
     LogGetErrBuffer(&p, &length);
-    output[1] = HeapCreateString((const char*)p, length);
+    HeapCollectionGet(env->output, HeapBoxInteger(1), &value);
+    HeapSetFutureValue(value, HeapCreateString((const char*)p, length));
     LogPopErrBuffer();
     LogAutoNewline();
     LogErrAutoNewline();
-    env->output = HeapCreateArray(output, 2);
-    env->status = HeapBoxInteger(status);
+    HeapSetFutureValue(env->status, HeapBoxInteger(status));
 }
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref message;
 } FailEnv;
@@ -274,12 +280,12 @@ static noreturn void nativeFail(FailEnv *env)
     {
         LogPrintErrObjectAutoNewline(env->message);
     }
-    TaskFailVM(env->fenv.vm);
+    TaskFailVM(env->work.vm);
 }
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref path;
     objectref name;
@@ -297,7 +303,7 @@ static void nativeFile(FileEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref path;
 
@@ -319,7 +325,7 @@ static void nativeFilename(FilenameEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref value;
 
@@ -350,7 +356,7 @@ static void nativeFileset(FilesetEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref key;
     objectref echoCachedOutput;
@@ -359,7 +365,7 @@ typedef struct
     objectref uptodate;
 } GetCacheEnv;
 
-static void nativeGetCache(GetCacheEnv *env)
+static void nativeGetCacheWork(const GetCacheEnv *env)
 {
     cacheref ref;
     HashState hashState;
@@ -382,13 +388,13 @@ static void nativeGetCache(GetCacheEnv *env)
     {
         FileMkdir(CacheGetFile(ref));
     }
-    env->cacheFile = HeapCreateFile(CacheGetFile(ref));
-    env->uptodate = uptodate ? HeapTrue : HeapFalse;
+    HeapSetFutureValue(env->cacheFile, HeapCreateFile(CacheGetFile(ref)));
+    HeapSetFutureValue(env->uptodate, uptodate ? HeapTrue : HeapFalse);
 }
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref name;
 
@@ -410,7 +416,7 @@ static void nativeGetenv(GetenvEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref data;
     objectref element;
@@ -428,7 +434,7 @@ static void nativeIndexOf(IndexOfEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref value;
     objectref trimEmptyLastLine;
@@ -436,25 +442,26 @@ typedef struct
     objectref result;
 } LinesEnv;
 
-static void nativeLines(LinesEnv *env)
+static void nativeLinesWork(const LinesEnv *env)
 {
     objectref content;
 
     content = HeapIsFile(env->value) ? readFile(env->value) : env->value;
     assert(HeapIsString(content));
-    env->result = HeapSplit(content, HeapNewline, false,
-                            HeapIsTrue(env->trimEmptyLastLine));
+    HeapSetFutureValue(env->result,
+                       HeapSplit(content, HeapNewline, false,
+                                 HeapIsTrue(env->trimEmptyLastLine)));
 }
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref src;
     objectref dst;
 } MvEnv;
 
-static void nativeMv(MvEnv *env)
+static void nativeMvWork(const MvEnv *env)
 {
     assert(HeapIsFile(env->src));
     assert(HeapIsFile(env->dst));
@@ -463,21 +470,21 @@ static void nativeMv(MvEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref file;
 
     objectref result;
 } ReadFileEnv;
 
-static void nativeReadFile(ReadFileEnv *env)
+static void nativeReadFileWork(const ReadFileEnv *env)
 {
-    env->result = readFile(env->file);
+    HeapSetFutureValue(env->result, readFile(env->file));
 }
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref data;
     objectref original;
@@ -534,19 +541,19 @@ static void nativeReplace(ReplaceEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref file;
 } RmEnv;
 
-static void nativeRm(RmEnv *env)
+static void nativeRmWork(const RmEnv *env)
 {
     FileDelete(HeapGetAsFile(env->file));
 }
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref cacheFile;
     objectref out;
@@ -554,7 +561,7 @@ typedef struct
     objectref accessedFiles;
 } SetUptodateEnv;
 
-static void nativeSetUptodate(SetUptodateEnv *env)
+static void nativeSetUptodateWork(const SetUptodateEnv *env)
 {
     cacheref ref = CacheGetFromFile(HeapGetFile(env->cacheFile));
     objectref value;
@@ -582,7 +589,7 @@ static void nativeSetUptodate(SetUptodateEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref value;
 
@@ -605,7 +612,7 @@ static void nativeSize(SizeEnv *env)
 
 typedef struct
 {
-    FunctionEnv fenv;
+    Work work;
 
     objectref value;
     objectref delimiter;
@@ -624,12 +631,14 @@ static void nativeSplit(SplitEnv *env)
 }
 
 
-static void addFunctionInfo(const char *name, nativeInvoke function,
+static void addFunctionInfo(const char *name, invoke function,
+                            workinvoke functionWork,
                             uint parameterCount, uint returnValueCount)
 {
     assert(parameterCount + returnValueCount <= MAX_ENV);
     functionInfo[initFunctionIndex].name = StringPoolAdd(name);
     functionInfo[initFunctionIndex].function = function;
+    functionInfo[initFunctionIndex].functionWork = functionWork;
     functionInfo[initFunctionIndex].parameterCount = parameterCount;
     functionInfo[initFunctionIndex].returnValueCount = returnValueCount;
     initFunctionIndex++;
@@ -637,24 +646,24 @@ static void addFunctionInfo(const char *name, nativeInvoke function,
 
 void NativeInit(void)
 {
-    addFunctionInfo("cp", (nativeInvoke)nativeCp, 2, 0);
-    addFunctionInfo("echo", (nativeInvoke)nativeEcho, 2, 0);
-    addFunctionInfo("exec", (nativeInvoke)nativeExec, 5, 2);
-    addFunctionInfo("fail", (nativeInvoke)nativeFail, 1, 0);
-    addFunctionInfo("file", (nativeInvoke)nativeFile, 3, 1);
-    addFunctionInfo("filename", (nativeInvoke)nativeFilename, 1, 1);
-    addFunctionInfo("fileset", (nativeInvoke)nativeFileset, 1, 1);
-    addFunctionInfo("getCache", (nativeInvoke)nativeGetCache, 2, 2);
-    addFunctionInfo("getenv", (nativeInvoke)nativeGetenv, 1, 1);
-    addFunctionInfo("indexOf", (nativeInvoke)nativeIndexOf, 2, 1);
-    addFunctionInfo("lines", (nativeInvoke)nativeLines, 2, 1);
-    addFunctionInfo("mv", (nativeInvoke)nativeMv, 2, 0);
-    addFunctionInfo("readFile", (nativeInvoke)nativeReadFile, 1, 1);
-    addFunctionInfo("replace", (nativeInvoke)nativeReplace, 3, 2);
-    addFunctionInfo("rm", (nativeInvoke)nativeRm, 1, 0);
-    addFunctionInfo("setUptodate", (nativeInvoke)nativeSetUptodate, 4, 0);
-    addFunctionInfo("size", (nativeInvoke)nativeSize, 1, 1);
-    addFunctionInfo("split", (nativeInvoke)nativeSplit, 3, 1);
+    addFunctionInfo("cp", null, (workinvoke)nativeCpWork, 2, 0);
+    addFunctionInfo("echo", (invoke)nativeEcho, null, 2, 0);
+    addFunctionInfo("exec", (invoke)nativeExec, (workinvoke)nativeExecWork, 5, 2);
+    addFunctionInfo("fail", (invoke)nativeFail, null, 1, 0);
+    addFunctionInfo("file", (invoke)nativeFile, null, 3, 1);
+    addFunctionInfo("filename", (invoke)nativeFilename, null, 1, 1);
+    addFunctionInfo("fileset", (invoke)nativeFileset, null, 1, 1);
+    addFunctionInfo("getCache", null, (workinvoke)nativeGetCacheWork, 2, 2);
+    addFunctionInfo("getenv", (invoke)nativeGetenv, null, 1, 1);
+    addFunctionInfo("indexOf", (invoke)nativeIndexOf, null, 2, 1);
+    addFunctionInfo("lines", null, (workinvoke)nativeLinesWork, 2, 1);
+    addFunctionInfo("mv", null, (workinvoke)nativeMvWork, 2, 0);
+    addFunctionInfo("readFile", null, (workinvoke)nativeReadFileWork, 1, 1);
+    addFunctionInfo("replace", (invoke)nativeReplace, null, 3, 2);
+    addFunctionInfo("rm", null, (workinvoke)nativeRmWork, 1, 0);
+    addFunctionInfo("setUptodate", null, (workinvoke)nativeSetUptodateWork, 4, 0);
+    addFunctionInfo("size", (invoke)nativeSize, null, 1, 1);
+    addFunctionInfo("split", (invoke)nativeSplit, null, 3, 1);
 }
 
 void NativeInvoke(VM *vm, nativefunctionref function)
@@ -662,16 +671,41 @@ void NativeInvoke(VM *vm, nativefunctionref function)
     const FunctionInfo *info = getFunctionInfo(function);
     struct
     {
-        FunctionEnv fenv;
+        Work work;
         objectref values[MAX_ENV];
     } env;
+    objectref *p;
+    uint i;
 
     assert(info->parameterCount + info->returnValueCount <= MAX_ENV);
-    env.fenv.vm = vm;
+    env.work.vm = vm;
     VMPopMany(vm, env.values, info->parameterCount);
-    memset(env.values + info->parameterCount, 0, info->returnValueCount);
-    info->function(&env.fenv);
+    memset(env.values + info->parameterCount, 0,
+           info->returnValueCount * sizeof(env.values[0]));
+    if (info->function)
+    {
+        info->function(&env.work);
+    }
+    if (info->functionWork)
+    {
+        for (i = info->returnValueCount, p = env.values + info->parameterCount;
+             i;
+             i--, p++)
+        {
+            if (!*p)
+            {
+                *p = HeapCreateFutureValue();
+            }
+        }
+        env.work.function = function;
+        WorkAdd(&env.work);
+    }
     VMPushMany(vm, env.values + info->parameterCount, info->returnValueCount);
+}
+
+void NativeWork(const Work *work)
+{
+    getFunctionInfo(work->function)->functionWork(work);
 }
 
 nativefunctionref NativeFindFunction(stringref name)
