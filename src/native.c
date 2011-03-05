@@ -30,12 +30,12 @@ typedef void (*nativeInvoke)(FunctionEnv*);
 typedef struct
 {
     stringref name;
+    nativeInvoke function;
     uint parameterCount;
     uint returnValueCount;
 } FunctionInfo;
 
 static FunctionInfo functionInfo[NATIVE_FUNCTION_COUNT];
-static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT];
 static uint initFunctionIndex = 1;
 
 
@@ -44,37 +44,6 @@ static const FunctionInfo *getFunctionInfo(nativefunctionref function)
     assert(function);
     assert(uintFromRef(function) < NATIVE_FUNCTION_COUNT);
     return (FunctionInfo*)&functionInfo[sizeFromRef(function)];
-}
-
-static void addFunctionInfo(const char *name, uint parameterCount,
-                            uint returnValueCount)
-{
-    functionInfo[initFunctionIndex].name = StringPoolAdd(name);
-    functionInfo[initFunctionIndex].parameterCount = parameterCount;
-    functionInfo[initFunctionIndex].returnValueCount = returnValueCount;
-    initFunctionIndex++;
-}
-
-void NativeInit(void)
-{
-    addFunctionInfo("cp", 2, 0);
-    addFunctionInfo("echo", 2, 0);
-    addFunctionInfo("exec", 5, 2);
-    addFunctionInfo("fail", 1, 0);
-    addFunctionInfo("file", 3, 1);
-    addFunctionInfo("filename", 1, 1);
-    addFunctionInfo("fileset", 1, 1);
-    addFunctionInfo("getCache", 2, 2);
-    addFunctionInfo("getenv", 1, 1);
-    addFunctionInfo("indexOf", 2, 1);
-    addFunctionInfo("lines", 2, 1);
-    addFunctionInfo("mv", 2, 0);
-    addFunctionInfo("readFile", 1, 1);
-    addFunctionInfo("replace", 3, 2);
-    addFunctionInfo("rm", 1, 0);
-    addFunctionInfo("setUptodate", 4, 0);
-    addFunctionInfo("size", 1, 1);
-    addFunctionInfo("split", 3, 1);
 }
 
 static char **createStringArray(objectref collection)
@@ -121,6 +90,7 @@ static objectref readFile(objectref object)
     FileMMap(file, (const byte**)&text, &size, true);
     return HeapCreateWrappedString(text, size);
 }
+
 
 typedef struct
 {
@@ -650,6 +620,39 @@ static void nativeSplit(SplitEnv *env)
                             false);
 }
 
+
+static void addFunctionInfo(const char *name, nativeInvoke function,
+                            uint parameterCount, uint returnValueCount)
+{
+    functionInfo[initFunctionIndex].name = StringPoolAdd(name);
+    functionInfo[initFunctionIndex].function = function;
+    functionInfo[initFunctionIndex].parameterCount = parameterCount;
+    functionInfo[initFunctionIndex].returnValueCount = returnValueCount;
+    initFunctionIndex++;
+}
+
+void NativeInit(void)
+{
+    addFunctionInfo("cp", (nativeInvoke)nativeCp, 2, 0);
+    addFunctionInfo("echo", (nativeInvoke)nativeEcho, 2, 0);
+    addFunctionInfo("exec", (nativeInvoke)nativeExec, 5, 2);
+    addFunctionInfo("fail", (nativeInvoke)nativeFail, 1, 0);
+    addFunctionInfo("file", (nativeInvoke)nativeFile, 3, 1);
+    addFunctionInfo("filename", (nativeInvoke)nativeFilename, 1, 1);
+    addFunctionInfo("fileset", (nativeInvoke)nativeFileset, 1, 1);
+    addFunctionInfo("getCache", (nativeInvoke)nativeGetCache, 2, 2);
+    addFunctionInfo("getenv", (nativeInvoke)nativeGetenv, 1, 1);
+    addFunctionInfo("indexOf", (nativeInvoke)nativeIndexOf, 2, 1);
+    addFunctionInfo("lines", (nativeInvoke)nativeLines, 2, 1);
+    addFunctionInfo("mv", (nativeInvoke)nativeMv, 2, 0);
+    addFunctionInfo("readFile", (nativeInvoke)nativeReadFile, 1, 1);
+    addFunctionInfo("replace", (nativeInvoke)nativeReplace, 3, 2);
+    addFunctionInfo("rm", (nativeInvoke)nativeRm, 1, 0);
+    addFunctionInfo("setUptodate", (nativeInvoke)nativeSetUptodate, 4, 0);
+    addFunctionInfo("size", (nativeInvoke)nativeSize, 1, 1);
+    addFunctionInfo("split", (nativeInvoke)nativeSplit, 3, 1);
+}
+
 void NativeInvoke(VM *vm, nativefunctionref function)
 {
     const FunctionInfo *info = getFunctionInfo(function);
@@ -663,7 +666,7 @@ void NativeInvoke(VM *vm, nativefunctionref function)
     env.fenv.vm = vm;
     VMPopMany(vm, env.values, info->parameterCount);
     memset(env.values + info->parameterCount, 0, info->returnValueCount);
-    invokeTable[function](&env.fenv);
+    info->function(&env.fenv);
     VMPushMany(vm, env.values + info->parameterCount, info->returnValueCount);
 }
 
@@ -694,26 +697,3 @@ uint NativeGetReturnValueCount(nativefunctionref function)
 {
     return getFunctionInfo(function)->returnValueCount;
 }
-
-static const nativeInvoke invokeTable[NATIVE_FUNCTION_COUNT] =
-{
-    null,
-    (nativeInvoke)nativeCp,
-    (nativeInvoke)nativeEcho,
-    (nativeInvoke)nativeExec,
-    (nativeInvoke)nativeFail,
-    (nativeInvoke)nativeFile,
-    (nativeInvoke)nativeFilename,
-    (nativeInvoke)nativeFileset,
-    (nativeInvoke)nativeGetCache,
-    (nativeInvoke)nativeGetenv,
-    (nativeInvoke)nativeIndexOf,
-    (nativeInvoke)nativeLines,
-    (nativeInvoke)nativeMv,
-    (nativeInvoke)nativeReadFile,
-    (nativeInvoke)nativeReplace,
-    (nativeInvoke)nativeRm,
-    (nativeInvoke)nativeSetUptodate,
-    (nativeInvoke)nativeSize,
-    (nativeInvoke)nativeSplit
-};
