@@ -26,6 +26,7 @@ test:
       echo("")
    echo("pass:  " pass)
    echo("fail:  " fail)
+   fail(condition:fail, silent:true)
 
 default:
    program = compile()
