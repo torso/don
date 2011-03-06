@@ -167,6 +167,14 @@ extern nonnull objectref HeapCreateFilesetGlob(const char *pattern);
 
 
 
+extern boolean HeapIsFutureValue(objectref object);
 extern objectref HeapCreateFutureValue(void);
 extern void HeapSetFutureValue(objectref object, objectref value);
+extern objectref HeapTryWait(objectref object);
 extern objectref HeapWait(objectref object);
+
+
+
+extern objectref HeapApplyUnary(Instruction op, objectref value);
+extern objectref HeapApplyBinary(Instruction op,
+                                 objectref value1, objectref value2);

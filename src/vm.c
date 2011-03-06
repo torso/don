@@ -19,12 +19,12 @@ void VMDispose(void)
 
 objectref VMPeek(VM *vm)
 {
-    return HeapWait(IntVectorPeekRef(&vm->stack));
+    return IntVectorPeekRef(&vm->stack);
 }
 
 objectref VMPop(VM *vm)
 {
-    return HeapWait(IntVectorPopRef(&vm->stack));
+    return IntVectorPopRef(&vm->stack);
 }
 
 boolean VMPopBoolean(VM *vm)

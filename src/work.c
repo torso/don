@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "common.h"
 #include "bytevector.h"
+#include "instruction.h"
 #include "heap.h"
 #include "native.h"
 #include "stringpool.h"
@@ -76,16 +77,46 @@ boolean WorkQueueEmpty(void)
 
 void WorkExecute(void)
 {
-    const Work *work;
+    Work *work;
+    objectref *p1;
+    objectref *p2;
+    uint parameterCount;
+    uint i;
+    struct
+    {
+        Work work;
+        objectref values[NATIVE_MAX_VALUES];
+    } env;
 
     assert(ByteVectorSize(&queue));
-    work = (const Work*)ByteVectorGetPointer(&queue, 0);
+    work = (Work*)ByteVectorGetPointer(&queue, 0);
     assert(ByteVectorSize(&queue) >= getWorkSize(work));
+    parameterCount = NativeGetParameterCount(work->function);
+
+    for (i = parameterCount, p1 = (objectref*)(work+1);
+         i--;
+         p1++)
+    {
+        *p1 = HeapTryWait(*p1);
+        assert(!HeapIsFutureValue(*p1));
+    }
+    memcpy(&env, work, getWorkSize(work));
 
     if (DEBUG_WORK)
     {
         printWork("executing: ", work);
     }
-    NativeWork(work);
+    NativeWork(&env.work);
+    for (i = NativeGetReturnValueCount(work->function),
+             p1 = (objectref*)(work+1) + parameterCount,
+             p2 = env.values + parameterCount;
+         i--;
+         p1++, p2++)
+    {
+        if (*p1 != *p2)
+        {
+            HeapSetFutureValue(*p1, *p2);
+        }
+    }
     ByteVectorRemoveRange(&queue, 0, getWorkSize(work));
 }

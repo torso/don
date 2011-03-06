@@ -8,6 +8,7 @@ struct VM
     intvector stack;
 };
 
+#include "instruction.h"
 #include "heap.h"
 
 extern const byte *vmBytecode;

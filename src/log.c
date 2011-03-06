@@ -7,6 +7,7 @@
 #include "common.h"
 #include "bytevector.h"
 #include "file.h"
+#include "instruction.h"
 #include "heap.h"
 #include "log.h"
 #include "task.h"

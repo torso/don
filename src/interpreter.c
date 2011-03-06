@@ -7,7 +7,6 @@
 #include "fieldindex.h"
 #include "file.h"
 #include "functionindex.h"
-#include "instruction.h"
 #include "interpreter.h"
 #include "log.h"
 #include "math.h"
@@ -62,6 +61,7 @@ static void popStackFrame(VM *vm, const byte **ip, uint *bp,
 
 static void execute(VM *vm, functionref target)
 {
+    Instruction op;
     const byte *ip = vmBytecode + FunctionIndexGetBytecodeOffset(target);
     const byte *baseIP = ip;
     uint bp = 0;
@@ -87,7 +87,8 @@ static void execute(VM *vm, functionref target)
         {
             BytecodeDisassembleInstruction(ip, baseIP);
         }
-        switch ((Instruction)*ip++)
+        op = (Instruction)*ip++;
+        switch (op)
         {
         case OP_NULL:
             VMPush(vm, 0);
@@ -179,156 +180,15 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_CAST_BOOLEAN:
-            VMPushBoolean(vm, VMPopBoolean(vm));
-            break;
-
-        case OP_EQUALS:
-            VMPushBoolean(vm, HeapEquals(VMPop(vm), VMPop(vm)));
-            break;
-
-        case OP_NOT_EQUALS:
-            VMPushBoolean(vm, !HeapEquals(VMPop(vm), VMPop(vm)));
-            break;
-
-        case OP_LESS_EQUALS:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            VMPushBoolean(vm, HeapCompare(value2, value) <= 0);
-            break;
-
-        case OP_GREATER_EQUALS:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            VMPushBoolean(vm, HeapCompare(value2, value) >= 0);
-            break;
-
-        case OP_LESS:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            VMPushBoolean(vm, HeapCompare(value2, value) < 0);
-            break;
-
-        case OP_GREATER:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            VMPushBoolean(vm, HeapCompare(value2, value) > 0);
-            break;
-
         case OP_NOT:
-            value = VMPop(vm);
-            assert(value == HeapTrue || value == HeapFalse);
-            VMPushBoolean(vm, value == HeapFalse);
-            break;
-
         case OP_NEG:
-            assert(HeapUnboxInteger(VMPeek(vm)) != INT_MIN);
-            VMPush(vm, HeapBoxInteger(-HeapUnboxInteger(VMPop(vm))));
-            break;
-
         case OP_INV:
-            VMPush(vm, HeapBoxInteger(~HeapUnboxInteger(VMPop(vm))));
-            break;
-
-        case OP_ADD:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            VMPush(vm, HeapBoxInteger(HeapUnboxInteger(value2) +
-                                      HeapUnboxInteger(value)));
-            break;
-
-        case OP_SUB:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            VMPush(vm, HeapBoxInteger(HeapUnboxInteger(value2) -
-                                      HeapUnboxInteger(value)));
-            break;
-
-        case OP_MUL:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            VMPush(vm, HeapBoxInteger(HeapUnboxInteger(value2) *
-                                      HeapUnboxInteger(value)));
-            break;
-
-        case OP_DIV:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            assert((HeapUnboxInteger(value2) /
-                    HeapUnboxInteger(value)) *
-                   HeapUnboxInteger(value) ==
-                   HeapUnboxInteger(value2)); /* TODO: fraction */
-            VMPush(vm, HeapBoxInteger(HeapUnboxInteger(value2) /
-                                      HeapUnboxInteger(value)));
-            break;
-
-        case OP_REM:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            VMPush(vm, HeapBoxInteger(HeapUnboxInteger(value2) %
-                                      HeapUnboxInteger(value)));
-            break;
-
-        case OP_CONCAT_STRING:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            size1 = HeapStringLength(value2);
-            size2 = HeapStringLength(value);
-            if (!size1 && !size2)
-            {
-                VMPush(vm, HeapEmptyString);
-                break;
-            }
-            objectData = HeapAlloc(TYPE_STRING, size1 + size2);
-            HeapWriteString(value2, (char*)objectData);
-            HeapWriteString(value, (char*)objectData + size1);
-            VMPush(vm, HeapFinishAlloc(objectData));
-            break;
-
-        case OP_CONCAT_LIST:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            value = HeapConcatList(value2, value);
-            VMPush(vm, value);
-            break;
-
-        case OP_INDEXED_ACCESS:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            if (HeapIsString(value2))
-            {
-                if (HeapIsRange(value))
-                {
-                    size1 = HeapUnboxSize(HeapRangeLow(value));
-                    size2 = HeapUnboxSize(HeapRangeHigh(value));
-                    assert(size2 >= size1); /* TODO: Support inverted ranges. */
-                    value = HeapCreateSubstring(value2, size1, size2 - size1 + 1);
-                }
-                else
-                {
-                    value = HeapCreateSubstring(value2, HeapUnboxSize(value), 1);
-                }
-            }
-            else
-            {
-                HeapCollectionGet(value2, value, &value);
-            }
-            VMPush(vm, value);
-            break;
-
-        case OP_RANGE:
-            value = VMPop(vm);
-            value2 = VMPop(vm);
-            value = HeapCreateRange(value2, value);
-            VMPush(vm, value);
-            break;
-
         case OP_ITER_INIT:
-            value = HeapCreateIterator(VMPop(vm));
-            VMPush(vm, value);
+            VMPush(vm, HeapApplyUnary(op, VMPop(vm)));
             break;
 
         case OP_ITER_NEXT:
-            value = VMPop(vm);
+            value = HeapWait(VMPop(vm));
             assert(HeapGetObjectType(value) == TYPE_ITERATOR);
             assert(HeapGetObjectSize(value) == sizeof(Iterator));
             piter = (Iterator*)HeapGetObjectData(value);
@@ -337,24 +197,46 @@ static void execute(VM *vm, functionref target)
             VMPush(vm, value);
             break;
 
+        case OP_EQUALS:
+        case OP_NOT_EQUALS:
+        case OP_LESS_EQUALS:
+        case OP_GREATER_EQUALS:
+        case OP_LESS:
+        case OP_GREATER:
+        case OP_ADD:
+        case OP_SUB:
+        case OP_MUL:
+        case OP_DIV:
+        case OP_REM:
+        case OP_CONCAT_LIST:
+        case OP_CONCAT_STRING:
+        case OP_INDEXED_ACCESS:
+        case OP_RANGE:
+            value = VMPop(vm);
+            value2 = VMPop(vm);
+            VMPush(vm, HeapApplyBinary(op, value, value2));
+            break;
+
         case OP_JUMP:
             jumpOffset = BytecodeReadInt(&ip);
             ip += jumpOffset;
             break;
 
         case OP_BRANCH_TRUE:
-            assert(VMPeek(vm) == HeapTrue || VMPeek(vm) == HeapFalse);
             jumpOffset = BytecodeReadInt(&ip);
-            if (VMPop(vm) == HeapTrue)
+            value = HeapWait(VMPop(vm));
+            assert(value == HeapTrue || value == HeapFalse);
+            if (value == HeapTrue)
             {
                 ip += jumpOffset;
             }
             break;
 
         case OP_BRANCH_FALSE:
-            assert(VMPeek(vm) == HeapTrue || VMPeek(vm) == HeapFalse);
             jumpOffset = BytecodeReadInt(&ip);
-            if (VMPop(vm) != HeapTrue)
+            value = HeapWait(VMPop(vm));
+            assert(value == HeapTrue || value == HeapFalse);
+            if (value != HeapTrue)
             {
                 ip += jumpOffset;
             }

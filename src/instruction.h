@@ -21,6 +21,11 @@ typedef enum
     OP_STORE_FIELD,
 
     OP_CAST_BOOLEAN,
+    OP_NOT,
+    OP_NEG,
+    OP_INV,
+    OP_ITER_INIT,
+    OP_ITER_NEXT,
 
     OP_EQUALS,
     OP_NOT_EQUALS,
@@ -28,9 +33,6 @@ typedef enum
     OP_GREATER_EQUALS,
     OP_LESS,
     OP_GREATER,
-    OP_NOT,
-    OP_NEG,
-    OP_INV,
     OP_ADD,
     OP_SUB,
     OP_MUL,
@@ -40,8 +42,6 @@ typedef enum
     OP_CONCAT_STRING,
     OP_INDEXED_ACCESS,
     OP_RANGE,
-    OP_ITER_INIT,
-    OP_ITER_NEXT,
 
     OP_JUMP,
     OP_BRANCH_TRUE,

@@ -8,4 +8,5 @@ default:
    test("a\nb\n", true, ["a", "b"])
    test("a\nb", false, ["a", "b"])
    test("a\nb\n", false, ["a", "b", ""])
-   echo("PASS")
+   if size(lines("")) == 0
+      echo("PASS")

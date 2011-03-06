@@ -117,6 +117,26 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: cast_boolean\n", ip);
         break;
 
+    case OP_NOT:
+        printf(" %u: not\n", ip);
+        break;
+
+    case OP_NEG:
+        printf(" %u: neg\n", ip);
+        break;
+
+    case OP_INV:
+        printf(" %u: inv\n", ip);
+        break;
+
+    case OP_ITER_INIT:
+        printf(" %u: iter_init\n", ip);
+        break;
+
+    case OP_ITER_NEXT:
+        printf(" %u: iter_next\n", ip);
+        break;
+
     case OP_EQUALS:
         printf(" %u: equals\n", ip);
         break;
@@ -139,18 +159,6 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_GREATER:
         printf(" %u: greater\n", ip);
-        break;
-
-    case OP_NOT:
-        printf(" %u: not\n", ip);
-        break;
-
-    case OP_NEG:
-        printf(" %u: neg\n", ip);
-        break;
-
-    case OP_INV:
-        printf(" %u: inv\n", ip);
         break;
 
     case OP_ADD:
@@ -187,14 +195,6 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_RANGE:
         printf(" %u: range\n", ip);
-        break;
-
-    case OP_ITER_INIT:
-        printf(" %u: iter_init\n", ip);
-        break;
-
-    case OP_ITER_NEXT:
-        printf(" %u: iter_next\n", ip);
         break;
 
     case OP_JUMP:
