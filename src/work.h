@@ -7,4 +7,5 @@ typedef struct _Work
 extern void WorkInit(void);
 extern void WorkDispose(void);
 extern nonnull void WorkAdd(const Work *work);
+extern boolean WorkQueueEmpty(void);
 extern void WorkExecute(void);

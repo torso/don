@@ -13,6 +13,7 @@
 #include "math.h"
 #include "native.h"
 #include "stringpool.h"
+#include "work.h"
 
 static const boolean TRACE = false;
 
@@ -414,6 +415,10 @@ void InterpreterExecute(functionref target)
 
     execute(&vm, FunctionIndexGetFirstFunction());
     execute(&vm, target);
+    while (!WorkQueueEmpty())
+    {
+        WorkExecute();
+    }
 
     free(vm.fields);
     vm.fields = null;

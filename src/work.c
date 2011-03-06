@@ -69,6 +69,11 @@ void WorkAdd(const Work *work)
     ByteVectorAddData(&queue, (const byte*)work, getWorkSize(work));
 }
 
+boolean WorkQueueEmpty(void)
+{
+    return ByteVectorSize(&queue) == 0;
+}
+
 void WorkExecute(void)
 {
     const Work *work;
