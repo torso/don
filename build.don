@@ -24,7 +24,7 @@ dotest(prefix=[], debug=false)
             if out[1]
                echo(out[1], prefix:"> ")
          if debug
-            exec(gdb, program, "-i", failOnError:false, env:["XDG_CACHE_HOME", "tempcache"])
+            exec(gdb, program, "-i", f, failOnError:false, env:["XDG_CACHE_HOME", "tempcache"])
       else
          pass += 1
    if fail
