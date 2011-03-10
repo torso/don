@@ -3,6 +3,7 @@
 #include <memory.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/select.h>
 #include <unistd.h>
 #include "common.h"
 #include "bytevector.h"
@@ -305,18 +306,36 @@ void LogSetPrefix(const char *prefix, size_t length)
 
 void LogConsumePipes(int fdOut, int fdErr)
 {
+    fd_set set;
     ssize_t ssize;
     int status;
 
-    status = fcntl(fdOut, F_GETFL, 0);
-    fcntl(fdOut, F_SETFL, status | O_NONBLOCK);
-    status = fcntl(fdErr, F_GETFL, 0);
-    fcntl(fdErr, F_SETFL, status | O_NONBLOCK);
-
-    /* TODO: Sleep when no data is available. */
     while (fdOut || fdErr)
     {
+        FD_ZERO(&set);
         if (fdOut)
+        {
+            FD_SET(fdOut, &set);
+        }
+        if (fdErr)
+        {
+            FD_SET(fdErr, &set);
+        }
+        do
+        {
+            status = select(FD_SETSIZE, &set, null, null, null);
+            if (status < 0)
+            {
+                if (errno == EINTR)
+                {
+                    continue;
+                }
+                TaskFailErrno(false);
+            }
+        }
+        while (status <= 0);
+
+        if (fdOut && FD_ISSET(fdOut, &set))
         {
             ByteVectorReserveAppendSize(&out.buffer, MIN_READ_BUFFER);
             ssize = read(fdOut, ByteVectorGetAppendPointer(&out.buffer),
@@ -341,7 +360,7 @@ void LogConsumePipes(int fdOut, int fdErr)
                 fdOut = 0;
             }
         }
-        if (fdErr)
+        if (fdErr && FD_ISSET(fdErr, &set))
         {
             ByteVectorReserveAppendSize(&err.buffer, MIN_READ_BUFFER);
             ssize = read(fdErr, ByteVectorGetAppendPointer(&err.buffer),
