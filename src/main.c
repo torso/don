@@ -66,6 +66,7 @@ static void cleanup(void)
 
 void _assert(const char *expression, const char *file, int line)
 {
+    static boolean exiting;
     void *backtraceData[128];
     uint frames;
 
@@ -73,7 +74,11 @@ void _assert(const char *expression, const char *file, int line)
     fprintf(stderr, "Assertion failed: %s:%d: %s\n", file, line, expression);
     frames = (uint)backtrace(backtraceData, sizeof(backtraceData) / sizeof(void*));
     backtrace_symbols_fd(&backtraceData[1], (int)frames - 1, 1);
-    cleanup();
+    if (!exiting)
+    {
+        exiting = true;
+        cleanup();
+    }
     raise(SIGABRT);
 }
 #endif
