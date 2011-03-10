@@ -33,6 +33,7 @@ typedef uint8 byte;
 #define nonnull __attribute((nonnull))
 #define noreturn __attribute((noreturn))
 #define pure __attribute((pure))
+#define pureconst __attribute((const))
 #define restrict __restrict
 #define unused __attribute((unused))
 

@@ -1852,15 +1852,15 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
                 {
                     requireDefaultValues = true;
                     skipWhitespace(state);
-                    field = FieldIndexAdd(state->file, state->line,
-                                          getOffset(state, state->start));
                     start = ByteVectorSize(state->bytecode);
                     if (!parseRValue(state, true))
                     {
                         return false;
                     }
-                    FieldIndexSetBytecodeOffset(
-                        field, start, ByteVectorSize(state->bytecode));
+                    field = FieldIndexAddConstant(
+                        state->file, state->line,
+                        getOffset(state, state->start),
+                        state->bytecode, start);
                 }
                 else if (requireDefaultValues)
                 {

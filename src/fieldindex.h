@@ -5,13 +5,15 @@ extern void FieldIndexFinishBytecode(const byte *parsed,
                                      bytevector *bytecode);
 
 extern fieldref FieldIndexAdd(fileref file, uint line, uint fileOffset);
+extern fieldref FieldIndexAddConstant(fileref file, uint line, uint fileOffset,
+                                      bytevector *bytecode, size_t start);
 extern void FieldIndexSetBytecodeOffset(fieldref field,
                                         size_t start, size_t stop);
 
-extern uint FieldIndexGetCount(void);
-extern fieldref FieldIndexGetFirstField(void);
-extern fieldref FieldIndexGetNextField(fieldref field);
-extern uint FieldIndexGetIndex(fieldref field);
-extern fileref FieldIndexGetFile(fieldref field);
-extern uint FieldIndexGetLine(fieldref field);
-extern uint FieldIndexGetFileOffset(fieldref field);
+extern pure uint FieldIndexGetCount(void);
+extern pure fieldref FieldIndexGetFirstField(void);
+extern pure fieldref FieldIndexGetNextField(fieldref field);
+extern pureconst uint FieldIndexGetIndex(fieldref field);
+extern pure fileref FieldIndexGetFile(fieldref field);
+extern pure uint FieldIndexGetLine(fieldref field);
+extern pure uint FieldIndexGetFileOffset(fieldref field);
