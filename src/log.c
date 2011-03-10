@@ -42,6 +42,21 @@ static boolean buffered(Pipe *p)
     return ByteVectorSize(&p->bufferStack) != 0;
 }
 
+static void logWrite(int filedes, const void *buffer, size_t size)
+{
+    ssize_t written;
+
+    while (size)
+    {
+        written = write(filedes, buffer, size);
+        if (written < 0)
+        {
+            TaskFailErrno(false);
+        }
+        size -= (size_t)written;
+    }
+}
+
 static void flush(Pipe *p, size_t size)
 {
     size_t keep;
@@ -51,8 +66,7 @@ static void flush(Pipe *p, size_t size)
         return;
     }
     keep = ByteVectorSize(&p->buffer) - size;
-    /* TODO: Error handling */
-    write(p->fd, ByteVectorGetPointer(&p->buffer, p->flushed), size - p->flushed);
+    logWrite(p->fd, ByteVectorGetPointer(&p->buffer, p->flushed), size - p->flushed);
     if (buffered(p))
     {
         p->flushed = size;
@@ -168,8 +182,7 @@ static void logPrint(Pipe *p, const char *text, size_t length)
     if (!buffered(p) && !ByteVectorSize(&p->buffer) &&
         text[length - 1] == '\n')
     {
-        /* TODO: Error handling */
-        write(p->fd, text, length);
+        logWrite(p->fd, text, length);
         return;
     }
     ByteVectorAddData(&p->buffer, (const byte*)text, length);
