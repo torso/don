@@ -153,7 +153,7 @@ static char *getAbsoluteFilename(
     const char *restrict extension, size_t extLength,
     size_t *resultLength)
 {
-    char *restrict base2;
+    char *restrict base2 = null;
     size_t base2Length = 0;
     char *restrict buffer;
     size_t i;
@@ -783,6 +783,7 @@ static void fileCopySingle(FileEntry *src, FileEntry *dst)
     }
     if (src->blob.size)
     {
+        size = 0;
         fileMMap(src, &p, &size, true);
         fileWrite(dst, p, size);
         fileMUnmap(src);

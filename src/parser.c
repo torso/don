@@ -586,7 +586,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     boolean requireNamedParameters = false;
     intvector namedParameters;
     uint position;
-    uint firstOutOfOrder;
+    uint firstOutOfOrder = 0;
     boolean inOrder;
     uint i;
 

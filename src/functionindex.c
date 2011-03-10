@@ -141,7 +141,7 @@ functionref FunctionIndexGetNextFunction(functionref function)
 functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset)
 {
     functionref function;
-    functionref prevFunction;
+    functionref prevFunction = 0;
     for (function = FunctionIndexGetFirstFunction();
          function;
          function = FunctionIndexGetNextFunction(function))
