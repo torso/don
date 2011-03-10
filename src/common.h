@@ -76,7 +76,7 @@ typedef struct
     fieldref value;
 } ParameterInfo;
 
-extern pure ref_t refFromSize(size_t i);
-extern pure ref_t refFromUint(uint i);
-extern pure size_t sizeFromRef(ref_t r);
-extern pure uint uintFromRef(ref_t r);
+extern pureconst ref_t refFromSize(size_t i);
+extern pureconst ref_t refFromUint(uint i);
+extern pureconst size_t sizeFromRef(ref_t r);
+extern pureconst uint uintFromRef(ref_t r);

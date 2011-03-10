@@ -44,7 +44,7 @@ static void checkObject(objectref object)
     assert(object);
 }
 
-static pure boolean isInteger(objectref object)
+static pureconst boolean isInteger(objectref object)
 {
     return (object & INTEGER_LITERAL_MARK) != 0;
 }

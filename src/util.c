@@ -22,7 +22,7 @@ uint UtilHashString(const char *string, size_t length)
     return hash;
 }
 
-static pure char hex(byte b)
+static pureconst char hex(byte b)
 {
     if (b >= 10)
     {
