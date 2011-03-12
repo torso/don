@@ -309,7 +309,9 @@ void LogConsumePipes(int fdOut, int fdErr)
     fd_set set;
     ssize_t ssize;
     int status;
+    struct timeval tv;
 
+    memset(&tv, 0, sizeof(tv));
     while (fdOut || fdErr)
     {
         FD_ZERO(&set);
@@ -321,21 +323,25 @@ void LogConsumePipes(int fdOut, int fdErr)
         {
             FD_SET(fdErr, &set);
         }
-        do
+        status = select(FD_SETSIZE, &set, null, null,
+                        !out.echoDisable &&
+                        ByteVectorSize(&out.buffer) - out.flushed ?
+                        &tv : null);
+        if (status < 0)
         {
-            status = select(FD_SETSIZE, &set, null, null, null);
-            if (status < 0)
+            if (errno == EINTR)
             {
-                if (errno == EINTR)
-                {
-                    continue;
-                }
-                TaskFailErrno(false);
+                continue;
             }
+            TaskFailErrno(false);
         }
-        while (status <= 0);
+        if (status == 0)
+        {
+            flush(&out, ByteVectorSize(&out.buffer));
+            continue;
+        }
 
-        if (fdOut && FD_ISSET(fdOut, &set))
+        if (FD_ISSET(fdOut, &set))
         {
             ByteVectorReserveAppendSize(&out.buffer, MIN_READ_BUFFER);
             ssize = read(fdOut, ByteVectorGetAppendPointer(&out.buffer),
@@ -360,7 +366,7 @@ void LogConsumePipes(int fdOut, int fdErr)
                 fdOut = 0;
             }
         }
-        if (fdErr && FD_ISSET(fdErr, &set))
+        if (FD_ISSET(fdErr, &set))
         {
             ByteVectorReserveAppendSize(&err.buffer, MIN_READ_BUFFER);
             ssize = read(fdErr, ByteVectorGetAppendPointer(&err.buffer),
