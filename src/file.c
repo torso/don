@@ -153,7 +153,7 @@ static char *getAbsoluteFilename(
     const char *restrict extension, size_t extLength,
     size_t *resultLength)
 {
-    char *restrict base2 = null;
+    const char *restrict base2 = null;
     size_t base2Length = 0;
     char *restrict buffer;
     size_t i;
