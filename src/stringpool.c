@@ -97,7 +97,7 @@ stringref StringPoolAdd2(const char *token, size_t length)
     assert(token);
     assert(stringData);
     assert(cachedTable);
-    assert(length <= 127); /* TODO: Increase string length limit */
+    assert(length <= 65535);
 
     hash = UtilHashString(token, length);
     slot = getSlotForHash(cachedTable, hash);
@@ -113,6 +113,7 @@ stringref StringPoolAdd2(const char *token, size_t length)
             slot = 0;
         }
     }
+    stringData[dataSize++] = (char)(length >> 8);
     stringData[dataSize++] = (char)length;
     ref = refFromSize(dataSize);
     memcpy(&stringData[dataSize], token, length);
@@ -136,5 +137,6 @@ size_t StringPoolGetStringLength(stringref ref)
     assert(stringData);
     assert(ref);
     assert((size_t)ref < dataSize);
-    return (size_t)stringData[sizeFromRef(ref) - 1];
+    return (size_t)((stringData[sizeFromRef(ref) - 2] << 8) +
+                    stringData[sizeFromRef(ref) - 1]);
 }
