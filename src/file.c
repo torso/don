@@ -1,4 +1,4 @@
-#define _XOPEN_SOURCE 500
+#define _XOPEN_SOURCE 700
 #include <errno.h>
 #include <fcntl.h>
 #include <ftw.h>
@@ -362,7 +362,9 @@ static void fileOpen(FileEntry *fe, boolean append, boolean failOnFileNotFound)
     {
         return;
     }
-    fe->fd = open(fe->name, append ? O_CREAT | O_WRONLY | O_APPEND : O_RDONLY,
+    fe->fd = open(fe->name,
+                  O_CLOEXEC |
+                  (append ? O_CREAT | O_WRONLY | O_APPEND : O_RDONLY),
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
     if (fe->fd == -1)
     {
@@ -394,7 +396,7 @@ static void fileSetStat(FileEntry *fe, const struct stat *s)
     fe->dev = s->st_dev;
     fe->ino = s->st_ino;
     fe->blob.mtime.seconds = s->st_mtime;
-    fe->blob.mtime.fraction = s->st_mtimensec;
+    fe->blob.mtime.fraction = (ulong)s->st_mtim.tv_nsec;
 }
 
 static boolean fileStat(FileEntry *fe, boolean failOnFileNotFound)
@@ -775,7 +777,8 @@ static void fileCopySingle(FileEntry *src, FileEntry *dst)
     }
     fileClose(dst);
     dst->append = true;
-    dst->fd = open(dst->name, O_CREAT | O_WRONLY | O_APPEND | O_TRUNC,
+    dst->fd = open(dst->name,
+                   O_CLOEXEC | O_CREAT | O_WRONLY | O_APPEND | O_TRUNC,
                    S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
     if (dst->fd == -1)
     {
