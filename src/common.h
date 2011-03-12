@@ -6,7 +6,9 @@
 #define DATADIR "data/"
 #endif
 
+#ifndef LITTLE_ENDIAN
 #define LITTLE_ENDIAN
+#endif
 
 typedef int8_t int8;
 typedef uint8_t uint8;
