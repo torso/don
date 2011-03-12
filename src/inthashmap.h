@@ -18,6 +18,8 @@ extern nonnull void IntHashMapInit(inthashmap *map, size_t capacity);
 extern nonnull void IntHashMapDispose(inthashmap *map);
 extern nonnull void IntHashMapAdd(inthashmap *map, uint key, uint value);
 extern nonnull uint IntHashMapGet(const inthashmap *map, uint key);
+extern nonnull void IntHashMapSet(inthashmap *map, uint key, uint value);
+extern nonnull void IntHashMapRemove(inthashmap *map, uint key);
 extern nonnull pure size_t IntHashMapSize(const inthashmap *map);
 
 extern nonnull void IntHashMapIteratorInit(const inthashmap *map,
