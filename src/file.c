@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include "common.h"
+#include "env.h"
 #include "file.h"
 #include "glob.h"
 #include "stringpool.h"
@@ -698,12 +699,15 @@ fileref FileAddSearch(const char *filename, size_t length,
 
 fileref FileAddSearchPath(const char *filename, size_t length)
 {
-    const char *path = getenv("PATH");
-    if (path == null)
+    const char *path;
+    size_t pathLength;
+
+    EnvGet("PATH", 4, &path, &pathLength);
+    if (path)
     {
-        path = "";
+        return FileAddSearch(filename, length, path, pathLength);
     }
-    return FileAddSearch(filename, length, path, strlen(path));
+    return FileAddSearch(filename, length, cwd, cwdLength);
 }
 
 void FileDispose(fileref file)

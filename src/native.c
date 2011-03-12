@@ -8,6 +8,7 @@
 #include "common.h"
 #include "vm.h"
 #include "cache.h"
+#include "env.h"
 #include "fieldindex.h"
 #include "file.h"
 #include "hash.h"
@@ -159,12 +160,9 @@ typedef struct
 static boolean nativeExec(ExecEnv *env)
 {
     fileref executable;
-    Iterator iter;
-    objectref name;
     objectref value;
-    char *pname;
-    char *pvalue;
     char **argv;
+    const char *const*envp;
     pid_t pid;
     int status;
     int pipeOut[2];
@@ -202,6 +200,7 @@ static boolean nativeExec(ExecEnv *env)
         fprintf(stderr, "BUILD ERROR: Program not found: %s.\n", argv[0]);
         TaskFailVM(env->work.vm);
     }
+    envp = HeapCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
     pid = fork();
     if (!pid)
     {
@@ -221,33 +220,14 @@ static boolean nativeExec(ExecEnv *env)
         }
         close(pipeErr[1]);
 
-        HeapIteratorInit(&iter, env->env, true);
-        while (HeapIteratorNext(&iter, &name))
-        {
-            HeapIteratorNext(&iter, &value);
-            if (value)
-            {
-                pname = (char*)malloc(HeapStringLength(name) +
-                                      HeapStringLength(value) + 2);
-                pvalue = HeapWriteString(name, pname);
-                *pvalue++ = 0;
-                *HeapWriteString(value, pvalue) = 0;
-                setenv(pname, pvalue, 1);
-                free(pname);
-            }
-            else
-            {
-                pname = (char*)malloc(HeapStringLength(name) + 1);
-                *HeapWriteString(name, pname) = 0;
-                unsetenv(pname);
-                free(pname);
-            }
-        }
-
-        execv(FileGetName(executable), argv);
+        execve(FileGetName(executable), argv, (char**)envp);
         _exit(EXIT_FAILURE);
     }
     free(argv);
+    if (HeapCollectionSize(env->env))
+    {
+        free((void*)envp);
+    }
     close(pipeOut[1]);
     close(pipeErr[1]);
     if (pid < 0)
@@ -450,6 +430,7 @@ static boolean nativeGetenv(GetenvEnv *env)
     char *buffer;
     size_t nameLength;
     const char *value;
+    size_t valueLength;
 
     if (HeapIsFutureValue(env->name))
     {
@@ -459,9 +440,9 @@ static boolean nativeGetenv(GetenvEnv *env)
     nameLength = HeapStringLength(env->name);
     buffer = (char*)malloc(nameLength + 1);
     *HeapWriteString(env->name, buffer) = 0;
-    value = getenv(buffer);
+    EnvGet(buffer, nameLength, &value, &valueLength);
     free(buffer);
-    env->result = value ? HeapCreateString(value, strlen(value)) : 0;
+    env->result = value ? HeapCreateString(value, valueLength) : 0;
     return true;
 }
 

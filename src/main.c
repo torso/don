@@ -1,11 +1,14 @@
 #define _XOPEN_SOURCE 600
+#define _GNU_SOURCE
 #include <stdarg.h>
 #include <stdio.h>
 #include <memory.h>
+#include <unistd.h>
 #include "common.h"
 #include "vm.h"
 #include "bytecode.h"
 #include "cache.h"
+#include "env.h"
 #include "fieldindex.h"
 #include "file.h"
 #include "functionindex.h"
@@ -56,6 +59,7 @@ static void cleanup(void)
     FunctionIndexDispose();
     CacheDispose();
     FileDisposeAll();
+    EnvDispose();
     StringPoolDispose();
     LogDispose();
 }
@@ -90,6 +94,7 @@ int main(int argc, const char **argv)
     const char *options;
     const char *inputFilename = null;
     const char *env;
+    size_t envLength;
     const char *filename;
     fileref inputFile;
     fileref cacheDirectory = 0;
@@ -177,27 +182,23 @@ int main(int argc, const char **argv)
         inputFilename = "build.don";
     }
 
-    unsetenv("COLORTERM");
-    if (setenv("TERM", "dumb", 1))
-    {
-        TaskFailErrno(false);
-    }
+    EnvInit(environ);
 
-    env = getenv("XDG_CACHE_HOME");
-    if (env && env[0])
+    EnvGet("XDG_CACHE_HOME", 14, &env, &envLength);
+    if (envLength)
     {
-        cacheDirectory = FileAddRelative(env, strlen(env), "don", 3);
+        cacheDirectory = FileAddRelative(env, envLength, "don", 3);
     }
     else
     {
-        env = getenv("HOME");
-        if (!env || !env[0])
+        EnvGet("HOME", 4, &env, &envLength);
+        if (!envLength)
         {
             fprintf(stderr,
                     "No suitable location for cache directory found.\n");
             return 1;
         }
-        cacheDirectory = FileAddRelative(env, strlen(env), ".cache/don", 10);
+        cacheDirectory = FileAddRelative(env, envLength, ".cache/don", 10);
     }
 
     if (!IntVectorSize(&targets))

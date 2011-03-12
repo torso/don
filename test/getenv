@@ -1,0 +1,3 @@
+default:
+   if getenv("TERM") == "dumb"
+      echo("PASS")
