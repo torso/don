@@ -672,6 +672,40 @@ fileref FileAddRelativeExt(const char *base, size_t baseLength,
     return addFile(name, length, true);
 }
 
+fileref FileAddSearch(const char *filename, size_t length,
+                      const char *path, size_t pathLength)
+{
+    fileref file;
+    const char *stop = path + pathLength;
+    const char *p;
+
+    if (filename[0] == '/')
+    {
+        return FileAdd(filename, length);
+    }
+    while (path < stop)
+    {
+        for (p = path; p < stop && *p != ':'; p++);
+        file = FileAddRelative(path, (size_t)(p - path), filename, length);
+        if (FileIsExecutable(file))
+        {
+            return file;
+        }
+        path = p + 1;
+    }
+    return 0;
+}
+
+fileref FileAddSearchPath(const char *filename, size_t length)
+{
+    const char *path = getenv("PATH");
+    if (path == null)
+    {
+        path = "";
+    }
+    return FileAddSearch(filename, length, path, strlen(path));
+}
+
 void FileDispose(fileref file)
 {
     FileEntry *fe = getFileEntry(file);
@@ -698,6 +732,16 @@ size_t FileGetSize(fileref file)
     FileEntry *restrict fe = getFileEntry(file);
     fileStat(fe, true);
     return fe->blob.size;
+}
+
+boolean FileIsExecutable(fileref file)
+{
+    FileEntry *fe = getFileEntry(file);
+    if (!fileStat(fe, false))
+    {
+        return false;
+    }
+    return S_ISREG(fe->mode) && (fe->mode & (S_IXUSR | S_IXGRP | S_IXOTH));
 }
 
 const byte *FileGetStatusBlob(fileref file)

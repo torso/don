@@ -18,12 +18,16 @@ extern nonnull fileref FileAddRelative(const char *base, size_t baseLength,
 extern fileref FileAddRelativeExt(const char *base, size_t baseLength,
                                   const char *filename, size_t length,
                                   const char *extension, size_t extLength);
+extern nonnull fileref FileAddSearch(const char *filename, size_t length,
+                                     const char *path, size_t pathLength);
+extern nonnull fileref FileAddSearchPath(const char *filename, size_t length);
 extern void FileDispose(fileref file);
 
 extern const char *FileGetNameBlob(fileref file);
 extern const char *FileGetName(fileref file);
 extern size_t FileGetNameLength(fileref file);
 extern nonnull size_t FileGetSize(fileref file);
+extern boolean FileIsExecutable(fileref file);
 extern nonnull const byte *FileGetStatusBlob(fileref file);
 extern pure size_t FileGetStatusBlobSize(void);
 extern boolean FileHasChanged(fileref file, const byte *blob);

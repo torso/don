@@ -158,6 +158,7 @@ typedef struct
 
 static boolean nativeExec(ExecEnv *env)
 {
+    fileref executable;
     Iterator iter;
     objectref name;
     objectref value;
@@ -195,6 +196,12 @@ static boolean nativeExec(ExecEnv *env)
         TaskFailErrno(false);
     }
 
+    executable = FileAddSearchPath(argv[0], strlen(argv[0]));
+    if (!executable)
+    {
+        fprintf(stderr, "BUILD ERROR: Program not found: %s.\n", argv[0]);
+        TaskFailVM(env->work.vm);
+    }
     pid = fork();
     if (!pid)
     {
@@ -237,7 +244,7 @@ static boolean nativeExec(ExecEnv *env)
             }
         }
 
-        execvp(argv[0], argv);
+        execv(FileGetName(executable), argv);
         _exit(EXIT_FAILURE);
     }
     free(argv);
