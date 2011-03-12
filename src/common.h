@@ -9,6 +9,7 @@
 #ifndef LITTLE_ENDIAN
 #define LITTLE_ENDIAN
 #endif
+#define POSIX_SPAWN
 
 typedef int8_t int8;
 typedef uint8_t uint8;

@@ -1,5 +1,6 @@
 #define _XOPEN_SOURCE 600
 #include <memory.h>
+#include <spawn.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -170,6 +171,9 @@ static boolean nativeExec(ExecEnv *env)
     objectref output[2];
     const byte *p;
     size_t length;
+#ifdef POSIX_SPAWN
+    posix_spawn_file_actions_t psfa;
+#endif
 
     if (!env->output)
     {
@@ -201,6 +205,22 @@ static boolean nativeExec(ExecEnv *env)
         TaskFailVM(env->work.vm);
     }
     envp = HeapCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
+#ifdef POSIX_SPAWN
+    posix_spawn_file_actions_init(&psfa);
+    posix_spawn_file_actions_addclose(&psfa, pipeOut[0]);
+    posix_spawn_file_actions_addclose(&psfa, pipeErr[0]);
+    posix_spawn_file_actions_adddup2(&psfa, pipeOut[1], STDOUT_FILENO);
+    posix_spawn_file_actions_adddup2(&psfa, pipeErr[1], STDERR_FILENO);
+    posix_spawn_file_actions_addclose(&psfa, pipeOut[1]);
+    posix_spawn_file_actions_addclose(&psfa, pipeErr[1]);
+    status = posix_spawn(&pid, FileGetName(executable), &psfa, null,
+                         argv, (char**)envp);
+    posix_spawn_file_actions_destroy(&psfa);
+    if (status)
+    {
+        TaskFailErrno(false);
+    }
+#else
     pid = fork();
     if (!pid)
     {
@@ -223,6 +243,7 @@ static boolean nativeExec(ExecEnv *env)
         execve(FileGetName(executable), argv, (char**)envp);
         _exit(EXIT_FAILURE);
     }
+#endif
     free(argv);
     if (HeapCollectionSize(env->env))
     {
