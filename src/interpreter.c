@@ -286,6 +286,10 @@ void InterpreterExecute(functionref target)
     IntVectorInit(&vm->callStack);
     IntVectorInit(&vm->stack);
 
+    vm->fields[FIELD_TRUE] = HeapTrue;
+    vm->fields[FIELD_FALSE] = HeapFalse;
+    vm->fields[FIELD_EMPTY_LIST] = HeapEmptyList;
+
     vm->target = target;
     vm->ip = vmBytecode +
         FunctionIndexGetBytecodeOffset(FunctionIndexGetFirstFunction());

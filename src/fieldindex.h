@@ -1,3 +1,13 @@
+enum
+{
+    FIELD_NULL,
+    FIELD_TRUE,
+    FIELD_FALSE,
+    FIELD_EMPTY_LIST,
+
+    RESERVED_FIELD_COUNT
+};
+
 extern void FieldIndexInit(void);
 extern void FieldIndexDispose(void);
 

@@ -3,8 +3,6 @@
 #include "fieldindex.h"
 #include "instruction.h"
 
-#define CONSTANT_COUNT 4
-
 typedef struct
 {
     fileref file;
@@ -22,7 +20,7 @@ static FieldInfo *getFieldInfo(fieldref field)
 {
     assert(field);
     return (FieldInfo*)ByteVectorGetPointer(
-        &fieldTable, (field - CONSTANT_COUNT - 1) * sizeof(FieldInfo));
+        &fieldTable, (field - RESERVED_FIELD_COUNT - 1) * sizeof(FieldInfo));
 }
 
 
@@ -37,22 +35,10 @@ void FieldIndexDispose(void)
 }
 
 
-static void writeConstant(bytevector *bytecode, Instruction op, uint index)
-{
-    ByteVectorAdd(bytecode, op);
-    ByteVectorAdd(bytecode, OP_STORE_FIELD);
-    ByteVectorAddUint(bytecode, index);
-}
-
 void FieldIndexFinishBytecode(const byte *parsed, bytevector *bytecode)
 {
     fieldref field;
     FieldInfo *info;
-
-    writeConstant(bytecode, OP_NULL, 0);
-    writeConstant(bytecode, OP_TRUE, 1);
-    writeConstant(bytecode, OP_FALSE, 2);
-    writeConstant(bytecode, OP_EMPTY_LIST, 3);
 
     for (field = FieldIndexGetFirstField();
          field;
@@ -83,7 +69,7 @@ fieldref FieldIndexAdd(fileref file, uint line, uint fileOffset)
     info->line = line;
     info->fileOffset = fileOffset;
     info->bytecodeStop = 0;
-    return refFromUint(fieldCount + CONSTANT_COUNT);
+    return refFromUint(fieldCount + RESERVED_FIELD_COUNT);
 }
 
 fieldref FieldIndexAddConstant(fileref file, uint line, uint fileOffset,
@@ -96,14 +82,10 @@ fieldref FieldIndexAddConstant(fileref file, uint line, uint fileOffset,
     {
         switch (ByteVectorGet(bytecode, start))
         {
-        case OP_NULL:
-            return 1;
-        case OP_TRUE:
-            return 2;
-        case OP_FALSE:
-            return 3;
-        case OP_EMPTY_LIST:
-            return 4;
+        case OP_NULL: return FIELD_NULL + 1;
+        case OP_TRUE: return FIELD_TRUE + 1;
+        case OP_FALSE: return FIELD_FALSE + 1;
+        case OP_EMPTY_LIST: return FIELD_EMPTY_LIST + 1;
         }
     }
     field = FieldIndexAdd(file, line, fileOffset);
@@ -124,19 +106,19 @@ void FieldIndexSetBytecodeOffset(fieldref field, size_t start, size_t stop)
 
 uint FieldIndexGetCount(void)
 {
-    return fieldCount + CONSTANT_COUNT;
+    return fieldCount + RESERVED_FIELD_COUNT;
 }
 
 fieldref FieldIndexGetFirstField(void)
 {
-    return refFromUint(fieldCount ? CONSTANT_COUNT + 1 : 0);
+    return refFromUint(fieldCount ? RESERVED_FIELD_COUNT + 1 : 0);
 }
 
 fieldref FieldIndexGetNextField(fieldref field)
 {
-    assert(field > CONSTANT_COUNT);
-    assert(field - CONSTANT_COUNT <= fieldCount);
-    return field - CONSTANT_COUNT != fieldCount ? field + 1 : 0;
+    assert(field > RESERVED_FIELD_COUNT);
+    assert(field - RESERVED_FIELD_COUNT <= fieldCount);
+    return field - RESERVED_FIELD_COUNT != fieldCount ? field + 1 : 0;
 }
 
 uint FieldIndexGetIndex(fieldref field)
