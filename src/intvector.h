@@ -29,7 +29,7 @@ extern nonnull void IntVectorAppend(
     const intvector *src, size_t srcOffset,
     intvector *dst, size_t size);
 extern nonnull void IntVectorAppendAll(const intvector *src,
-                                            intvector *dst);
+                                       intvector *dst);
 
 extern nonnull void IntVectorAdd(intvector *v, uint value);
 extern nonnull void IntVectorAddRef(intvector *v, ref_t value);
