@@ -27,11 +27,6 @@ objectref VMPop(VM *vm)
     return IntVectorPopRef(&vm->stack);
 }
 
-boolean VMPopBoolean(VM *vm)
-{
-    return HeapIsTrue(IntVectorPopRef(&vm->stack));
-}
-
 void VMPopMany(VM *vm, objectref *dst, uint count)
 {
     dst += count - 1;

@@ -27,7 +27,6 @@ extern void VMDispose(void);
 
 extern nonnull objectref VMPeek(VM *vm);
 extern nonnull objectref VMPop(VM *vm);
-extern nonnull boolean VMPopBoolean(VM *vm);
 extern nonnull void VMPopMany(VM *vm, objectref *dst, uint count);
 extern nonnull void VMPush(VM *vm, objectref value);
 extern nonnull void VMPushBoolean(VM *vm, boolean value);
