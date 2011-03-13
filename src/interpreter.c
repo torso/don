@@ -63,7 +63,6 @@ static void execute(VM *vm, functionref target)
 {
     Instruction op;
     const byte *ip = vmBytecode + FunctionIndexGetBytecodeOffset(target);
-    const byte *baseIP = ip;
     uint bp = 0;
     uint argumentCount;
     uint returnValueCount;
@@ -85,7 +84,7 @@ static void execute(VM *vm, functionref target)
     {
         if (TRACE)
         {
-            BytecodeDisassembleInstruction(ip, baseIP);
+            BytecodeDisassembleInstruction(ip, vmBytecode);
         }
         op = (Instruction)*ip++;
         switch (op)
@@ -245,10 +244,6 @@ static void execute(VM *vm, functionref target)
         case OP_RETURN:
             assert(IntVectorSize(&vm->callStack));
             popStackFrame(vm, &ip, &bp, *ip++);
-            baseIP = vmBytecode +
-                FunctionIndexGetBytecodeOffset(
-                    FunctionIndexGetFunctionFromBytecode(
-                        (uint)(ip - vmBytecode)));
             break;
 
         case OP_RETURN_VOID:
@@ -259,10 +254,6 @@ static void execute(VM *vm, functionref target)
                 return;
             }
             popStackFrame(vm, &ip, &bp, 0);
-            baseIP = vmBytecode +
-                FunctionIndexGetBytecodeOffset(
-                    FunctionIndexGetFunctionFromBytecode(
-                        (uint)(ip - vmBytecode)));
             break;
 
         case OP_INVOKE:
@@ -271,7 +262,6 @@ static void execute(VM *vm, functionref target)
             assert(argumentCount == FunctionIndexGetParameterCount(function));
             returnValueCount = *ip++;
             pushStackFrame(vm, &ip, &bp, function, returnValueCount);
-            baseIP = ip;
             break;
 
         case OP_INVOKE_NATIVE:
