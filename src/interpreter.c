@@ -67,7 +67,6 @@ static void execute(VM *vm, functionref target)
     uint argumentCount;
     uint returnValueCount;
     int jumpOffset;
-    uint local;
     objectref value;
     objectref value2;
     size_t size1;
@@ -78,8 +77,7 @@ static void execute(VM *vm, functionref target)
     functionref function;
     nativefunctionref nativeFunction;
 
-    local = FunctionIndexGetLocalsCount(target);
-    IntVectorSetSize(&vm->stack, local);
+    IntVectorSetSize(&vm->stack, FunctionIndexGetLocalsCount(target));
     for (;;)
     {
         if (TRACE)
