@@ -1324,6 +1324,7 @@ static objectref executeUnary(Instruction op, objectref value)
     case OP_GREATER_EQUALS:
     case OP_LESS:
     case OP_GREATER:
+    case OP_AND:
     case OP_ADD:
     case OP_SUB:
     case OP_MUL:
@@ -1372,6 +1373,8 @@ static objectref executeBinary(Instruction op,
     case OP_GREATER:
         return HeapCompare(value2, value1) > 0 ? HeapTrue : HeapFalse;
 
+    case OP_AND:
+        return HeapIsTrue(value1) && HeapIsTrue(value2) ? HeapTrue : HeapFalse;
     case OP_ADD:
         return HeapBoxInteger(HeapUnboxInteger(value2) +
                               HeapUnboxInteger(value1));

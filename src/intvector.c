@@ -126,7 +126,7 @@ void IntVectorAppend(const intvector *src, size_t srcOffset,
     uint *p;
     checkIntVectorRange(src, srcOffset, size);
     p = grow(dst, size);
-    memcpy(p, IntVectorGetPointer(src, srcOffset), size * sizeof(uint));
+    memcpy(p, &src->data[srcOffset], size * sizeof(uint));
 }
 
 void IntVectorAppendAll(const intvector *src, intvector *dst)

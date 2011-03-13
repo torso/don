@@ -16,6 +16,33 @@
 
 static const boolean TRACE = false;
 
+static const byte *vmBytecode;
+
+static VM **vmTable;
+static uint vmTableSize = 16;
+static uint vmCount;
+
+
+static void addVM(VM *vm)
+{
+    VM **newTable;
+
+    if (vmCount == vmTableSize)
+    {
+        vmTableSize *= 2;
+        newTable = (VM**)malloc(vmTableSize * sizeof(vmTable[0]));
+        memcpy(newTable, vmTable, vmCount * sizeof(vmTable[0]));
+        free(vmTable);
+        vmTable = newTable;
+    }
+    vmTable[vmCount++] = vm;
+}
+
+static void removeVM(uint index)
+{
+    VMDispose(vmTable[index]);
+    vmTable[index] = vmTable[--vmCount];
+}
 
 static objectref getLocal(VM *vm, uint bp, uint16 local)
 {
@@ -198,6 +225,7 @@ static void execute(VM *vm)
         case OP_GREATER_EQUALS:
         case OP_LESS:
         case OP_GREATER:
+        case OP_AND:
         case OP_ADD:
         case OP_SUB:
         case OP_MUL:
@@ -214,28 +242,47 @@ static void execute(VM *vm)
 
         case OP_JUMP:
             jumpOffset = BytecodeReadInt(&ip);
-            ip += jumpOffset;
-            break;
+            vm->ip = ip + jumpOffset;
+            return;
 
         case OP_BRANCH_TRUE:
             jumpOffset = BytecodeReadInt(&ip);
-            value = HeapWait(VMPop(vm));
-            assert(value == HeapTrue || value == HeapFalse);
-            if (value == HeapTrue)
+            value = HeapTryWait(VMPop(vm));
+            if (HeapIsFutureValue(value))
             {
-                ip += jumpOffset;
+                addVM(VMClone(vm, value, ip + jumpOffset));
+                VMApplyCondition(vm, HeapApplyUnary(OP_NOT, value));
             }
-            break;
+            else
+            {
+                assert(value == HeapTrue || value == HeapFalse);
+                if (value == HeapTrue)
+                {
+                    ip += jumpOffset;
+                }
+            }
+            vm->ip = ip;
+            return;
 
         case OP_BRANCH_FALSE:
             jumpOffset = BytecodeReadInt(&ip);
-            value = HeapWait(VMPop(vm));
-            assert(value == HeapTrue || value == HeapFalse);
-            if (value != HeapTrue)
+            value = HeapTryWait(VMPop(vm));
+            if (HeapIsFutureValue(value))
             {
-                ip += jumpOffset;
+                addVM(VMClone(vm, HeapApplyUnary(OP_NOT, value),
+                              ip + jumpOffset));
+                VMApplyCondition(vm, value);
             }
-            break;
+            else
+            {
+                assert(value == HeapTrue || value == HeapFalse);
+                if (value != HeapTrue)
+                {
+                    ip += jumpOffset;
+                }
+            }
+            vm->ip = ip;
+            return;
 
         case OP_RETURN:
             assert(IntVectorSize(&vm->callStack));
@@ -264,12 +311,14 @@ static void execute(VM *vm)
             assert(argumentCount == FunctionIndexGetParameterCount(function));
             returnValueCount = *ip++;
             pushStackFrame(vm, &ip, &vm->bp, function, returnValueCount);
-            break;
+            vm->ip = ip;
+            return;
 
         case OP_INVOKE_NATIVE:
             nativeFunction = refFromUint(*ip++);
+            vm->ip = ip;
             NativeInvoke(vm, nativeFunction);
-            break;
+            return;
 
         case OP_UNKNOWN_VALUE:
             assert(false);
@@ -278,32 +327,47 @@ static void execute(VM *vm)
     }
 }
 
-void InterpreterExecute(functionref target)
+void InterpreterExecute(const byte *bytecode, functionref target)
 {
-    VM *vm = (VM*)malloc(sizeof(VM));
+    VM *vm;
+    uint i;
+    boolean idle = false;
 
-    vm->fields = (objectref*)calloc(FieldIndexGetCount(), sizeof(objectref));
-    IntVectorInit(&vm->callStack);
-    IntVectorInit(&vm->stack);
+    vmBytecode = bytecode;
+    vmTable = (VM**)malloc(vmTableSize * sizeof(vmTable[0]));
+    addVM(VMCreate(bytecode, target));
 
-    vm->fields[FIELD_TRUE] = HeapTrue;
-    vm->fields[FIELD_FALSE] = HeapFalse;
-    vm->fields[FIELD_EMPTY_LIST] = HeapEmptyList;
+    do
+    {
+        if (idle)
+        {
+            assert(!WorkQueueEmpty());
+            WorkExecute();
+        }
 
-    vm->target = target;
-    vm->ip = vmBytecode +
-        FunctionIndexGetBytecodeOffset(FunctionIndexGetFirstFunction());
-    vm->bp = 0;
-    execute(vm);
-    assert(!vm->ip);
+        idle = true;
+        for (i = 0; i < vmCount; i++)
+        {
+            vm = vmTable[i];
+            vm->condition = HeapTryWait(vm->condition);
+            if (vm->condition == HeapFalse)
+            {
+                removeVM(i--);
+            }
+            else if (vm->ip)
+            {
+                execute(vm);
+                idle = false;
+            }
+        }
+    }
+    while (vmCount > 1 || vmTable[0]->ip);
 
     while (!WorkQueueEmpty())
     {
         WorkExecute();
     }
 
-    IntVectorDispose(&vm->callStack);
-    IntVectorDispose(&vm->stack);
-    free(vm->fields);
-    free(vm);
+    removeVM(0);
+    free(vmTable);
 }

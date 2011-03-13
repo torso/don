@@ -1,0 +1,5 @@
+default:
+   output, exitcode = exec("echo", echo:false)
+   if exitcode != 0
+      fail()
+   echo("PASS")

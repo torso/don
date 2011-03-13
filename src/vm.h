@@ -3,6 +3,8 @@
 
 struct VM
 {
+    objectref condition;
+
     objectref *fields;
     intvector callStack;
     intvector stack;
@@ -15,15 +17,12 @@ struct VM
 #include "instruction.h"
 #include "heap.h"
 
-extern const byte *vmBytecode;
 
+extern nonnull VM *VMCreate(const byte *bytecode, functionref target);
+extern nonnull VM *VMClone(VM *vm, objectref condition, const byte *ip);
+extern nonnull void VMDispose(VM *vm);
 
-/*
-  The VM will create and dispose the heap.
-  The VM takes ownership of the bytecode.
-*/
-extern nonnull void VMInit(byte *bytecode);
-extern void VMDispose(void);
+extern nonnull void VMApplyCondition(VM *vm, objectref condition);
 
 extern nonnull objectref VMPeek(VM *vm);
 extern nonnull objectref VMPop(VM *vm);
@@ -31,5 +30,3 @@ extern nonnull void VMPopMany(VM *vm, objectref *dst, uint count);
 extern nonnull void VMPush(VM *vm, objectref value);
 extern nonnull void VMPushBoolean(VM *vm, boolean value);
 extern nonnull void VMPushMany(VM *vm, const objectref *values, uint count);
-
-/* extern nonnull VMBranch *VMCreateBranch(VM *vm, uint count); */

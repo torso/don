@@ -1,9 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "common.h"
-#include "bytevector.h"
-#include "instruction.h"
-#include "heap.h"
+#include "vm.h"
 #include "native.h"
 #include "stringpool.h"
 #include "work.h"
@@ -70,6 +68,27 @@ void WorkAdd(const Work *work)
     ByteVectorAddData(&queue, (const byte*)work, getWorkSize(work));
 }
 
+void WorkDiscard(const VM *vm)
+{
+    Work *work;
+    size_t i = 0;
+    size_t size;
+
+    while (i < ByteVectorSize(&queue))
+    {
+        work = (Work*)ByteVectorGetPointer(&queue, i);
+        size = getWorkSize(work);
+        if (work->vm == vm)
+        {
+            ByteVectorRemoveRange(&queue, i, size);
+        }
+        else
+        {
+            i += size;
+        }
+    }
+}
+
 boolean WorkQueueEmpty(void)
 {
     return ByteVectorSize(&queue) == 0;
@@ -93,6 +112,8 @@ void WorkExecute(void)
     assert(ByteVectorSize(&queue) >= getWorkSize(work));
     parameterCount = NativeGetParameterCount(work->function);
 
+    work->condition = HeapTryWait(work->condition);
+    assert(work->condition == HeapTrue);
     for (i = parameterCount, p1 = (objectref*)(work+1);
          i--;
          p1++)

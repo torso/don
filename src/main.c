@@ -53,7 +53,7 @@ static void cleanup(void)
     IntVectorDispose(&targets);
     ByteVectorDispose(&parsed);
     WorkDispose();
-    VMDispose();
+    HeapDispose();
     NamespaceDispose();
     FieldIndexDispose();
     FunctionIndexDispose();
@@ -308,13 +308,15 @@ int main(int argc, const char **argv)
     CacheInit(cacheDirectory);
 
     WorkInit();
-    VMInit(bytecode);
+    HeapInit();
     for (j = 0; j < IntVectorSize(&targets); j++)
     {
-        InterpreterExecute(NamespaceGetTarget(defaultNamespace,
+        InterpreterExecute(bytecode,
+                           NamespaceGetTarget(defaultNamespace,
                                               IntVectorGetRef(&targets, j)));
     }
 
+    free(bytecode);
     return 0;
 }
 

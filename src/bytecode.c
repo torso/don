@@ -161,6 +161,10 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: greater\n", ip);
         break;
 
+    case OP_AND:
+        printf(" %u: and\n", ip);
+        break;
+
     case OP_ADD:
         printf(" %u: add\n", ip);
         break;

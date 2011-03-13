@@ -99,7 +99,8 @@ typedef struct
 
 static boolean nativeCp(CpEnv *env)
 {
-    if (HeapIsFutureValue(env->src) || HeapIsFutureValue(env->dst))
+    if (env->work.condition != HeapTrue ||
+        HeapIsFutureValue(env->src) || HeapIsFutureValue(env->dst))
     {
         return false;
     }
@@ -122,7 +123,8 @@ static boolean nativeEcho(EchoEnv *env)
     char *buffer;
     size_t length;
 
-    if (HeapIsFutureValue(env->message) || HeapIsFutureValue(env->prefix))
+    if (env->work.condition != HeapTrue ||
+        HeapIsFutureValue(env->message) || HeapIsFutureValue(env->prefix))
     {
         return false;
     }
@@ -291,8 +293,13 @@ typedef struct
     objectref message;
 } FailEnv;
 
-static noreturn void nativeFail(FailEnv *env)
+static boolean nativeFail(FailEnv *env)
 {
+    if (env->work.condition != HeapTrue)
+    {
+        env->work.vm->ip = null;
+        return false;
+    }
     if (env->message)
     {
         LogPrintErrObjectAutoNewline(env->message);
@@ -411,7 +418,8 @@ static boolean nativeGetCache(GetCacheEnv *env)
     byte hash[DIGEST_SIZE];
     boolean uptodate;
 
-    if (HeapIsFutureValue(env->key) || HeapIsFutureValue(env->echoCachedOutput))
+    if (env->work.condition != HeapTrue ||
+        HeapIsFutureValue(env->key) || HeapIsFutureValue(env->echoCachedOutput))
     {
         return false;
     }
@@ -505,7 +513,8 @@ static boolean nativeLines(LinesEnv *env)
 {
     objectref content;
 
-    if (HeapIsFutureValue(env->value) ||
+    if (env->work.condition != HeapTrue ||
+        HeapIsFutureValue(env->value) ||
         HeapIsFutureValue(env->trimEmptyLastLine))
     {
         return false;
@@ -528,7 +537,8 @@ typedef struct
 
 static boolean nativeMv(MvEnv *env)
 {
-    if (HeapIsFutureValue(env->src) || HeapIsFutureValue(env->dst))
+    if (env->work.condition != HeapTrue ||
+        HeapIsFutureValue(env->src) || HeapIsFutureValue(env->dst))
     {
         return false;
     }
@@ -550,7 +560,8 @@ typedef struct
 
 static boolean nativeReadFile(ReadFileEnv *env)
 {
-    if (HeapIsFutureValue(env->file))
+    if (env->work.condition != HeapTrue ||
+        HeapIsFutureValue(env->file))
     {
         return false;
     }
@@ -634,7 +645,8 @@ typedef struct
 
 static boolean nativeRm(RmEnv *env)
 {
-    if (HeapIsFutureValue(env->file))
+    if (env->work.condition != HeapTrue ||
+        HeapIsFutureValue(env->file))
     {
         return false;
     }
@@ -662,7 +674,8 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
     size_t errLength;
     char *output = null;
 
-    if (HeapIsFutureValue(env->cacheFile) || HeapIsFutureValue(env->out) ||
+    if (env->work.condition != HeapTrue ||
+        HeapIsFutureValue(env->cacheFile) || HeapIsFutureValue(env->out) ||
         HeapIsFutureValue(env->err) || HeapIsFutureValue(env->accessedFiles))
     {
         return false;
@@ -794,6 +807,7 @@ void NativeInvoke(VM *vm, nativefunctionref function)
 
     assert(info->parameterCount + info->returnValueCount <= NATIVE_MAX_VALUES);
     env.work.vm = vm;
+    env.work.condition = vm->condition;
     VMPopMany(vm, env.values, info->parameterCount);
     memset(env.values + info->parameterCount, 0,
            info->returnValueCount * sizeof(env.values[0]));

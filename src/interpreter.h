@@ -1,1 +1,2 @@
-extern nonnull void InterpreterExecute(functionref target);
+extern nonnull void InterpreterExecute(const byte *bytecode,
+                                       functionref target);
