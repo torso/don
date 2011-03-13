@@ -284,8 +284,7 @@ void InterpreterExecute(functionref target)
 {
     VM vm;
 
-    memset(&vm, 0, sizeof(VM));
-    vm.fields = (objectref*)malloc(FieldIndexGetCount() * sizeof(int));
+    vm.fields = (objectref*)malloc(FieldIndexGetCount() * sizeof(objectref));
     IntVectorInit(&vm.callStack);
     IntVectorInit(&vm.stack);
 
@@ -297,7 +296,6 @@ void InterpreterExecute(functionref target)
     }
 
     free(vm.fields);
-    vm.fields = null;
     IntVectorDispose(&vm.callStack);
     IntVectorDispose(&vm.stack);
 }
