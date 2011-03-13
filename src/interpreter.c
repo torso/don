@@ -245,6 +245,13 @@ static void execute(VM *vm)
         case OP_RETURN_VOID:
             if (!IntVectorSize(&vm->callStack))
             {
+                if (vm->target)
+                {
+                    ip--;
+                    pushStackFrame(vm, &ip, &vm->bp, vm->target, 0);
+                    vm->target = 0;
+                    break;
+                }
                 vm->ip = null;
                 return;
             }
@@ -271,31 +278,28 @@ static void execute(VM *vm)
     }
 }
 
-static void executeFunction(VM *vm, functionref target)
-{
-    vm->ip = vmBytecode + FunctionIndexGetBytecodeOffset(target);
-    vm->bp = 0;
-    IntVectorSetSize(&vm->stack, FunctionIndexGetLocalsCount(target));
-    execute(vm);
-    assert(!vm->ip);
-}
-
 void InterpreterExecute(functionref target)
 {
-    VM vm;
+    VM *vm = (VM*)malloc(sizeof(VM));
 
-    vm.fields = (objectref*)malloc(FieldIndexGetCount() * sizeof(objectref));
-    IntVectorInit(&vm.callStack);
-    IntVectorInit(&vm.stack);
+    vm->fields = (objectref*)calloc(FieldIndexGetCount(), sizeof(objectref));
+    IntVectorInit(&vm->callStack);
+    IntVectorInit(&vm->stack);
 
-    executeFunction(&vm, FunctionIndexGetFirstFunction());
-    executeFunction(&vm, target);
+    vm->target = target;
+    vm->ip = vmBytecode +
+        FunctionIndexGetBytecodeOffset(FunctionIndexGetFirstFunction());
+    vm->bp = 0;
+    execute(vm);
+    assert(!vm->ip);
+
     while (!WorkQueueEmpty())
     {
         WorkExecute();
     }
 
-    free(vm.fields);
-    IntVectorDispose(&vm.callStack);
-    IntVectorDispose(&vm.stack);
+    IntVectorDispose(&vm->callStack);
+    IntVectorDispose(&vm->stack);
+    free(vm->fields);
+    free(vm);
 }

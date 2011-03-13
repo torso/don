@@ -7,6 +7,7 @@ struct VM
     intvector callStack;
     intvector stack;
 
+    functionref target;
     const byte *ip;
     uint bp;
 };
@@ -31,3 +32,5 @@ extern nonnull void VMPopMany(VM *vm, objectref *dst, uint count);
 extern nonnull void VMPush(VM *vm, objectref value);
 extern nonnull void VMPushBoolean(VM *vm, boolean value);
 extern nonnull void VMPushMany(VM *vm, const objectref *values, uint count);
+
+/* extern nonnull VMBranch *VMCreateBranch(VM *vm, uint count); */
