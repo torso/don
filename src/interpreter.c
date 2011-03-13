@@ -59,11 +59,10 @@ static void popStackFrame(VM *vm, const byte **ip, uint *bp,
 }
 
 
-static void execute(VM *vm, functionref target)
+static void execute(VM *vm)
 {
     Instruction op;
-    const byte *ip = vmBytecode + FunctionIndexGetBytecodeOffset(target);
-    uint bp = 0;
+    const byte *ip = vm->ip;
     uint argumentCount;
     uint returnValueCount;
     int jumpOffset;
@@ -77,7 +76,6 @@ static void execute(VM *vm, functionref target)
     functionref function;
     nativefunctionref nativeFunction;
 
-    IntVectorSetSize(&vm->stack, FunctionIndexGetLocalsCount(target));
     for (;;)
     {
         if (TRACE)
@@ -161,11 +159,11 @@ static void execute(VM *vm, functionref target)
             break;
 
         case OP_LOAD:
-            VMPush(vm, getLocal(vm, bp, BytecodeReadUint16(&ip)));
+            VMPush(vm, getLocal(vm, vm->bp, BytecodeReadUint16(&ip)));
             break;
 
         case OP_STORE:
-            storeLocal(vm, bp, BytecodeReadUint16(&ip), VMPop(vm));
+            storeLocal(vm, vm->bp, BytecodeReadUint16(&ip), VMPop(vm));
             break;
 
         case OP_LOAD_FIELD:
@@ -241,17 +239,16 @@ static void execute(VM *vm, functionref target)
 
         case OP_RETURN:
             assert(IntVectorSize(&vm->callStack));
-            popStackFrame(vm, &ip, &bp, *ip++);
+            popStackFrame(vm, &ip, &vm->bp, *ip++);
             break;
 
         case OP_RETURN_VOID:
             if (!IntVectorSize(&vm->callStack))
             {
-                assert(IntVectorSize(&vm->stack) ==
-                       FunctionIndexGetLocalsCount(target));
+                vm->ip = null;
                 return;
             }
-            popStackFrame(vm, &ip, &bp, 0);
+            popStackFrame(vm, &ip, &vm->bp, 0);
             break;
 
         case OP_INVOKE:
@@ -259,7 +256,7 @@ static void execute(VM *vm, functionref target)
             argumentCount = BytecodeReadUint16(&ip);
             assert(argumentCount == FunctionIndexGetParameterCount(function));
             returnValueCount = *ip++;
-            pushStackFrame(vm, &ip, &bp, function, returnValueCount);
+            pushStackFrame(vm, &ip, &vm->bp, function, returnValueCount);
             break;
 
         case OP_INVOKE_NATIVE:
@@ -274,6 +271,15 @@ static void execute(VM *vm, functionref target)
     }
 }
 
+static void executeFunction(VM *vm, functionref target)
+{
+    vm->ip = vmBytecode + FunctionIndexGetBytecodeOffset(target);
+    vm->bp = 0;
+    IntVectorSetSize(&vm->stack, FunctionIndexGetLocalsCount(target));
+    execute(vm);
+    assert(!vm->ip);
+}
+
 void InterpreterExecute(functionref target)
 {
     VM vm;
@@ -283,8 +289,8 @@ void InterpreterExecute(functionref target)
     IntVectorInit(&vm.callStack);
     IntVectorInit(&vm.stack);
 
-    execute(&vm, FunctionIndexGetFirstFunction());
-    execute(&vm, target);
+    executeFunction(&vm, FunctionIndexGetFirstFunction());
+    executeFunction(&vm, target);
     while (!WorkQueueEmpty())
     {
         WorkExecute();
