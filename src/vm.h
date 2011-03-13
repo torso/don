@@ -6,6 +6,9 @@ struct VM
     objectref *fields;
     intvector callStack;
     intvector stack;
+
+    const byte *ip;
+    uint bp;
 };
 
 #include "instruction.h"
