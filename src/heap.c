@@ -952,6 +952,10 @@ objectref HeapCreateArray(const objectref *values, size_t size)
 
 objectref HeapCreateArrayFromVector(const intvector *values)
 {
+    if (!IntVectorSize(values))
+    {
+        return HeapEmptyList;
+    }
     return HeapCreateArray(IntVectorGetPointer(values, 0),
                            IntVectorSize(values));
 }
