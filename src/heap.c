@@ -462,6 +462,7 @@ objectref HeapCreateString(const char *restrict string, size_t length)
 
 objectref HeapCreateUninitialisedString(size_t length, char **data)
 {
+    assert(length);
     *(byte**)data = HeapAlloc(TYPE_STRING, length);
     return HeapFinishAlloc((byte*)*data);
 }
