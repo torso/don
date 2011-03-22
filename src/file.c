@@ -794,6 +794,19 @@ void FileCloseSync(fileref file)
     }
 }
 
+void FileRead(fileref file, byte *data, size_t size)
+{
+    FileEntry *fe = getFileEntry(file);
+    const byte *p;
+    size_t fileSize;
+
+    assert(size);
+    fileMMap(fe, &p, &fileSize, true);
+    assert(size <= fileSize);
+    memcpy(data, p, size);
+    fileMUnmap(fe);
+}
+
 void FileWrite(fileref file, const byte *data, size_t size)
 {
     fileWrite(getFileEntry(file), data, size);

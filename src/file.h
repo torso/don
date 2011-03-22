@@ -35,6 +35,7 @@ extern boolean FileHasChanged(fileref file, const byte *blob);
 extern void FileOpenAppend(fileref file);
 extern void FileClose(fileref file);
 extern void FileCloseSync(fileref file);
+extern nonnull void FileRead(fileref file, byte *data, size_t size);
 extern nonnull void FileWrite(fileref file, const byte *data, size_t size);
 
 /* TODO: Refcount mmap */

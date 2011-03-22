@@ -80,12 +80,19 @@ static char **createStringArray(objectref collection)
 
 static objectref readFile(objectref object)
 {
-    const char *text;
-    size_t size;
     fileref file = HeapGetAsFile(object);
+    objectref string;
+    char *data;
+    size_t size;
 
-    FileMMap(file, (const byte**)&text, &size, true);
-    return HeapCreateWrappedString(text, size);
+    size = FileGetSize(file);
+    if (!size)
+    {
+        return HeapEmptyString;
+    }
+    string = HeapCreateUninitialisedString(size, &data);
+    FileRead(file, (byte*)data, size);
+    return string;
 }
 
 
