@@ -66,6 +66,7 @@ void WorkAdd(const Work *work)
         printWork("added: ", work);
     }
     ByteVectorAddData(&queue, (const byte*)work, getWorkSize(work));
+    WorkExecute();
 }
 
 void WorkDiscard(const VM *vm)
