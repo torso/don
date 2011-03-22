@@ -456,6 +456,12 @@ static void fileMMap(FileEntry *fe, const byte **p, size_t *size,
             return;
         }
         fileStat(fe, true);
+        if (!fe->blob.size)
+        {
+            *p = 0;
+            *size = 0;
+            return;
+        }
         fe->data = (byte*)mmap(null, fe->blob.size, PROT_READ, MAP_PRIVATE,
                                fe->fd, 0);
         if (fe->data == (byte*)-1)
