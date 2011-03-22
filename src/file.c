@@ -973,6 +973,7 @@ void FileDelete(fileref file)
 {
     FileEntry *fe = getFileEntry(file);
     fileClose(fe);
+    fe->hasStat = false;
     if (!remove(fe->name) || errno == ENOENT)
     {
         return;
