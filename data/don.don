@@ -1,3 +1,6 @@
+cat(file)
+   echo(readFile(file))
+
 contains(data, element)
    return indexOf(data, element) != null
 
