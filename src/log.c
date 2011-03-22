@@ -248,16 +248,17 @@ static void logPrintObjectAutoNewline(Pipe *p, objectref object)
         logPrint(p, "\n", 1);
         return;
     }
+    ByteVectorReserveAppendSize(&p->buffer, length + 1);
     data = ByteVectorGetAppendPointer(&p->buffer);
-    ByteVectorGrow(&p->buffer, length + 1);
     HeapWriteString(object, (char*)data);
     if (data[length - 1] != '\n')
     {
         data[length] = '\n';
+        ByteVectorGrow(&p->buffer, length + 1);
     }
     else
     {
-        ByteVectorPop(&p->buffer);
+        ByteVectorGrow(&p->buffer, length);
     }
     processNewData(p, ByteVectorSize(&p->buffer));
 }
