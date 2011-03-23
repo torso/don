@@ -76,6 +76,9 @@ sum(n...)
       result += i
    return result
 
+startsWith(data, element)
+   return indexOf(data, element) == 0
+
 
 cc(files..., flags = [])
    result = []
