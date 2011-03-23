@@ -2,6 +2,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef VALGRIND
+#undef NVALGRIND
+#include <valgrind/valgrind.h>
+#endif
+
 #ifndef DATADIR
 #define DATADIR "data/"
 #endif

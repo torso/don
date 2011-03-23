@@ -64,29 +64,6 @@ static void cleanup(void)
     LogDispose();
 }
 
-#ifdef DEBUG
-#include <execinfo.h>
-#include <signal.h>
-
-void _assert(const char *expression, const char *file, int line)
-{
-    static boolean exiting;
-    void *backtraceData[128];
-    uint frames;
-
-    fflush(stdout);
-    fprintf(stderr, "Assertion failed: %s:%d: %s\n", file, line, expression);
-    frames = (uint)backtrace(backtraceData, sizeof(backtraceData) / sizeof(void*));
-    backtrace_symbols_fd(&backtraceData[1], (int)frames - 1, 1);
-    if (!exiting)
-    {
-        exiting = true;
-        cleanup();
-    }
-    raise(SIGABRT);
-}
-#endif
-
 int main(int argc, const char **argv)
 {
     int i;
@@ -319,6 +296,35 @@ int main(int argc, const char **argv)
     free(bytecode);
     return 0;
 }
+
+
+#ifdef DEBUG
+#include <execinfo.h>
+#include <signal.h>
+
+#pragma GCC diagnostic ignored "-Wconversion"
+void _assert(const char *expression, const char *file, int line)
+{
+    void *backtraceData[128];
+    uint frames;
+
+    fflush(stdout);
+#ifdef VALGRIND
+    if (RUNNING_ON_VALGRIND)
+    {
+        VALGRIND_PRINTF_BACKTRACE("Assertion failed: %s:%d: %s\n",
+                                  file, line, expression);
+    }
+    else
+#endif
+    {
+        fprintf(stderr, "Assertion failed: %s:%d: %s\n", file, line, expression);
+        frames = (uint)backtrace(backtraceData, sizeof(backtraceData) / sizeof(void*));
+        backtrace_symbols_fd(&backtraceData[1], (int)frames - 1, 1);
+    }
+    raise(SIGABRT);
+}
+#endif
 
 #undef calloc
 void *mycalloc(size_t count, size_t eltsize)
