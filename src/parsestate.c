@@ -201,7 +201,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
 
     state->indent = prevIndent;
 
-    if (trailingElse)
+    if (trailingElse && prevIndent <= indent)
     {
         if (type != BLOCK_IF)
         {
