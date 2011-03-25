@@ -1,10 +1,24 @@
 #include "bytevector.h"
 #include "intvector.h"
 
+struct _VMBranch;
+typedef struct _VMBranch VMBranch;
+struct _VMBranch
+{
+    VMBranch *parent;
+    objectref condition;
+    uint children;
+    uint mutableCount;
+    objectref mutableIndex[1];
+};
+
 struct VM
 {
+    VMBranch *parent;
     objectref condition;
 
+    uint mutableCount;
+    intvector mutableIndex;
     objectref *fields;
     intvector callStack;
     intvector stack;
@@ -22,7 +36,8 @@ extern nonnull VM *VMCreate(const byte *bytecode, functionref target);
 extern nonnull VM *VMClone(VM *vm, objectref condition, const byte *ip);
 extern nonnull void VMDispose(VM *vm);
 
-extern nonnull void VMApplyCondition(VM *vm, objectref condition);
+extern nonnull uint VMAddMutable(VM *vm, objectref object);
+extern nonnull objectref VMGetMutable(VM *vm, uint index);
 
 extern nonnull objectref VMPeek(VM *vm);
 extern nonnull objectref VMPop(VM *vm);

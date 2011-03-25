@@ -66,12 +66,13 @@ extern void HeapDispose(void);
 extern nonnull ObjectType HeapGetObjectType(objectref object);
 extern nonnull size_t HeapGetObjectSize(objectref object);
 extern nonnull const byte *HeapGetObjectData(objectref object);
-extern nonnull void HeapHash(objectref object, HashState *hash);
+extern nonnull void HeapHash(VM *vm, objectref object, HashState *hash);
 extern nonnull boolean HeapEquals(objectref object1, objectref object2);
 extern nonnull int HeapCompare(objectref object1, objectref object2);
 
 extern nonnull byte *HeapAlloc(ObjectType type, size_t size);
 extern nonnull objectref HeapFinishAlloc(byte *objectData);
+extern nonnull objectref HeapClone(objectref object);
 
 
 
@@ -158,10 +159,11 @@ extern nonnull boolean HeapCollectionGet(objectref object,
 
 
 
-extern nonnull objectref HeapCreateIterator(objectref object);
 extern nonnull void HeapIteratorInit(Iterator *iter, objectref object,
                                      boolean flatten);
-extern nonnull boolean HeapIteratorNext(Iterator *iter, objectref *value);
+extern nonnull boolean HeapIteratorObjectNext(VM *vm, objectref iter,
+                                              objectref *value);
+extern boolean HeapIteratorNext(VM *vm, Iterator *iter, objectref *value);
 
 extern nonnull objectref HeapCreateFilesetGlob(const char *pattern);
 
@@ -170,11 +172,11 @@ extern nonnull objectref HeapCreateFilesetGlob(const char *pattern);
 extern boolean HeapIsFutureValue(objectref object);
 extern objectref HeapCreateFutureValue(void);
 extern void HeapSetFutureValue(objectref object, objectref value);
-extern objectref HeapTryWait(objectref object);
-extern objectref HeapWait(objectref object);
+extern objectref HeapTryWait(VM *vm, objectref object);
+extern objectref HeapWait(VM *vm, objectref object);
 
 
 
-extern objectref HeapApplyUnary(Instruction op, objectref value);
-extern objectref HeapApplyBinary(Instruction op,
+extern objectref HeapApplyUnary(VM *vm, Instruction op, objectref value);
+extern objectref HeapApplyBinary(VM *vm, Instruction op,
                                  objectref value1, objectref value2);

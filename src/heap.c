@@ -12,7 +12,10 @@
 #define INITIAL_HEAP_INDEX_SIZE 1
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))
 
-#define INTEGER_LITERAL_MARK (((objectref)1 << (sizeof(objectref) * 8 - 1)))
+#define MUTABLE_OBJECT_MARK (((objectref)1 << (sizeof(objectref) * 8 - 1)))
+#define INTEGER_LITERAL_MARK (MUTABLE_OBJECT_MARK >> 1)
+#define INTEGER_LITERAL_MASK (~INTEGER_LITERAL_MARK & ~MUTABLE_OBJECT_MARK)
+#define INTEGER_LITERAL_SHIFT 2
 
 #define OBJECT_OVERHEAD 8
 #define HEADER_SIZE 0
@@ -38,6 +41,9 @@ objectref HeapEmptyString;
 objectref HeapEmptyList;
 objectref HeapNewline;
 
+static byte *HeapAllocMutable(ObjectType type, size_t size);
+static objectref HeapFinishAllocMutable(VM *vm, byte *objectData);
+
 
 static void checkObject(objectref object)
 {
@@ -47,6 +53,42 @@ static void checkObject(objectref object)
 static pureconst boolean isInteger(objectref object)
 {
     return (object & INTEGER_LITERAL_MARK) != 0;
+}
+
+static pureconst boolean isMutableType(ObjectType type)
+{
+    switch (type)
+    {
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_STRING:
+    case TYPE_STRING_POOLED:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
+    case TYPE_FILE:
+    case TYPE_EMPTY_LIST:
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
+    case TYPE_FUTURE:
+        return false;
+
+    case TYPE_ITERATOR:
+        return true;
+    }
+    assert(false);
+    return false;
+}
+
+static pure boolean isMutableRef(objectref object)
+{
+    return (object & MUTABLE_OBJECT_MARK) != 0;
+}
+
+static objectref getMutableRef(VM *vm, objectref object)
+{
+    return VMGetMutable(vm, uintFromRef(object) & ~MUTABLE_OBJECT_MARK);
 }
 
 static objectref boxReference(ObjectType type, ref_t value)
@@ -144,6 +186,13 @@ static boolean isCollectionType(ObjectType type)
     return false;
 }
 
+static objectref iterCreate(VM *vm, objectref object)
+{
+    byte *objectData = HeapAllocMutable(TYPE_ITERATOR, sizeof(Iterator));
+    HeapIteratorInit((Iterator*)objectData, object, false);
+    return HeapFinishAllocMutable(vm, objectData);
+}
+
 static byte *heapAlloc(ObjectType type, uint32 size)
 {
     uint32 *objectData = (uint32*)HeapPageFree;
@@ -195,6 +244,7 @@ void HeapDispose(void)
 ObjectType HeapGetObjectType(objectref object)
 {
     checkObject(object);
+    assert(!isMutableRef(object));
     return isInteger(object) ? TYPE_INTEGER :
         *(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_TYPE);
 }
@@ -211,7 +261,7 @@ const byte *HeapGetObjectData(objectref object)
     return HeapPageBase + sizeFromRef(object) + OBJECT_OVERHEAD;
 }
 
-void HeapHash(objectref object, HashState *hash)
+void HeapHash(VM *vm, objectref object, HashState *hash)
 {
     Iterator iter;
     fileref file;
@@ -273,10 +323,10 @@ void HeapHash(objectref object, HashState *hash)
         value = TYPE_ARRAY;
         HashUpdate(hash, &value, 1);
         HeapIteratorInit(&iter, object, false);
-        while (HeapIteratorNext(&iter, &object))
+        while (HeapIteratorNext(vm, &iter, &object))
         {
             /* TODO: Avoid recursion */
-            HeapHash(object, hash);
+            HeapHash(vm, object, hash);
         }
         break;
 
@@ -335,9 +385,9 @@ boolean HeapEquals(objectref object1, objectref object2)
         }
         HeapIteratorInit(&iter1, object1, false);
         HeapIteratorInit(&iter2, object2, false);
-        while (HeapIteratorNext(&iter1, &object1))
+        while (HeapIteratorNext(null, &iter1, &object1))
         {
-            success = HeapIteratorNext(&iter2, &object2);
+            success = HeapIteratorNext(null, &iter2, &object2);
             assert(success);
             if (!HeapEquals(object1, object2))
             {
@@ -365,14 +415,46 @@ byte *HeapAlloc(ObjectType type, size_t size)
 {
     assert(size);
     assert(size <= UINT32_MAX - 1);
+    assert(!isMutableType(type));
     return heapAlloc(type, (uint32)size);
+}
+
+static objectref heapFinishAlloc(byte *objectData)
+{
+    return refFromSize((size_t)(HeapPageOffset + objectData - OBJECT_OVERHEAD - HeapPageBase));
 }
 
 objectref HeapFinishAlloc(byte *objectData)
 {
-    objectref object = refFromSize((size_t)(HeapPageOffset + objectData - OBJECT_OVERHEAD - HeapPageBase));
-    checkObject(object);
+    objectref object = heapFinishAlloc(objectData);
+    assert(!isMutableType(HeapGetObjectType(object)));
     return object;
+}
+
+static byte *HeapAllocMutable(ObjectType type, size_t size)
+{
+    assert(size);
+    assert(size <= UINT32_MAX - 1);
+    assert(isMutableType(type));
+    return heapAlloc(type, (uint32)size);
+}
+
+static objectref HeapFinishAllocMutable(VM *vm, byte *objectData)
+{
+    objectref object = heapFinishAlloc(objectData);
+    assert(isMutableType(HeapGetObjectType(object)));
+    return VMAddMutable(vm, object) | MUTABLE_OBJECT_MARK;
+}
+
+objectref HeapClone(objectref object)
+{
+    ObjectType type = HeapGetObjectType(object);
+    size_t size = HeapGetObjectSize(object);
+    byte *data = HeapAllocMutable(type, size);
+    const byte *src = HeapGetObjectData(object);
+    assert(isMutableType(type));
+    memcpy(data, src, size);
+    return heapFinishAlloc(data);
 }
 
 
@@ -406,8 +488,10 @@ boolean HeapIsTrue(objectref object)
 objectref HeapBoxInteger(int value)
 {
     assert(value == HeapUnboxInteger(
-               refFromUint((uint)value | INTEGER_LITERAL_MARK)));
-    return refFromUint((uint)value | INTEGER_LITERAL_MARK);
+               refFromUint(((uint)value & INTEGER_LITERAL_MASK) |
+                           INTEGER_LITERAL_MARK)));
+    return refFromUint(((uint)value & INTEGER_LITERAL_MASK) |
+                       INTEGER_LITERAL_MARK);
 }
 
 objectref HeapBoxUint(uint value)
@@ -425,7 +509,8 @@ objectref HeapBoxSize(size_t value)
 int HeapUnboxInteger(objectref object)
 {
     assert(isInteger(object));
-    return ((signed)uintFromRef(object) << 1) >> 1;
+    return ((signed)uintFromRef(object) << INTEGER_LITERAL_SHIFT) >>
+        INTEGER_LITERAL_SHIFT;
 }
 
 size_t HeapUnboxSize(objectref object)
@@ -629,7 +714,7 @@ size_t HeapStringLength(objectref object)
         }
         size = size * 2 + 2;
         HeapIteratorInit(&iter, object, false);
-        while (HeapIteratorNext(&iter, &object))
+        while (HeapIteratorNext(null, &iter, &object))
         {
             size += HeapStringLength(object);
         }
@@ -720,7 +805,7 @@ char *HeapWriteString(objectref object, char *dst)
         *dst++ = '[';
         first = true;
         HeapIteratorInit(&iter, object, false);
-        while (HeapIteratorNext(&iter, &object))
+        while (HeapIteratorNext(null, &iter, &object))
         {
             if (!first)
             {
@@ -1107,13 +1192,6 @@ boolean HeapCollectionGet(objectref object, objectref indexObject,
 }
 
 
-objectref HeapCreateIterator(objectref object)
-{
-    byte *objectData = HeapAlloc(TYPE_ITERATOR, sizeof(Iterator));
-    HeapIteratorInit((Iterator*)objectData, object, false);
-    return HeapFinishAlloc(objectData);
-}
-
 void HeapIteratorInit(Iterator *iter, objectref object, boolean flatten)
 {
     size_t size;
@@ -1170,13 +1248,19 @@ void HeapIteratorInit(Iterator *iter, objectref object, boolean flatten)
     }
 }
 
-boolean HeapIteratorNext(Iterator *iter, objectref *value)
+boolean HeapIteratorObjectNext(VM *vm, objectref iter, objectref *value)
+{
+    return HeapIteratorNext(vm, (Iterator*)HeapGetObjectData(iter), value);
+}
+
+boolean HeapIteratorNext(VM *vm, Iterator *iter, objectref *value)
 {
     Iterator *current;
     Iterator *next;
     byte *data;
     boolean flatten;
 
+    *value = 0;
     for (;;)
     {
         flatten = false;
@@ -1219,17 +1303,18 @@ boolean HeapIteratorNext(Iterator *iter, objectref *value)
             assert(false);
             break;
         }
-        *value = HeapTryWait(*value);
+        *value = HeapTryWait(vm, *value);
         if (flatten ||
             (current->flatten &&
              *value &&
              HeapIsCollection(*value)))
         {
-            data = HeapAlloc(TYPE_ITERATOR, sizeof(Iterator));
+            data = HeapAllocMutable(TYPE_ITERATOR, sizeof(Iterator));
             next = (Iterator*)data;
             HeapIteratorInit(next, *value, current->flatten);
             next->next = iter->next;
-            iter->next = HeapFinishAlloc(data);
+            iter->next = vm ? HeapFinishAllocMutable(vm, data) :
+                heapFinishAlloc(data);
             continue;
         }
         return true;
@@ -1282,7 +1367,7 @@ typedef struct
     Instruction op;
 } FutureValueBinary;
 
-static objectref executeUnary(Instruction op, objectref value)
+static objectref executeUnary(VM *vm, Instruction op, objectref value)
 {
     switch (op)
     {
@@ -1305,7 +1390,7 @@ static objectref executeUnary(Instruction op, objectref value)
         return HeapBoxInteger(~HeapUnboxInteger(value));
 
     case OP_ITER_INIT:
-        return HeapCreateIterator(value);
+        return iterCreate(vm, value);
 
     case OP_ITER_NEXT:
     case OP_NULL:
@@ -1339,6 +1424,84 @@ static objectref executeUnary(Instruction op, objectref value)
     case OP_CONCAT_STRING:
     case OP_INDEXED_ACCESS:
     case OP_RANGE:
+    case OP_JUMP:
+    case OP_BRANCH_TRUE:
+    case OP_BRANCH_FALSE:
+    case OP_RETURN:
+    case OP_RETURN_VOID:
+    case OP_INVOKE:
+    case OP_INVOKE_NATIVE:
+    case OP_UNKNOWN_VALUE:
+        break;
+    }
+    assert(false);
+    return null;
+}
+
+static objectref executeBinaryPartial(Instruction op, objectref object,
+                                      objectref value1, objectref value2)
+{
+    switch (op)
+    {
+    case OP_DUP:
+        return value1;
+
+    case OP_EQUALS:
+    case OP_LESS_EQUALS:
+    case OP_GREATER_EQUALS:
+        if (value1 == value2)
+        {
+            return HeapTrue;
+        }
+        return object;
+    case OP_NOT_EQUALS:
+    case OP_LESS:
+    case OP_GREATER:
+        if (value1 == value2)
+        {
+            return HeapFalse;
+        }
+        return object;
+
+    case OP_AND:
+        if ((!HeapIsFutureValue(value1) && !HeapIsTrue(value1)) ||
+            (!HeapIsFutureValue(value2) && !HeapIsTrue(value2)))
+        {
+            return HeapFalse;
+        }
+        return object;
+    case OP_ADD:
+    case OP_SUB:
+    case OP_MUL:
+    case OP_DIV:
+    case OP_REM:
+    case OP_CONCAT_LIST:
+    case OP_CONCAT_STRING:
+    case OP_INDEXED_ACCESS:
+    case OP_RANGE:
+        return object;
+
+    case OP_NULL:
+    case OP_TRUE:
+    case OP_FALSE:
+    case OP_INTEGER:
+    case OP_STRING:
+    case OP_EMPTY_LIST:
+    case OP_LIST:
+    case OP_FILE:
+    case OP_FILESET:
+    case OP_POP:
+    case OP_REORDER_STACK:
+    case OP_LOAD:
+    case OP_STORE:
+    case OP_LOAD_FIELD:
+    case OP_STORE_FIELD:
+    case OP_CAST_BOOLEAN:
+    case OP_NOT:
+    case OP_NEG:
+    case OP_INV:
+    case OP_ITER_INIT:
+    case OP_ITER_NEXT:
     case OP_JUMP:
     case OP_BRANCH_TRUE:
     case OP_BRANCH_FALSE:
@@ -1498,11 +1661,15 @@ void HeapSetFutureValue(objectref object, objectref value)
     future->op = OP_DUP;
 }
 
-objectref HeapTryWait(objectref object)
+objectref HeapTryWait(VM *vm, objectref object)
 {
     FutureValueUnary *future1;
     FutureValueBinary *future2;
 
+    while (isMutableRef(object))
+    {
+        object = getMutableRef(vm, object);
+    }
     if (!HeapIsFutureValue(object))
     {
         return object;
@@ -1514,9 +1681,9 @@ objectref HeapTryWait(objectref object)
         {
             return object;
         }
-        future1->value = HeapTryWait(future1->value);
+        future1->value = HeapTryWait(vm, future1->value);
         return HeapIsFutureValue(future1->value) ?
-            object : executeUnary(future1->op, future1->value);
+            object : executeUnary(vm, future1->op, future1->value);
     }
     else
     {
@@ -1525,33 +1692,34 @@ objectref HeapTryWait(objectref object)
         {
             return object;
         }
-        future2->value1 = HeapTryWait(future2->value1);
-        future2->value2 = HeapTryWait(future2->value2);
-        return HeapIsFutureValue(future2->value1) ||
-            HeapIsFutureValue(future2->value2) ?
-            object :
+        future2->value1 = HeapTryWait(vm, future2->value1);
+        future2->value2 = HeapTryWait(vm, future2->value2);
+        return (HeapIsFutureValue(future2->value1) ||
+                HeapIsFutureValue(future2->value2)) ?
+            executeBinaryPartial(future2->op, object,
+                                 future2->value1, future2->value2) :
             executeBinary(future2->op, future2->value1, future2->value2);
     }
 }
 
-objectref HeapWait(objectref object)
+objectref HeapWait(VM *vm, objectref object)
 {
-    object = HeapTryWait(object);
+    object = HeapTryWait(vm, object);
     while (HeapIsFutureValue(object))
     {
         WorkExecute();
-        object = HeapTryWait(object);
+        object = HeapTryWait(vm, object);
     }
     return object;
 }
 
 
-objectref HeapApplyUnary(Instruction op, objectref value)
+objectref HeapApplyUnary(VM *vm, Instruction op, objectref value)
 {
     byte *data;
     FutureValueUnary *future;
 
-    value = HeapTryWait(value);
+    value = HeapTryWait(vm, value);
     if (HeapIsFutureValue(value))
     {
         data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueUnary));
@@ -1560,16 +1728,17 @@ objectref HeapApplyUnary(Instruction op, objectref value)
         future->op = op;
         return HeapFinishAlloc(data);
     }
-    return executeUnary(op, value);
+    return executeUnary(vm, op, value);
 }
 
-objectref HeapApplyBinary(Instruction op, objectref value1, objectref value2)
+objectref HeapApplyBinary(VM *vm, Instruction op,
+                          objectref value1, objectref value2)
 {
     byte *data;
     FutureValueBinary *future;
 
-    value1 = HeapTryWait(value1);
-    value2 = HeapTryWait(value2);
+    value1 = HeapTryWait(vm, value1);
+    value2 = HeapTryWait(vm, value2);
     if (HeapIsFutureValue(value1) || HeapIsFutureValue(value2))
     {
         data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueBinary));

@@ -43,7 +43,7 @@ static const FunctionInfo *getFunctionInfo(nativefunctionref function)
     return (FunctionInfo*)&functionInfo[sizeFromRef(function)];
 }
 
-static char **createStringArray(objectref collection)
+static char **createStringArray(VM *vm, objectref collection)
 {
     Iterator iter;
     objectref value;
@@ -57,7 +57,7 @@ static char **createStringArray(objectref collection)
     assert(HeapCollectionSize(collection));
 
     HeapIteratorInit(&iter, collection, true);
-    while (HeapIteratorNext(&iter, &value))
+    while (HeapIteratorNext(vm, &iter, &value))
     {
         size += HeapStringLength(value) + 1 + sizeof(char*);
         count++;
@@ -68,7 +68,7 @@ static char **createStringArray(objectref collection)
     table = strings;
     stringData = (char*)&strings[count];
     HeapIteratorInit(&iter, collection, true);
-    while (HeapIteratorNext(&iter, &value))
+    while (HeapIteratorNext(vm, &iter, &value))
     {
         *table++ = stringData;
         stringData = HeapWriteString(value, stringData);
@@ -194,7 +194,7 @@ static boolean nativeExec(ExecEnv *env)
 
     assert(HeapCollectionSize(env->env) % 2 == 0);
 
-    argv = createStringArray(env->command);
+    argv = createStringArray(env->work.vm, env->command);
 
     status = pipe(pipeOut);
     if (status == -1)
@@ -213,7 +213,8 @@ static boolean nativeExec(ExecEnv *env)
         fprintf(stderr, "BUILD ERROR: Program not found: %s.\n", argv[0]);
         TaskFailVM(env->work.vm);
     }
-    envp = HeapCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
+    envp = HeapCollectionSize(env->env) ?
+        EnvCreateCopy(env->work.vm, env->env) : EnvGetEnv();
 #ifdef POSIX_SPAWN
     posix_spawn_file_actions_init(&psfa);
     posix_spawn_file_actions_addclose(&psfa, pipeOut[0]);
@@ -389,7 +390,7 @@ static boolean nativeFileset(FilesetEnv *env)
 
     IntVectorInit(&files);
     HeapIteratorInit(&iter, env->value, true);
-    while (HeapIteratorNext(&iter, &o))
+    while (HeapIteratorNext(env->work.vm, &iter, &o))
     {
         if (HeapIsFutureValue(o))
         {
@@ -432,7 +433,7 @@ static boolean nativeGetCache(GetCacheEnv *env)
     }
 
     HashInit(&hashState);
-    HeapHash(env->key, &hashState);
+    HeapHash(env->work.vm, env->key, &hashState);
     HashFinal(&hashState, hash);
     ref = CacheGet(hash);
     uptodate = CacheCheckUptodate(ref);
@@ -694,7 +695,7 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
     if (env->accessedFiles)
     {
         HeapIteratorInit(&iter, env->accessedFiles, true);
-        while (HeapIteratorNext(&iter, &value))
+        while (HeapIteratorNext(env->work.vm, &iter, &value))
         {
             CacheAddDependency(ref, HeapGetFile(value));
         }
@@ -820,7 +821,7 @@ void NativeInvoke(VM *vm, nativefunctionref function)
            info->returnValueCount * sizeof(env.values[0]));
     for (i = info->parameterCount, p = env.values; i; i--, p++)
     {
-        *p = HeapTryWait(*p);
+        *p = HeapTryWait(vm, *p);
     }
     if (!info->function(&env.work))
     {

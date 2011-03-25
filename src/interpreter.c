@@ -99,7 +99,6 @@ static void execute(VM *vm)
     size_t size2;
     stringref string;
     byte *objectData;
-    Iterator *piter;
     functionref function;
     nativefunctionref nativeFunction;
 
@@ -107,6 +106,7 @@ static void execute(VM *vm)
     {
         if (TRACE)
         {
+            printf("[%p]", (void*)vm);
             BytecodeDisassembleInstruction(ip, vmBytecode);
         }
         op = (Instruction)*ip++;
@@ -206,16 +206,14 @@ static void execute(VM *vm)
         case OP_NEG:
         case OP_INV:
         case OP_ITER_INIT:
-            VMPush(vm, HeapApplyUnary(op, VMPop(vm)));
+            VMPush(vm, HeapApplyUnary(vm, op, VMPop(vm)));
             break;
 
         case OP_ITER_NEXT:
-            value = HeapWait(VMPop(vm));
+            value = HeapWait(vm, VMPop(vm));
             assert(HeapGetObjectType(value) == TYPE_ITERATOR);
             assert(HeapGetObjectSize(value) == sizeof(Iterator));
-            piter = (Iterator*)HeapGetObjectData(value);
-            value = 0;
-            VMPushBoolean(vm, HeapIteratorNext(piter, &value));
+            VMPushBoolean(vm, HeapIteratorObjectNext(vm, value, &value));
             VMPush(vm, value);
             break;
 
@@ -237,7 +235,7 @@ static void execute(VM *vm)
         case OP_RANGE:
             value = VMPop(vm);
             value2 = VMPop(vm);
-            VMPush(vm, HeapApplyBinary(op, value, value2));
+            VMPush(vm, HeapApplyBinary(vm, op, value, value2));
             break;
 
         case OP_JUMP:
@@ -247,11 +245,10 @@ static void execute(VM *vm)
 
         case OP_BRANCH_TRUE:
             jumpOffset = BytecodeReadInt(&ip);
-            value = HeapTryWait(VMPop(vm));
+            value = HeapTryWait(vm, VMPop(vm));
             if (HeapIsFutureValue(value))
             {
                 addVM(VMClone(vm, value, ip + jumpOffset));
-                VMApplyCondition(vm, HeapApplyUnary(OP_NOT, value));
             }
             else
             {
@@ -266,12 +263,11 @@ static void execute(VM *vm)
 
         case OP_BRANCH_FALSE:
             jumpOffset = BytecodeReadInt(&ip);
-            value = HeapTryWait(VMPop(vm));
+            value = HeapTryWait(vm, VMPop(vm));
             if (HeapIsFutureValue(value))
             {
-                addVM(VMClone(vm, HeapApplyUnary(OP_NOT, value),
+                addVM(VMClone(vm, HeapApplyUnary(vm, OP_NOT, value),
                               ip + jumpOffset));
-                VMApplyCondition(vm, value);
             }
             else
             {
@@ -349,7 +345,7 @@ void InterpreterExecute(const byte *bytecode, functionref target)
         for (i = 0; i < vmCount; i++)
         {
             vm = vmTable[i];
-            vm->condition = HeapTryWait(vm->condition);
+            vm->condition = HeapTryWait(vm, vm->condition);
             if (vm->condition == HeapFalse)
             {
                 removeVM(i--);

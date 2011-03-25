@@ -37,7 +37,7 @@ static void printWork(const char *prefix, const Work *work)
         *b++ = ' ';
     }
     *(b-2) = 0;
-    printf("%s%s(%s)\n", prefix,
+    printf("%s[%p] %s(%s)\n", prefix, (void*)work->vm,
            StringPoolGetString(NativeGetName(work->function)), buffer);
     free(buffer);
 }
@@ -113,13 +113,13 @@ void WorkExecute(void)
     assert(ByteVectorSize(&queue) >= getWorkSize(work));
     parameterCount = NativeGetParameterCount(work->function);
 
-    work->condition = HeapTryWait(work->condition);
+    work->condition = HeapTryWait(work->vm, work->condition);
     assert(work->condition == HeapTrue);
     for (i = parameterCount, p1 = (objectref*)(work+1);
          i--;
          p1++)
     {
-        *p1 = HeapTryWait(*p1);
+        *p1 = HeapTryWait(work->vm, *p1);
         assert(!HeapIsFutureValue(*p1));
     }
     memcpy(&env, work, getWorkSize(work));
