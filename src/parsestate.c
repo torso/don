@@ -191,7 +191,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         return true;
     }
 
-    type = IntVectorPop(&state->blockStack);
+    type = (BlockType)(int)IntVectorPop(&state->blockStack);
     prevIndent = IntVectorPop(&state->blockStack);
     if (indent > prevIndent)
     {

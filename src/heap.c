@@ -246,7 +246,7 @@ ObjectType HeapGetObjectType(objectref object)
     checkObject(object);
     assert(!isMutableRef(object));
     return isInteger(object) ? TYPE_INTEGER :
-        *(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_TYPE);
+        (ObjectType)*(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_TYPE);
 }
 
 size_t HeapGetObjectSize(objectref object)
