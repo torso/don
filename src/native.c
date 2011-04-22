@@ -59,6 +59,10 @@ static char **createStringArray(VM *vm, objectref collection)
     HeapIteratorInit(&iter, collection, true);
     while (HeapIteratorNext(vm, &iter, &value))
     {
+        if (HeapIsFutureValue(value))
+        {
+            return null;
+        }
         size += HeapStringLength(value) + 1 + sizeof(char*);
         count++;
     }
@@ -195,6 +199,10 @@ static boolean nativeExec(ExecEnv *env)
     assert(HeapCollectionSize(env->env) % 2 == 0);
 
     argv = createStringArray(env->work.vm, env->command);
+    if (!argv)
+    {
+        return false;
+    }
 
     status = pipe(pipeOut);
     if (status == -1)
