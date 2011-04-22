@@ -59,7 +59,7 @@ rm(file)
    native.rm(file)
 
 setUptodate(cacheFile, output, accessedFiles = [])
-   native.setUptodate(cacheFile, output[0], output[1], accessedFiles)
+   native.setUptodate(cacheFile, output[0], output[1], fileset(accessedFiles))
 
 sign(n)
    return n > 0 ? 1 : n ? -1 : 0
