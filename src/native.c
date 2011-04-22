@@ -396,23 +396,35 @@ static boolean nativeFileset(FilesetEnv *env)
         return false;
     }
 
-    IntVectorInit(&files);
-    HeapIteratorInit(&iter, env->value, true);
-    while (HeapIteratorNext(env->work.vm, &iter, &o))
+    if (HeapIsCollection(env->value))
     {
-        if (HeapIsFutureValue(o))
+        IntVectorInit(&files);
+        HeapIteratorInit(&iter, env->value, true);
+        while (HeapIteratorNext(env->work.vm, &iter, &o))
         {
-            return false;
+            if (HeapIsFutureValue(o))
+            {
+                return false;
+            }
+            if (!HeapIsFile(o))
+            {
+                o = HeapCreateFile(HeapGetAsFile(o));
+            }
+            IntVectorAddRef(&files, o);
         }
+        /* TODO: Reuse collection if possible. */
+        env->result = HeapCreateArrayFromVector(&files);
+        IntVectorDispose(&files);
+    }
+    else
+    {
+        o = env->value;
         if (!HeapIsFile(o))
         {
             o = HeapCreateFile(HeapGetAsFile(o));
         }
-        IntVectorAddRef(&files, o);
+        env->result = HeapCreateArray(&o, 1);
     }
-    /* TODO: Reuse collection if possible. */
-    env->result = HeapCreateArrayFromVector(&files);
-    IntVectorDispose(&files);
     return true;
 }
 
