@@ -1,4 +1,4 @@
-#define NATIVE_MAX_VALUES 7
+#define NATIVE_MAX_VALUES 9
 
 struct _Work;
 

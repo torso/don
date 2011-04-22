@@ -3,6 +3,8 @@ typedef struct _Work
     nativefunctionref function;
     objectref condition;
     VM *vm;
+    objectref accessedFiles;
+    objectref modifiedFiles;
 } Work;
 
 extern void WorkInit(void);

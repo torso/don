@@ -22,11 +22,13 @@
 
 #define NATIVE_FUNCTION_COUNT 19
 
-typedef boolean (*invoke)(Work*);
+typedef boolean (*preInvoke)(void*);
+typedef boolean (*invoke)(void*);
 
 typedef struct
 {
     stringref name;
+    preInvoke preFunction;
     invoke function;
     uint parameterCount;
     uint returnValueCount;
@@ -108,6 +110,12 @@ typedef struct
     objectref dst;
 } CpEnv;
 
+static void nativePreCp(CpEnv *env)
+{
+    env->work.accessedFiles = env->src;
+    env->work.modifiedFiles = env->dst;
+}
+
 static boolean nativeCp(CpEnv *env)
 {
     if (env->work.condition != HeapTrue ||
@@ -166,10 +174,27 @@ typedef struct
     objectref failOnError;
     objectref echoOut;
     objectref echoErr;
+    objectref access;
+    objectref modify;
 
     objectref output;
     objectref status;
 } ExecEnv;
+
+static void nativePreExec(ExecEnv *env)
+{
+    objectref output[2];
+
+    env->work.accessedFiles = env->access;
+    env->work.modifiedFiles = env->modify;
+
+    if (!env->output)
+    {
+        output[0] = HeapCreateFutureValue();
+        output[1] = HeapCreateFutureValue();
+        env->output = HeapCreateArray(output, 2);
+    }
+}
 
 static boolean nativeExec(ExecEnv *env)
 {
@@ -181,20 +206,11 @@ static boolean nativeExec(ExecEnv *env)
     int status;
     int pipeOut[2];
     int pipeErr[2];
-    objectref output[2];
     const byte *p;
     size_t length;
 #ifdef POSIX_SPAWN
     posix_spawn_file_actions_t psfa;
 #endif
-
-    if (!env->output)
-    {
-        output[0] = HeapCreateFutureValue();
-        output[1] = HeapCreateFutureValue();
-        env->output = HeapCreateArray(output, 2);
-        return false;
-    }
 
     assert(HeapCollectionSize(env->env) % 2 == 0);
 
@@ -537,13 +553,19 @@ typedef struct
     objectref result;
 } LinesEnv;
 
+static void nativePreLines(LinesEnv *env)
+{
+    if (HeapIsFutureValue(env->value) || HeapIsFile(env->value))
+    {
+        env->work.accessedFiles = env->value;
+    }
+}
+
 static boolean nativeLines(LinesEnv *env)
 {
     objectref content;
 
-    if (env->work.condition != HeapTrue ||
-        HeapIsFutureValue(env->value) ||
-        HeapIsFutureValue(env->trimEmptyLastLine))
+    if (HeapIsFutureValue(env->value) || HeapIsFutureValue(env->trimEmptyLastLine))
     {
         return false;
     }
@@ -562,6 +584,15 @@ typedef struct
     objectref src;
     objectref dst;
 } MvEnv;
+
+static void nativePreMv(MvEnv *env)
+{
+    objectref files[2];
+    files[0] = env->src;
+    files[1] = env->dst;
+    /* TODO: Don't reallocate array if it exists. */
+    env->work.modifiedFiles = HeapCreateArray(files, 2);
+}
 
 static boolean nativeMv(MvEnv *env)
 {
@@ -586,10 +617,14 @@ typedef struct
     objectref result;
 } ReadFileEnv;
 
+static void nativePreReadFile(ReadFileEnv *env)
+{
+    env->work.accessedFiles = env->file;
+}
+
 static boolean nativeReadFile(ReadFileEnv *env)
 {
-    if (env->work.condition != HeapTrue ||
-        HeapIsFutureValue(env->file))
+    if (env->work.condition != HeapTrue || HeapIsFutureValue(env->file))
     {
         return false;
     }
@@ -671,10 +706,14 @@ typedef struct
     objectref file;
 } RmEnv;
 
+static void nativePreRm(RmEnv *env)
+{
+    env->work.modifiedFiles = env->file;
+}
+
 static boolean nativeRm(RmEnv *env)
 {
-    if (env->work.condition != HeapTrue ||
-        HeapIsFutureValue(env->file))
+    if (env->work.condition != HeapTrue || HeapIsFutureValue(env->file))
     {
         return false;
     }
@@ -692,6 +731,13 @@ typedef struct
     objectref err;
     objectref accessedFiles;
 } SetUptodateEnv;
+
+static void nativePreSetUptodate(SetUptodateEnv *env)
+{
+    /* Marking the cache file as accessed should prevent the entry from being
+     * marked uptodate before all previous commands on it has completed. */
+    env->work.accessedFiles = env->cacheFile;
+}
 
 static boolean nativeSetUptodate(SetUptodateEnv *env)
 {
@@ -727,6 +773,7 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
         HeapWriteString(env->out, output);
         HeapWriteString(env->err, output + outLength);
     }
+    /* TODO: Sync files in cache directory. */
     CacheSetUptodate(ref, outLength, errLength, output);
     return true;
 }
@@ -771,11 +818,17 @@ typedef struct
     objectref result;
 } SplitEnv;
 
+static void nativePreSplit(SplitEnv *env)
+{
+    env->work.accessedFiles = env->value;
+}
+
 static boolean nativeSplit(SplitEnv *env)
 {
     objectref data;
 
-    if (HeapIsFutureValue(env->value) || HeapIsFutureValue(env->delimiter) ||
+    if (HeapIsFutureValue(env->value) ||
+        HeapIsFutureValue(env->delimiter) ||
         HeapIsFutureValue(env->removeEmpty))
     {
         return false;
@@ -790,11 +843,13 @@ static boolean nativeSplit(SplitEnv *env)
 }
 
 
-static void addFunctionInfo(const char *name, invoke function,
+static void addFunctionInfo(const char *name,
+                            preInvoke preFunction, invoke function,
                             uint parameterCount, uint returnValueCount)
 {
     assert(parameterCount + returnValueCount <= NATIVE_MAX_VALUES);
     functionInfo[initFunctionIndex].name = StringPoolAdd(name);
+    functionInfo[initFunctionIndex].preFunction = preFunction;
     functionInfo[initFunctionIndex].function = function;
     functionInfo[initFunctionIndex].parameterCount = parameterCount;
     functionInfo[initFunctionIndex].returnValueCount = returnValueCount;
@@ -803,24 +858,24 @@ static void addFunctionInfo(const char *name, invoke function,
 
 void NativeInit(void)
 {
-    addFunctionInfo("cp", (invoke)nativeCp, 2, 0);
-    addFunctionInfo("echo", (invoke)nativeEcho, 2, 0);
-    addFunctionInfo("exec", (invoke)nativeExec, 5, 2);
-    addFunctionInfo("fail", (invoke)nativeFail, 1, 0);
-    addFunctionInfo("file", (invoke)nativeFile, 3, 1);
-    addFunctionInfo("filename", (invoke)nativeFilename, 1, 1);
-    addFunctionInfo("fileset", (invoke)nativeFileset, 1, 1);
-    addFunctionInfo("getCache", (invoke)nativeGetCache, 2, 2);
-    addFunctionInfo("getenv", (invoke)nativeGetenv, 1, 1);
-    addFunctionInfo("indexOf", (invoke)nativeIndexOf, 2, 1);
-    addFunctionInfo("lines", (invoke)nativeLines, 2, 1);
-    addFunctionInfo("mv", (invoke)nativeMv, 2, 0);
-    addFunctionInfo("readFile", (invoke)nativeReadFile, 1, 1);
-    addFunctionInfo("replace", (invoke)nativeReplace, 3, 2);
-    addFunctionInfo("rm", (invoke)nativeRm, 1, 0);
-    addFunctionInfo("setUptodate", (invoke)nativeSetUptodate, 4, 0);
-    addFunctionInfo("size", (invoke)nativeSize, 1, 1);
-    addFunctionInfo("split", (invoke)nativeSplit, 3, 1);
+    addFunctionInfo("cp",          (preInvoke)nativePreCp,          (invoke)nativeCp,          2, 0);
+    addFunctionInfo("echo",        null,                            (invoke)nativeEcho,        2, 0);
+    addFunctionInfo("exec",        (preInvoke)nativePreExec,        (invoke)nativeExec,        7, 2);
+    addFunctionInfo("fail",        null,                            (invoke)nativeFail,        1, 0);
+    addFunctionInfo("file",        null,                            (invoke)nativeFile,        3, 1);
+    addFunctionInfo("filename",    null,                            (invoke)nativeFilename,    1, 1);
+    addFunctionInfo("fileset",     null,                            (invoke)nativeFileset,     1, 1);
+    addFunctionInfo("getCache",    null,                            (invoke)nativeGetCache,    2, 2);
+    addFunctionInfo("getenv",      null,                            (invoke)nativeGetenv,      1, 1);
+    addFunctionInfo("indexOf",     null,                            (invoke)nativeIndexOf,     2, 1);
+    addFunctionInfo("lines",       (preInvoke)nativePreLines,       (invoke)nativeLines,       2, 1);
+    addFunctionInfo("mv",          (preInvoke)nativePreMv,          (invoke)nativeMv,          2, 0);
+    addFunctionInfo("readFile",    (preInvoke)nativePreReadFile,    (invoke)nativeReadFile,    1, 1);
+    addFunctionInfo("replace",     null,                            (invoke)nativeReplace,     3, 2);
+    addFunctionInfo("rm",          (preInvoke)nativePreRm,          (invoke)nativeRm,          1, 0);
+    addFunctionInfo("setUptodate", (preInvoke)nativePreSetUptodate, (invoke)nativeSetUptodate, 4, 0);
+    addFunctionInfo("size",        null,                            (invoke)nativeSize,        1, 1);
+    addFunctionInfo("split",       (preInvoke)nativePreSplit,       (invoke)nativeSplit,       3, 1);
 }
 
 void NativeInvoke(VM *vm, nativefunctionref function)
@@ -837,6 +892,8 @@ void NativeInvoke(VM *vm, nativefunctionref function)
     assert(info->parameterCount + info->returnValueCount <= NATIVE_MAX_VALUES);
     env.work.vm = vm;
     env.work.condition = vm->condition;
+    env.work.accessedFiles = 0;
+    env.work.modifiedFiles = 0;
     VMPopMany(vm, env.values, info->parameterCount);
     memset(env.values + info->parameterCount, 0,
            info->returnValueCount * sizeof(env.values[0]));
@@ -844,7 +901,12 @@ void NativeInvoke(VM *vm, nativefunctionref function)
     {
         *p = HeapTryWait(vm, *p);
     }
-    if (!info->function(&env.work))
+    if (info->preFunction)
+    {
+        info->preFunction(&env);
+    }
+    if (env.work.accessedFiles || env.work.modifiedFiles ||
+        !info->function(&env))
     {
         for (i = info->returnValueCount, p = env.values + info->parameterCount;
              i;

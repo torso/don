@@ -10,8 +10,8 @@ cp(src, dst)
 echo(message, prefix = null)
    native.echo(message, prefix)
 
-exec(command..., env = [], failOnError = true, echo = true, echoStderr = true)
-   output, exitcode = native.exec(command, env, failOnError, echo, echoStderr)
+exec(command..., env = [], failOnError = true, echo = true, echoStderr = true, access = @/, modify = @/)
+   output, exitcode = native.exec(command, env, failOnError, echo, echoStderr, fileset(access), fileset(modify))
    return output, exitcode
 
 fail(message = null, condition = true, silent = false)
