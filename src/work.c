@@ -24,7 +24,14 @@ static void printWork(const char *prefix, const Work *work)
          i--;
          p++)
     {
-        length += HeapStringLength(*p) + 2;
+        if (HeapIsFutureValue(*p))
+        {
+            length += 8;
+        }
+        else
+        {
+            length += HeapStringLength(*p) + 2;
+        }
     }
     buffer = (char*)malloc(length);
     b = buffer;
@@ -32,7 +39,15 @@ static void printWork(const char *prefix, const Work *work)
          i--;
          p++)
     {
-        b = HeapWriteString(*p, b);
+        if (HeapIsFutureValue(*p))
+        {
+            memcpy(b, "future", 6);
+            b += 6;
+        }
+        else
+        {
+            b = HeapWriteString(*p, b);
+        }
         *b++ = ',';
         *b++ = ' ';
     }
