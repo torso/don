@@ -705,6 +705,7 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
         HeapIteratorInit(&iter, env->accessedFiles, true);
         while (HeapIteratorNext(env->work.vm, &iter, &value))
         {
+            assert(!HeapIsFutureValue(value)); /* TODO: Don't assume fileset is always finished. */
             CacheAddDependency(ref, HeapGetFile(value));
         }
     }
