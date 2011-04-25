@@ -1007,6 +1007,8 @@ void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
     FileEntry *newFE = getFileEntry(newFile);
     fileClose(oldFE);
     fileClose(newFE);
+    oldFE->hasStat = false;
+    newFE->hasStat = false;
     if (!rename(oldFE->name, newFE->name))
     {
         return;
