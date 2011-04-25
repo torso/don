@@ -1015,6 +1015,7 @@ void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
     }
     if (errno == EXDEV)
     {
+        /* TODO: Check that a file isn't being overwritten by a directory */
         FileDelete(newFile);
         FileCopy(oldFile, newFile);
         FileDelete(oldFile);
@@ -1027,6 +1028,11 @@ void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
         {
             return;
         }
+    }
+    if (errno == ENOTDIR)
+    {
+        TaskFail("Cannot overwrite non-directory '%s' with directory '%s'",
+                 newFE->name, oldFE->name);
     }
     if (failOnFileNotFound || errno != ENOENT)
     {
