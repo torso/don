@@ -8,6 +8,7 @@
 typedef struct
 {
     stringref name;
+    namespaceref ns;
     fileref file;
     uint line;
     uint fileOffset;
@@ -58,8 +59,8 @@ void FunctionIndexDispose(void)
 }
 
 
-functionref FunctionIndexAddFunction(stringref name, fileref file, uint line,
-                                     uint fileOffset)
+functionref FunctionIndexAddFunction(namespaceref ns, stringref name,
+                                     fileref file, uint line, uint fileOffset)
 {
     functionref function = refFromSize(ByteVectorSize(&functionTable));
     FunctionInfo *info;
@@ -68,6 +69,7 @@ functionref FunctionIndexAddFunction(stringref name, fileref file, uint line,
     lastFunction = sizeFromRef(function);
     info = getFunctionInfo(function);
     info->name = name;
+    info->ns = ns;
     info->file = file;
     info->line = line;
     info->fileOffset = fileOffset;
@@ -162,6 +164,11 @@ functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset)
 stringref FunctionIndexGetName(functionref function)
 {
     return getFunctionInfo(function)->name;
+}
+
+namespaceref FunctionIndexGetNamespace(functionref function)
+{
+    return getFunctionInfo(function)->ns;
 }
 
 fileref FunctionIndexGetFile(functionref function)

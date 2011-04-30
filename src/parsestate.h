@@ -27,7 +27,7 @@ typedef struct
 extern nonnull void ParseStateCheck(const ParseState *state);
 extern void ParseStateInit(ParseState *restrict state,
                            bytevector *restrict bytecode,
-                           functionref function,
+                           namespaceref ns, functionref function,
                            fileref file, uint line, uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
 extern nonnull boolean ParseStateFinish(ParseState *restrict state);

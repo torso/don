@@ -14,7 +14,6 @@ typedef struct
 
 static boolean initialised;
 static bytevector namespaceData;
-static inthashmap fileNamespace;
 static inthashmap nameNamespace;
 
 
@@ -37,7 +36,6 @@ void NamespaceInit(void)
 {
     ByteVectorInit(&namespaceData, sizeof(Namespace) * 4);
     ByteVectorSetSize(&namespaceData, sizeof(Namespace));
-    IntHashMapInit(&fileNamespace, 4);
     IntHashMapInit(&nameNamespace, 4);
     initialised = true;
 }
@@ -55,13 +53,12 @@ void NamespaceDispose(void)
             disposeNamespace(ns);
         }
         ByteVectorDispose(&namespaceData);
-        IntHashMapDispose(&fileNamespace);
         IntHashMapDispose(&nameNamespace);
     }
 }
 
 
-namespaceref NamespaceCreate(fileref file, stringref name)
+namespaceref NamespaceCreate(stringref name)
 {
     Namespace *entry;
     namespaceref ref =
@@ -74,17 +71,11 @@ namespaceref NamespaceCreate(fileref file, stringref name)
     IntHashMapInit(&entry->fieldIndex, 32);
     IntHashMapInit(&entry->functionIndex, 32);
     IntHashMapInit(&entry->targetIndex, 32);
-    IntHashMapAdd(&fileNamespace, uintFromRef(file), uintFromRef(ref));
     if (name)
     {
         IntHashMapAdd(&nameNamespace, uintFromRef(name), uintFromRef(ref));
     }
     return ref;
-}
-
-namespaceref NamespaceGet(fileref file)
-{
-    return refFromUint(IntHashMapGet(&fileNamespace, uintFromRef(file)));
 }
 
 

@@ -1,8 +1,9 @@
 extern void FunctionIndexInit(void);
 extern void FunctionIndexDispose(void);
 
-extern functionref FunctionIndexAddFunction(stringref name, fileref file,
-                                            uint line, uint fileOffset);
+extern functionref FunctionIndexAddFunction(namespaceref ns, stringref name,
+                                            fileref file, uint line,
+                                            uint fileOffset);
 extern void FunctionIndexAddParameter(functionref function, stringref name,
                                       fieldref value, boolean vararg);
 extern void FunctionIndexFinishParameters(functionref function,
@@ -14,6 +15,7 @@ extern functionref FunctionIndexGetNextFunction(functionref function);
 
 extern functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset);
 extern stringref FunctionIndexGetName(functionref function);
+extern namespaceref FunctionIndexGetNamespace(functionref function);
 extern fileref FunctionIndexGetFile(functionref function);
 extern uint FunctionIndexGetLine(functionref function);
 extern uint FunctionIndexGetFileOffset(functionref function);

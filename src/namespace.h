@@ -3,8 +3,7 @@
 extern void NamespaceInit(void);
 extern void NamespaceDispose(void);
 
-extern namespaceref NamespaceCreate(fileref file, stringref name);
-extern namespaceref NamespaceGet(fileref file);
+extern namespaceref NamespaceCreate(stringref name);
 
 extern void NamespaceAddField(namespaceref ns, stringref name, fieldref field);
 extern void NamespaceAddFunction(namespaceref ns, stringref name,

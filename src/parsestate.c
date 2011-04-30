@@ -84,7 +84,8 @@ static uint16 getLocalIndex(ParseState *state, stringref name)
 
 
 void ParseStateInit(ParseState *state, bytevector *bytecode,
-                    functionref function, fileref file, uint line, uint offset)
+                    namespaceref ns, functionref function,
+                    fileref file, uint line, uint offset)
 {
     const ParameterInfo *parameterInfo;
     uint parameterCount;
@@ -96,7 +97,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
     FileMMap(file, &state->start, &size, true);
     state->current = state->start + offset;
     state->limit = state->start + size;
-    state->ns = NamespaceGet(file);
+    state->ns = ns;
     state->function = function;
     state->file = file;
     state->line = line;

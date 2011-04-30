@@ -185,7 +185,7 @@ int main(int argc, const char **argv)
     }
 
     FunctionIndexInit();
-    FunctionIndexAddFunction(StringPoolAdd(""), 0, 0, 0);
+    FunctionIndexAddFunction(0, StringPoolAdd(""), 0, 0, 0);
     FieldIndexInit();
     NamespaceInit();
     NativeInit();
@@ -194,12 +194,11 @@ int main(int argc, const char **argv)
     filename = DATADIR "don.don";
     donNamespaceFile = FileAdd(filename, strlen(filename));
     FileMMap(donNamespaceFile, &p, &size, true);
-    NamespaceCreate(donNamespaceFile, StringPoolAdd("don"));
-    ParseFile(donNamespaceFile);
+    ParseFile(donNamespaceFile, NamespaceCreate(StringPoolAdd("don")));
     inputFile = FileAdd(inputFilename, strlen(inputFilename));
     FileMMap(inputFile, &p, &size, true);
-    defaultNamespace = NamespaceCreate(inputFile, 0);
-    ParseFile(inputFile);
+    defaultNamespace = NamespaceCreate(0);
+    ParseFile(inputFile, defaultNamespace);
 
     for (field = FieldIndexGetFirstField();
          field;
