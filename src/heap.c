@@ -252,12 +252,14 @@ ObjectType HeapGetObjectType(objectref object)
 size_t HeapGetObjectSize(objectref object)
 {
     checkObject(object);
+    assert(!isMutableRef(object));
     return *(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_SIZE);
 }
 
 const byte *HeapGetObjectData(objectref object)
 {
     checkObject(object);
+    assert(!isMutableRef(object));
     return HeapPageBase + sizeFromRef(object) + OBJECT_OVERHEAD;
 }
 
@@ -1313,8 +1315,7 @@ boolean HeapIteratorNext(VM *vm, Iterator *iter, objectref *value)
             next = (Iterator*)data;
             HeapIteratorInit(next, *value, current->flatten);
             next->next = iter->next;
-            iter->next = vm ? HeapFinishAllocMutable(vm, data) :
-                heapFinishAlloc(data);
+            iter->next = heapFinishAlloc(data);
             continue;
         }
         return true;
