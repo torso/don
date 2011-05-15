@@ -45,7 +45,9 @@ extern nonnull void ByteVectorAdd(bytevector *v, byte value);
 extern nonnull void ByteVectorAddInt(bytevector *v, int value);
 extern nonnull void ByteVectorAddUint(bytevector *v, uint value);
 extern nonnull void ByteVectorAddUint16(bytevector *v, uint16 value);
+extern nonnull void ByteVectorAddSize(bytevector *v, size_t value);
 extern nonnull void ByteVectorAddRef(bytevector *v, ref_t value);
+extern nonnull void ByteVectorAddAll(bytevector *v, const bytevector *src);
 extern nonnull void ByteVectorAddData(bytevector *v,
                                       const byte *data, size_t size);
 extern nonnull void ByteVectorInsertData(bytevector *v, size_t offset,
@@ -55,10 +57,13 @@ extern nonnull byte ByteVectorGet(const bytevector *v, size_t index);
 #define ByteVectorGetInt(v, index) ((int)ByteVectorGetUint(v, index))
 extern nonnull uint ByteVectorGetUint(const bytevector *v, size_t index);
 extern nonnull uint16 ByteVectorGetUint16(const bytevector *v, size_t index);
+extern nonnull void ByteVectorGetData(const bytevector *v, size_t index,
+                                      byte *dst, size_t size);
 
 extern nonnull void ByteVectorSet(bytevector *v, size_t index, byte value);
 extern nonnull void ByteVectorSetInt(bytevector *v, size_t index, int value);
 extern nonnull void ByteVectorSetUint(bytevector *v, size_t index, uint value);
+extern nonnull void ByteVectorSetSizeAt(bytevector *v, size_t index, size_t value);
 
 extern nonnull byte ByteVectorRead(const bytevector *v, size_t *index);
 #define ByteVectorReadInt(v, index) ((int)ByteVectorReadUint(v, index))

@@ -208,20 +208,31 @@ void ByteVectorAddInt(bytevector *v, int value)
 
 void ByteVectorAddUint(bytevector *v, uint value)
 {
-    uint *p = (uint*)grow(v, sizeof(uint));
+    uint *p = (uint*)grow(v, sizeof(value));
     *p = value;
 }
 
 void ByteVectorAddUint16(bytevector *v, uint16 value)
 {
-    byte *p = grow(v, sizeof(uint16));
+    byte *p = grow(v, sizeof(value));
     *p++ = (byte)(value >> 16);
     *p = (byte)value;
+}
+
+void ByteVectorAddSize(bytevector *v, size_t value)
+{
+    size_t *p = (size_t*)grow(v, sizeof(value));
+    *p = value;
 }
 
 void ByteVectorAddRef(bytevector *v, ref_t value)
 {
     ByteVectorAddUint(v, uintFromRef(value));
+}
+
+void ByteVectorAddAll(bytevector *v, const bytevector *src)
+{
+    ByteVectorAddData(v, ByteVectorGetPointer(src, 0), ByteVectorSize(src));
 }
 
 void ByteVectorAddData(bytevector *v, const byte *data, size_t size)
@@ -267,14 +278,20 @@ void ByteVectorSet(bytevector *v, size_t index, byte value)
 
 void ByteVectorSetInt(bytevector *v, size_t index, int value)
 {
-    checkByteVectorRange(v, index, sizeof(int));
+    checkByteVectorRange(v, index, sizeof(value));
     *((int*)&v->data[index]) = value;
 }
 
 void ByteVectorSetUint(bytevector *v, size_t index, uint value)
 {
-    checkByteVectorRange(v, index, sizeof(uint));
+    checkByteVectorRange(v, index, sizeof(value));
     *((uint*)&v->data[index]) = value;
+}
+
+void ByteVectorSetSizeAt(bytevector *v, size_t index, size_t value)
+{
+    checkByteVectorRange(v, index, sizeof(value));
+    *((size_t*)&v->data[index]) = value;
 }
 
 
