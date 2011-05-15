@@ -78,6 +78,11 @@ default:
    out, exitcode = run(compile(), "-i", "input")
    fail(condition:exitcode)
 
+strace:
+   valgrind = false
+   out, exitcode = run("strace", "-qvC", compile(), "-i", "input")
+   fail(condition:exitcode)
+
 debug:
    program = compile()
    exec(gdb, program, "-i", "input", env:["XDG_CACHE_HOME", "tempcache"])
