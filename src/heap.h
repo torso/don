@@ -120,12 +120,17 @@ extern nonnull objectref HeapStringIndexOf(objectref text, size_t startOffset,
 
 
 
-extern nonnull objectref HeapCreateFile(fileref file);
+/*
+  Creates a path object, if the supplied object isn't one already.
+*/
+extern nonnull objectref HeapCreatePath(objectref path);
+extern nonnull const char *HeapGetPath(objectref path, size_t *length);
 extern nonnull boolean HeapIsFile(objectref object);
-extern nonnull fileref HeapGetFile(objectref object);
-extern nonnull fileref HeapGetAsFile(objectref object);
-extern nonnull fileref HeapGetFileFromParts(objectref path, objectref name,
-                                            objectref extension);
+extern nonnull objectref HeapPathFromParts(objectref path, objectref name,
+                                           objectref extension);
+
+extern nonnull objectref HeapCreateFilesetGlob(const char *pattern,
+                                               size_t length);
 
 
 
@@ -164,8 +169,6 @@ extern nonnull void HeapIteratorInit(Iterator *iter, objectref object,
 extern nonnull boolean HeapIteratorObjectNext(VM *vm, objectref iter,
                                               objectref *value);
 extern boolean HeapIteratorNext(VM *vm, Iterator *iter, objectref *value);
-
-extern nonnull objectref HeapCreateFilesetGlob(const char *pattern);
 
 
 

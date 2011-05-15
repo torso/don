@@ -151,7 +151,7 @@ static const char *toString(objectref object, boolean *copy)
     }
     if (HeapIsFile(object))
     {
-        return FileGetName(HeapGetFile(object));
+        return getString(unboxReference(TYPE_FILE, object));
     }
     assert(false); /* TODO */
     return null;
@@ -203,12 +203,17 @@ static byte *heapAlloc(ObjectType type, uint32 size)
     return (byte*)objectData;
 }
 
-static objectref finishAllocResize(byte *objectData, uint32 newSize)
+static objectref heapTop(void)
 {
-    objectref object = refFromSize((size_t)(HeapPageOffset + objectData - OBJECT_OVERHEAD - HeapPageBase));
+    return refFromSize((size_t)(HeapPageFree - HeapPageBase));
+}
+
+static objectref heapNext(objectref object)
+{
     checkObject(object);
-    *(uint32*)(objectData - OBJECT_OVERHEAD + HEADER_SIZE) = newSize;
-    return object;
+    return refFromSize(
+        *(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_SIZE) +
+        sizeFromRef(object) + OBJECT_OVERHEAD);
 }
 
 
@@ -266,8 +271,9 @@ const byte *HeapGetObjectData(objectref object)
 void HeapHash(VM *vm, objectref object, HashState *hash)
 {
     Iterator iter;
-    fileref file;
     byte value;
+    const char *path;
+    size_t pathLength;
 
     assert(!HeapIsFutureValue(object));
 
@@ -309,9 +315,8 @@ void HeapHash(VM *vm, objectref object, HashState *hash)
     case TYPE_FILE:
         value = TYPE_FILE;
         HashUpdate(hash, &value, 1);
-        file = HeapGetFile(object);
-        HashUpdate(hash, (const byte*)FileGetName(file),
-                   FileGetNameLength(file));
+        path = HeapGetPath(object, &pathLength);
+        HashUpdate(hash, (const byte*)path, pathLength);
         break;
 
     case TYPE_EMPTY_LIST:
@@ -703,7 +708,7 @@ size_t HeapStringLength(objectref object)
         return ((const SubString*)HeapGetObjectData(object))->length;
 
     case TYPE_FILE:
-        return FileGetNameLength(HeapGetFile(object));
+        return HeapStringLength(unboxReference(TYPE_FILE, object));
 
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
@@ -734,7 +739,6 @@ char *HeapWriteString(objectref object, char *dst)
 {
     Iterator iter;
     size_t size;
-    fileref file;
     uint i;
     boolean first;
 
@@ -795,10 +799,7 @@ char *HeapWriteString(objectref object, char *dst)
         return dst + size;
 
     case TYPE_FILE:
-        file = HeapGetFile(object);
-        size = FileGetNameLength(file);
-        memcpy(dst, FileGetName(file), size);
-        return dst + size;
+        return HeapWriteString(unboxReference(TYPE_FILE, object), dst);
 
     case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
@@ -867,9 +868,34 @@ objectref HeapStringIndexOf(objectref text, size_t startOffset,
 }
 
 
-objectref HeapCreateFile(fileref file)
+objectref HeapCreatePath(objectref path)
 {
-    return boxReference(TYPE_FILE, file);
+    const char *src;
+    size_t srcLength;
+    char *temp;
+    size_t tempLength;
+
+    if (HeapIsFile(path))
+    {
+        return path;
+    }
+    src = getString(path);
+    srcLength = HeapStringLength(path);
+    /* TODO: Avoid malloc */
+    temp = FileCreatePath(null, 0, src, srcLength, null, 0, &tempLength);
+    if (tempLength != srcLength && memcmp(src, temp, srcLength))
+    {
+        path = HeapCreateString(temp, tempLength);
+    }
+    free(temp);
+    return boxReference(TYPE_FILE, path);
+}
+
+const char *HeapGetPath(objectref path, size_t *length)
+{
+    objectref s = unboxReference(TYPE_FILE, path);
+    *length = HeapStringLength(s);
+    return getString(s);
 }
 
 boolean HeapIsFile(objectref object)
@@ -877,22 +903,7 @@ boolean HeapIsFile(objectref object)
     return HeapGetObjectType(object) == TYPE_FILE;
 }
 
-fileref HeapGetFile(objectref object)
-{
-    return unboxReference(TYPE_FILE, object);
-}
-
-fileref HeapGetAsFile(objectref object)
-{
-    if (HeapIsString(object))
-    {
-        return FileAdd(getString(object), HeapStringLength(object));
-    }
-    return HeapGetFile(object);
-}
-
-fileref HeapGetFileFromParts(objectref path, objectref name,
-                             objectref extension)
+objectref HeapPathFromParts(objectref path, objectref name, objectref extension)
 {
     const char *pathString = null;
     const char *nameString;
@@ -903,7 +914,9 @@ fileref HeapGetFileFromParts(objectref path, objectref name,
     boolean freePath = false;
     boolean freeName;
     boolean freeExtension = false;
-    fileref file;
+    char *resultPath;
+    size_t resultPathLength;
+    objectref result;
 
     assert(!HeapIsFutureValue(path));
     assert(!HeapIsFutureValue(name));
@@ -924,9 +937,10 @@ fileref HeapGetFileFromParts(objectref path, objectref name,
         extensionString = toString(extension, &freeExtension);
         extensionLength = HeapStringLength(extension);
     }
-    file = FileAddRelativeExt(pathString, pathLength,
-                              nameString, nameLength,
-                              extensionString, extensionLength);
+    resultPath = FileCreatePath(pathString, pathLength,
+                                nameString, nameLength,
+                                extensionString, extensionLength,
+                                &resultPathLength);
     if (freePath)
     {
         free((void*)pathString);
@@ -939,7 +953,42 @@ fileref HeapGetFileFromParts(objectref path, objectref name,
     {
         free((void*)extensionString);
     }
-    return file;
+    result = HeapCreatePath(HeapCreateString(resultPath, resultPathLength));
+    free(resultPath);
+    return result;
+}
+
+
+static void createPath(const char *path, size_t length, void *userdata)
+{
+    HeapCreatePath(HeapCreateString(path, length));
+    (*(size_t*)userdata)++;
+}
+
+objectref HeapCreateFilesetGlob(const char *pattern, size_t length)
+{
+    objectref object = heapTop();
+    size_t count = 0;
+    byte *objectData;
+    objectref *files;
+
+    FileTraverseGlob(pattern, length, createPath, &count);
+    if (!count)
+    {
+        return HeapEmptyList;
+    }
+    objectData = HeapAlloc(TYPE_ARRAY, count * sizeof(objectref)); /* TODO: Fileset type */
+    files = (objectref*)objectData;
+    while (count--)
+    {
+        assert(HeapIsString(object));
+        object = heapNext(object);
+        assert(HeapIsFile(object));
+        *files++ = object;
+        object = heapNext(object);
+    }
+    /* TODO: Sort fileset */
+    return HeapFinishAlloc(objectData);
 }
 
 
@@ -1320,38 +1369,6 @@ boolean HeapIteratorNext(VM *vm, Iterator *iter, objectref *value)
         }
         return true;
     }
-}
-
-
-static void addFile(fileref file, void *userdata unused)
-{
-    assert(HeapPageFree + sizeof(fileref) <= HeapPageLimit); /* TODO: Grow heap. */
-    *(fileref*)HeapPageFree = file;
-    HeapPageFree += sizeof(fileref);
-}
-
-objectref HeapCreateFilesetGlob(const char *pattern)
-{
-    byte *restrict oldFree = HeapPageFree;
-    byte *restrict objectData;
-    ref_t *restrict files;
-    objectref object;
-    size_t count;
-
-    objectData = heapAlloc(TYPE_ARRAY, 0);
-    files = (ref_t*)objectData;
-    FileTraverseGlob(pattern, addFile, null);
-    if (HeapPageFree == objectData)
-    {
-        HeapPageFree = oldFree;
-        return HeapEmptyList;
-    }
-    object = finishAllocResize(objectData, (uint32)(HeapPageFree - objectData));
-    for (count = HeapCollectionSize(object); count; count--, files++)
-    {
-        *files = HeapCreateFile(*files);
-    }
-    return object;
 }
 
 

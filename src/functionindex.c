@@ -9,7 +9,7 @@ typedef struct
 {
     stringref name;
     namespaceref ns;
-    fileref file;
+    stringref filename;
     uint line;
     uint fileOffset;
 
@@ -60,7 +60,7 @@ void FunctionIndexDispose(void)
 
 
 functionref FunctionIndexAddFunction(namespaceref ns, stringref name,
-                                     fileref file, uint line, uint fileOffset)
+                                     stringref filename, uint line, uint fileOffset)
 {
     functionref function = refFromSize(ByteVectorSize(&functionTable));
     FunctionInfo *info;
@@ -70,7 +70,7 @@ functionref FunctionIndexAddFunction(namespaceref ns, stringref name,
     info = getFunctionInfo(function);
     info->name = name;
     info->ns = ns;
-    info->file = file;
+    info->filename = filename;
     info->line = line;
     info->fileOffset = fileOffset;
     return function;
@@ -171,9 +171,9 @@ namespaceref FunctionIndexGetNamespace(functionref function)
     return getFunctionInfo(function)->ns;
 }
 
-fileref FunctionIndexGetFile(functionref function)
+stringref FunctionIndexGetFilename(functionref function)
 {
-    return getFunctionInfo(function)->file;
+    return getFunctionInfo(function)->filename;
 }
 
 uint FunctionIndexGetLine(functionref function)

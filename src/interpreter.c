@@ -151,14 +151,15 @@ static void execute(VM *vm)
 
         case OP_FILE:
             string = BytecodeReadRef(&ip);
-            VMPush(vm, HeapCreateFile(
-                       FileAdd(StringPoolGetString(string),
-                               StringPoolGetStringLength(string))));
+            VMPush(vm, HeapCreatePath(
+                       HeapCreatePooledString(string)));
             break;
 
         case OP_FILESET:
+            string = BytecodeReadRef(&ip);
             VMPush(vm, HeapCreateFilesetGlob(
-                       StringPoolGetString(BytecodeReadRef(&ip))));
+                       StringPoolGetString(string),
+                       StringPoolGetStringLength(string)));
             break;
 
         case OP_POP:

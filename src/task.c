@@ -38,16 +38,26 @@ void TaskFailOOM(void)
 
 void TaskFailIO(const char *filename)
 {
-    switch (errno)
+    TaskFailIOErrno(errno, filename);
+}
+
+void TaskFailIOErrno(int error, const char *filename)
+{
+    switch (error)
     {
     case ENOENT:
         fprintf(stderr, "No such file or directory: %s\n", filename);
         break;
 
+    case EISDIR:
+        fprintf(stderr, "Expected file, but found directory: %s\n", filename);
+        break;
+
     default:
-        fprintf(stderr, "IO Error %d: %s\n", errno, filename);
+        fprintf(stderr, "IO Error %d: %s\n", error, filename);
         break;
     }
+    assert(false);
     exit(1);
 }
 

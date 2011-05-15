@@ -86,18 +86,24 @@ static char **createStringArray(VM *vm, objectref collection)
 
 static objectref readFile(objectref object)
 {
-    fileref file = HeapGetAsFile(object);
+    const char *path;
+    size_t pathLength;
+    File file;
     objectref string;
     char *data;
     size_t size;
 
-    size = FileGetSize(file);
+    path = HeapGetPath(object, &pathLength);
+    FileOpen(&file, path, pathLength);
+    size = FileSize(&file);
     if (!size)
     {
+        FileClose(&file);
         return HeapEmptyString;
     }
     string = HeapCreateUninitialisedString(size, &data);
-    FileRead(file, (byte*)data, size);
+    FileRead(&file, (byte*)data, size);
+    FileClose(&file);
     return string;
 }
 
@@ -118,14 +124,20 @@ static void nativePreCp(CpEnv *env)
 
 static boolean nativeCp(CpEnv *env)
 {
+    const char *srcPath;
+    const char *dstPath;
+    size_t srcLength;
+    size_t dstLength;
+
     if (env->work.condition != HeapTrue ||
         HeapIsFutureValue(env->src) || HeapIsFutureValue(env->dst))
     {
         return false;
     }
-    assert(HeapIsFile(env->src));
-    assert(HeapIsFile(env->dst));
-    FileCopy(HeapGetFile(env->src), HeapGetFile(env->dst));
+
+    srcPath = HeapGetPath(env->src, &srcLength);
+    dstPath = HeapGetPath(env->dst, &dstLength);
+    FileCopy(srcPath, srcLength, dstPath, dstLength);
     return true;
 }
 
@@ -198,17 +210,19 @@ static void nativePreExec(ExecEnv *env)
 
 static boolean nativeExec(ExecEnv *env)
 {
-    fileref executable;
+    char *executable;
     objectref value;
     char **argv;
     const char *const*envp;
+    Iterator iter;
+    const char *path;
     pid_t pid;
     int status;
     int pipeOut[2];
     int pipeErr[2];
     const byte *p;
     size_t length;
-#ifdef POSIX_SPAWN
+#ifdef HAVE_POSIX_SPAWN
     posix_spawn_file_actions_t psfa;
 #endif
 
@@ -231,7 +245,7 @@ static boolean nativeExec(ExecEnv *env)
         TaskFailErrno(false);
     }
 
-    executable = FileAddSearchPath(argv[0], strlen(argv[0]));
+    executable = FileSearchPath(argv[0], strlen(argv[0]), &length);
     if (!executable)
     {
         fprintf(stderr, "BUILD ERROR: Program not found: %s.\n", argv[0]);
@@ -239,7 +253,17 @@ static boolean nativeExec(ExecEnv *env)
     }
     envp = HeapCollectionSize(env->env) ?
         EnvCreateCopy(env->work.vm, env->env) : EnvGetEnv();
-#ifdef POSIX_SPAWN
+
+    assert(!HeapIsFutureValue(env->work.modifiedFiles));
+    HeapIteratorInit(&iter, env->work.modifiedFiles, false);
+    while (HeapIteratorNext(env->work.vm, &iter, &value))
+    {
+        assert(!HeapIsFutureValue(value));
+        path = HeapGetPath(value, &length);
+        FileMarkModified(path, length);
+    }
+
+#ifdef HAVE_POSIX_SPAWN
     posix_spawn_file_actions_init(&psfa);
     posix_spawn_file_actions_addclose(&psfa, pipeOut[0]);
     posix_spawn_file_actions_addclose(&psfa, pipeErr[0]);
@@ -247,8 +271,7 @@ static boolean nativeExec(ExecEnv *env)
     posix_spawn_file_actions_adddup2(&psfa, pipeErr[1], STDERR_FILENO);
     posix_spawn_file_actions_addclose(&psfa, pipeOut[1]);
     posix_spawn_file_actions_addclose(&psfa, pipeErr[1]);
-    status = posix_spawn(&pid, FileGetName(executable), &psfa, null,
-                         argv, (char**)envp);
+    status = posix_spawn(&pid, executable, &psfa, null, argv, (char**)envp);
     posix_spawn_file_actions_destroy(&psfa);
     if (status)
     {
@@ -274,10 +297,11 @@ static boolean nativeExec(ExecEnv *env)
         }
         close(pipeErr[1]);
 
-        execve(FileGetName(executable), argv, (char**)envp);
+        execve(executable, argv, (char**)envp);
         _exit(EXIT_FAILURE);
     }
 #endif
+    free(executable);
     free(argv);
     if (HeapCollectionSize(env->env))
     {
@@ -358,8 +382,7 @@ static boolean nativeFile(FileEnv *env)
         return false;
     }
 
-    env->result = HeapCreateFile(
-        HeapGetFileFromParts(env->path, env->name, env->extension));
+    env->result = HeapPathFromParts(env->path, env->name, env->extension);
     return true;
 }
 
@@ -374,20 +397,17 @@ typedef struct
 
 static boolean nativeFilename(FilenameEnv *env)
 {
-    fileref file;
-    size_t size;
-    const char *text;
+    const char *s;
+    size_t length;
 
     if (HeapIsFutureValue(env->path))
     {
         return false;
     }
 
-    assert(HeapIsFile(env->path));
-    file = HeapGetFile(env->path);
-    size = FileGetNameLength(file);
-    text = FileFilename(FileGetName(file), &size);
-    env->result = HeapCreateString(text, size);
+    s = HeapGetPath(env->path, &length);
+    s = FileStripPath(s, &length);
+    env->result = HeapCreateString(s, length);
     return true;
 }
 
@@ -422,10 +442,7 @@ static boolean nativeFileset(FilesetEnv *env)
             {
                 return false;
             }
-            if (!HeapIsFile(o))
-            {
-                o = HeapCreateFile(HeapGetAsFile(o));
-            }
+            o = HeapCreatePath(o);
             IntVectorAddRef(&files, o);
         }
         /* TODO: Reuse collection if possible. */
@@ -434,11 +451,7 @@ static boolean nativeFileset(FilesetEnv *env)
     }
     else
     {
-        o = env->value;
-        if (!HeapIsFile(o))
-        {
-            o = HeapCreateFile(HeapGetAsFile(o));
-        }
+        o = HeapCreatePath(env->value);
         env->result = HeapCreateArray(&o, 1);
     }
     return true;
@@ -458,6 +471,8 @@ typedef struct
 static boolean nativeGetCache(GetCacheEnv *env)
 {
     cacheref ref;
+    const char *cachePath;
+    size_t cachePathLength;
     HashState hashState;
     byte hash[DIGEST_SIZE];
     boolean uptodate;
@@ -473,8 +488,12 @@ static boolean nativeGetCache(GetCacheEnv *env)
     HashFinal(&hashState, hash);
     ref = CacheGet(hash);
     uptodate = CacheCheckUptodate(ref);
+    cachePath = CacheGetFile(ref, &cachePathLength);
+    env->cacheFile = HeapCreatePath(HeapCreateString(cachePath,
+                                                     cachePathLength));
     if (uptodate)
     {
+        env->uptodate = HeapTrue;
         if (HeapIsTrue(env->echoCachedOutput))
         {
             CacheEchoCachedOutput(ref);
@@ -482,10 +501,9 @@ static boolean nativeGetCache(GetCacheEnv *env)
     }
     else
     {
-        FileMkdir(CacheGetFile(ref));
+        env->uptodate = HeapFalse;
+        FileMkdir(cachePath, cachePathLength);
     }
-    env->cacheFile = HeapCreateFile(CacheGetFile(ref));
-    env->uptodate = uptodate ? HeapTrue : HeapFalse;
     return true;
 }
 
@@ -596,15 +614,20 @@ static void nativePreMv(MvEnv *env)
 
 static boolean nativeMv(MvEnv *env)
 {
+    const char *oldPath;
+    const char *newPath;
+    size_t oldLength;
+    size_t newLength;
+
     if (env->work.condition != HeapTrue ||
         HeapIsFutureValue(env->src) || HeapIsFutureValue(env->dst))
     {
         return false;
     }
 
-    assert(HeapIsFile(env->src));
-    assert(HeapIsFile(env->dst));
-    FileRename(HeapGetFile(env->src), HeapGetFile(env->dst), true);
+    oldPath = HeapGetPath(env->src, &oldLength);
+    newPath = HeapGetPath(env->dst, &newLength);
+    FileRename(oldPath, oldLength, newPath, newLength);
     return true;
 }
 
@@ -713,12 +736,16 @@ static void nativePreRm(RmEnv *env)
 
 static boolean nativeRm(RmEnv *env)
 {
+    const char *path;
+    size_t length;
+
     if (env->work.condition != HeapTrue || HeapIsFutureValue(env->file))
     {
         return false;
     }
 
-    FileDelete(HeapGetAsFile(env->file));
+    path = HeapGetPath(env->file, &length);
+    FileDelete(path, length);
     return true;
 }
 
@@ -744,6 +771,8 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
     cacheref ref;
     objectref value;
     Iterator iter;
+    const char *path;
+    size_t length;
     size_t outLength;
     size_t errLength;
     char *output = null;
@@ -755,7 +784,8 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
         return false;
     }
 
-    ref = CacheGetFromFile(HeapGetFile(env->cacheFile));
+    path = HeapGetPath(env->cacheFile, &length);
+    ref = CacheGetFromFile(path, length);
     outLength = HeapStringLength(env->out);
     errLength = HeapStringLength(env->err);
     if (env->accessedFiles)
@@ -764,7 +794,8 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
         while (HeapIteratorNext(env->work.vm, &iter, &value))
         {
             assert(!HeapIsFutureValue(value)); /* TODO: Don't assume fileset is always finished. */
-            CacheAddDependency(ref, HeapGetFile(value));
+            path = HeapGetPath(value, &length);
+            CacheAddDependency(ref, path, length);
         }
     }
     if (outLength || errLength)

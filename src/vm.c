@@ -44,7 +44,7 @@ VM *VMClone(VM *vm, objectref condition, const byte *ip)
         sizeof(VMBranch) - sizeof(parent->mutableIndex) +
         mutableCount * sizeof(parent->mutableIndex[0]));
 
-    assert(IntVectorSize(&vm->mutableIndex) <= UINT_MAX);
+    assert(IntVectorSize(&vm->mutableIndex) < UINT_MAX);
 
     parent->parent = vm->parent;
     parent->condition = vm->condition;

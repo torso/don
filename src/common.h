@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -14,7 +15,8 @@
 #ifndef LITTLE_ENDIAN
 #define LITTLE_ENDIAN
 #endif
-#define POSIX_SPAWN
+#define HAVE_POSIX_SPAWN 1
+#define HAVE_OPENAT 1
 
 typedef int8_t int8;
 typedef uint8_t uint8;
@@ -30,12 +32,6 @@ typedef uint8 byte;
 #define null (0)
 #define false 0
 #define true 1
-#define UINT_MAX ((uint)-1)
-#define INT_MIN (1 << (sizeof(int) * 8 - 1))
-#define INT_MAX (-1 - INT_MIN)
-#ifndef SIZE_MAX
-#define SIZE_MAX ((size_t)-1)
-#endif
 
 #define attrprintf(formatarg, args) __attribute((format(printf, formatarg, args)))
 #define nonnull __attribute((nonnull))
@@ -71,7 +67,6 @@ typedef struct VM VM;
 typedef uint ref_t;
 typedef ref_t cacheref;
 typedef ref_t fieldref;
-typedef ref_t fileref;
 typedef ref_t functionref;
 typedef ref_t namespaceref;
 typedef ref_t nativefunctionref;

@@ -72,10 +72,12 @@ int main(int argc, const char **argv)
     const char *inputFilename = null;
     const char *env;
     size_t envLength;
-    const char *filename;
-    fileref inputFile;
-    fileref cacheDirectory = 0;
-    fileref donNamespaceFile;
+    char *string;
+    stringref filename;
+    File inputFile;
+    char *cacheDirectory;
+    size_t cacheDirectoryLength;
+    File donNamespaceFile;
     namespaceref defaultNamespace;
     stringref name;
     fieldref field;
@@ -164,7 +166,10 @@ int main(int argc, const char **argv)
     EnvGet("XDG_CACHE_HOME", 14, &env, &envLength);
     if (envLength)
     {
-        cacheDirectory = FileAddRelative(env, envLength, "don", 3);
+        string = FileCreatePath(null, 0, env, envLength, null, 0, &envLength);
+        cacheDirectory = FileCreatePath(string, envLength, "don/", 4,
+                                        null, 0, &cacheDirectoryLength);
+        free(string);
     }
     else
     {
@@ -175,7 +180,10 @@ int main(int argc, const char **argv)
                     "No suitable location for cache directory found.\n");
             return 1;
         }
-        cacheDirectory = FileAddRelative(env, envLength, ".cache/don", 10);
+        string = FileCreatePath(null, 0, env, envLength, null, 0, &envLength);
+        cacheDirectory = FileCreatePath(string, envLength, ".cache/don/", 11,
+                                        null, 0, &cacheDirectoryLength);
+        free(string);
     }
 
     if (!IntVectorSize(&targets))
@@ -191,14 +199,29 @@ int main(int argc, const char **argv)
     NativeInit();
 
     ByteVectorInit(&parsed, 65536);
-    filename = DATADIR "don.don";
-    donNamespaceFile = FileAdd(filename, strlen(filename));
-    FileMMap(donNamespaceFile, &p, &size, true);
-    ParseFile(donNamespaceFile, NamespaceCreate(StringPoolAdd("don")));
-    inputFile = FileAdd(inputFilename, strlen(inputFilename));
-    FileMMap(inputFile, &p, &size, true);
+
+   string = FileCreatePath(null, 0,
+                            DATADIR "don.don", strlen(DATADIR "don.don"),
+                            null, 0,
+                            &size);
+    filename = StringPoolAdd2(string, size);
+    free(string);
+    FileOpen(&donNamespaceFile, StringPoolGetString(filename),
+             StringPoolGetStringLength(filename));
+    FileMMap(&donNamespaceFile, &p, &size);
+    ParseFile(filename, NamespaceCreate(StringPoolAdd("don")));
+
+    string = FileCreatePath(null, 0,
+                            inputFilename, strlen(inputFilename),
+                            null, 0,
+                            &size);
+    filename = StringPoolAdd2(string, size);
+    free(string);
+    FileOpen(&inputFile, StringPoolGetString(filename),
+             StringPoolGetStringLength(filename));
+    FileMMap(&inputFile, &p, &size);
     defaultNamespace = NamespaceCreate(0);
-    ParseFile(inputFile, defaultNamespace);
+    ParseFile(filename, defaultNamespace);
 
     for (field = FieldIndexGetFirstField();
          field;
@@ -229,10 +252,8 @@ int main(int argc, const char **argv)
         ParseFunctionBody(function, &parsed);
     }
 
-    FileMUnmap(donNamespaceFile);
-    FileMUnmap(inputFile);
-    FileDispose(donNamespaceFile);
-    FileDispose(inputFile);
+    FileClose(&donNamespaceFile);
+    FileClose(&inputFile);
     size = ByteVectorSize(&parsed);
     bytecode = ByteVectorDisposeContainer(&parsed);
     bytecodeLimit = bytecode + size;
@@ -281,7 +302,7 @@ int main(int argc, const char **argv)
     {
         return 1;
     }
-    CacheInit(cacheDirectory);
+    CacheInit(cacheDirectory, cacheDirectoryLength);
 
     WorkInit();
     HeapInit();

@@ -81,7 +81,7 @@ static attrprintf(2, 3) void error(ParseState *state, const char *format, ...)
     va_list args;
 
     va_start(args, format);
-    LogParseError(state->file, state->line, format, args);
+    LogParseError(state->filename, state->line, format, args);
     va_end(args);
 }
 
@@ -91,7 +91,7 @@ static attrprintf(3, 4) void errorOnLine(ParseState *state, size_t line,
     va_list args;
 
     va_start(args, format);
-    LogParseError(state->file, line, format, args);
+    LogParseError(state->filename, line, format, args);
     va_end(args);
 }
 
@@ -101,7 +101,7 @@ static attrprintf(2, 3) void statementError(ParseState *state,
     va_list args;
 
     va_start(args, format);
-    LogParseError(state->file, state->statementLine, format, args);
+    LogParseError(state->filename, state->statementLine, format, args);
     va_end(args);
 }
 
@@ -1859,7 +1859,7 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
                     }
                     field = FieldIndexAddConstant(
                         state->ns,
-                        state->file, state->line,
+                        state->filename, state->line,
                         getOffset(state, state->start),
                         state->bytecode, start);
                 }
@@ -1917,7 +1917,7 @@ static void parseScript(ParseState *state)
             {
                 NamespaceAddTarget(state->ns, name, FunctionIndexAddFunction(
                                        state->ns, name,
-                                       state->file, state->line,
+                                       state->filename, state->line,
                                        getOffset(state, state->start)));
                 skipEndOfLine(state);
                 allowIndent = true;
@@ -1926,7 +1926,7 @@ static void parseScript(ParseState *state)
             {
                 NamespaceAddFunction(state->ns, name, FunctionIndexAddFunction(
                                          state->ns, name,
-                                         state->file, state->line,
+                                         state->filename, state->line,
                                          getOffset(state, state->start)));
                 skipEndOfLine(state);
                 allowIndent = true;
@@ -1944,7 +1944,7 @@ static void parseScript(ParseState *state)
                 skipWhitespace(state);
                 NamespaceAddField(state->ns, name, FieldIndexAdd(
                                       state->ns,
-                                      state->file, state->line,
+                                      state->filename, state->line,
                                       getOffset(state, state->start)));
                 skipEndOfLine(state);
                 allowIndent = false;
@@ -1978,11 +1978,11 @@ void ParserAddKeywords(void)
     maxKeyword = keywordWhile;
 }
 
-void ParseFile(fileref file, namespaceref ns)
+void ParseFile(stringref filename, namespaceref ns)
 {
     ParseState state;
 
-    ParseStateInit(&state, null, ns, 0, file, 1, 0);
+    ParseStateInit(&state, null, ns, 0, filename, 1, 0);
     if (state.current != state.limit && state.limit[-1] != '\n')
     {
         /* TODO: Provide fallback */
@@ -2005,7 +2005,7 @@ void ParseField(fieldref field, bytevector *bytecode)
 
     assert(field);
     ParseStateInit(&state, bytecode, FieldIndexGetNamespace(field), 0,
-                   FieldIndexGetFile(field), FieldIndexGetLine(field),
+                   FieldIndexGetFilename(field), FieldIndexGetLine(field),
                    FieldIndexGetFileOffset(field));
 
     state.statementLine = state.line;
@@ -2032,7 +2032,7 @@ void ParseFunctionDeclaration(functionref function, bytevector *bytecode)
     ParseStateInit(&state, bytecode,
                    FunctionIndexGetNamespace(function),
                    function,
-                   FunctionIndexGetFile(function),
+                   FunctionIndexGetFilename(function),
                    FunctionIndexGetLine(function),
                    FunctionIndexGetFileOffset(function));
     if (!parseFunctionDeclaration(&state, function))
@@ -2057,7 +2057,7 @@ void ParseFunctionBody(functionref function, bytevector *bytecode)
     ParseStateInit(&state, bytecode,
                    FunctionIndexGetNamespace(function),
                    function,
-                   FunctionIndexGetFile(function),
+                   FunctionIndexGetFilename(function),
                    line,
                    FunctionIndexGetFileOffset(function));
     if (parseFunctionBody(&state))

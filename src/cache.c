@@ -13,7 +13,8 @@
 typedef struct
 {
     byte hash[FILENAME_DIGEST_SIZE];
-    fileref file;
+    char *path;
+    size_t pathLength;
     boolean newEntry;
     boolean written;
     bytevector dependencies;
@@ -22,98 +23,74 @@ typedef struct
     char *output;
 } Entry;
 
-static fileref cacheDir;
-static fileref cacheIndex;
-static fileref cacheIndexOut;
+static boolean initialised;
 static Entry entries[256];
+
+static char *cacheDir;
+static size_t cacheDirLength;
+static char *cacheIndexPath;
+static size_t cacheIndexLength;
+static char *cacheIndexOutPath;
+static size_t cacheIndexOutLength;
+
+static File cacheIndexOut;
+static bytevector outBuffer;
 
 
 static Entry *getEntry(cacheref ref)
 {
-    assert(entries[sizeFromRef(ref)].file);
+    assert(entries[sizeFromRef(ref)].path);
     return &entries[sizeFromRef(ref)];
 }
 
 static void clearEntry(Entry *entry)
 {
-    assert(entry->file);
+    assert(entry->path);
     ByteVectorDispose(&entry->dependencies);
+    free(entry->path);
     free(entry->output);
-    entry->file = 0;
+    entry->path = null;
 }
 
-static void addDependency(Entry *entry, fileref file, const byte *blob)
+static void addDependency(Entry *entry, const char *path, size_t length,
+                          const byte *blob)
 {
-    size_t oldSize = ByteVectorSize(&entry->dependencies);
-    byte *p;
-
     assert(entry->newEntry);
-    ByteVectorGrow(&entry->dependencies,
-                   sizeof(fileref) + FileGetStatusBlobSize());
-    p = ByteVectorGetPointer(&entry->dependencies, oldSize);
-    *(fileref*)p = file;
-    memcpy(p + sizeof(fileref), blob, FileGetStatusBlobSize());
+    ByteVectorReserveAppendSize(&entry->dependencies,
+                                sizeof(size_t) + length + FileStatusBlobSize());
+    ByteVectorAddSize(&entry->dependencies, length);
+    ByteVectorAddData(&entry->dependencies, (const byte*)path, length);
+    ByteVectorAddData(&entry->dependencies, blob, FileStatusBlobSize());
 }
 
-static void writeEntry(Entry *restrict entry, fileref indexFile)
+static void writeEntry(Entry *restrict entry)
 {
-    fileref file;
-    const byte *restrict depend;
-    const byte *restrict dependLimit;
-    byte *restrict data;
     size_t size;
-    size_t filenameLength;
 
-    depend = ByteVectorGetPointer(&entry->dependencies, 0);
-    dependLimit = depend + ByteVectorSize(&entry->dependencies);
+    assert(!ByteVectorSize(&outBuffer));
 
-    size = 3 * sizeof(size_t) + FILENAME_DIGEST_SIZE +
-        entry->outLength + entry->errLength;
-    while (depend < dependLimit)
+    ByteVectorAddSize(&outBuffer, 0);
+    ByteVectorAddData(&outBuffer, entry->hash, sizeof(entry->hash));
+    ByteVectorAddSize(&outBuffer, entry->outLength);
+    ByteVectorAddSize(&outBuffer, entry->errLength);
+    ByteVectorAddData(&outBuffer, (const byte*)entry->output, entry->outLength + entry->errLength);
+    ByteVectorAddAll(&outBuffer, &entry->dependencies);
+
+    size = ByteVectorSize(&outBuffer);
+    ByteVectorSetSizeAt(&outBuffer, 0, size);
+
+    if (!FileIsOpen(&cacheIndexOut))
     {
-        file = *(fileref*)depend;
-        /* TODO: Check if file has changed */
-        size += FileGetNameLength(file) + sizeof(size_t) +
-            FileGetStatusBlobSize();
-        depend += sizeof(fileref) + FileGetStatusBlobSize();
+        FileOpenAppend(&cacheIndexOut, cacheIndexOutPath, cacheIndexOutLength);
     }
-
-    data = (byte*)malloc(size);
-    *(size_t*)data = size;
-    memcpy(data + sizeof(size_t), entry->hash, FILENAME_DIGEST_SIZE);
-    size = sizeof(size_t) + FILENAME_DIGEST_SIZE;
-    ((size_t*)(data + size))[0] = entry->outLength;
-    ((size_t*)(data + size))[1] = entry->errLength;
-    size += 2 * sizeof(size_t);
-    if (entry->outLength || entry->errLength)
-    {
-        assert(entry->output);
-        memcpy(data + size, entry->output, entry->outLength + entry->errLength);
-        size += entry->outLength + entry->errLength;
-    }
-    depend = ByteVectorGetPointer(&entry->dependencies, 0);
-    while (depend < dependLimit)
-    {
-        file = *(fileref*)depend;
-        depend += sizeof(fileref);
-        filenameLength = FileGetNameLength(file);
-        *(size_t*)&data[size] = filenameLength;
-        size += sizeof(size_t);
-        memcpy(data + size, FileGetName(file), filenameLength);
-        size += filenameLength;
-        memcpy(data + size, depend, FileGetStatusBlobSize());
-        size += FileGetStatusBlobSize();
-        depend += FileGetStatusBlobSize();
-    }
-
-    FileOpenAppend(indexFile);
-    FileWrite(indexFile, data, size);
-    free(data);
+    FileWrite(&cacheIndexOut, ByteVectorGetPointer(&outBuffer, 0), size);
+    ByteVectorSetSize(&outBuffer, 0);
     entry->written = true;
 }
 
-static boolean readIndex(fileref file)
+static boolean readIndex(const char *path, size_t pathLength)
 {
+    File file;
     cacheref ref;
     Entry *entry;
     const byte *data;
@@ -121,13 +98,13 @@ static boolean readIndex(fileref file)
     size_t size;
     size_t entrySize;
     size_t filenameLength;
-    fileref dependFile;
 
-    FileMMap(file, &data, &size, false);
-    if (!data)
+    if (!FileTryOpen(&file, path, pathLength))
     {
         return false;
     }
+    FileMMap(&file, &data, &size);
+    assert(data);
     while (size)
     {
         if (size < sizeof(size_t))
@@ -176,61 +153,69 @@ static boolean readIndex(fileref file)
             }
             filenameLength = *(size_t*)data;
             data += sizeof(size_t);
-            if ((size_t)(limit - data) < filenameLength + FileGetStatusBlobSize())
+            if ((size_t)(limit - data) < filenameLength + FileStatusBlobSize())
             {
                 clearEntry(entry);
                 break;
             }
-            dependFile = FileAdd((const char*)data, filenameLength);
+            path = (const char*)data;
             data += filenameLength;
-            addDependency(entry, dependFile, data);
-            data += FileGetStatusBlobSize();
+            addDependency(entry, path, filenameLength, data);
+            data += FileStatusBlobSize();
         }
         entry->newEntry = false;
     }
-    FileMUnmap(file);
+    FileClose(&file);
     return true;
 }
 
 
-void CacheInit(fileref cacheDirectory)
+void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
 {
     Entry *entry;
-    fileref tempfile;
-    const char *base = FileGetName(cacheDirectory);
-    size_t baseLength = FileGetNameLength(cacheDirectory);
+    char *tempIndex;
+    size_t tempIndexLength;
 
     cacheDir = cacheDirectory;
-    cacheIndex = FileAddRelative(base, baseLength, "index", 5);
-    cacheIndexOut = FileAddRelative(base, baseLength, "index.1", 7);
-    tempfile = FileAddRelative(base, baseLength, "index.2", 7);
-    FileMkdir(cacheDir);
-    FileDelete(tempfile);
-    readIndex(cacheIndex);
-    if (readIndex(cacheIndexOut))
+    cacheDirLength = cacheDirectoryLength;
+    FilePinDirectory(cacheDirectory, cacheDirectoryLength);
+    cacheIndexPath = FileCreatePath(cacheDirectory, cacheDirectoryLength,
+                                    "index", 5, null, 0, &cacheIndexLength);
+    cacheIndexOutPath = FileCreatePath(cacheDirectory, cacheDirectoryLength,
+                                       "index.1", 7, null, 0, &cacheIndexOutLength);
+    ByteVectorInit(&outBuffer, 1024);
+    tempIndex = FileCreatePath(cacheDirectory, cacheDirectoryLength,
+                               "index.2", 7, null, 0, &tempIndexLength);
+    FileDelete(tempIndex, tempIndexLength);
+    readIndex(cacheIndexPath, cacheIndexLength);
+    if (readIndex(cacheIndexOutPath, cacheIndexOutLength))
     {
-        FileOpenAppend(tempfile);
+        FileOpenAppend(&cacheIndexOut, tempIndex, tempIndexLength);
         for (entry = entries + 1;
              entry < entries + sizeof(entries) / sizeof(Entry);
              entry++)
         {
-            if (entry->file)
+            if (entry->path)
             {
-                writeEntry(entry, tempfile);
+                writeEntry(entry);
                 entry->written = false;
             }
         }
-        FileCloseSync(cacheIndexOut);
-        FileRename(tempfile, cacheIndexOut, true);
-        FileRename(cacheIndexOut, cacheIndex, true);
+        FileClose(&cacheIndexOut);
+        FileRename(tempIndex, tempIndexLength,
+                   cacheIndexOutPath, cacheIndexOutLength);
+        FileRename(cacheIndexOutPath, cacheIndexOutLength,
+                   cacheIndexPath, cacheIndexLength);
     }
+    free(tempIndex);
+    initialised = true;
 }
 
 void CacheDispose(void)
 {
     Entry *entry;
 
-    if (!cacheIndexOut)
+    if (!initialised)
     {
         return;
     }
@@ -239,18 +224,26 @@ void CacheDispose(void)
          entry < entries + sizeof(entries) / sizeof(Entry);
          entry++)
     {
-        if (entry->file)
+        if (entry->path)
         {
             if (!entry->written && !entry->newEntry)
             {
-                writeEntry(entry, cacheIndexOut);
+                writeEntry(entry);
             }
             clearEntry(entry);
         }
     }
-    FileCloseSync(cacheIndexOut);
-    FileDelete(cacheIndex);
-    FileRename(cacheIndexOut, cacheIndex, false);
+    if (FileIsOpen(&cacheIndexOut))
+    {
+        FileClose(&cacheIndexOut);
+        FileRename(cacheIndexOutPath, cacheIndexOutLength,
+                   cacheIndexPath, cacheIndexLength);
+    }
+    ByteVectorDispose(&outBuffer);
+    FileUnpinDirectory(cacheDir, cacheDirLength);
+    free(cacheDir);
+    free(cacheIndexPath);
+    free(cacheIndexOutPath);
 }
 
 cacheref CacheGet(const byte *hash)
@@ -263,7 +256,7 @@ cacheref CacheGet(const byte *hash)
          entry < entries + sizeof(entries) / sizeof(Entry);
          entry++)
     {
-        if (!entry->file)
+        if (!entry->path)
         {
             freeEntry = entry;
         }
@@ -282,10 +275,10 @@ cacheref CacheGet(const byte *hash)
     filename[0] = filename[1];
     filename[1] = filename[2];
     filename[2] = '/';
-    freeEntry->file = FileAddRelative(FileGetName(cacheDir),
-                                      FileGetNameLength(cacheDir),
-                                      filename,
-                                      FILENAME_DIGEST_SIZE / 5 * 8);
+    freeEntry->path = FileCreatePath(cacheDir, cacheDirLength,
+                                     filename, FILENAME_DIGEST_SIZE / 5 * 8,
+                                     null, 0,
+                                     &freeEntry->pathLength);
     ByteVectorInit(&freeEntry->dependencies, 0);
     memcpy(freeEntry->hash, hash, FILENAME_DIGEST_SIZE);
     freeEntry->newEntry = true;
@@ -293,16 +286,18 @@ cacheref CacheGet(const byte *hash)
     return refFromSize((size_t)(freeEntry - entries));
 }
 
-cacheref CacheGetFromFile(fileref file)
+cacheref CacheGetFromFile(const char *path, size_t pathLength)
 {
     Entry *entry;
 
-    assert(file);
+    assert(path);
+    assert(pathLength);
     for (entry = entries + 1;
          entry < entries + sizeof(entries) / sizeof(Entry);
          entry++)
     {
-        if (entry->file == file)
+        if (entry->pathLength == pathLength &&
+            !memcmp(entry->path, path, pathLength))
         {
             return refFromSize((size_t)(entry - entries));
         }
@@ -311,9 +306,9 @@ cacheref CacheGetFromFile(fileref file)
     return 0;
 }
 
-void CacheAddDependency(cacheref ref, fileref file)
+void CacheAddDependency(cacheref ref, const char *path, size_t length)
 {
-    addDependency(getEntry(ref), file, FileGetStatusBlob(file));
+    addDependency(getEntry(ref), path, length, FileStatusBlob(path, length));
 }
 
 void CacheSetUptodate(cacheref ref, size_t outLength, size_t errLength,
@@ -328,7 +323,7 @@ void CacheSetUptodate(cacheref ref, size_t outLength, size_t errLength,
     entry->errLength = errLength;
     entry->output = output;
     entry->newEntry = false;
-    writeEntry(entry, cacheIndexOut);
+    writeEntry(entry);
 }
 
 void CacheEchoCachedOutput(cacheref ref)
@@ -351,7 +346,8 @@ void CacheEchoCachedOutput(cacheref ref)
 boolean CacheCheckUptodate(cacheref ref)
 {
     Entry *entry = getEntry(ref);
-    fileref file;
+    const char *path;
+    size_t length;
     const byte *restrict depend;
     const byte *restrict dependLimit;
 
@@ -364,9 +360,11 @@ boolean CacheCheckUptodate(cacheref ref)
     dependLimit = depend + ByteVectorSize(&entry->dependencies);
     while (depend < dependLimit)
     {
-        file = *(fileref*)depend;
-        depend += sizeof(fileref);
-        if (FileHasChanged(file, depend))
+        length = *(size_t*)depend;
+        depend += sizeof(size_t);
+        path = (const char*)depend;
+        depend += length;
+        if (FileHasChanged(path, length, depend))
         {
             entry->newEntry = true;
             entry->written = false;
@@ -377,7 +375,7 @@ boolean CacheCheckUptodate(cacheref ref)
             entry->output = null;
             return false;
         }
-        depend += FileGetStatusBlobSize();
+        depend += FileStatusBlobSize();
     }
     return true;
 }
@@ -387,7 +385,9 @@ boolean CacheIsNewEntry(cacheref ref)
     return getEntry(ref)->newEntry;
 }
 
-fileref CacheGetFile(cacheref ref)
+const char *CacheGetFile(cacheref ref, size_t *length)
 {
-    return getEntry(ref)->file;
+    Entry *entry = getEntry(ref);
+    *length = entry->pathLength;
+    return entry->path;
 }

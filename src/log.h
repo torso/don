@@ -2,7 +2,7 @@ extern void LogInit(void);
 extern void LogDispose(void);
 
 extern boolean LogFlushParseErrors(void);
-extern attrprintf(3, 0) void LogParseError(fileref file, size_t line,
+extern attrprintf(3, 0) void LogParseError(stringref filename, size_t line,
                                            const char *format, va_list ap);
 
 /*

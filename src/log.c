@@ -11,6 +11,7 @@
 #include "instruction.h"
 #include "heap.h"
 #include "log.h"
+#include "stringpool.h"
 #include "task.h"
 
 #define MIN_READ_BUFFER 1024
@@ -166,10 +167,10 @@ boolean LogFlushParseErrors(void)
     return hasParseError;
 }
 
-void LogParseError(fileref file, size_t line, const char *format, va_list ap)
+void LogParseError(stringref filename, size_t line, const char *format, va_list ap)
 {
     hasParseError = true;
-    fprintf(stderr, "%s:%ld: ", FileGetName(file), line);
+    fprintf(stderr, "%s:%ld: ", StringPoolGetString(filename), line);
     vfprintf(stderr, format, ap);
     fprintf(stderr, "\n");
 }

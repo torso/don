@@ -6,7 +6,7 @@
 typedef struct
 {
     namespaceref ns;
-    fileref file;
+    stringref filename;
     uint line;
     uint fileOffset;
     uint bytecodeStart;
@@ -59,7 +59,7 @@ void FieldIndexFinishBytecode(const byte *parsed, bytevector *bytecode)
 
 
 fieldref FieldIndexAdd(namespaceref ns,
-                       fileref file, uint line, uint fileOffset)
+                       stringref filename, uint line, uint fileOffset)
 {
     size_t size = ByteVectorSize(&fieldTable);
     FieldInfo *info;
@@ -68,7 +68,7 @@ fieldref FieldIndexAdd(namespaceref ns,
     fieldCount++;
     info = (FieldInfo*)ByteVectorGetPointer(&fieldTable, size);
     info->ns = ns;
-    info->file = file;
+    info->filename = filename;
     info->line = line;
     info->fileOffset = fileOffset;
     info->bytecodeStop = 0;
@@ -76,7 +76,7 @@ fieldref FieldIndexAdd(namespaceref ns,
 }
 
 fieldref FieldIndexAddConstant(namespaceref ns,
-                               fileref file, uint line, uint fileOffset,
+                               stringref filename, uint line, uint fileOffset,
                                bytevector *bytecode, size_t start)
 {
     fieldref field;
@@ -92,7 +92,7 @@ fieldref FieldIndexAddConstant(namespaceref ns,
         case OP_EMPTY_LIST: return FIELD_EMPTY_LIST + 1;
         }
     }
-    field = FieldIndexAdd(ns, file, line, fileOffset);
+    field = FieldIndexAdd(ns, filename, line, fileOffset);
     FieldIndexSetBytecodeOffset(field, start, ByteVectorSize(bytecode));
     return field;
 }
@@ -135,9 +135,9 @@ namespaceref FieldIndexGetNamespace(fieldref field)
     return getFieldInfo(field)->ns;
 }
 
-fileref FieldIndexGetFile(fieldref field)
+stringref FieldIndexGetFilename(fieldref field)
 {
-    return getFieldInfo(field)->file;
+    return getFieldInfo(field)->filename;
 }
 
 uint FieldIndexGetLine(fieldref field)

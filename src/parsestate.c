@@ -36,7 +36,7 @@ static attrprintf(2, 3) void setError(ParseState *state,
     va_list args;
 
     va_start(args, format);
-    LogParseError(state->file, state->line, format, args);
+    LogParseError(state->filename, state->line, format, args);
     va_end(args);
 }
 
@@ -85,21 +85,23 @@ static uint16 getLocalIndex(ParseState *state, stringref name)
 
 void ParseStateInit(ParseState *state, bytevector *bytecode,
                     namespaceref ns, functionref function,
-                    fileref file, uint line, uint offset)
+                    stringref filename, uint line, uint offset)
 {
     const ParameterInfo *parameterInfo;
     uint parameterCount;
     size_t size;
     uint i;
 
-    assert(file);
+    assert(filename);
     assert(line == 1 || line <= offset);
-    FileMMap(file, &state->start, &size, true);
+    FileOpen(&state->fh, StringPoolGetString(filename),
+             StringPoolGetStringLength(filename));
+    FileMMap(&state->fh, &state->start, &size);
     state->current = state->start + offset;
     state->limit = state->start + size;
     state->ns = ns;
     state->function = function;
-    state->file = file;
+    state->filename = filename;
     state->line = line;
     state->indent = 0;
     state->bytecode = bytecode;
@@ -129,7 +131,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
 void ParseStateDispose(ParseState *state)
 {
     ParseStateCheck(state);
-    FileMUnmap(state->file);
+    FileClose(&state->fh);
     IntVectorDispose(&state->blockStack);
     IntHashMapDispose(&state->locals);
 }

@@ -12,7 +12,8 @@ typedef struct
     const byte *limit;
     namespaceref ns;
     functionref function;
-    fileref file;
+    File fh;
+    stringref filename;
     uint line;
     uint statementLine;
     uint indent;
@@ -28,7 +29,7 @@ extern nonnull void ParseStateCheck(const ParseState *state);
 extern void ParseStateInit(ParseState *restrict state,
                            bytevector *restrict bytecode,
                            namespaceref ns, functionref function,
-                           fileref file, uint line, uint offset);
+                           stringref filename, uint line, uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
 extern nonnull boolean ParseStateFinish(ParseState *restrict state);
 extern nonnull boolean ParseStateFinishBlock(ParseState *restrict state,

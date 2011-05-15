@@ -1,54 +1,76 @@
 #include <time.h>
 
+struct _TreeEntry;
+typedef struct _TreeEntry TreeEntry;
+
 typedef struct
 {
     time_t seconds;
     ulong fraction;
 } filetime_t;
 
-typedef void (*TraverseCallback)(fileref, void*);
+typedef struct
+{
+    TreeEntry *te;
+    int mmapRefCount;
+} File;
+
+typedef void (*TraverseCallback)(const char *path, size_t length,
+                                 void *userdata);
 
 
 extern void FileInit(void);
 extern void FileDisposeAll(void);
 
-extern nonnull fileref FileAdd(const char *filename, size_t length);
-extern nonnull fileref FileAddRelative(const char *base, size_t baseLength,
-                                       const char *filename, size_t length);
-extern fileref FileAddRelativeExt(const char *base, size_t baseLength,
-                                  const char *filename, size_t length,
-                                  const char *extension, size_t extLength);
-extern nonnull fileref FileAddSearch(const char *filename, size_t length,
-                                     const char *path, size_t pathLength);
-extern nonnull fileref FileAddSearchPath(const char *filename, size_t length);
-extern void FileDispose(fileref file);
+extern char *FileCreatePath(const char *restrict base, size_t baseLength,
+                            const char *restrict path, size_t length,
+                            const char *restrict extension, size_t extLength,
+                            size_t *resultLength);
+extern nonnull char *FileSearchPath(const char *name, size_t length,
+                                    size_t *resultLength);
+extern nonnull const char *FileStripPath(const char *path, size_t *length);
+extern nonnull void FileTraverseGlob(const char *pattern, size_t length,
+                                     TraverseCallback callback, void *userdata);
 
-extern const char *FileGetNameBlob(fileref file);
-extern const char *FileGetName(fileref file);
-extern size_t FileGetNameLength(fileref file);
-extern nonnull size_t FileGetSize(fileref file);
-extern boolean FileIsExecutable(fileref file);
-extern nonnull const byte *FileGetStatusBlob(fileref file);
-extern pure size_t FileGetStatusBlobSize(void);
-extern boolean FileHasChanged(fileref file, const byte *blob);
+extern nonnull void FilePinDirectory(const char *path, size_t length);
+extern nonnull void FileUnpinDirectory(const char *path, size_t length);
+extern nonnull void FileMarkModified(const char *path, size_t length);
+extern nonnull const byte *FileStatusBlob(const char *path, size_t length);
+extern pureconst size_t FileStatusBlobSize(void);
+extern nonnull boolean FileHasChanged(const char *path, size_t length,
+                                      const byte *blob);
 
-extern void FileOpenAppend(fileref file);
-extern void FileClose(fileref file);
-extern void FileCloseSync(fileref file);
-extern nonnull void FileRead(fileref file, byte *data, size_t size);
-extern nonnull void FileWrite(fileref file, const byte *data, size_t size);
+/*
+  Returns true if the specified File struct is referencing an opened file. This
+  only queries the state of the struct, not whether any actual file is open. The
+  struct must either have been used to open a file in the past, or it must be
+  completely zero.
+*/
+extern nonnull pureconst boolean FileIsOpen(File *file);
 
-/* TODO: Refcount mmap */
-extern void FileMMap(fileref file, const byte **p, size_t *size,
-                     boolean failOnFileNotFound);
-extern void FileMUnmap(fileref file);
+extern nonnull void FileOpen(File *file, const char *path, size_t length);
 
-extern void FileCopy(fileref srcFile, fileref dstFile);
-extern void FileDelete(fileref file);
-extern void FileRename(fileref oldFile, fileref newFile,
-                       boolean failOnFileNotFound);
-extern void FileMkdir(fileref file);
+/*
+  Opens the file for reading. Returns false if the file does not exist.
+*/
+extern nonnull boolean FileTryOpen(File *file, const char *path, size_t length);
+extern nonnull void FileOpenAppend(File *file, const char *path, size_t length);
+extern nonnull void FileClose(File *file);
 
-extern nonnull const char *FileFilename(const char *path, size_t *length);
-extern void FileTraverseGlob(const char *pattern,
-                             TraverseCallback callback, void *userdata);
+extern nonnull size_t FileSize(File *file);
+extern nonnull void FileRead(File *file, byte *buffer, size_t size);
+extern nonnull void FileWrite(File *file, const byte *buffer, size_t size);
+
+extern nonnull boolean FileIsExecutable(const char *path, size_t length);
+extern nonnull void FileDelete(const char *path, size_t length);
+extern nonnull void FileMkdir(const char *path, size_t length);
+extern nonnull void FileCopy(const char *srcPath, size_t srcLength,
+                             const char *dstPath, size_t dstLength);
+extern nonnull void FileRename(const char *oldPath, size_t oldLength,
+                               const char *newPath, size_t newLength);
+
+/*
+  Opens and mmaps the file. Fails if the file does not exist.
+*/
+extern nonnull void FileMMap(File *file, const byte **p, size_t *size);
+extern nonnull void FileMUnmap(File *file);

@@ -2,20 +2,25 @@
 #include "common.h"
 #include "glob.h"
 
-boolean GlobMatch(const char *pattern, const char *string)
+boolean GlobMatch(const char *pattern, size_t patternLength,
+                  const char *string, size_t stringLength)
 {
-    for (;;)
+    while (patternLength--)
     {
+        assert(*pattern);
+        assert(*pattern != '/');
         switch (*pattern)
         {
-        case '*':
-            assert(!strchr(pattern + 1, '*')); /* TODO: Multiple globs */
-            assert(!strchr(pattern + 1, '/')); /* TODO: Path glob */
-            return !strchr(string, '/') &&
-                !strcmp(pattern + 1, string + strlen(string) - strlen(pattern + 1));
+        case '\\':
+            assert(false); /* TODO: Escape sequences in globs. */
+            break;
 
-        case 0:
-            return !*string;
+        case '*':
+            pattern++;
+            assert(!memchr(pattern, '*', patternLength)); /* TODO: Multiple globs */
+            assert(!memchr(pattern, '\\', patternLength)); /* TODO: Escape sequences in globs */
+            return stringLength >= patternLength &&
+                !memcmp(pattern, string + stringLength - patternLength, patternLength);
         }
         if (*pattern != *string)
         {
@@ -23,5 +28,7 @@ boolean GlobMatch(const char *pattern, const char *string)
         }
         pattern++;
         string++;
+        stringLength--;
     }
+    return !*string;
 }

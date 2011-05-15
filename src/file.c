@@ -1,43 +1,43 @@
 #define _XOPEN_SOURCE 700
 #include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
-#include <ftw.h>
-#include <memory.h>
+#include <stddef.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <stdio.h>
 #include "common.h"
+#include "bytevector.h"
 #include "env.h"
 #include "file.h"
 #include "glob.h"
-#include "stringpool.h"
 #include "task.h"
-#include "util.h"
 
-#define INITIAL_FILE_SIZE 1024
-
-#define FLAG_FREE_FILENAME 1
+#define FILE_FREE_STRUCT 1
+#define FILE_FREE_FILENAME 2
 
 typedef struct
 {
+    boolean exists;
     size_t size;
     filetime_t mtime;
 } StatusBlob;
 
-struct _FileEntry;
-typedef struct _FileEntry FileEntry;
-struct _FileEntry
+struct _TreeEntry
 {
-    fileref next;
+    TreeEntry *parent;
+    TreeEntry **children;
+    size_t childCount;
+
+    char *component;
+    size_t componentLength;
     uint refCount;
 
-    char *name;
-    size_t nameLength;
-    int flags;
-
     int fd;
-    boolean append;
+    uint8 pinned;
+    uint8 hasPinned;
 
     boolean hasStat;
     mode_t mode;
@@ -50,40 +50,785 @@ struct _FileEntry
     StatusBlob blob;
 };
 
-static uint *fileTable;
-static FileEntry *fileIndex;
-static uint fileIndexSize;
-static uint freeFile;
-
-static TraverseCallback globalCallback;
-static void *globalUserdata;
-static const char *globalPattern;
-static size_t globalFilenamePrefixLength;
-static FileEntry *globalFE;
+static TreeEntry root;
 static char *cwd;
 static size_t cwdLength;
 
 
-static void checkFile(fileref file)
+static boolean pathIsDirectory(const char *path, size_t length)
 {
-    assert(file);
-    assert(sizeFromRef(file) <= fileIndexSize);
-    assert(fileIndex[sizeFromRef(file) - 1].refCount);
+    return path[length] == '/';
 }
 
-static FileEntry *getFileEntry(fileref file)
+static char *concatFilename(const TreeEntry *te)
 {
-    checkFile(file);
-    return &fileIndex[sizeFromRef(file) - 1];
-}
+    size_t length = 0;
+    const TreeEntry *parent = te;
+    char *buffer;
 
-static char *copyString(const char *restrict string, size_t length)
-{
-    char *restrict buffer = (char*)malloc(length + 1);
-    memcpy(buffer, string, length);
-    buffer[length] = 0;
+    if (te == &root)
+    {
+        buffer = (char*)malloc(2);
+        buffer[0] = '/';
+        buffer[1] = 0;
+        return buffer;
+    }
+    assert(te);
+    for (parent = te; parent != &root; parent = parent->parent)
+    {
+        assert(parent);
+        length += parent->componentLength + 1;
+    }
+    buffer = (char*)malloc(length + 1);
+    *buffer = '/';
+    buffer += length;
+    *buffer = 0;
+    for (parent = te; parent != &root; parent = parent->parent)
+    {
+        buffer -= parent->componentLength;
+        memcpy(buffer, parent->component, parent->componentLength);
+        *--buffer = '/';
+    }
     return buffer;
 }
+
+
+static void teClose(TreeEntry *te)
+{
+    assert(te);
+    assert(te->fd);
+    assert(!te->refCount);
+    assert(!te->data);
+
+    close(te->fd);
+    te->fd = 0;
+}
+
+static void teDoOpen(TreeEntry *te, int fdParent, int flags)
+{
+    char *path;
+    assert(!te->refCount);
+    assert(!te->fd);
+    if (fdParent)
+    {
+        te->fd = openat(fdParent, te->component, flags,
+                        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+    }
+    else
+    {
+        path = concatFilename(te);
+        te->fd = open(path, flags,
+                      S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+        free(path);
+    }
+    if (te->fd == -1)
+    {
+        te->fd = 0;
+        if (errno == ENOENT)
+        {
+            assert(!te->hasStat || !te->blob.exists || (flags & O_CREAT));
+            te->hasStat = true;
+            te->blob.exists = false;
+        }
+        return;
+    }
+    assert(!te->hasStat || te->blob.exists || (flags & O_CREAT));
+}
+
+#ifdef HAVE_OPENAT
+static void teOpenParent(TreeEntry *restrict te)
+{
+    TreeEntry *restrict parent = te->parent;
+    TreeEntry *restrict grandParent;
+    if (!parent || parent->fd)
+    {
+        return;
+    }
+    grandParent = parent->parent;
+    teDoOpen(parent, grandParent ? grandParent->fd : 0, O_CLOEXEC | O_RDONLY);
+}
+
+static int teParentFD(TreeEntry *restrict te)
+{
+    TreeEntry *restrict parent = te->parent;
+    if (!parent)
+    {
+        return 0;
+    }
+    teOpenParent(te);
+    return te->parent->fd;
+}
+#endif
+
+static void teOpen(TreeEntry *te)
+{
+    assert(te);
+    if (te->fd)
+    {
+        return;
+    }
+
+#ifdef HAVE_OPENAT
+    teDoOpen(te, teParentFD(te), O_CLOEXEC | O_RDONLY);
+#else
+    teDoOpen(te, 0, O_CLOEXEC | O_RDONLY);
+#endif
+}
+
+static void teOpenWrite(TreeEntry *te, int flags)
+{
+    assert(te);
+    assert(!te->refCount);
+    if (te->fd)
+    {
+        teClose(te);
+    }
+
+#ifdef HAVE_OPENAT
+    teDoOpen(te, teParentFD(te), O_CLOEXEC | O_CREAT | O_WRONLY | flags);
+#else
+    teDoOpen(te, 0, O_CLOEXEC | O_CREAT | O_WRONLY | flags);
+#endif
+}
+
+static DIR *teOpenDir(TreeEntry *te)
+{
+    DIR *dir;
+
+    assert(te);
+    if (!te->fd)
+    {
+#ifdef HAVE_OPENAT
+        teDoOpen(te, teParentFD(te), O_CLOEXEC | O_RDONLY | O_DIRECTORY);
+#else
+        teDoOpen(te, 0, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
+#endif
+        if (!te->fd)
+        {
+            TaskFailIO(concatFilename(te));
+        }
+    }
+    dir = fdopendir(te->fd);
+    if (!dir)
+    {
+        TaskFailIO(concatFilename(te));
+    }
+    return dir;
+}
+
+static void teCloseDir(TreeEntry *te, DIR *dir)
+{
+    assert(te);
+    assert(dir);
+    assert(te->fd);
+    assert(!te->refCount);
+    te->fd = 0;
+    if (closedir(dir))
+    {
+        assert(false);
+        TaskFailIO(concatFilename(te));
+    }
+}
+
+static void teStat(TreeEntry *te)
+{
+    struct stat s;
+    struct stat s2;
+    char *path;
+
+    if (!te->hasStat)
+    {
+        if (te->fd)
+        {
+            if (fstat(te->fd, &s))
+            {
+                TaskFailIO(concatFilename(te));
+            }
+        }
+        else
+        {
+#ifdef HAVE_OPENAT
+            int fd = teParentFD(te);
+            if (fd)
+            {
+                if (fstatat(fd, te->component, &s, 0))
+                {
+                    if (errno != ENOENT)
+                    {
+                        TaskFailIO(concatFilename(te));
+                    }
+                    if (fstatat(fd, te->component, &s, AT_SYMLINK_NOFOLLOW))
+                    {
+                        if (errno != ENOENT)
+                        {
+                            TaskFailIO(concatFilename(te));
+                        }
+                        te->hasStat = true;
+                        te->blob.exists = false;
+                        return;
+                    }
+                }
+            }
+            else
+#endif
+            {
+                path = concatFilename(te);
+                if (lstat(path, &s))
+                {
+                    if (errno != ENOENT)
+                    {
+                        TaskFailIO(concatFilename(te));
+                    }
+                    free(path);
+                    te->hasStat = true;
+                    te->blob.exists = false;
+                    return;
+                }
+                if (S_ISLNK(s.st_mode))
+                {
+                    /* TODO: Maybe do something more clever with symlinks. */
+                    if (stat(path, &s2))
+                    {
+                        if (errno != ENOENT)
+                        {
+                            TaskFailIO(path);
+                        }
+                    }
+                    else
+                    {
+                        s = s2;
+                    }
+                }
+                free(path);
+            }
+        }
+        te->hasStat = true;
+        te->blob.exists = true;
+        te->mode = s.st_mode;
+        te->dev = s.st_dev;
+        te->ino = s.st_ino;
+        te->blob.size = (size_t)s.st_size;
+        te->blob.mtime.seconds = s.st_mtime;
+        te->blob.mtime.fraction = (ulong)s.st_mtim.tv_nsec;
+    }
+}
+
+static boolean teExists(TreeEntry *te)
+{
+    teStat(te);
+    return te->blob.exists;
+}
+
+static boolean teIsDirectory(TreeEntry *te)
+{
+    teStat(te);
+    return S_ISDIR(te->mode);
+}
+
+static boolean teIsExecutable(TreeEntry *te)
+{
+    teStat(te);
+    return S_ISREG(te->mode) && (te->mode & (S_IXUSR | S_IXGRP | S_IXOTH));
+}
+
+static size_t teSize(TreeEntry *te)
+{
+    teStat(te);
+    return te->blob.size;
+}
+
+static void teDeleteDirectory(TreeEntry *te)
+{
+    TreeEntry tempChild;
+    char *path;
+    DIR *dir;
+    int fd;
+    union
+    {
+        struct dirent d;
+        char b[offsetof(struct dirent, d_name) + NAME_MAX + 1];
+    } u;
+    struct dirent *res;
+
+    teOpen(te);
+    if (!te->fd)
+    {
+        TaskFailIO(concatFilename(te));
+    }
+#ifndef HAVE_POSIX_SPAWN
+#error TODO: dup clears O_CLOEXEC
+#endif
+    fd = dup(te->fd);
+    if (fd == -1)
+    {
+        TaskFailIO(concatFilename(te));
+    }
+    dir = fdopendir(fd);
+    if (!dir)
+    {
+        TaskFailIO(concatFilename(te));
+    }
+    u.d.d_name[NAME_MAX] = 0;
+    for (;;)
+    {
+        if (readdir_r(dir, &u.d, &res))
+        {
+            TaskFailIO(concatFilename(te));
+        }
+        if (!res)
+        {
+            break;
+        }
+        if (*u.d.d_name == '.' &&
+            (!u.d.d_name[1] ||
+             (u.d.d_name[1] == '.' && !u.d.d_name[2])))
+        {
+            continue;
+        }
+        /* TODO: Use u.d.d_type if available */
+        if (unlinkat(fd, u.d.d_name, 0)) /* TODO: Provide fallback if unlinkat isn't available */
+        {
+            memset(&tempChild, 0, sizeof(tempChild));
+            tempChild.parent = te;
+            tempChild.component = u.d.d_name;
+            tempChild.componentLength = strlen(u.d.d_name);
+            if (errno != EISDIR)
+            {
+                TaskFailIO(concatFilename(&tempChild));
+            }
+            teDeleteDirectory(&tempChild); /* TODO: Iterate instead of recurse */
+            assert(!tempChild.fd);
+            assert(!tempChild.data);
+            assert(!tempChild.refCount);
+            assert(!tempChild.children);
+        }
+    }
+    if (closedir(dir))
+    {
+        assert(false);
+        TaskFailIO(concatFilename(te));
+    }
+    teClose(te);
+    if (te->parent && te->parent->fd)
+    {
+        if (unlinkat(te->parent->fd, te->component, AT_REMOVEDIR))
+        {
+            TaskFailIO(concatFilename(te));
+        }
+    }
+    else
+    {
+        path = concatFilename(te);
+        if (rmdir(path))
+        {
+            TaskFailIO(path);
+        }
+        free(path);
+    }
+}
+
+static void teDelete(TreeEntry *te)
+{
+    TreeEntry **child;
+    char *path;
+
+    assert(te);
+    assert(!te->refCount);
+
+    if (te->hasStat && !te->blob.exists)
+    {
+        assert(!te->fd);
+        return;
+    }
+
+#ifdef HAVE_OPENAT
+    teOpenParent(te);
+#endif
+    if (te->fd)
+    {
+        teClose(te);
+    }
+
+    path = concatFilename(te);
+
+    for (child = te->children; te->childCount; te->childCount--, child++)
+    {
+        teDelete(*child);
+        free(*child);
+    }
+    free(te->children);
+    te->children = null;
+
+    if (!remove(path) || errno == ENOENT) /* TODO: Use unlinkat if available */
+    {
+        te->hasStat = true;
+        te->blob.exists = false;
+        free(path);
+        return;
+    }
+    if (errno)
+    {
+        if (errno != ENOTEMPTY)
+        {
+            TaskFailIO(path);
+        }
+
+        teDeleteDirectory(te);
+    }
+
+    te->hasStat = true;
+    te->blob.exists = false;
+    free(path);
+}
+
+static void teMkdir(TreeEntry *te)
+{
+    char *name;
+
+    if (((te->hasStat && te->blob.exists) || te->fd))
+    {
+        if (teIsDirectory(te))
+        {
+            return;
+        }
+        TaskFail("Cannot create directory, because a file already exists: %s\n",
+                 concatFilename(te));
+    }
+    te->hasStat = false;
+    name = concatFilename(te);
+    if (!mkdir(name, S_IRWXU | S_IRWXG | S_IRWXO))
+    {
+        free(name);
+        return;
+    }
+    if (errno == ENOENT)
+    {
+        teMkdir(te->parent);
+        if (!mkdir(name, S_IRWXU | S_IRWXG | S_IRWXO))
+        {
+            free(name);
+            return;
+        }
+    }
+    if (errno != EEXIST)
+    {
+        TaskFailIO(name);
+    }
+    if (teIsDirectory(te))
+    {
+        free(name);
+        return;
+    }
+    TaskFail("Cannot create directory, because a file already exists: %s\n", name);
+}
+
+static void teWrite(TreeEntry *te, const byte *data, size_t size)
+{
+    ssize_t written;
+
+    assert(te->fd);
+    while (size)
+    {
+        written = write(te->fd, data, size);
+        if (written < 0)
+        {
+            TaskFailIO(concatFilename(te));
+        }
+        assert((size_t)written <= size);
+        size -= (size_t)written;
+        data += written;
+    }
+}
+
+static void teMMap(TreeEntry *te)
+{
+    assert(te);
+    assert(te->fd);
+    if (!te->dataRefCount++)
+    {
+        assert(!te->data);
+        if (teIsDirectory(te))
+        {
+            TaskFailIOErrno(EISDIR, concatFilename(te));
+        }
+        te->data = (byte*)mmap(null, teSize(te), PROT_READ, MAP_PRIVATE,
+                               te->fd, 0);
+        if (te->data == (byte*)-1)
+        {
+            te->data = null;
+            TaskFailIO(concatFilename(te));
+        }
+    }
+    assert(te->data);
+}
+
+static void teMUnmap(TreeEntry *te)
+{
+    int error;
+
+    assert(te);
+    assert(te->data);
+    assert(te->dataRefCount);
+    if (!--te->dataRefCount)
+    {
+        error = munmap(te->data, teSize(te));
+        te->data = null;
+        assert(!error);
+    }
+}
+
+static void tePin(TreeEntry *te, int delta)
+{
+    assert(te);
+    te->pinned = (uint8)(te->pinned + delta);
+    for (;;)
+    {
+        te = te->parent;
+        if (!te)
+        {
+            break;
+        }
+        te->hasPinned = (uint8)(te->hasPinned + delta);
+    }
+}
+
+static uint teChildIndex(const TreeEntry *parent, const TreeEntry *child)
+{
+    uint i;
+    assert(parent);
+    assert(child);
+    for (i = 0;; i++)
+    {
+        assert(i < parent->childCount);
+        if (parent->children[i] == child)
+        {
+            return i;
+        }
+    }
+}
+
+static void teUnlinkChild(TreeEntry *parent, const TreeEntry *child)
+{
+    TreeEntry **newChildren;
+    uint i;
+
+    assert(parent);
+    assert(child);
+    assert(parent->childCount);
+    if (parent->childCount == 1)
+    {
+        free(parent->children);
+        parent->childCount = 0;
+        parent->children = null;
+        return;
+    }
+    newChildren = (TreeEntry**)malloc(
+        sizeof(TreeEntry*) * (parent->childCount - 1));
+    i = teChildIndex(parent, child);
+    memcpy(newChildren, parent->children, i * sizeof(TreeEntry*));
+    memcpy(newChildren + i, parent->children + i + 1,
+           (parent->childCount - i - 1) * sizeof(TreeEntry*));
+    free(parent->children);
+    parent->children = newChildren;
+    parent->childCount--;
+}
+
+static void teSetParent(TreeEntry *parent, TreeEntry *child)
+{
+    TreeEntry **newChildren;
+
+    child->parent = parent;
+
+    newChildren = (TreeEntry**)malloc(sizeof(TreeEntry*) * (parent->childCount + 1));
+    memcpy(newChildren, parent->children, sizeof(TreeEntry*) * parent->childCount);
+    newChildren[parent->childCount] = child;
+    free(parent->children);
+    parent->children = newChildren;
+    parent->childCount++;
+}
+
+static TreeEntry *teChild(TreeEntry *te, const char *name, size_t length)
+{
+    TreeEntry *child;
+    TreeEntry **childEntry;
+    TreeEntry **stop;
+
+    assert(te);
+    assert(name);
+    assert(length);
+    assert(length > 1 || *name != '.');
+    assert(length > 2 || *name != '.' || name[1] != '.');
+
+    for (childEntry = te->children, stop = childEntry + te->childCount;
+         childEntry < stop;
+         childEntry++)
+    {
+        child = *childEntry;
+        if (child->componentLength == length &&
+            !memcmp(child->component, name, length))
+        {
+            return child;
+        }
+    }
+
+    child = (TreeEntry*)calloc(sizeof(*child) + length + 1, 1);
+    child->component = (char*)child + sizeof(*child);
+    child->componentLength = length;
+    memcpy(child->component, name, length);
+    teSetParent(te, child);
+    return child;
+}
+
+static TreeEntry *teGet(const char *name, size_t length)
+{
+    const char *component = name;
+    const char *slash;
+    size_t componentLength;
+    TreeEntry *te = &root;
+
+    assert(name);
+    assert(length);
+    assert(*name == '/');
+
+    if (length == 1)
+    {
+        return te;
+    }
+
+    component++;
+    length--;
+    for (;;)
+    {
+        slash = (const char*)memchr(component, '/', length);
+        assert(slash != component);
+        if (!slash)
+        {
+            return teChild(te, component, length);
+        }
+        if (!slash[1])
+        {
+            return teChild(te, component, length - 1);
+        }
+        componentLength = (size_t)(slash - component);
+        te = teChild(te, component, componentLength);
+        component = slash + 1;
+        length -= componentLength + 1;
+    }
+}
+
+static void teDisposeContent(TreeEntry *te)
+{
+    assert(!te->pinned);
+    assert(!te->refCount);
+    if (!te->childCount)
+    {
+        assert(!te->childCount);
+        free(te->children);
+        te->children = 0;
+    }
+    if (te->fd)
+    {
+        teClose(te);
+    }
+    te->hasStat = false;
+}
+
+static void teDisposeChildren(TreeEntry *te)
+{
+    TreeEntry *start = te;
+    TreeEntry *parent;
+    uint i;
+    for (;;)
+    {
+        if (te->childCount && !te->children[te->childCount-1]->pinned)
+        {
+            te = te->children[te->childCount-1];
+        }
+        else
+        {
+            for (;;)
+            {
+                if (te == start)
+                {
+                    return;
+                }
+                parent = te->parent;
+                i = teChildIndex(parent, te);
+                if (te->pinned || te->hasPinned)
+                {
+                    if (!te->pinned)
+                    {
+                        teDisposeContent(te);
+                    }
+                }
+                else
+                {
+                    teDisposeContent(te);
+                    free(te);
+                    parent->childCount--;
+                    parent->children[i] = parent->children[parent->childCount];
+                }
+                if (i)
+                {
+                    te = parent->children[i-1];
+                    break;
+                }
+                else
+                {
+                    te = parent;
+                }
+            }
+        }
+    }
+}
+
+static void teDispose(TreeEntry *te)
+{
+    TreeEntry *parent = te->parent;
+
+    if (te->pinned)
+    {
+        return;
+    }
+    teDisposeChildren(te);
+    teDisposeContent(te);
+    if (!te->hasPinned && parent)
+    {
+        teUnlinkChild(parent, te);
+        free(te);
+    }
+}
+
+
+
+void FileInit(void)
+{
+    char *buffer;
+
+    cwd = getcwd(null, 0);
+    if (!cwd)
+    {
+        TaskFailOOM();
+    }
+    cwdLength = strlen(cwd);
+    assert(cwdLength);
+    assert(cwd[0] == '/');
+    if (cwd[cwdLength - 1] != '/')
+    {
+        buffer = (char*)realloc(cwd, cwdLength + 2);
+        buffer[cwdLength] = '/';
+        buffer[cwdLength + 1] = 0;
+        cwd = buffer;
+        cwdLength++;
+    }
+}
+
+void FileDisposeAll(void)
+{
+    teDispose(&root);
+    free(cwd);
+}
+
 
 /* TODO: Handle backslashes */
 static char *cleanFilename(char *filename, size_t length, size_t *resultLength)
@@ -148,18 +893,22 @@ static char *cleanFilename(char *filename, size_t length, size_t *resultLength)
     return filename;
 }
 
-static char *getAbsoluteFilename(
-    const char *restrict base, size_t baseLength,
-    const char *restrict path, size_t length,
-    const char *restrict extension, size_t extLength,
-    size_t *resultLength)
+char *FileCreatePath(const char *restrict base, size_t baseLength,
+                     const char *restrict path, size_t length,
+                     const char *restrict extension, size_t extLength,
+                     size_t *resultLength)
 {
     const char *restrict base2 = null;
     size_t base2Length = 0;
     char *restrict buffer;
     size_t i;
 
-    if (length && path[0] == '/')
+    assert(!base || (baseLength && *base == '/'));
+    assert(path);
+    assert(length);
+    assert(resultLength);
+
+    if (path[0] == '/')
     {
         baseLength = 0;
     }
@@ -227,847 +976,51 @@ static char *getAbsoluteFilename(
     return buffer;
 }
 
-static char *stripFilename(const char *filename, size_t length,
-                           size_t *resultLength)
+char *FileSearchPath(const char *name, size_t length, size_t *resultLength)
 {
+    char *candidate;
+    const char *path;
+    size_t pathLength;
+    const char *stop;
     const char *p;
-    char *path;
 
-    /* TODO: Handle filenames ending with /. and /.. */
-    if (filename[length - 1] == '/')
+    assert(name);
+    assert(length);
+    if (*name == '/')
     {
-        return null;
+        return FileCreatePath(null, 0, name, length, null, 0, resultLength);
     }
-    for (p = filename + length; p >= filename; p--)
+    EnvGet("PATH", 4, &path, &pathLength);
+    if (!path)
     {
-        if (*p == '/')
+        path = cwd;
+        pathLength = cwdLength;
+    }
+    for (stop = path + pathLength; path < stop; path = p + 1)
+    {
+        for (p = path; p < stop && *p != ':'; p++);
+        candidate = FileCreatePath(path, (size_t)(p - path), name, length,
+                                   null, 0, resultLength);
+        if (FileIsExecutable(candidate, *resultLength))
         {
-            length = (size_t)(p - filename);
-            path = (char*)malloc(length + 1);
-            memcpy(path, filename, length);
-            path[length] = 0;
-            *resultLength = length;
-            return path;
+            return candidate;
         }
+        free(candidate);
     }
     return null;
 }
 
-static void createDirectory(const char *path, size_t length, boolean mutablePath)
+const char *FileStripPath(const char *path, size_t *length)
 {
-    struct stat s;
-    char *p;
-    char *end;
-    uint level = 0;
-
-    assert(length); /* TODO: Error handling. */
-    assert(!mutablePath || !path[length]);
-    if (path[length - 1] == '/')
-    {
-        length--;
-    }
-    if (mutablePath)
-    {
-        p = (char*)path;
-    }
-    else
-    {
-        p = (char*)malloc(length + 1);
-        memcpy(p, path, length);
-        p[length] = 0;
-    }
-    end = p + length;
-
-    for (;;)
-    {
-        if (!stat(p, &s))
-        {
-            if (S_ISDIR(s.st_mode))
-            {
-                break;
-            }
-            if (p != path)
-            {
-                free(p);
-            }
-            errno = ENOTDIR;
-            TaskFailIO(p);
-        }
-        else if (errno != ENOENT)
-        {
-            TaskFailIO(p);
-        }
-        for (end--; *end != '/'; end--)
-        {
-            assert(end != p); /* TODO: Error handling. */
-        }
-        *end = 0;
-        level++;
-    }
-    while (level)
-    {
-        *end = '/';
-        end += strlen(end);
-        level--;
-        if (mkdir(p, S_IRWXU | S_IRWXG | S_IRWXO))
-        {
-            TaskFailIO(p);
-        }
-    }
-    if (p != path)
-    {
-        free(p);
-    }
-}
-
-static void fileMUnmap(FileEntry *fe)
-{
-    int error;
-
-    assert(fe->data);
-    assert(fe->dataRefCount);
-    if (!--fe->dataRefCount)
-    {
-        error = munmap(fe->data, fe->blob.size);
-        fe->data = null;
-        assert(!error);
-    }
-}
-
-static void fileClose(FileEntry *fe)
-{
-    assert(!fe->data);
-    if (fe->fd)
-    {
-        close(fe->fd);
-        fe->fd = 0;
-    }
-}
-
-static void fileOpen(FileEntry *fe, boolean append, boolean failOnFileNotFound)
-{
-    char *path;
-    size_t length;
-
-    if (append)
-    {
-        if (fe->fd)
-        {
-            if (!fe->append)
-            {
-                fileClose(fe);
-            }
-        }
-    }
-    if (fe->fd)
-    {
-        return;
-    }
-    fe->fd = open(fe->name,
-                  O_CLOEXEC |
-                  (append ? O_CREAT | O_WRONLY | O_APPEND : O_RDONLY),
-                  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-    if (fe->fd == -1)
-    {
-        fe->fd = 0;
-        if (append && errno == ENOENT)
-        {
-            path = stripFilename(fe->name, fe->nameLength, &length);
-            if (path)
-            {
-                createDirectory(path, length, true);
-                free(path);
-                fileOpen(fe, append, failOnFileNotFound);
-                return;
-            }
-        }
-        if (failOnFileNotFound || errno != ENOENT)
-        {
-            TaskFailIO(fe->name);
-        }
-    }
-    fe->append = append;
-}
-
-static void fileSetStat(FileEntry *fe, const struct stat *s)
-{
-    fe->hasStat = true;
-    fe->blob.size = (size_t)s->st_size;
-    fe->mode = s->st_mode;
-    fe->dev = s->st_dev;
-    fe->ino = s->st_ino;
-    fe->blob.mtime.seconds = s->st_mtime;
-    fe->blob.mtime.fraction = (ulong)s->st_mtim.tv_nsec;
-}
-
-static boolean fileStat(FileEntry *fe, boolean failOnFileNotFound)
-{
-    struct stat s;
-
-    if (fe->hasStat)
-    {
-        return true;
-    }
-    if (fe->fd)
-    {
-        if (fstat(fe->fd, &s))
-        {
-            TaskFailIO(fe->name);
-        }
-    }
-    else if (stat(fe->name, &s))
-    {
-        if (!failOnFileNotFound && errno == ENOENT)
-        {
-            return false;
-        }
-        TaskFailIO(fe->name);
-    }
-    fileSetStat(fe, &s);
-    return true;
-}
-
-static boolean fileLStat(FileEntry *fe, struct stat *s)
-{
-    if (lstat(fe->name, s))
-    {
-        if (errno == ENOENT)
-        {
-            return false;
-        }
-        TaskFailIO(fe->name);
-    }
-    if (!S_ISLNK(s->st_mode))
-    {
-        fileSetStat(fe, s);
-    }
-    return true;
-}
-
-static void fileMMap(FileEntry *fe, const byte **p, size_t *size,
-                     boolean failOnFileNotFound)
-{
-    if (!fe->data)
-    {
-        fileOpen(fe, false, failOnFileNotFound);
-        if (!fe->fd)
-        {
-            *p = null;
-            return;
-        }
-        fileStat(fe, true);
-        if (!fe->blob.size)
-        {
-            *p = 0;
-            *size = 0;
-            return;
-        }
-        fe->data = (byte*)mmap(null, fe->blob.size, PROT_READ, MAP_PRIVATE,
-                               fe->fd, 0);
-        if (fe->data == (byte*)-1)
-        {
-            fe->data = null;
-            /* TODO: Read file fallback */
-            TaskFailIO(fe->name);
-        }
-    }
-    fe->dataRefCount++;
-    *p = fe->data;
-    *size = fe->blob.size;
-}
-
-static void fileWrite(FileEntry *fe, const byte *data, size_t size)
-{
-    ssize_t written;
-
-    assert(fe->fd);
-    assert(fe->append);
-    while (size)
-    {
-        written = write(fe->fd, data, size);
-        if (written < 0)
-        {
-            TaskFailIO(fe->name);
-        }
-        assert((size_t)written <= size);
-        size -= (size_t)written;
-    }
-}
-
-static void initFileIndex(uint start)
-{
-    uint index = start;
-
-    for (index = start; index < fileIndexSize; index++)
-    {
-        fileIndex[index].refCount = 0;
-        fileIndex[index].next = index + 2;
-    }
-    fileIndex[fileIndexSize - 1].next = 0;
-    freeFile = start + 1;
-}
-
-static void disposeFile(FileEntry *fe)
-{
-    FileEntry *prev;
-    uint slot = UtilHashString(fe->name, fe->nameLength) & (fileIndexSize - 1);
-    uint file = (uint)(fe - fileIndex) + 1;
-
-    if (fe->flags & FLAG_FREE_FILENAME)
-    {
-        free((void*)fe->name);
-    }
-    if (fe->data)
-    {
-        fileMUnmap(fe);
-        fileClose(fe);
-    }
-    if (fileTable[slot] == file)
-    {
-        fileTable[slot] = fe->next;
-    }
-    else
-    {
-        prev = getFileEntry(fileTable[slot]);
-        for (;;)
-        {
-            if (prev->next == file)
-            {
-                prev->next = fe->next;
-                break;
-            }
-            prev = getFileEntry(prev->next);
-        }
-    }
-    fe->next = freeFile;
-    freeFile = file;
-}
-
-static fileref addFile(char *filename, size_t filenameLength,
-                       boolean filenameOwner)
-{
-    FileEntry *fe;
-    fileref file;
-    uint oldSize;
-    uint slot;
-    uint i;
-
-    assert(filename);
-    assert(!filename[filenameLength]);
-
-    if (!freeFile)
-    {
-        oldSize = fileIndexSize;
-        fileIndexSize *= 2;
-        fileIndex = (FileEntry*)realloc(fileIndex, fileIndexSize * sizeof(FileEntry));
-        free(fileTable);
-        fileTable = (uint*)calloc(fileIndexSize, sizeof(uint));
-        i = oldSize;
-        while (i--)
-        {
-            fe = &fileIndex[i];
-            if (fe->refCount)
-            {
-                slot = UtilHashString(fe->name, fe->nameLength) & (fileIndexSize - 1);
-                fe->next = fileTable[slot];
-                fileTable[slot] = i + 1;
-            }
-        }
-        initFileIndex(oldSize);
-    }
-    slot = UtilHashString(filename, filenameLength) & (fileIndexSize - 1);
-    file = fileTable[slot];
-    while (file)
-    {
-        fe = getFileEntry(file);
-        if (filenameLength == fe->nameLength &&
-            !memcmp(filename, fe->name, filenameLength))
-        {
-            if (filenameOwner)
-            {
-                free(filename);
-            }
-            return file;
-        }
-        file = fe->next;
-    }
-
-    fe = &fileIndex[freeFile - 1];
-    assert(!fe->refCount);
-    file = refFromUint(freeFile);
-    freeFile = fe->next;
-    fe->next = fileTable[slot];
-    fe->name = filename;
-    fe->nameLength = filenameLength;
-    fe->flags = filenameOwner ? FLAG_FREE_FILENAME : 0;
-    fe->refCount = 1;
-    fe->fd = 0;
-    fe->hasStat = false;
-    fe->data = null;
-    fe->dataRefCount = 0;
-    fileTable[slot] = file;
-    return file;
-}
-
-
-void FileInit(void)
-{
-    char *buffer;
-
-    fileTable = (uint*)calloc(INITIAL_FILE_SIZE, sizeof(uint));
-    fileIndexSize = INITIAL_FILE_SIZE;
-    fileIndex = (FileEntry*)malloc(INITIAL_FILE_SIZE * sizeof(FileEntry));
-    initFileIndex(0);
-
-    cwd = getcwd(null, 0);
-    if (!cwd)
-    {
-        TaskFailOOM();
-    }
-    cwdLength = strlen(cwd);
-    assert(cwdLength);
-    assert(cwd[0] == '/');
-    if (cwd[cwdLength - 1] != '/')
-    {
-        buffer = (char*)realloc(cwd, cwdLength + 2);
-        buffer[cwdLength] = '/';
-        buffer[cwdLength + 1] = '/';
-        cwd = buffer;
-        cwdLength++;
-    }
-}
-
-void FileDisposeAll(void)
-{
-    FileEntry *fe;
-    uint i = fileIndexSize;
-    while (i--)
-    {
-        fe = &fileIndex[i];
-        if (fe->refCount)
-        {
-            fe->refCount = 0;
-            disposeFile(fe);
-        }
-    }
-    free(fileTable);
-    free(fileIndex);
-    free(cwd);
-}
-
-
-fileref FileAdd(const char *filename, size_t length)
-{
-    char *name = getAbsoluteFilename(null, 0, filename, length, null, 0, &length);
-    return addFile(name, length, true);
-}
-
-fileref FileAddRelative(const char *base, size_t baseLength,
-                        const char *filename, size_t length)
-{
-    char *name = getAbsoluteFilename(base, baseLength, filename, length, null, 0,
-                                     &length);
-    return addFile(name, length, true);
-}
-
-fileref FileAddRelativeExt(const char *base, size_t baseLength,
-                           const char *filename, size_t length,
-                           const char *extension, size_t extLength)
-{
-    char *name = getAbsoluteFilename(base, baseLength, filename, length,
-                                     extension, extLength, &length);
-    return addFile(name, length, true);
-}
-
-fileref FileAddSearch(const char *filename, size_t length,
-                      const char *path, size_t pathLength)
-{
-    fileref file;
-    const char *stop = path + pathLength;
-    const char *p;
-
-    if (filename[0] == '/')
-    {
-        return FileAdd(filename, length);
-    }
-    while (path < stop)
-    {
-        for (p = path; p < stop && *p != ':'; p++);
-        file = FileAddRelative(path, (size_t)(p - path), filename, length);
-        if (FileIsExecutable(file))
-        {
-            return file;
-        }
-        path = p + 1;
-    }
-    return 0;
-}
-
-fileref FileAddSearchPath(const char *filename, size_t length)
-{
-    const char *path;
-    size_t pathLength;
-
-    EnvGet("PATH", 4, &path, &pathLength);
-    if (path)
-    {
-        return FileAddSearch(filename, length, path, pathLength);
-    }
-    return FileAddSearch(filename, length, cwd, cwdLength);
-}
-
-void FileDispose(fileref file)
-{
-    FileEntry *fe = getFileEntry(file);
-    assert(fe->refCount);
-    if (!--fe->refCount)
-    {
-        disposeFile(fe);
-    }
-}
-
-
-const char *FileGetName(fileref file)
-{
-    return getFileEntry(file)->name;
-}
-
-size_t FileGetNameLength(fileref file)
-{
-    return getFileEntry(file)->nameLength;
-}
-
-size_t FileGetSize(fileref file)
-{
-    FileEntry *restrict fe = getFileEntry(file);
-    fileStat(fe, true);
-    return fe->blob.size;
-}
-
-boolean FileIsExecutable(fileref file)
-{
-    FileEntry *fe = getFileEntry(file);
-    if (!fileStat(fe, false))
-    {
-        return false;
-    }
-    return S_ISREG(fe->mode) && (fe->mode & (S_IXUSR | S_IXGRP | S_IXOTH));
-}
-
-const byte *FileGetStatusBlob(fileref file)
-{
-    FileEntry *fe = getFileEntry(file);
-    fileStat(fe, true);
-    return (const byte*)&fe->blob;
-}
-
-size_t FileGetStatusBlobSize(void)
-{
-    return sizeof(StatusBlob);
-}
-
-boolean FileHasChanged(fileref file, const byte *blob)
-{
-    return memcmp(FileGetStatusBlob(file), blob, FileGetStatusBlobSize()) != 0;
-}
-
-
-void FileOpenAppend(fileref file)
-{
-    fileOpen(getFileEntry(file), true, true);
-}
-
-void FileClose(fileref file)
-{
-    fileClose(getFileEntry(file));
-}
-
-void FileCloseSync(fileref file)
-{
-    FileEntry *fe = getFileEntry(file);
-    if (fe->fd)
-    {
-        /* Sync is best-effort only. Ignore errors. */
-        fdatasync(fe->fd);
-
-        fileClose(fe);
-    }
-}
-
-void FileRead(fileref file, byte *data, size_t size)
-{
-    FileEntry *fe = getFileEntry(file);
-    const byte *p;
-    size_t fileSize;
-
-    assert(size);
-    fileMMap(fe, &p, &fileSize, true);
-    assert(size <= fileSize);
-    memcpy(data, p, size);
-    fileMUnmap(fe);
-}
-
-void FileWrite(fileref file, const byte *data, size_t size)
-{
-    fileWrite(getFileEntry(file), data, size);
-}
-
-
-void FileMMap(fileref file, const byte **p, size_t *size,
-              boolean failOnFileNotFound)
-{
-    fileMMap(getFileEntry(file), p, size, failOnFileNotFound);
-}
-
-void FileMUnmap(fileref file)
-{
-    fileMUnmap(getFileEntry(file));
-}
-
-
-static void fileCopySingle(FileEntry *src, FileEntry *dst)
-{
-    const byte *p;
-    size_t size;
-
-    if (src == dst)
-    {
-        return;
-    }
-    assert(src->hasStat);
-    if (fileStat(dst, false))
-    {
-        if (src->dev == dst->dev && src->ino == dst->ino)
-        {
-            return;
-        }
-    }
-    fileClose(dst);
-    dst->append = true;
-    dst->fd = open(dst->name,
-                   O_CLOEXEC | O_CREAT | O_WRONLY | O_APPEND | O_TRUNC,
-                   S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-    if (dst->fd == -1)
-    {
-        TaskFailIO(dst->name);
-    }
-    if (src->blob.size)
-    {
-        size = 0;
-        fileMMap(src, &p, &size, true);
-        fileWrite(dst, p, size);
-        fileMUnmap(src);
-    }
-    fileClose(dst);
-}
-
-static int fileCopyCallback(const char *filename, const struct stat *s,
-                            int flags, struct FTW *f)
-{
-    FileEntry *srcFE;
-    FileEntry *dstFE;
-    size_t length;
-
-    if (!f->level)
-    {
-        return 0;
-    }
-    length = (size_t)f->base + strlen(filename + f->base);
-    srcFE = getFileEntry(addFile(copyString(filename, length), length, true));
-    fileSetStat(srcFE, s);
-    dstFE = getFileEntry(FileAddRelative(globalFE->name, globalFE->nameLength,
-                                         filename + globalFilenamePrefixLength,
-                                         length - globalFilenamePrefixLength));
-    if (flags == FTW_D)
-    {
-        if (mkdir(dstFE->name, S_IRWXU | S_IRWXG | S_IRWXO) &&
-            errno != EEXIST)
-        {
-            TaskFailIO(dstFE->name);
-        }
-        return 0;
-    }
-    if (flags == FTW_F)
-    {
-        fileCopySingle(srcFE, dstFE);
-        return 0;
-    }
-    TaskFailIO(filename);
-}
-
-void FileCopy(fileref srcFile, fileref dstFile)
-{
-    FileEntry *srcFE;
-    FileEntry *dstFE;
-    struct stat s;
-    const char *name;
-    size_t size;
-
-    if (srcFile == dstFile)
-    {
-        return;
-    }
-    srcFE = getFileEntry(srcFile);
-    dstFE = getFileEntry(dstFile);
-    fileOpen(srcFE, false, true);
-    fileStat(srcFE, true);
-    if (S_ISDIR(srcFE->mode))
-    {
-        if (fileLStat(dstFE, &s))
-        {
-            if (S_ISLNK(s.st_mode))
-            {
-                if (!fileStat(dstFE, false))
-                {
-                    TaskFail("Cannot copy directory '%s' through dangling symlink '%s'.\n",
-                             srcFE->name, dstFE->name);
-                }
-            }
-            if (!S_ISDIR(dstFE->mode))
-            {
-                TaskFail("Cannot copy directory '%s' to non-directory '%s'.\n",
-                         srcFE->name, dstFE->name);
-            }
-            size = srcFE->nameLength;
-            name = FileFilename(srcFE->name, &size);
-            dstFE = getFileEntry(FileAddRelative(
-                                     dstFE->name, dstFE->nameLength,
-                                     name, size));
-        }
-        if (mkdir(dstFE->name, S_IRWXU | S_IRWXG | S_IRWXO) &&
-            errno != EEXIST)
-        {
-            TaskFailIO(dstFE->name);
-        }
-        globalFE = dstFE;
-        globalFilenamePrefixLength = srcFE->name[srcFE->nameLength - 1] == '/' ?
-            srcFE->nameLength : srcFE->nameLength + 1;
-        if (nftw(srcFE->name, fileCopyCallback, 10, 0))
-        {
-            TaskFailIO(srcFE->name);
-        }
-        return;
-    }
-    if (fileLStat(dstFE, &s))
-    {
-        if (S_ISLNK(s.st_mode))
-        {
-            if (!fileStat(dstFE, false))
-            {
-                TaskFail("Cannot copy '%s' through dangling symlink '%s'.\n",
-                         srcFE->name, dstFE->name);
-            }
-        }
-        if (S_ISDIR(dstFE->mode))
-        {
-            size = srcFE->nameLength;
-            name = FileFilename(srcFE->name, &size);
-            fileCopySingle(srcFE,
-                           getFileEntry(FileAddRelative(
-                                            dstFE->name, dstFE->nameLength,
-                                            name, size)));
-            return;
-        }
-    }
-    fileCopySingle(srcFE, dstFE);
-}
-
-static int fileDeleteCallback(const char *filename, const struct stat *s unused,
-                              int flags unused, struct FTW *f unused)
-{
-    if (remove(filename) && errno != ENOENT)
-    {
-        TaskFailIO(filename);
-    }
-    return 0;
-}
-
-void FileDelete(fileref file)
-{
-    FileEntry *fe = getFileEntry(file);
-    fileClose(fe);
-    fe->hasStat = false;
-    if (!remove(fe->name) || errno == ENOENT)
-    {
-        return;
-    }
-    if (errno == ENOTEMPTY)
-    {
-        if (!nftw(fe->name, fileDeleteCallback, 10, FTW_PHYS | FTW_MOUNT | FTW_DEPTH))
-        {
-            return;
-        }
-    }
-    TaskFailIO(fe->name);
-}
-
-void FileRename(fileref oldFile, fileref newFile, boolean failOnFileNotFound)
-{
-    FileEntry *oldFE = getFileEntry(oldFile);
-    FileEntry *newFE = getFileEntry(newFile);
-    fileClose(oldFE);
-    fileClose(newFE);
-    oldFE->hasStat = false;
-    newFE->hasStat = false;
-    if (!rename(oldFE->name, newFE->name))
-    {
-        return;
-    }
-    if (errno == EXDEV)
-    {
-        /* TODO: Check that a file isn't being overwritten by a directory */
-        FileDelete(newFile);
-        FileCopy(oldFile, newFile);
-        FileDelete(oldFile);
-        return;
-    }
-    if (errno == ENOTEMPTY || errno == EEXIST || errno == EISDIR)
-    {
-        FileDelete(newFile);
-        if (!rename(oldFE->name, newFE->name))
-        {
-            return;
-        }
-    }
-    if (errno == ENOTDIR)
-    {
-        TaskFail("Cannot overwrite non-directory '%s' with directory '%s'",
-                 newFE->name, oldFE->name);
-    }
-    if (failOnFileNotFound || errno != ENOENT)
-    {
-        TaskFailIO(oldFE->name);
-    }
-}
-
-void FileMkdir(fileref file)
-{
-    FileEntry *fe = getFileEntry(file);
-    createDirectory(fe->name, fe->nameLength, false);
-}
-
-
-static int globTraverse(const char *filename, const struct stat *info unused,
-                        int flags unused)
-{
-    size_t length = strlen(filename);
-
-    if (length < globalFilenamePrefixLength)
-    {
-        return 0;
-    }
-    if (!GlobMatch(globalPattern, filename + globalFilenamePrefixLength))
-    {
-        return 0;
-    }
-    globalCallback(addFile(copyString(filename, length), length, true),
-                   globalUserdata);
-    return 0;
-}
-
-const char *FileFilename(const char *path, size_t *length)
-{
-    const char *current = path + *length;
+    const char *current;
+
+    /* TODO: Relax some constraints? */
+    assert(path);
+    assert(length);
+    assert(*length);
+    assert(*path == '/');
+
+    current = path + *length;
     while (current > path && current[-1] != '/')
     {
         current--;
@@ -1076,69 +1029,482 @@ const char *FileFilename(const char *path, size_t *length)
     return current;
 }
 
-void FileTraverseGlob(const char *pattern,
-                      TraverseCallback callback, void *userdata)
+void FilePinDirectory(const char *path, size_t length)
 {
-    const char *slash = null;
-    const char *asterisk = null;
-    const char *p;
-    char *filename;
-    size_t length;
-    int error;
+    TreeEntry *te;
 
-    for (p = pattern; *p; p++)
+    assert(path);
+    assert(length);
+    assert(*path == '/');
+
+    te = teGet(path, length);
+
+    /* This function should only be called at startup. */
+    assert(!te->refCount);
+    assert(!te->fd);
+
+#ifdef HAVE_OPENAT
+    assert(te->parent);
+    teDoOpen(te, te->parent->fd, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
+    if (!te->fd)
     {
-        if (*p == '/')
+        if (errno != ENOENT)
         {
-            slash = p;
+            TaskFailIO(path);
         }
-        else if (*p == '*')
+        teMkdir(te);
+        teDoOpen(te, te->parent->fd, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
+        if (!te->fd)
         {
-            asterisk = p;
-            break;
+            TaskFailIO(path);
         }
     }
-    length = (size_t)(p - pattern) + strlen(p);
-    assert(length == strlen(pattern));
+#else
+    teMkdir(te);
+#endif
 
-    if (!asterisk)
+    tePin(te, 1);
+}
+
+void FileUnpinDirectory(const char *path, size_t length)
+{
+    TreeEntry *te;
+
+    assert(path);
+    assert(length);
+    assert(*path == '/');
+
+    te = teGet(path, length);
+    tePin(te, -1);
+}
+
+void FileMarkModified(const char *path, size_t length)
+{
+    assert(path);
+    assert(length);
+    assert(*path == '/');
+    teDispose(teGet(path, length));
+}
+
+const byte *FileStatusBlob(const char *path, size_t length)
+{
+    TreeEntry *te = teGet(path, length);
+    teStat(te);
+    return (const byte*)&te->blob;
+}
+
+size_t FileStatusBlobSize(void)
+{
+    return sizeof(StatusBlob);
+}
+
+boolean FileHasChanged(const char *path, size_t length, const byte *blob)
+{
+    return memcmp(FileStatusBlob(path, length), blob,
+                  FileStatusBlobSize()) != 0;
+}
+
+boolean FileIsOpen(File *file)
+{
+    assert(file);
+    assert(!file->te || file->te->refCount);
+    assert(!file->te || file->te->fd);
+    return file->te != null;
+}
+
+void FileOpen(File *file, const char *path, size_t length)
+{
+    if (!FileTryOpen(file, path, length))
     {
-        callback(FileAdd(pattern, length), userdata);
+        TaskFailIO(path);
+    }
+}
+
+boolean FileTryOpen(File *file, const char *path, size_t length)
+{
+    TreeEntry *te;
+
+    assert(file);
+    assert(path);
+    assert(length);
+    assert(*path == '/');
+
+    te = teGet(path, length);
+    teOpen(te);
+    if (!te->fd)
+    {
+        if (errno == ENOENT)
+        {
+            return false;
+        }
+        TaskFailIO(path);
+    }
+    if (pathIsDirectory(path, length) && !teIsDirectory(te))
+    {
+        TaskFailIOErrno(ENOTDIR, path);
+    }
+    te->refCount++;
+    file->te = te;
+    file->mmapRefCount = 0;
+    return true;
+}
+
+void FileOpenAppend(File *file, const char *path, size_t length)
+{
+    TreeEntry *te;
+
+    assert(file);
+    assert(path);
+    assert(length);
+    assert(*path == '/');
+
+    te = teGet(path, length);
+    assert(!te->fd); /* TODO: Reopen file for appending. */
+    teOpenWrite(te, O_APPEND);
+    if (!te->fd)
+    {
+        TaskFailIO(path);
+    }
+    te->refCount++;
+    file->te = te;
+    file->mmapRefCount = 0;
+}
+
+void FileClose(File *file)
+{
+    assert(FileIsOpen(file));
+
+    if (file->mmapRefCount)
+    {
+        teMUnmap(file->te);
+    }
+    if (!--file->te->refCount)
+    {
+        teClose(file->te);
+    }
+    file->te = null;
+}
+
+size_t FileSize(File *file)
+{
+    assert(file);
+    assert(file->te);
+    return teSize(file->te);
+}
+
+void FileRead(File *file, byte *buffer, size_t size)
+{
+    assert(file);
+    assert(file->te);
+    teMMap(file->te);
+    assert(teSize(file->te) >= size);
+    memcpy(buffer, file->te->data, size);
+    teMUnmap(file->te);
+}
+
+void FileWrite(File *file, const byte *data, size_t size)
+{
+    assert(file);
+    assert(file->te);
+    teWrite(file->te, data, size);
+}
+
+boolean FileIsExecutable(const char *path, size_t length)
+{
+    assert(path);
+    assert(length);
+    assert(*path == '/');
+    return teIsExecutable(teGet(path, length));
+}
+
+void FileDelete(const char *path, size_t length)
+{
+    assert(path);
+    assert(length);
+    assert(*path == '/');
+    teDelete(teGet(path, length));
+}
+
+void FileMkdir(const char *path, size_t length)
+{
+    assert(path);
+    assert(length);
+    assert(*path == '/');
+    teMkdir(teGet(path, length));
+}
+
+void FileCopy(const char *srcPath, size_t srcLength,
+              const char *dstPath, size_t dstLength)
+{
+    TreeEntry *teSrc;
+    TreeEntry *teDst;
+
+    assert(srcPath);
+    assert(srcLength);
+    assert(*srcPath == '/');
+    assert(dstPath);
+    assert(dstLength);
+    assert(*dstPath == '/');
+
+    teSrc = teGet(srcPath, srcLength);
+    teDst = teGet(dstPath, dstLength);
+    teOpen(teSrc);
+    if (!teSrc->fd)
+    {
+        TaskFailIO(concatFilename(teSrc));
+    }
+    assert(!teIsDirectory(teSrc)); /* TODO: Copy directory */
+    teStat(teDst);
+    if (teDst->blob.exists &&
+        teSrc->ino == teDst->ino && teSrc->dev == teDst->dev)
+    {
+        return;
+    }
+    teMMap(teSrc);
+    teOpenWrite(teDst, O_TRUNC);
+    if (!teDst->fd)
+    {
+        TaskFailIO(concatFilename(teDst));
+    }
+    teWrite(teDst, teSrc->data, teSize(teSrc));
+    teClose(teDst);
+    teMUnmap(teSrc);
+}
+
+void FileRename(const char *oldPath, size_t oldLength,
+                const char *newPath, size_t newLength)
+{
+    TreeEntry *teOld;
+    TreeEntry *teNew;
+    TreeEntry *teNewParent;
+    char *oldPathSZ;
+    char *newPathSZ;
+
+    assert(oldPath);
+    assert(oldLength);
+    assert(*oldPath == '/');
+    assert(newPath);
+    assert(newLength);
+    assert(*newPath == '/');
+
+    teOld = teGet(oldPath, oldLength);
+    teNew = teGet(newPath, newLength);
+
+    /* TODO: Error handling? */
+    assert(!teOld->pinned);
+    assert(!teOld->hasPinned);
+    assert(!teNew->pinned);
+    assert(!teNew->hasPinned);
+
+    /* TODO: Avoid malloc if strings are null terminated. */
+    oldPathSZ = concatFilename(teOld);
+    newPathSZ = concatFilename(teNew);
+    if (!rename(oldPathSZ, newPathSZ)) /* TODO: Use renameat if available. */
+    {
+        free(oldPathSZ);
+        free(newPathSZ);
+        teNewParent = teNew->parent;
+        teDispose(teOld); /* TODO: Reparent */
+        teDispose(teNew);
+        return;
+    }
+    /* TODO: Rename directories and across file systems */
+    TaskFailIO(oldPathSZ); /* TODO: Proper error message with both paths. */
+}
+
+void FileMMap(File *file, const byte **p, size_t *size)
+{
+    assert(file);
+    assert(p);
+    assert(size);
+    assert(file->te);
+
+    if (!file->mmapRefCount)
+    {
+        teMMap(file->te);
+    }
+    file->mmapRefCount++;
+    *p = file->te->data;
+    *size = teSize(file->te);
+}
+
+void FileMUnmap(File *file)
+{
+    assert(file);
+    assert(file->te);
+    assert(file->te->data);
+    assert(file->mmapRefCount);
+
+    if (!--file->mmapRefCount)
+    {
+        teMUnmap(file->te);
+    }
+}
+
+static void teCallback(TreeEntry *te, bytevector *path,
+                       const char *component, size_t componentLength,
+                       TraverseCallback callback, void *userdata)
+{
+    size_t oldSize = ByteVectorSize(path);
+    if (componentLength)
+    {
+        if (te->parent != &root)
+        {
+            ByteVectorAdd(path, '/');
+        }
+        ByteVectorAddData(path, (const byte*)component, componentLength);
+    }
+    if (teIsDirectory(te))
+    {
+        ByteVectorAdd(path, '/');
+    }
+    callback((const char*)ByteVectorGetPointer(path, 0), ByteVectorSize(path), userdata);
+    ByteVectorSetSize(path, oldSize);
+}
+
+static void teTraverseGlob(TreeEntry *base, bytevector *path,
+                           const char *pattern, size_t patternLength,
+                           TraverseCallback callback, void *userdata)
+{
+    TreeEntry *child;
+    const char *p;
+    const char *stop;
+    boolean asterisk;
+    size_t componentLength;
+    size_t childLength;
+    size_t oldSize;
+    DIR *dir;
+    union
+    {
+        struct dirent d;
+        char b[offsetof(struct dirent, d_name) + NAME_MAX + 1];
+    } u;
+    struct dirent *res;
+
+    for (;;)
+    {
+        if (!patternLength)
+        {
+            return;
+        }
+
+        while (*pattern == '/')
+        {
+            pattern++;
+            if (!--patternLength)
+            {
+                teCallback(base, path, null, 0, callback, userdata);
+                return;
+            }
+        }
+
+        asterisk = false;
+        for (p = pattern, stop = pattern + patternLength; p < stop; p++)
+        {
+            if (*p == '/')
+            {
+                break;
+            }
+            else if (*p == '*')
+            {
+                asterisk = true;
+            }
+        }
+        componentLength = (size_t)(p - pattern);
+        if (!asterisk)
+        {
+            base = teChild(base, pattern, componentLength);
+            if (p == stop && teExists(base))
+            {
+                teCallback(base, path, pattern, componentLength,
+                           callback, userdata);
+            }
+            if (teIsDirectory(base))
+            {
+                if (base->parent != &root)
+                {
+                    ByteVectorAdd(path, '/');
+                }
+                ByteVectorAddData(path, (const byte*)pattern, componentLength);
+                pattern = p;
+                patternLength -= componentLength;
+                continue;
+            }
+            return;
+        }
+
+        dir = teOpenDir(base);
+        u.d.d_name[NAME_MAX] = 0;
+        for (;;)
+        {
+            if (readdir_r(dir, &u.d, &res))
+            {
+                TaskFailIO(concatFilename(base));
+            }
+            if (!res)
+            {
+                break;
+            }
+            if (*u.d.d_name == '.' && *pattern != '.')
+            {
+                continue;
+            }
+            childLength = strlen(u.d.d_name);
+            if (!GlobMatch(pattern, componentLength, u.d.d_name, childLength))
+            {
+                continue;
+            }
+            child = teChild(base, u.d.d_name, childLength);
+            if (p == stop)
+            {
+                teCallback(child, path, u.d.d_name, childLength,
+                           callback, userdata);
+            }
+            else if (teIsDirectory(child))
+            {
+                oldSize = ByteVectorSize(path);
+                if (base != &root)
+                {
+                    ByteVectorAdd(path, '/');
+                }
+                ByteVectorAddData(path, (const byte*)u.d.d_name, childLength);
+                teTraverseGlob(child, path, p, patternLength - componentLength,
+                               callback, userdata);
+                ByteVectorSetSize(path, oldSize);
+            }
+        }
+        teCloseDir(base, dir);
+        break;
+    }
+}
+
+void FileTraverseGlob(const char *pattern, size_t length,
+                      TraverseCallback callback, void *userdata)
+{
+    bytevector path;
+    TreeEntry *base;
+    char *temp;
+
+    if (!length)
+    {
         return;
     }
 
-    if (slash)
+    assert(pattern);
+
+    if (*pattern == '/')
     {
-        filename = getAbsoluteFilename(null, 0,
-                                       pattern, (size_t)(slash - pattern),
-                                       null, 0,
-                                       &length);
+        base = &root;
     }
     else
     {
-        filename = cwd;
-        length = cwdLength;
+        base = teGet(cwd, cwdLength);
     }
 
-    globalCallback = callback;
-    globalUserdata = userdata;
-    if (slash)
-    {
-        globalPattern = slash + 1;
-        globalFilenamePrefixLength = strlen(filename) + 1;
-    }
-    else
-    {
-        globalPattern = pattern;
-        globalFilenamePrefixLength = cwdLength + 1;
-    }
-    error = ftw(filename, globTraverse, 10);
-    if (slash)
-    {
-        free(filename);
-    }
-    if (error == -1)
-    {
-        TaskFailIO(filename);
-    }
+    ByteVectorInit(&path, NAME_MAX);
+    temp = concatFilename(base); /* TODO: Avoid malloc */
+    ByteVectorAddData(&path, (const byte*)temp, strlen(temp));
+    free(temp);
+    teTraverseGlob(base, &path, pattern, length, callback, userdata);
+    ByteVectorDispose(&path);
 }
