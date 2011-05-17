@@ -106,21 +106,23 @@ static void teClose(TreeEntry *te)
     te->fd = 0;
 }
 
-static void teDoOpen(TreeEntry *te, int fdParent, int flags)
+static void teDoOpen(TreeEntry *te, int fdParent unused, int flags)
 {
     char *path;
     assert(!te->refCount);
     assert(!te->fd);
     if (te == teCwd)
     {
-        te->fd = openat(AT_FDCWD, ".", flags,
-                        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+        te->fd = open(".", flags,
+                      S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
     }
+#ifdef HAVE_OPENAT
     else if (fdParent)
     {
         te->fd = openat(fdParent, te->component, flags,
                         S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
     }
+#endif
     else
     {
         path = concatFilename(te);
@@ -433,6 +435,7 @@ static void teDeleteDirectory(TreeEntry *te)
         TaskFailIO(concatFilename(te));
     }
     teClose(te);
+#ifdef HAVE_OPENAT
     fd = teQuickParentFD(te);
     if (fd)
     {
@@ -442,6 +445,7 @@ static void teDeleteDirectory(TreeEntry *te)
         }
     }
     else
+#endif
     {
         path = concatFilename(te);
         if (rmdir(path))
