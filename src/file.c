@@ -111,7 +111,12 @@ static void teDoOpen(TreeEntry *te, int fdParent, int flags)
     char *path;
     assert(!te->refCount);
     assert(!te->fd);
-    if (fdParent)
+    if (te == teCwd)
+    {
+        te->fd = openat(AT_FDCWD, ".", flags,
+                        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+    }
+    else if (fdParent)
     {
         te->fd = openat(fdParent, te->component, flags,
                         S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
@@ -187,7 +192,7 @@ static void teOpen(TreeEntry *te)
     }
 
 #ifdef HAVE_OPENAT
-    teDoOpen(te, teParentFD(te), O_CLOEXEC | O_RDONLY);
+    teDoOpen(te, te == teCwd ? 0 : teParentFD(te), O_CLOEXEC | O_RDONLY);
 #else
     teDoOpen(te, 0, O_CLOEXEC | O_RDONLY);
 #endif
@@ -217,7 +222,8 @@ static DIR *teOpenDir(TreeEntry *te)
     if (!te->fd)
     {
 #ifdef HAVE_OPENAT
-        teDoOpen(te, teParentFD(te), O_CLOEXEC | O_RDONLY | O_DIRECTORY);
+        teDoOpen(te, te == teCwd ? 0 : teParentFD(te),
+                 O_CLOEXEC | O_RDONLY | O_DIRECTORY);
 #else
         teDoOpen(te, 0, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
 #endif
