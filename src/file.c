@@ -38,6 +38,7 @@ struct _TreeEntry
     int fd;
     uint8 pinned;
     uint8 hasPinned;
+    uint8 blockModify;
 
     boolean hasStat;
     mode_t mode;
@@ -641,10 +642,15 @@ static void teMUnmap(TreeEntry *te)
     }
 }
 
-static void tePin(TreeEntry *te, int delta)
+static void tePin(TreeEntry *te, boolean blockModify, int delta)
 {
     assert(te);
     te->pinned = (uint8)(te->pinned + delta);
+    if (blockModify)
+    {
+        te->blockModify = (uint8)(te->blockModify + delta);
+    }
+    assert(!te->blockModify || te->pinned);
     for (;;)
     {
         te = te->parent;
@@ -804,7 +810,7 @@ static void teDisposeChildren(TreeEntry *te)
     uint i;
     for (;;)
     {
-        if (te->childCount && !te->children[te->childCount-1]->pinned)
+        if (te->childCount && !te->children[te->childCount-1]->blockModify)
         {
             te = te->children[te->childCount-1];
         }
@@ -827,6 +833,7 @@ static void teDisposeChildren(TreeEntry *te)
                 }
                 else
                 {
+                    assert(!te->blockModify);
                     teDisposeContent(te);
                     free(te);
                     parent->childCount--;
@@ -885,10 +892,12 @@ void FileInit(void)
         cwd = buffer;
         cwdLength++;
     }
+    tePin(teGet(cwd, cwdLength), false, 1);
 }
 
 void FileDisposeAll(void)
 {
+    tePin(teGet(cwd, cwdLength), false, -1);
     teDispose(&root);
     free(cwd);
 }
@@ -1127,7 +1136,7 @@ void FilePinDirectory(const char *path, size_t length)
     teMkdir(te);
 #endif
 
-    tePin(te, 1);
+    tePin(te, true, 1);
 }
 
 void FileUnpinDirectory(const char *path, size_t length)
@@ -1139,7 +1148,7 @@ void FileUnpinDirectory(const char *path, size_t length)
     assert(*path == '/');
 
     te = teGet(path, length);
-    tePin(te, -1);
+    tePin(te, true, -1);
 }
 
 void FileMarkModified(const char *path, size_t length)
