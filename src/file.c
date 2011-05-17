@@ -62,7 +62,7 @@ static boolean pathIsDirectory(const char *path, size_t length)
     return path[length] == '/';
 }
 
-static char *concatFilename(const TreeEntry *te)
+static char *concatFilename(const TreeEntry *te) /* TODO: Experiment with cwd-relative paths. */
 {
     size_t length = 0;
     const TreeEntry *parent = te;
@@ -589,7 +589,7 @@ static void teMkdir(TreeEntry *te)
     }
     te->hasStat = false;
     name = concatFilename(te);
-    if (!mkdir(name, S_IRWXU | S_IRWXG | S_IRWXO))
+    if (!mkdir(name, S_IRWXU | S_IRWXG | S_IRWXO)) /* TODO: Use mkdirat if available. */
     {
         free(name);
         return;
@@ -597,7 +597,7 @@ static void teMkdir(TreeEntry *te)
     if (errno == ENOENT)
     {
         teMkdir(te->parent);
-        if (!mkdir(name, S_IRWXU | S_IRWXG | S_IRWXO))
+        if (!mkdir(name, S_IRWXU | S_IRWXG | S_IRWXO)) /* TODO: Use mkdirat if available. */
         {
             free(name);
             return;
