@@ -430,7 +430,9 @@ static void teDeleteDirectory(TreeEntry *te)
 static void teDelete(TreeEntry *te)
 {
     TreeEntry **child;
+#ifndef HAVE_OPENAT
     char *path;
+#endif
 
     assert(te);
     assert(!te->refCount);
@@ -449,8 +451,6 @@ static void teDelete(TreeEntry *te)
         teClose(te);
     }
 
-    path = concatFilename(te);
-
     for (child = te->children; te->childCount; te->childCount--, child++)
     {
         teDelete(*child);
@@ -459,26 +459,90 @@ static void teDelete(TreeEntry *te)
     free(te->children);
     te->children = null;
 
-    if (!remove(path) || errno == ENOENT) /* TODO: Use unlinkat if available */
+#ifdef HAVE_OPENAT
+    if (!te->hasStat || !teIsDirectory(te))
     {
+        if (!unlinkat(teParentFD(te), te->component, 0) ||
+            errno == ENOENT)
+        {
+            te->hasStat = true;
+            te->blob.exists = false;
+            return;
+        }
+        if (errno != EISDIR)
+        {
+            TaskFailIO(concatFilename(te));
+        }
+    }
+    if (!unlinkat(teParentFD(te), te->component, AT_REMOVEDIR) ||
+        errno == ENOENT)
+    {
+        te->hasStat = true;
+        te->blob.exists = false;
+        return;
+    }
+    /* This might happen when deleting a symlink to a directory. */
+    if (errno == ENOTDIR)
+    {
+        if (unlinkat(teParentFD(te), te->component, 0))
+        {
+            TaskFailIO(concatFilename(te));
+        }
+        te->hasStat = true;
+        te->blob.exists = false;
+        return;
+    }
+    if (errno != ENOTEMPTY)
+    {
+        TaskFailIO(concatFilename(te));
+    }
+    teDeleteDirectory(te);
+    te->hasStat = true;
+    te->blob.exists = false;
+#else
+    path = concatFilename(te);
+    if (!te->hasStat || !teIsDirectory(te))
+    {
+        if (!unlink(path) || errno == ENOENT)
+        {
+            free(path);
+            te->hasStat = true;
+            te->blob.exists = false;
+            return;
+        }
+        if (errno != EISDIR)
+        {
+            TaskFailIO(concatFilename(te));
+        }
+    }
+    if (!rmdir(path) || errno == ENOENT)
+    {
+        free(path);
+        te->hasStat = true;
+        te->blob.exists = false;
+        return;
+    }
+    /* This might happen when deleting a symlink to a directory. */
+    if (errno == ENOTDIR)
+    {
+        if (unlink(path))
+        {
+            TaskFailIO(concatFilename(te));
+        }
         te->hasStat = true;
         te->blob.exists = false;
         free(path);
         return;
     }
-    if (errno)
+    if (errno != ENOTEMPTY)
     {
-        if (errno != ENOTEMPTY)
-        {
-            TaskFailIO(path);
-        }
-
-        teDeleteDirectory(te);
+        TaskFailIO(concatFilename(te));
     }
-
+    free(path);
+    teDeleteDirectory(te);
     te->hasStat = true;
     te->blob.exists = false;
-    free(path);
+#endif
 }
 
 static void teMkdir(TreeEntry *te)
