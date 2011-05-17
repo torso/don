@@ -52,6 +52,7 @@ struct _TreeEntry
 };
 
 static TreeEntry root;
+static TreeEntry *teCwd;
 static char *cwd;
 static size_t cwdLength;
 
@@ -137,16 +138,28 @@ static void teDoOpen(TreeEntry *te, int fdParent, int flags)
 }
 
 #ifdef HAVE_OPENAT
+static int teQuickParentFD(TreeEntry *restrict te)
+{
+    TreeEntry *restrict parent = te->parent;
+    if (!parent)
+    {
+        return 0;
+    }
+    if (parent == teCwd)
+    {
+        return AT_FDCWD;
+    }
+    return te->parent->fd;
+}
+
 static void teOpenParent(TreeEntry *restrict te)
 {
     TreeEntry *restrict parent = te->parent;
-    TreeEntry *restrict grandParent;
-    if (!parent || parent->fd)
+    if (!parent || parent->fd || parent == teCwd)
     {
         return;
     }
-    grandParent = parent->parent;
-    teDoOpen(parent, grandParent ? grandParent->fd : 0, O_CLOEXEC | O_RDONLY);
+    teDoOpen(parent, teQuickParentFD(parent), O_CLOEXEC | O_RDONLY);
 }
 
 static int teParentFD(TreeEntry *restrict te)
@@ -155,6 +168,10 @@ static int teParentFD(TreeEntry *restrict te)
     if (!parent)
     {
         return 0;
+    }
+    if (parent == teCwd)
+    {
+        return AT_FDCWD;
     }
     teOpenParent(te);
     return te->parent->fd;
@@ -410,9 +427,10 @@ static void teDeleteDirectory(TreeEntry *te)
         TaskFailIO(concatFilename(te));
     }
     teClose(te);
-    if (te->parent && te->parent->fd)
+    fd = teQuickParentFD(te);
+    if (fd)
     {
-        if (unlinkat(te->parent->fd, te->component, AT_REMOVEDIR))
+        if (unlinkat(fd, te->component, AT_REMOVEDIR))
         {
             TaskFailIO(concatFilename(te));
         }
@@ -892,7 +910,8 @@ void FileInit(void)
         cwd = buffer;
         cwdLength++;
     }
-    tePin(teGet(cwd, cwdLength), false, 1);
+    teCwd = teGet(cwd, cwdLength);
+    tePin(teCwd, false, 1);
 }
 
 void FileDisposeAll(void)
@@ -1105,6 +1124,9 @@ const char *FileStripPath(const char *path, size_t *length)
 void FilePinDirectory(const char *path, size_t length)
 {
     TreeEntry *te;
+#ifdef HAVE_OPENAT
+    int fd;
+#endif
 
     assert(path);
     assert(length);
@@ -1115,10 +1137,12 @@ void FilePinDirectory(const char *path, size_t length)
     /* This function should only be called at startup. */
     assert(!te->refCount);
     assert(!te->fd);
+    assert(te != teCwd); /* TODO: Ensure cache directory isn't a parent of cwd. */
 
 #ifdef HAVE_OPENAT
     assert(te->parent);
-    teDoOpen(te, te->parent->fd, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
+    fd = teQuickParentFD(te);
+    teDoOpen(te, fd, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
     if (!te->fd)
     {
         if (errno != ENOENT)
@@ -1126,7 +1150,7 @@ void FilePinDirectory(const char *path, size_t length)
             TaskFailIO(path);
         }
         teMkdir(te);
-        teDoOpen(te, te->parent->fd, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
+        teDoOpen(te, fd, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
         if (!te->fd)
         {
             TaskFailIO(path);
