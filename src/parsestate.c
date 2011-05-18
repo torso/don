@@ -42,10 +42,10 @@ static attrprintf(2, 3) void setError(ParseState *state,
 
 static void writeBackwardsJump(ParseState *state, uint target)
 {
-    ByteVectorAdd(state->bytecode, OP_JUMP);
-    ByteVectorAddInt(
+    BVAdd(state->bytecode, OP_JUMP);
+    BVAddInt(
         state->bytecode,
-        (int)(target - ByteVectorSize(state->bytecode) - sizeof(int)));
+        (int)(target - BVSize(state->bytecode) - sizeof(int)));
 }
 
 static uint getLocalsCount(ParseState *state)
@@ -125,30 +125,30 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
             }
         }
     }
-    IntVectorInit(&state->blockStack);
+    IVInit(&state->blockStack, 16);
 }
 
 void ParseStateDispose(ParseState *state)
 {
     ParseStateCheck(state);
     FileClose(&state->fh);
-    IntVectorDispose(&state->blockStack);
+    IVDispose(&state->blockStack);
     IntHashMapDispose(&state->locals);
 }
 
 
 static void beginBlock(ParseState *state, BlockType type)
 {
-    IntVectorAdd(&state->blockStack, state->indent);
-    IntVectorAdd(&state->blockStack, type);
+    IVAdd(&state->blockStack, state->indent);
+    IVAdd(&state->blockStack, type);
     state->indent = 0;
 }
 
 static void beginJumpBlock(ParseState *state, BlockType type)
 {
     /* MAX_UINT - 1 doesn't produce any warning when uint == size_t. */
-    assert(ByteVectorSize(state->bytecode) <= UINT_MAX - 1);
-    IntVectorAdd(&state->blockStack, (uint)ByteVectorSize(state->bytecode));
+    assert(BVSize(state->bytecode) <= UINT_MAX - 1);
+    IVAdd(&state->blockStack, (uint)BVSize(state->bytecode));
     beginBlock(state, type);
 }
 
@@ -157,15 +157,15 @@ static void beginLoopBlock(ParseState *state, BlockType type,
 {
     /* MAX_UINT - 1 doesn't produce any warning when uint == size_t. */
     assert(loopOffset <= UINT_MAX - 1);
-    IntVectorAdd(&state->blockStack, (uint)loopOffset);
+    IVAdd(&state->blockStack, (uint)loopOffset);
     beginJumpBlock(state, type);
 }
 
 static void writeElse(ParseState *state, BlockType type)
 {
-    ByteVectorAdd(state->bytecode, OP_JUMP);
+    BVAdd(state->bytecode, OP_JUMP);
     beginJumpBlock(state, type);
-    ByteVectorAddInt(state->bytecode, 0);
+    BVAddInt(state->bytecode, 0);
 }
 
 boolean ParseStateFinishBlock(ParseState *restrict state,
@@ -178,7 +178,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
 
     ParseStateCheck(state);
 
-    if (!IntVectorSize(&state->blockStack))
+    if (!IVSize(&state->blockStack))
     {
         state->indent = 0;
 
@@ -194,8 +194,8 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         return true;
     }
 
-    type = (BlockType)(int)IntVectorPop(&state->blockStack);
-    prevIndent = IntVectorPop(&state->blockStack);
+    type = (BlockType)(int)IVPop(&state->blockStack);
+    prevIndent = IVPop(&state->blockStack);
     if (indent > prevIndent)
     {
         setError(state, "Mismatched indentation level.");
@@ -212,7 +212,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
             return false;
         }
 
-        jumpOffset = IntVectorPop(&state->blockStack);
+        jumpOffset = IVPop(&state->blockStack);
         if (indent == prevIndent)
         {
             state->indent = indent;
@@ -226,21 +226,21 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
         {
         case BLOCK_IF:
         case BLOCK_ELSE:
-            jumpOffset = IntVectorPop(&state->blockStack);
+            jumpOffset = IVPop(&state->blockStack);
             break;
 
         case BLOCK_CONDITION1:
-            jumpOffset = IntVectorPop(&state->blockStack);
+            jumpOffset = IVPop(&state->blockStack);
             writeElse(state, BLOCK_CONDITION2);
             break;
 
         case BLOCK_CONDITION2:
-            jumpOffset = IntVectorPop(&state->blockStack);
+            jumpOffset = IVPop(&state->blockStack);
             break;
 
         case BLOCK_WHILE:
-            jumpOffset = IntVectorPop(&state->blockStack);
-            loopOffset = IntVectorPop(&state->blockStack);
+            jumpOffset = IVPop(&state->blockStack);
+            loopOffset = IVPop(&state->blockStack);
             writeBackwardsJump(state, loopOffset);
             break;
         }
@@ -248,9 +248,9 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
 
     if (jumpOffset)
     {
-        ByteVectorSetInt(
+        BVSetInt(
             state->bytecode, jumpOffset,
-            (int)(ByteVectorSize(state->bytecode) - jumpOffset - sizeof(int)));
+            (int)(BVSize(state->bytecode) - jumpOffset - sizeof(int)));
     }
     return true;
 }
@@ -258,21 +258,21 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
 size_t ParseStateGetJumpTarget(ParseState *state)
 {
     ParseStateCheck(state);
-    return ByteVectorSize(state->bytecode);
+    return BVSize(state->bytecode);
 }
 
 void ParseStateBeginForwardJump(ParseState *state, Instruction instruction,
                                 size_t *branch)
 {
     ParseStateWriteInstruction(state, instruction);
-    *branch = ByteVectorSize(state->bytecode);
-    ByteVectorAddUint(state->bytecode, 0);
+    *branch = BVSize(state->bytecode);
+    BVAddUint(state->bytecode, 0);
 }
 
 void ParseStateFinishJump(ParseState *state, size_t branch)
 {
     ParseStateCheck(state);
-    ByteVectorSetUint(
+    BVSetUint(
         state->bytecode, branch,
         (uint)(ParseStateGetJumpTarget(state) - branch - sizeof(uint)));
 }
@@ -339,69 +339,69 @@ boolean ParseStateCreateUnnamedVariable(ParseState *state, uint16 *result)
 void ParseStateGetUnnamedVariable(ParseState *state, uint16 variable)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_LOAD);
-    ByteVectorAddUint16(state->bytecode, variable);
+    BVAdd(state->bytecode, OP_LOAD);
+    BVAddUint16(state->bytecode, variable);
 }
 
 void ParseStateSetUnnamedVariable(ParseState *state, uint16 variable)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_STORE);
-    ByteVectorAddUint16(state->bytecode, variable);
+    BVAdd(state->bytecode, OP_STORE);
+    BVAddUint16(state->bytecode, variable);
 }
 
 
 void ParseStateGetField(ParseState *state, fieldref field)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_LOAD_FIELD);
-    ByteVectorAddUint(state->bytecode, FieldIndexGetIndex(field));
+    BVAdd(state->bytecode, OP_LOAD_FIELD);
+    BVAddUint(state->bytecode, FieldIndexGetIndex(field));
 }
 
 void ParseStateSetField(ParseState *state, fieldref field)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_STORE_FIELD);
-    ByteVectorAddUint(state->bytecode, FieldIndexGetIndex(field));
+    BVAdd(state->bytecode, OP_STORE_FIELD);
+    BVAddUint(state->bytecode, FieldIndexGetIndex(field));
 }
 
 
 void ParseStateWriteInstruction(ParseState *state, Instruction instruction)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, instruction);
+    BVAdd(state->bytecode, instruction);
 }
 
 void ParseStateWriteNullLiteral(ParseState *state)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_NULL);
+    BVAdd(state->bytecode, OP_NULL);
 }
 
 void ParseStateWriteTrueLiteral(ParseState *state)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_TRUE);
+    BVAdd(state->bytecode, OP_TRUE);
 }
 
 void ParseStateWriteFalseLiteral(ParseState *state)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_FALSE);
+    BVAdd(state->bytecode, OP_FALSE);
 }
 
 void ParseStateWriteIntegerLiteral(ParseState *state, int value)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_INTEGER);
-    ByteVectorAddInt(state->bytecode, value);
+    BVAdd(state->bytecode, OP_INTEGER);
+    BVAddInt(state->bytecode, value);
 }
 
 void ParseStateWriteStringLiteral(ParseState *state, stringref value)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_STRING);
-    ByteVectorAddRef(state->bytecode, value);
+    BVAdd(state->bytecode, OP_STRING);
+    BVAddRef(state->bytecode, value);
 }
 
 void ParseStateWriteList(ParseState *state, uint size)
@@ -413,29 +413,29 @@ void ParseStateWriteList(ParseState *state, uint size)
         return;
     }
     ParseStateWriteInstruction(state, OP_LIST);
-    ByteVectorAddUint(state->bytecode, size);
+    BVAddUint(state->bytecode, size);
 }
 
 void ParseStateWriteFile(ParseState *state, stringref filename)
 {
     ParseStateCheck(state);
     ParseStateWriteInstruction(state, OP_FILE);
-    ByteVectorAddRef(state->bytecode, filename);
+    BVAddRef(state->bytecode, filename);
 }
 
 void ParseStateWriteFileset(ParseState *state, stringref pattern)
 {
     ParseStateCheck(state);
     ParseStateWriteInstruction(state, OP_FILESET);
-    ByteVectorAddRef(state->bytecode, pattern);
+    BVAddRef(state->bytecode, pattern);
 }
 
 void ParseStateWriteBeginCondition(ParseState *state)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE);
+    BVAdd(state->bytecode, OP_BRANCH_FALSE);
     beginJumpBlock(state, BLOCK_CONDITION1);
-    ByteVectorAddInt(state->bytecode, 0);
+    BVAddInt(state->bytecode, 0);
 }
 
 boolean ParseStateWriteSecondConsequent(ParseState *state)
@@ -454,17 +454,17 @@ boolean ParseStateWriteFinishCondition(ParseState *state)
 void ParseStateWriteIf(ParseState *state)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE);
+    BVAdd(state->bytecode, OP_BRANCH_FALSE);
     beginJumpBlock(state, BLOCK_IF);
-    ByteVectorAddInt(state->bytecode, 0);
+    BVAddInt(state->bytecode, 0);
 }
 
 void ParseStateWriteWhile(ParseState *state, size_t loopTarget)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_BRANCH_FALSE);
+    BVAdd(state->bytecode, OP_BRANCH_FALSE);
     beginLoopBlock(state, BLOCK_WHILE, loopTarget);
-    ByteVectorAddInt(state->bytecode, 0);
+    BVAddInt(state->bytecode, 0);
 }
 
 void ParseStateWriteReturn(ParseState *state, uint values)
@@ -472,14 +472,14 @@ void ParseStateWriteReturn(ParseState *state, uint values)
     assert(values);
     assert(values <= UINT8_MAX); /* TODO: report error */
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_RETURN);
-    ByteVectorAdd(state->bytecode, (uint8)values);
+    BVAdd(state->bytecode, OP_RETURN);
+    BVAdd(state->bytecode, (uint8)values);
 }
 
 void ParseStateWriteReturnVoid(ParseState *state)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_RETURN_VOID);
+    BVAdd(state->bytecode, OP_RETURN_VOID);
 }
 
 void ParseStateWriteInvocation(ParseState *state,
@@ -489,18 +489,18 @@ void ParseStateWriteInvocation(ParseState *state,
     assert(argumentCount <= UINT16_MAX); /* TODO: report error */
     assert(returnValues <= UINT8_MAX); /* TODO: report error */
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_INVOKE);
-    ByteVectorAddRef(state->bytecode, function);
-    ByteVectorAddUint16(state->bytecode, (uint16)argumentCount);
-    ByteVectorAdd(state->bytecode, (uint8)returnValues);
+    BVAdd(state->bytecode, OP_INVOKE);
+    BVAddRef(state->bytecode, function);
+    BVAddUint16(state->bytecode, (uint16)argumentCount);
+    BVAdd(state->bytecode, (uint8)returnValues);
 }
 
 void ParseStateWriteNativeInvocation(ParseState *state,
                                      nativefunctionref function)
 {
     ParseStateCheck(state);
-    ByteVectorAdd(state->bytecode, OP_INVOKE_NATIVE);
-    ByteVectorAdd(state->bytecode, (byte)uintFromRef(function));
+    BVAdd(state->bytecode, OP_INVOKE_NATIVE);
+    BVAdd(state->bytecode, (byte)uintFromRef(function));
 }
 
 void ParseStateReorderStack(ParseState *state,
@@ -513,16 +513,16 @@ void ParseStateReorderStack(ParseState *state,
     assert(count <= UINT16_MAX);
     ParseStateCheck(state);
 
-    ByteVectorAdd(state->bytecode, OP_REORDER_STACK);
-    ByteVectorAddUint16(state->bytecode, (uint16)count);
+    BVAdd(state->bytecode, OP_REORDER_STACK);
+    BVAddUint16(state->bytecode, (uint16)count);
     while (count)
     {
-        position = IntVectorGet(order, offset++);
+        position = IVGet(order, offset++);
         if (position)
         {
             assert(position - 1 <= UINT16_MAX);
-            ByteVectorAddUint16(state->bytecode,
-                                (uint16)(position - baseOffset - 1));
+            BVAddUint16(state->bytecode,
+                        (uint16)(position - baseOffset - 1));
             count--;
         }
     }

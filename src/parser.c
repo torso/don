@@ -272,11 +272,11 @@ static stringref readString(ParseState *state)
         case '\"':
             if (copied)
             {
-                ByteVectorAddData(&string, begin, getOffset(state, begin));
+                BVAddData(&string, begin, getOffset(state, begin));
                 s = StringPoolAdd2(
-                    (const char*)ByteVectorGetPointer(&string, 0),
-                    ByteVectorSize(&string));
-                ByteVectorDispose(&string);
+                    (const char*)BVGetPointer(&string, 0),
+                    BVSize(&string));
+                BVDispose(&string);
             }
             else
             {
@@ -288,22 +288,22 @@ static stringref readString(ParseState *state)
         case  '\\':
             if (!copied)
             {
-                ByteVectorInit(&string, 128);
+                BVInit(&string, 128);
                 copied = true;
             }
-            ByteVectorAddData(&string, begin, getOffset(state, begin));
+            BVAddData(&string, begin, getOffset(state, begin));
             state->current++;
             switch (state->current[0])
             {
-            case '\\': ByteVectorAdd(&string, '\\'); break;
-            case '\'': ByteVectorAdd(&string, '\''); break;
-            case '"': ByteVectorAdd(&string, '"'); break;
-            case '0': ByteVectorAdd(&string, '\0'); break;
-            case 'f': ByteVectorAdd(&string, '\f'); break;
-            case 'n': ByteVectorAdd(&string, '\n'); break;
-            case 'r': ByteVectorAdd(&string, '\r'); break;
-            case 't': ByteVectorAdd(&string, '\t'); break;
-            case 'v': ByteVectorAdd(&string, '\v'); break;
+            case '\\': BVAdd(&string, '\\'); break;
+            case '\'': BVAdd(&string, '\''); break;
+            case '"': BVAdd(&string, '"'); break;
+            case '0': BVAdd(&string, '\0'); break;
+            case 'f': BVAdd(&string, '\f'); break;
+            case 'n': BVAdd(&string, '\n'); break;
+            case 'r': BVAdd(&string, '\r'); break;
+            case 't': BVAdd(&string, '\t'); break;
+            case 'v': BVAdd(&string, '\v'); break;
 
             default:
                 error(state, "Invalid escape sequence.");
@@ -318,7 +318,7 @@ static stringref readString(ParseState *state)
             error(state, "Newline in string literal.");
             if (copied)
             {
-                ByteVectorDispose(&string);
+                BVDispose(&string);
             }
             return 0;
 
@@ -625,14 +625,14 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             {
                 if (!peekIdentifier(state))
                 {
-                    IntVectorDispose(&namedParameters);
+                    IVDispose(&namedParameters);
                     error(state, "Expected parameter name.");
                     return false;
                 }
                 estateArgument.identifier = readIdentifier(state);
                 if (!readExpectedOperator(state, ':'))
                 {
-                    IntVectorDispose(&namedParameters);
+                    IVDispose(&namedParameters);
                     return false;
                 }
             }
@@ -647,13 +647,13 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                         argumentCount = varargIndex + 1;
                     }
                     requireNamedParameters = true;
-                    IntVectorInit(&namedParameters);
+                    IVInit(&namedParameters, parameterCount); /* TODO: Allocate uint[]? */
                     for (i = 0; i++ < argumentCount;)
                     {
-                        IntVectorAdd(&namedParameters, i);
+                        IVAdd(&namedParameters, i);
                     }
-                    IntVectorGrowZero(&namedParameters,
-                                      parameterCount - argumentCount);
+                    IVGrowZero(&namedParameters,
+                               parameterCount - argumentCount);
                 }
             }
             if (requireNamedParameters)
@@ -663,21 +663,21 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 {
                     if (i == parameterCount)
                     {
-                        IntVectorDispose(&namedParameters);
+                        IVDispose(&namedParameters);
                         error(state, "Invalid parameter name '%s'.",
                               StringPoolGetString(estateArgument.identifier));
                         return false;
                     }
                     if (parameterInfo[i].name == estateArgument.identifier)
                     {
-                        if (IntVectorGet(&namedParameters, i))
+                        if (IVGet(&namedParameters, i))
                         {
-                            IntVectorDispose(&namedParameters);
+                            IVDispose(&namedParameters);
                             error(state, "More than one value for parameter '%s'.",
                                   StringPoolGetString(estateArgument.identifier));
                             return false;
                         }
-                        IntVectorSet(&namedParameters, i, argumentCount + 1);
+                        IVSet(&namedParameters, i, argumentCount + 1);
                         estateArgument.identifier = 0;
                         break;
                     }
@@ -689,7 +689,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             {
                 if (requireNamedParameters)
                 {
-                    IntVectorDispose(&namedParameters);
+                    IVDispose(&namedParameters);
                 }
                 return false;
             }
@@ -702,7 +702,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             {
                 if (requireNamedParameters)
                 {
-                    IntVectorDispose(&namedParameters);
+                    IVDispose(&namedParameters);
                 }
                 return false;
             }
@@ -731,7 +731,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         }
         if (requireNamedParameters)
         {
-            IntVectorDispose(&namedParameters);
+            IVDispose(&namedParameters);
         }
         return false;
     }
@@ -740,7 +740,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         inOrder = true;
         for (i = 0; i < parameterCount; i++)
         {
-            position = IntVectorGet(&namedParameters, i);
+            position = IVGet(&namedParameters, i);
             if (!position)
             {
                 if (!parameterInfo[i].value)
@@ -751,7 +751,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                     }
                     else
                     {
-                        IntVectorDispose(&namedParameters);
+                        IVDispose(&namedParameters);
                         errorOnLine(state, line,
                                     "No value for parameter '%s' given.",
                                     StringPoolGetString(parameterInfo[i].name));
@@ -763,7 +763,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                     ParseStateGetField(state, parameterInfo[i].value);
                 }
                 position = ++argumentCount;
-                IntVectorSet(&namedParameters, i, position);
+                IVSet(&namedParameters, i, position);
             }
             if (position - 1 != i || !inOrder)
             {
@@ -780,7 +780,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 state, &namedParameters, firstOutOfOrder,
                 parameterCount - firstOutOfOrder);
         }
-        IntVectorDispose(&namedParameters);
+        IVDispose(&namedParameters);
         argumentCount = parameterCount;
     }
     else if (argumentCount < parameterCount)
@@ -1512,7 +1512,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     bytevector lvalues;
     uint returnValueCount;
 
-    ByteVectorInit(&lvalues, 16);
+    BVInit(&lvalues, 16);
     do
     {
         skipWhitespace(state);
@@ -1520,16 +1520,16 @@ static boolean parseMultiAssignmentRest(ParseState *state)
         estate.constant = false;
         if (!parseExpression(state, &estate))
         {
-            ByteVectorDispose(&lvalues);
+            BVDispose(&lvalues);
             return false;
         }
-        ByteVectorAddData(&lvalues, (byte*)&estate, sizeof(estate));
+        BVAddData(&lvalues, (byte*)&estate, sizeof(estate));
         skipWhitespace(state);
     }
     while (readOperator(state, ','));
     if (!readExpectedOperator(state, '='))
     {
-        ByteVectorDispose(&lvalues);
+        BVDispose(&lvalues);
         return false;
     }
     skipWhitespace(state);
@@ -1537,10 +1537,10 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     estate.constant = false;
     if (!parseExpression(state, &estate))
     {
-        ByteVectorDispose(&lvalues);
+        BVDispose(&lvalues);
         return false;
     }
-    returnValueCount = (uint)(ByteVectorSize(&lvalues) / sizeof(estate) + 1);
+    returnValueCount = (uint)(BVSize(&lvalues) / sizeof(estate) + 1);
     if (estate.valueType == VALUE_INVOCATION)
     {
         ParseStateWriteInvocation(
@@ -1552,27 +1552,27 @@ static boolean parseMultiAssignmentRest(ParseState *state)
         if (!checkNativeFunctionReturnValueCount(
                 state, estate.nativeFunction, returnValueCount))
         {
-            ByteVectorDispose(&lvalues);
+            BVDispose(&lvalues);
             return false;
         }
         ParseStateWriteNativeInvocation(state, estate.nativeFunction);
     }
     else
     {
-        ByteVectorDispose(&lvalues);
+        BVDispose(&lvalues);
         statementError(state, "Expected function invocation.");
         return false;
     }
-    while (ByteVectorSize(&lvalues))
+    while (BVSize(&lvalues))
     {
-        ByteVectorPopData(&lvalues, (byte*)&estate, sizeof(estate));
+        BVPopData(&lvalues, (byte*)&estate, sizeof(estate));
         if (!finishLValue(state, &estate))
         {
-            ByteVectorDispose(&lvalues);
+            BVDispose(&lvalues);
             return false;
         }
     }
-    ByteVectorDispose(&lvalues);
+    BVDispose(&lvalues);
     return true;
 }
 
@@ -1852,7 +1852,7 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
                 {
                     requireDefaultValues = true;
                     skipWhitespace(state);
-                    start = ByteVectorSize(state->bytecode);
+                    start = BVSize(state->bytecode);
                     if (!parseRValue(state, true))
                     {
                         return false;
@@ -2001,7 +2001,7 @@ void ParseFile(stringref filename, namespaceref ns)
 void ParseField(fieldref field, bytevector *bytecode)
 {
     ParseState state;
-    size_t start = ByteVectorSize(bytecode);
+    size_t start = BVSize(bytecode);
 
     assert(field);
     ParseStateInit(&state, bytecode, FieldIndexGetNamespace(field), 0,
@@ -2018,7 +2018,7 @@ void ParseField(fieldref field, bytevector *bytecode)
         else
         {
             /* TODO: Look for code before next field/function. */
-            FieldIndexSetBytecodeOffset(field, start, ByteVectorSize(bytecode));
+            FieldIndexSetBytecodeOffset(field, start, BVSize(bytecode));
         }
     }
     ParseStateDispose(&state);
@@ -2045,7 +2045,7 @@ void ParseFunctionDeclaration(functionref function, bytevector *bytecode)
 void ParseFunctionBody(functionref function, bytevector *bytecode)
 {
     ParseState state;
-    size_t start = ByteVectorSize(bytecode);
+    size_t start = BVSize(bytecode);
     uint line;
 
     assert(function);
@@ -2062,7 +2062,7 @@ void ParseFunctionBody(functionref function, bytevector *bytecode)
                    FunctionIndexGetFileOffset(function));
     if (parseFunctionBody(&state))
     {
-        if (ByteVectorSize(bytecode) == start)
+        if (BVSize(bytecode) == start)
         {
             ParseStateWriteReturnVoid(&state);
         }

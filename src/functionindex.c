@@ -39,33 +39,33 @@ static boolean isValidFunction(functionref function)
 static FunctionInfo *getFunctionInfo(functionref function)
 {
     assert(isValidFunction(function));
-    return (FunctionInfo*)ByteVectorGetPointer(&functionTable,
-                                               sizeFromRef(function));
+    return (FunctionInfo*)BVGetPointer(&functionTable,
+                                       sizeFromRef(function));
 }
 
 
 void FunctionIndexInit(void)
 {
-    ByteVectorInit(&functionTable, 16384);
+    BVInit(&functionTable, 16384);
     /* Position 0 is reserved to mean invalid function. */
-    ByteVectorSetSize(&functionTable, sizeof(int));
-    IntVectorInit(&localNames);
+    BVSetSize(&functionTable, sizeof(int));
+    IVInit(&localNames, 128);
 }
 
 void FunctionIndexDispose(void)
 {
-    ByteVectorDispose(&functionTable);
-    IntVectorDispose(&localNames);
+    BVDispose(&functionTable);
+    IVDispose(&localNames);
 }
 
 
 functionref FunctionIndexAddFunction(namespaceref ns, stringref name,
                                      stringref filename, uint line, uint fileOffset)
 {
-    functionref function = refFromSize(ByteVectorSize(&functionTable));
+    functionref function = refFromSize(BVSize(&functionTable));
     FunctionInfo *info;
 
-    ByteVectorGrowZero(&functionTable, sizeof(FunctionInfo));
+    BVGrowZero(&functionTable, sizeof(FunctionInfo));
     lastFunction = sizeFromRef(function);
     info = getFunctionInfo(function);
     info->name = name;
@@ -81,12 +81,12 @@ void FunctionIndexAddParameter(functionref function, stringref name,
 {
     FunctionInfo *info;
     ParameterInfo *paramInfo;
-    size_t parameterInfoOffset = ByteVectorSize(&functionTable);
+    size_t parameterInfoOffset = BVSize(&functionTable);
 
-    ByteVectorGrow(&functionTable, sizeof(ParameterInfo));
+    BVGrow(&functionTable, sizeof(ParameterInfo));
     info = getFunctionInfo(function);
-    paramInfo = (ParameterInfo*)ByteVectorGetPointer(&functionTable,
-                                                     parameterInfoOffset);
+    paramInfo = (ParameterInfo*)BVGetPointer(&functionTable,
+                                             parameterInfoOffset);
 
     if (!info->parameterCount)
     {
@@ -120,7 +120,7 @@ void FunctionIndexSetFailedDeclaration(functionref function)
 
 functionref FunctionIndexGetFirstFunction(void)
 {
-    if (ByteVectorSize(&functionTable) == sizeof(int))
+    if (BVSize(&functionTable) == sizeof(int))
     {
         return 0;
     }
@@ -131,7 +131,7 @@ functionref FunctionIndexGetNextFunction(functionref function)
 {
     assert(isValidFunction(function));
     function = refFromSize(sizeFromRef(function) + sizeof(FunctionInfo));
-    assert(lastFunction <= ByteVectorSize(&functionTable));
+    assert(lastFunction <= BVSize(&functionTable));
     if (sizeFromRef(function) > lastFunction)
     {
         return 0;
@@ -205,7 +205,7 @@ uint FunctionIndexGetParameterCount(functionref function)
 const ParameterInfo *FunctionIndexGetParameterInfo(functionref function)
 {
     FunctionInfo *info = getFunctionInfo(function);
-    return (const ParameterInfo*)ByteVectorGetPointer(
+    return (const ParameterInfo*)BVGetPointer(
         &functionTable, info->parameterInfoOffset);
 }
 
@@ -228,14 +228,14 @@ uint FunctionIndexGetLocalsCount(functionref function)
 stringref FunctionIndexGetLocalName(functionref function, uint16 local)
 {
     assert(local < FunctionIndexGetLocalsCount(function));
-    return IntVectorGetRef(&localNames,
-                           getFunctionInfo(function)->localNamesOffset);
+    return IVGetRef(&localNames,
+                    getFunctionInfo(function)->localNamesOffset);
 }
 
 void FunctionIndexSetLocals(functionref function, const inthashmap *locals,
                             uint count)
 {
-    uint offset = (uint)IntVectorSize(&localNames);
+    uint offset = (uint)IVSize(&localNames);
     inthashmapiterator iter;
     uint name;
     uint index;
@@ -244,12 +244,12 @@ void FunctionIndexSetLocals(functionref function, const inthashmap *locals,
     assert(isValidFunction(function));
     assert(count >= IntHashMapSize(locals));
 
-    IntVectorSetSize(&localNames, offset + count);
+    IVSetSize(&localNames, offset + count);
     info->localCount = count;
     info->localNamesOffset = offset;
     IntHashMapIteratorInit(locals, &iter);
     while (IntHashMapIteratorNext(&iter, &name, &index))
     {
-        IntVectorSet(&localNames, offset + index - 1, name);
+        IVSet(&localNames, offset + index - 1, name);
     }
 }

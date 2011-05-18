@@ -46,7 +46,7 @@ static Entry *getEntry(cacheref ref)
 static void clearEntry(Entry *entry)
 {
     assert(entry->path);
-    ByteVectorDispose(&entry->dependencies);
+    BVDispose(&entry->dependencies);
     free(entry->path);
     free(entry->output);
     entry->path = null;
@@ -56,35 +56,35 @@ static void addDependency(Entry *entry, const char *path, size_t length,
                           const byte *blob)
 {
     assert(entry->newEntry);
-    ByteVectorReserveAppendSize(&entry->dependencies,
-                                sizeof(size_t) + length + FileStatusBlobSize());
-    ByteVectorAddSize(&entry->dependencies, length);
-    ByteVectorAddData(&entry->dependencies, (const byte*)path, length);
-    ByteVectorAddData(&entry->dependencies, blob, FileStatusBlobSize());
+    BVReserveAppendSize(&entry->dependencies,
+                        sizeof(size_t) + length + FileStatusBlobSize());
+    BVAddSize(&entry->dependencies, length);
+    BVAddData(&entry->dependencies, (const byte*)path, length);
+    BVAddData(&entry->dependencies, blob, FileStatusBlobSize());
 }
 
 static void writeEntry(Entry *restrict entry)
 {
     size_t size;
 
-    assert(!ByteVectorSize(&outBuffer));
+    assert(!BVSize(&outBuffer));
 
-    ByteVectorAddSize(&outBuffer, 0);
-    ByteVectorAddData(&outBuffer, entry->hash, sizeof(entry->hash));
-    ByteVectorAddSize(&outBuffer, entry->outLength);
-    ByteVectorAddSize(&outBuffer, entry->errLength);
-    ByteVectorAddData(&outBuffer, (const byte*)entry->output, entry->outLength + entry->errLength);
-    ByteVectorAddAll(&outBuffer, &entry->dependencies);
+    BVAddSize(&outBuffer, 0);
+    BVAddData(&outBuffer, entry->hash, sizeof(entry->hash));
+    BVAddSize(&outBuffer, entry->outLength);
+    BVAddSize(&outBuffer, entry->errLength);
+    BVAddData(&outBuffer, (const byte*)entry->output, entry->outLength + entry->errLength);
+    BVAddAll(&outBuffer, &entry->dependencies);
 
-    size = ByteVectorSize(&outBuffer);
-    ByteVectorSetSizeAt(&outBuffer, 0, size);
+    size = BVSize(&outBuffer);
+    BVSetSizeAt(&outBuffer, 0, size);
 
     if (!FileIsOpen(&cacheIndexOut))
     {
         FileOpenAppend(&cacheIndexOut, cacheIndexOutPath, cacheIndexOutLength);
     }
-    FileWrite(&cacheIndexOut, ByteVectorGetPointer(&outBuffer, 0), size);
-    ByteVectorSetSize(&outBuffer, 0);
+    FileWrite(&cacheIndexOut, BVGetPointer(&outBuffer, 0), size);
+    BVSetSize(&outBuffer, 0);
     entry->written = true;
 }
 
@@ -183,7 +183,7 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
                                     "index", 5, null, 0, &cacheIndexLength);
     cacheIndexOutPath = FileCreatePath(cacheDirectory, cacheDirectoryLength,
                                        "index.1", 7, null, 0, &cacheIndexOutLength);
-    ByteVectorInit(&outBuffer, 1024);
+    BVInit(&outBuffer, 1024);
     tempIndex = FileCreatePath(cacheDirectory, cacheDirectoryLength,
                                "index.2", 7, null, 0, &tempIndexLength);
     FileDelete(tempIndex, tempIndexLength);
@@ -239,7 +239,7 @@ void CacheDispose(void)
         FileRename(cacheIndexOutPath, cacheIndexOutLength,
                    cacheIndexPath, cacheIndexLength);
     }
-    ByteVectorDispose(&outBuffer);
+    BVDispose(&outBuffer);
     FileUnpinDirectory(cacheDir, cacheDirLength);
     free(cacheDir);
     free(cacheIndexPath);
@@ -279,7 +279,7 @@ cacheref CacheGet(const byte *hash)
                                      filename, FILENAME_DIGEST_SIZE / 5 * 8,
                                      null, 0,
                                      &freeEntry->pathLength);
-    ByteVectorInit(&freeEntry->dependencies, 0);
+    BVInit(&freeEntry->dependencies, 0);
     memcpy(freeEntry->hash, hash, FILENAME_DIGEST_SIZE);
     freeEntry->newEntry = true;
     freeEntry->written = false;
@@ -356,8 +356,8 @@ boolean CacheCheckUptodate(cacheref ref)
         return false;
     }
 
-    depend = ByteVectorGetPointer(&entry->dependencies, 0);
-    dependLimit = depend + ByteVectorSize(&entry->dependencies);
+    depend = BVGetPointer(&entry->dependencies, 0);
+    dependLimit = depend + BVSize(&entry->dependencies);
     while (depend < dependLimit)
     {
         length = *(size_t*)depend;
@@ -368,7 +368,7 @@ boolean CacheCheckUptodate(cacheref ref)
         {
             entry->newEntry = true;
             entry->written = false;
-            ByteVectorSetSize(&entry->dependencies, 0);
+            BVSetSize(&entry->dependencies, 0);
             entry->outLength = 0;
             entry->errLength = 0;
             free(entry->output);

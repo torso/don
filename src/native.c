@@ -447,7 +447,7 @@ static boolean nativeFileset(FilesetEnv *env)
 
     if (HeapIsCollection(env->value))
     {
-        IntVectorInit(&files);
+        IVInit(&files, HeapCollectionSize(env->value));
         HeapIteratorInit(&iter, env->value, true);
         while (HeapIteratorNext(env->work.vm, &iter, &o))
         {
@@ -456,11 +456,11 @@ static boolean nativeFileset(FilesetEnv *env)
                 return false;
             }
             o = HeapCreatePath(o);
-            IntVectorAddRef(&files, o);
+            IVAddRef(&files, o);
         }
         /* TODO: Reuse collection if possible. */
         env->result = HeapCreateArrayFromVector(&files);
-        IntVectorDispose(&files);
+        IVDispose(&files);
     }
     else
     {

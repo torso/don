@@ -1,79 +1,44 @@
 #define BYTEVECTOR_H
 
-struct bytevector
-{
-    byte *data;
-    size_t size;
-    size_t allocatedSize;
-};
+#define VECTOR_NAME bytevector
+#define VECTOR_TYPE byte
+#define VECTOR_FUNC(name) BV##name
+#include "vector.h"
+#undef VECTOR_NAME
+#undef VECTOR_TYPE
+#undef VECTOR_FUNC
 
-extern nonnull bytevector *ByteVectorCreate(size_t reserveSize);
-extern nonnull void ByteVectorInit(bytevector *v, size_t reserveSize);
-extern nonnull void ByteVectorDispose(bytevector *v);
-extern nonnull byte *ByteVectorDisposeContainer(bytevector *v);
+extern nonnull void BVFill(bytevector *v, size_t index, size_t size,
+                           byte value);
 
-extern nonnull pure size_t ByteVectorSize(const bytevector *v);
-extern nonnull void ByteVectorSetSize(bytevector *v, size_t size);
-extern nonnull void ByteVectorGrow(bytevector *v, size_t size);
-extern nonnull void ByteVectorGrowZero(bytevector *v, size_t size);
-extern nonnull void ByteVectorReserveSize(bytevector *v, size_t size);
-extern nonnull void ByteVectorReserveAppendSize(bytevector *v, size_t size);
-extern nonnull size_t ByteVectorGetReservedAppendSize(const bytevector *v);
-
-extern nonnull void ByteVectorRemoveRange(bytevector *v, size_t offset, size_t size);
-
-extern nonnull pure byte *ByteVectorGetPointer(const bytevector *v,
-                                               size_t index);
-extern nonnull byte *ByteVectorGetAppendPointer(bytevector *v);
-
-extern nonnull void ByteVectorCopy(const bytevector *src, size_t srcOffset,
-                                   bytevector *dst, size_t dstOffset,
-                                   size_t size);
-extern nonnull void ByteVectorMove(bytevector *v, size_t src, size_t dst,
-                                   size_t size);
-extern nonnull void ByteVectorFill(bytevector *v, size_t index, size_t size,
-                                   byte value);
-
-extern nonnull void ByteVectorAppend(const bytevector *src,
-                                     size_t srcOffset,
-                                     bytevector *dst,
-                                     size_t size);
-extern nonnull void ByteVectorAppendAll(const bytevector *src,
-                                        bytevector *dst);
-
-extern nonnull void ByteVectorAdd(bytevector *v, byte value);
-extern nonnull void ByteVectorAddInt(bytevector *v, int value);
-extern nonnull void ByteVectorAddUint(bytevector *v, uint value);
-extern nonnull void ByteVectorAddUint16(bytevector *v, uint16 value);
-extern nonnull void ByteVectorAddSize(bytevector *v, size_t value);
-extern nonnull void ByteVectorAddRef(bytevector *v, ref_t value);
-extern nonnull void ByteVectorAddAll(bytevector *v, const bytevector *src);
-extern nonnull void ByteVectorAddData(bytevector *v,
+extern nonnull void BVAddInt(bytevector *v, int value);
+extern nonnull void BVAddUint(bytevector *v, uint value);
+extern nonnull void BVAddUint16(bytevector *v, uint16 value);
+extern nonnull void BVAddSize(bytevector *v, size_t value);
+extern nonnull void BVAddRef(bytevector *v, ref_t value);
+extern nonnull void BVAddAll(bytevector *v, const bytevector *src);
+extern nonnull void BVAddData(bytevector *v,
                                       const byte *data, size_t size);
-extern nonnull void ByteVectorInsertData(bytevector *v, size_t offset,
+extern nonnull void BVInsertData(bytevector *v, size_t offset,
                                          const byte *data, size_t size);
 
-extern nonnull byte ByteVectorGet(const bytevector *v, size_t index);
-#define ByteVectorGetInt(v, index) ((int)ByteVectorGetUint(v, index))
-extern nonnull uint ByteVectorGetUint(const bytevector *v, size_t index);
-extern nonnull uint16 ByteVectorGetUint16(const bytevector *v, size_t index);
-extern nonnull void ByteVectorGetData(const bytevector *v, size_t index,
+#define BVGetInt(v, index) ((int)BVGetUint(v, index))
+extern nonnull uint BVGetUint(const bytevector *v, size_t index);
+extern nonnull uint16 BVGetUint16(const bytevector *v, size_t index);
+extern nonnull void BVGetData(const bytevector *v, size_t index,
                                       byte *dst, size_t size);
 
-extern nonnull void ByteVectorSet(bytevector *v, size_t index, byte value);
-extern nonnull void ByteVectorSetInt(bytevector *v, size_t index, int value);
-extern nonnull void ByteVectorSetUint(bytevector *v, size_t index, uint value);
-extern nonnull void ByteVectorSetSizeAt(bytevector *v, size_t index, size_t value);
+extern nonnull void BVSetInt(bytevector *v, size_t index, int value);
+extern nonnull void BVSetUint(bytevector *v, size_t index, uint value);
+extern nonnull void BVSetSizeAt(bytevector *v, size_t index, size_t value);
 
-extern nonnull byte ByteVectorRead(const bytevector *v, size_t *index);
-#define ByteVectorReadInt(v, index) ((int)ByteVectorReadUint(v, index))
-extern nonnull uint ByteVectorReadUint(const bytevector *v, size_t *index);
-extern nonnull uint16 ByteVectorReadUint16(const bytevector *v, size_t *index);
+extern nonnull byte BVRead(const bytevector *v, size_t *index);
+#define BVReadInt(v, index) ((int)BVReadUint(v, index))
+extern nonnull uint BVReadUint(const bytevector *v, size_t *index);
+extern nonnull uint16 BVReadUint16(const bytevector *v, size_t *index);
 
-extern nonnull void ByteVectorWrite(bytevector *v, size_t *index, byte value);
-extern nonnull void ByteVectorWriteInt(bytevector *v, size_t *index, int value);
-extern nonnull void ByteVectorWriteUint(bytevector *v, size_t *index, uint value);
+extern nonnull void BVWrite(bytevector *v, size_t *index, byte value);
+extern nonnull void BVWriteInt(bytevector *v, size_t *index, int value);
+extern nonnull void BVWriteUint(bytevector *v, size_t *index, uint value);
 
-extern nonnull byte ByteVectorPeek(const bytevector *v);
-extern nonnull byte ByteVectorPop(bytevector *v);
-extern nonnull void ByteVectorPopData(bytevector *v, byte *value, size_t size);
+extern nonnull void BVPopData(bytevector *v, byte *value, size_t size);

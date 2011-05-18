@@ -20,7 +20,7 @@ static uint fieldCount;
 static FieldInfo *getFieldInfo(fieldref field)
 {
     assert(field);
-    return (FieldInfo*)ByteVectorGetPointer(
+    return (FieldInfo*)BVGetPointer(
         &fieldTable,
         (sizeFromRef(field) - RESERVED_FIELD_COUNT - 1) * sizeof(FieldInfo));
 }
@@ -28,12 +28,12 @@ static FieldInfo *getFieldInfo(fieldref field)
 
 void FieldIndexInit(void)
 {
-    ByteVectorInit(&fieldTable, 1024);
+    BVInit(&fieldTable, 1024);
 }
 
 void FieldIndexDispose(void)
 {
-    ByteVectorDispose(&fieldTable);
+    BVDispose(&fieldTable);
 }
 
 
@@ -49,25 +49,25 @@ void FieldIndexFinishBytecode(const byte *parsed, bytevector *bytecode)
         info = getFieldInfo(field);
         if (info->bytecodeStop)
         {
-            ByteVectorAddData(bytecode, &parsed[info->bytecodeStart],
-                              info->bytecodeStop - info->bytecodeStart);
-            ByteVectorAdd(bytecode, OP_STORE_FIELD);
-            ByteVectorAddUint(bytecode, FieldIndexGetIndex(field));
+            BVAddData(bytecode, &parsed[info->bytecodeStart],
+                      info->bytecodeStop - info->bytecodeStart);
+            BVAdd(bytecode, OP_STORE_FIELD);
+            BVAddUint(bytecode, FieldIndexGetIndex(field));
         }
     }
-    ByteVectorAdd(bytecode, OP_RETURN_VOID);
+    BVAdd(bytecode, OP_RETURN_VOID);
 }
 
 
 fieldref FieldIndexAdd(namespaceref ns,
                        stringref filename, uint line, uint fileOffset)
 {
-    size_t size = ByteVectorSize(&fieldTable);
+    size_t size = BVSize(&fieldTable);
     FieldInfo *info;
 
-    ByteVectorSetSize(&fieldTable, size + sizeof(FieldInfo));
+    BVSetSize(&fieldTable, size + sizeof(FieldInfo));
     fieldCount++;
-    info = (FieldInfo*)ByteVectorGetPointer(&fieldTable, size);
+    info = (FieldInfo*)BVGetPointer(&fieldTable, size);
     info->ns = ns;
     info->filename = filename;
     info->line = line;
@@ -81,11 +81,11 @@ fieldref FieldIndexAddConstant(namespaceref ns,
                                bytevector *bytecode, size_t start)
 {
     fieldref field;
-    size_t size = ByteVectorSize(bytecode);
+    size_t size = BVSize(bytecode);
 
     if (size - start == 1)
     {
-        switch (ByteVectorGet(bytecode, start))
+        switch (BVGet(bytecode, start))
         {
         case OP_NULL: return FIELD_NULL + 1;
         case OP_TRUE: return FIELD_TRUE + 1;
@@ -94,7 +94,7 @@ fieldref FieldIndexAddConstant(namespaceref ns,
         }
     }
     field = FieldIndexAdd(ns, filename, line, fileOffset);
-    FieldIndexSetBytecodeOffset(field, start, ByteVectorSize(bytecode));
+    FieldIndexSetBytecodeOffset(field, start, BVSize(bytecode));
     return field;
 }
 

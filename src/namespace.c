@@ -20,7 +20,7 @@ static inthashmap nameNamespace;
 static Namespace *getNamespace(namespaceref ns)
 {
     assert(ns);
-    return (Namespace*)ByteVectorGetPointer(
+    return (Namespace*)BVGetPointer(
         &namespaceData, sizeFromRef(ns) * sizeof(Namespace));
 }
 
@@ -34,8 +34,8 @@ static void disposeNamespace(Namespace *ns)
 
 void NamespaceInit(void)
 {
-    ByteVectorInit(&namespaceData, sizeof(Namespace) * 4);
-    ByteVectorSetSize(&namespaceData, sizeof(Namespace));
+    BVInit(&namespaceData, sizeof(Namespace) * 4);
+    BVSetSize(&namespaceData, sizeof(Namespace));
     IntHashMapInit(&nameNamespace, 4);
     initialised = true;
 }
@@ -47,12 +47,12 @@ void NamespaceDispose(void)
 
     if (initialised)
     {
-        limit = (Namespace*)ByteVectorGetAppendPointer(&namespaceData);
+        limit = (Namespace*)BVGetAppendPointer(&namespaceData);
         for (ns = getNamespace(1); ns < limit; ns++)
         {
             disposeNamespace(ns);
         }
-        ByteVectorDispose(&namespaceData);
+        BVDispose(&namespaceData);
         IntHashMapDispose(&nameNamespace);
     }
 }
@@ -62,9 +62,9 @@ namespaceref NamespaceCreate(stringref name)
 {
     Namespace *entry;
     namespaceref ref =
-        refFromSize(ByteVectorSize(&namespaceData) / sizeof(Namespace));
+        refFromSize(BVSize(&namespaceData) / sizeof(Namespace));
 
-    ByteVectorGrow(&namespaceData, sizeof(Namespace));
+    BVGrow(&namespaceData, sizeof(Namespace));
     entry = getNamespace(ref);
     entry->name = name;
     IntHashMapInit(&entry->namespaces, 1);

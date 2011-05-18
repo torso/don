@@ -50,8 +50,8 @@ uint uintFromRef(ref_t r)
 
 static void cleanup(void)
 {
-    IntVectorDispose(&targets);
-    ByteVectorDispose(&parsed);
+    IVDispose(&targets);
+    BVDispose(&parsed);
     WorkDispose();
     HeapDispose();
     NamespaceDispose();
@@ -92,7 +92,7 @@ int main(int argc, const char **argv)
 
     atexit(cleanup);
 
-    IntVectorInit(&targets);
+    IVInit(&targets, 4);
     LogInit();
     StringPoolInit();
     ParserAddKeywords();
@@ -153,7 +153,7 @@ int main(int argc, const char **argv)
         else
         {
             name = StringPoolAdd(argv[i]);
-            IntVectorAddRef(&targets, name);
+            IVAddRef(&targets, name);
         }
     }
     if (!inputFilename)
@@ -186,10 +186,10 @@ int main(int argc, const char **argv)
         free(string);
     }
 
-    if (!IntVectorSize(&targets))
+    if (!IVSize(&targets))
     {
         name = StringPoolAdd("default");
-        IntVectorAddRef(&targets, name);
+        IVAddRef(&targets, name);
     }
 
     FunctionIndexInit();
@@ -198,9 +198,9 @@ int main(int argc, const char **argv)
     NamespaceInit();
     NativeInit();
 
-    ByteVectorInit(&parsed, 65536);
+    BVInit(&parsed, 65536);
 
-   string = FileCreatePath(null, 0,
+    string = FileCreatePath(null, 0,
                             DATADIR "don.don", strlen(DATADIR "don.don"),
                             null, 0,
                             &size);
@@ -238,8 +238,8 @@ int main(int argc, const char **argv)
         ParseFunctionDeclaration(function, &parsed);
     }
 
-    bytecode = ByteVectorDisposeContainer(&parsed);
-    ByteVectorInit(&parsed, 65536);
+    bytecode = BVDisposeContainer(&parsed);
+    BVInit(&parsed, 65536);
     FieldIndexFinishBytecode(bytecode, &parsed);
     free(bytecode);
     bytecode = null;
@@ -254,8 +254,8 @@ int main(int argc, const char **argv)
 
     FileClose(&donNamespaceFile);
     FileClose(&inputFile);
-    size = ByteVectorSize(&parsed);
-    bytecode = ByteVectorDisposeContainer(&parsed);
+    size = BVSize(&parsed);
+    bytecode = BVDisposeContainer(&parsed);
     bytecodeLimit = bytecode + size;
 
     if (disassemble)
@@ -288,9 +288,9 @@ int main(int argc, const char **argv)
         return 1;
     }
     fail = false;
-    for (j = 0; j < IntVectorSize(&targets); j++)
+    for (j = 0; j < IVSize(&targets); j++)
     {
-        name = IntVectorGetRef(&targets, j);
+        name = IVGetRef(&targets, j);
         if (!NamespaceGetTarget(defaultNamespace, name))
         {
             fprintf(stderr, "'%s' is not a target.\n",
@@ -306,11 +306,11 @@ int main(int argc, const char **argv)
 
     WorkInit();
     HeapInit();
-    for (j = 0; j < IntVectorSize(&targets); j++)
+    for (j = 0; j < IVSize(&targets); j++)
     {
         InterpreterExecute(bytecode,
                            NamespaceGetTarget(defaultNamespace,
-                                              IntVectorGetRef(&targets, j)));
+                                              IVGetRef(&targets, j)));
     }
 
     free(bytecode);

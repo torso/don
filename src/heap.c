@@ -561,7 +561,7 @@ objectref HeapCreateUninitialisedString(size_t length, char **data)
 
 objectref HeapCreatePooledString(stringref string)
 {
-   return boxReference(TYPE_STRING_POOLED, string);
+    return boxReference(TYPE_STRING_POOLED, string);
 }
 
 objectref HeapCreateWrappedString(const char *restrict string,
@@ -1046,7 +1046,7 @@ objectref HeapSplit(objectref string, objectref delimiter, boolean removeEmpty,
     {
         return string;
     }
-    IntVectorInit(&substrings);
+    IVInit(&substrings, 4);
     offset = 0;
     lastOffset = 0;
     for (;;)
@@ -1056,24 +1056,24 @@ objectref HeapSplit(objectref string, objectref delimiter, boolean removeEmpty,
         {
             if (length != lastOffset || !(removeEmpty || trimEmptyLastLine))
             {
-                IntVectorAddRef(&substrings,
-                                HeapCreateSubstring(string, lastOffset,
-                                                    length - lastOffset));
+                IVAddRef(&substrings,
+                         HeapCreateSubstring(string, lastOffset,
+                                             length - lastOffset));
             }
             break;
         }
         offset = HeapUnboxSize(offsetref);
         if (offset != lastOffset || !removeEmpty)
         {
-            IntVectorAddRef(&substrings,
-                            HeapCreateSubstring(string, lastOffset,
-                                                offset - lastOffset));
+            IVAddRef(&substrings,
+                     HeapCreateSubstring(string, lastOffset,
+                                         offset - lastOffset));
         }
         offset += delimiterLength;
         lastOffset = offset;
     }
     value = HeapCreateArrayFromVector(&substrings);
-    IntVectorDispose(&substrings);
+    IVDispose(&substrings);
     return value;
 }
 
@@ -1089,12 +1089,12 @@ objectref HeapCreateArray(const objectref *values, size_t size)
 
 objectref HeapCreateArrayFromVector(const intvector *values)
 {
-    if (!IntVectorSize(values))
+    if (!IVSize(values))
     {
         return HeapEmptyList;
     }
-    return HeapCreateArray((const objectref*)IntVectorGetPointer(values, 0),
-                           IntVectorSize(values));
+    return HeapCreateArray((const objectref*)IVGetPointer(values, 0),
+                           IVSize(values));
 }
 
 objectref HeapConcatList(objectref list1, objectref list2)

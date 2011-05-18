@@ -1457,21 +1457,21 @@ static void teCallback(TreeEntry *te, bytevector *path,
                        const char *component, size_t componentLength,
                        TraverseCallback callback, void *userdata)
 {
-    size_t oldSize = ByteVectorSize(path);
+    size_t oldSize = BVSize(path);
     if (componentLength)
     {
         if (te->parent != &root)
         {
-            ByteVectorAdd(path, '/');
+            BVAdd(path, '/');
         }
-        ByteVectorAddData(path, (const byte*)component, componentLength);
+        BVAddData(path, (const byte*)component, componentLength);
     }
     if (teIsDirectory(te))
     {
-        ByteVectorAdd(path, '/');
+        BVAdd(path, '/');
     }
-    callback((const char*)ByteVectorGetPointer(path, 0), ByteVectorSize(path), userdata);
-    ByteVectorSetSize(path, oldSize);
+    callback((const char*)BVGetPointer(path, 0), BVSize(path), userdata);
+    BVSetSize(path, oldSize);
 }
 
 static void teTraverseGlob(TreeEntry *base, bytevector *path,
@@ -1535,9 +1535,9 @@ static void teTraverseGlob(TreeEntry *base, bytevector *path,
             {
                 if (base->parent != &root)
                 {
-                    ByteVectorAdd(path, '/');
+                    BVAdd(path, '/');
                 }
-                ByteVectorAddData(path, (const byte*)pattern, componentLength);
+                BVAddData(path, (const byte*)pattern, componentLength);
                 pattern = p;
                 patternLength -= componentLength;
                 continue;
@@ -1574,15 +1574,15 @@ static void teTraverseGlob(TreeEntry *base, bytevector *path,
             }
             else if (teIsDirectory(child))
             {
-                oldSize = ByteVectorSize(path);
+                oldSize = BVSize(path);
                 if (base != &root)
                 {
-                    ByteVectorAdd(path, '/');
+                    BVAdd(path, '/');
                 }
-                ByteVectorAddData(path, (const byte*)u.d.d_name, childLength);
+                BVAddData(path, (const byte*)u.d.d_name, childLength);
                 teTraverseGlob(child, path, p, patternLength - componentLength,
                                callback, userdata);
-                ByteVectorSetSize(path, oldSize);
+                BVSetSize(path, oldSize);
             }
         }
         teCloseDir(base, dir);
@@ -1613,10 +1613,10 @@ void FileTraverseGlob(const char *pattern, size_t length,
         base = teGet(cwd, cwdLength);
     }
 
-    ByteVectorInit(&path, NAME_MAX);
+    BVInit(&path, NAME_MAX);
     temp = concatFilename(base); /* TODO: Avoid malloc */
-    ByteVectorAddData(&path, (const byte*)temp, strlen(temp));
+    BVAddData(&path, (const byte*)temp, strlen(temp));
     free(temp);
     teTraverseGlob(base, &path, pattern, length, callback, userdata);
-    ByteVectorDispose(&path);
+    BVDispose(&path);
 }

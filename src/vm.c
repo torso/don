@@ -10,9 +10,9 @@ static VM *VMAlloc(void)
     byte *data = (byte*)malloc(sizeof(VM) + FieldIndexGetCount() * sizeof(objectref));
     VM *vm = (VM*)data;
     vm->fields = (objectref*)(data + sizeof(VM));
-    IntVectorInit(&vm->mutableIndex);
-    IntVectorInit(&vm->callStack);
-    IntVectorInit(&vm->stack);
+    IVInit(&vm->mutableIndex, 4);
+    IVInit(&vm->callStack, 128);
+    IVInit(&vm->stack, 1024);
     return vm;
 }
 
@@ -39,12 +39,12 @@ VM *VMCreate(const byte *bytecode, functionref target)
 VM *VMClone(VM *vm, objectref condition, const byte *ip)
 {
     VM *clone = VMAlloc();
-    uint mutableCount = (uint)IntVectorSize(&vm->mutableIndex);
+    uint mutableCount = (uint)IVSize(&vm->mutableIndex);
     VMBranch *parent = (VMBranch*)malloc(
         sizeof(VMBranch) - sizeof(parent->mutableIndex) +
         mutableCount * sizeof(parent->mutableIndex[0]));
 
-    assert(IntVectorSize(&vm->mutableIndex) < UINT_MAX);
+    assert(IVSize(&vm->mutableIndex) < UINT_MAX);
 
     parent->parent = vm->parent;
     parent->condition = vm->condition;
@@ -52,17 +52,17 @@ VM *VMClone(VM *vm, objectref condition, const byte *ip)
     parent->mutableCount = mutableCount;
     if (mutableCount)
     {
-        memcpy(parent->mutableIndex, IntVectorGetPointer(&vm->mutableIndex, 0),
+        memcpy(parent->mutableIndex, IVGetPointer(&vm->mutableIndex, 0),
                mutableCount * sizeof(parent->mutableIndex[0]));
     }
-    IntVectorSetSize(&vm->mutableIndex, 0);
+    IVSetSize(&vm->mutableIndex, 0);
 
     vm->parent = parent;
     clone->parent = parent;
     clone->mutableCount = vm->mutableCount;
     memcpy(clone->fields, vm->fields, FieldIndexGetCount() * sizeof(objectref));
-    IntVectorAppendAll(&vm->callStack, &clone->callStack);
-    IntVectorAppendAll(&vm->stack, &clone->stack);
+    IVAppendAll(&vm->callStack, &clone->callStack);
+    IVAppendAll(&vm->stack, &clone->stack);
     clone->target = vm->target;
     clone->ip = ip;
     clone->bp = vm->bp;
@@ -90,18 +90,18 @@ void VMDispose(VM *vm)
         free(parent);
         parent = next;
     }
-    IntVectorDispose(&vm->mutableIndex);
-    IntVectorDispose(&vm->callStack);
-    IntVectorDispose(&vm->stack);
+    IVDispose(&vm->mutableIndex);
+    IVDispose(&vm->callStack);
+    IVDispose(&vm->stack);
     free(vm);
 }
 
 
 uint VMAddMutable(VM *vm, objectref object)
 {
-    assert(IntVectorSize(&vm->mutableIndex) <= vm->mutableCount);
-    IntVectorSetSize(&vm->mutableIndex, vm->mutableCount + 1);
-    IntVectorSet(&vm->mutableIndex, vm->mutableCount, uintFromRef(object));
+    assert(IVSize(&vm->mutableIndex) <= vm->mutableCount);
+    IVSetSize(&vm->mutableIndex, vm->mutableCount + 1);
+    IVSetRef(&vm->mutableIndex, vm->mutableCount, object);
     return vm->mutableCount++;
 }
 
@@ -111,9 +111,9 @@ objectref VMGetMutable(VM *vm, uint index)
     objectref object;
 
     assert(index < vm->mutableCount);
-    if (IntVectorSize(&vm->mutableIndex) > index)
+    if (IVSize(&vm->mutableIndex) > index)
     {
-        object = refFromUint(IntVectorGet(&vm->mutableIndex, index));
+        object = IVGetRef(&vm->mutableIndex, index);
         if (object)
         {
             return object;
@@ -131,11 +131,11 @@ objectref VMGetMutable(VM *vm, uint index)
                 if (branch->children != 1)
                 {
                     object = HeapClone(object);
-                    if (IntVectorSize(&vm->mutableIndex) <= index)
+                    if (IVSize(&vm->mutableIndex) <= index)
                     {
-                        IntVectorSetSize(&vm->mutableIndex, index + 1);
+                        IVSetSize(&vm->mutableIndex, index + 1);
                     }
-                    IntVectorSet(&vm->mutableIndex, index, uintFromRef(object));
+                    IVSetRef(&vm->mutableIndex, index, object);
                 }
                 return object;
             }
@@ -146,12 +146,12 @@ objectref VMGetMutable(VM *vm, uint index)
 
 objectref VMPeek(VM *vm)
 {
-    return IntVectorPeekRef(&vm->stack);
+    return IVPeekRef(&vm->stack);
 }
 
 objectref VMPop(VM *vm)
 {
-    return IntVectorPopRef(&vm->stack);
+    return IVPopRef(&vm->stack);
 }
 
 void VMPopMany(VM *vm, objectref *dst, uint count)
@@ -165,7 +165,7 @@ void VMPopMany(VM *vm, objectref *dst, uint count)
 
 void VMPush(VM *vm, objectref value)
 {
-    IntVectorAddRef(&vm->stack, value);
+    IVAddRef(&vm->stack, value);
 }
 
 void VMPushBoolean(VM *vm, boolean value)

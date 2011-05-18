@@ -66,12 +66,12 @@ static size_t getWorkSize(const Work *work)
 
 void WorkInit(void)
 {
-    ByteVectorInit(&queue, 1024);
+    BVInit(&queue, 1024);
 }
 
 void WorkDispose(void)
 {
-    ByteVectorDispose(&queue);
+    BVDispose(&queue);
 }
 
 void WorkAdd(const Work *work)
@@ -80,7 +80,7 @@ void WorkAdd(const Work *work)
     {
         printWork("added: ", work);
     }
-    ByteVectorAddData(&queue, (const byte*)work, getWorkSize(work));
+    BVAddData(&queue, (const byte*)work, getWorkSize(work));
     WorkExecute();
 }
 
@@ -94,13 +94,13 @@ void WorkDiscard(const VM *vm)
     {
         printf("remove work for: %p\n", (const void*)vm);
     }
-    while (i < ByteVectorSize(&queue))
+    while (i < BVSize(&queue))
     {
-        work = (Work*)ByteVectorGetPointer(&queue, i);
+        work = (Work*)BVGetPointer(&queue, i);
         size = getWorkSize(work);
         if (work->vm == vm)
         {
-            ByteVectorRemoveRange(&queue, i, size);
+            BVRemoveRange(&queue, i, size);
         }
         else
         {
@@ -111,7 +111,7 @@ void WorkDiscard(const VM *vm)
 
 boolean WorkQueueEmpty(void)
 {
-    return ByteVectorSize(&queue) == 0;
+    return BVSize(&queue) == 0;
 }
 
 void WorkExecute(void)
@@ -127,9 +127,9 @@ void WorkExecute(void)
         objectref values[NATIVE_MAX_VALUES];
     } env;
 
-    assert(ByteVectorSize(&queue));
-    work = (Work*)ByteVectorGetPointer(&queue, 0);
-    assert(ByteVectorSize(&queue) >= getWorkSize(work));
+    assert(BVSize(&queue));
+    work = (Work*)BVGetPointer(&queue, 0);
+    assert(BVSize(&queue) >= getWorkSize(work));
     parameterCount = NativeGetParameterCount(work->function);
 
     work->condition = HeapTryWait(work->vm, work->condition);
@@ -159,5 +159,5 @@ void WorkExecute(void)
             HeapSetFutureValue(*p1, *p2);
         }
     }
-    ByteVectorRemoveRange(&queue, 0, getWorkSize(work));
+    BVRemoveRange(&queue, 0, getWorkSize(work));
 }

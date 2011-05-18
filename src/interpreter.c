@@ -46,12 +46,12 @@ static void removeVM(uint index)
 
 static objectref getLocal(VM *vm, uint bp, uint16 local)
 {
-    return IntVectorGetRef(&vm->stack, bp + local);
+    return IVGetRef(&vm->stack, bp + local);
 }
 
 static void storeLocal(VM *vm, uint bp, uint16 local, objectref value)
 {
-    IntVectorSetRef(&vm->stack, bp + local, value);
+    IVSetRef(&vm->stack, bp + local, value);
 }
 
 
@@ -59,30 +59,30 @@ static void pushStackFrame(VM *vm, const byte **ip, uint *bp,
                            functionref function, uint returnValues)
 {
     uint localsCount;
-    IntVectorAdd(&vm->callStack, (uint)(*ip - vmBytecode));
-    IntVectorAdd(&vm->callStack, *bp);
-    IntVectorAdd(&vm->callStack, returnValues);
+    IVAdd(&vm->callStack, (uint)(*ip - vmBytecode));
+    IVAdd(&vm->callStack, *bp);
+    IVAdd(&vm->callStack, returnValues);
     *ip = vmBytecode + FunctionIndexGetBytecodeOffset(function);
-    *bp = (uint)IntVectorSize(&vm->stack) -
+    *bp = (uint)IVSize(&vm->stack) -
         FunctionIndexGetParameterCount(function);
     localsCount = FunctionIndexGetLocalsCount(function);
-    IntVectorSetSize(&vm->stack, *bp + localsCount);
+    IVSetSize(&vm->stack, *bp + localsCount);
 }
 
 static void popStackFrame(VM *vm, const byte **ip, uint *bp,
                           uint returnValues)
 {
-    uint expectedReturnValues = IntVectorPop(&vm->callStack);
+    uint expectedReturnValues = IVPop(&vm->callStack);
 
-    IntVectorCopy(&vm->stack,
-                  IntVectorSize(&vm->stack) - returnValues,
-                  &vm->stack,
-                  *bp,
-                  expectedReturnValues);
-    IntVectorSetSize(&vm->stack, *bp + expectedReturnValues);
+    IVCopy(&vm->stack,
+           IVSize(&vm->stack) - returnValues,
+           &vm->stack,
+           *bp,
+           expectedReturnValues);
+    IVSetSize(&vm->stack, *bp + expectedReturnValues);
 
-    *bp = IntVectorPop(&vm->callStack);
-    *ip = vmBytecode + IntVectorPop(&vm->callStack);
+    *bp = IVPop(&vm->callStack);
+    *ip = vmBytecode + IVPop(&vm->callStack);
 }
 
 
@@ -173,18 +173,18 @@ static void execute(VM *vm)
 
         case OP_REORDER_STACK:
             count = BytecodeReadUint16(&ip);
-            size2 = IntVectorSize(&vm->stack);
+            size2 = IVSize(&vm->stack);
             size1 = size2 - count;
-            IntVectorGrow(&vm->stack, count);
-            IntVectorMove(&vm->stack, size1, size2, count);
+            IVGrow(&vm->stack, count);
+            IVMove(&vm->stack, size1, size2, count);
             while (count--)
             {
-                IntVectorSet(&vm->stack, size1++,
-                             IntVectorGet(
-                                 &vm->stack,
-                                 size2 + BytecodeReadUint16(&ip)));
+                IVSet(&vm->stack, size1++,
+                      IVGet(
+                          &vm->stack,
+                          size2 + BytecodeReadUint16(&ip)));
             }
-            IntVectorSetSize(&vm->stack, size2);
+            IVSetSize(&vm->stack, size2);
             break;
 
         case OP_LOAD:
@@ -283,12 +283,12 @@ static void execute(VM *vm)
             return;
 
         case OP_RETURN:
-            assert(IntVectorSize(&vm->callStack));
+            assert(IVSize(&vm->callStack));
             popStackFrame(vm, &ip, &vm->bp, *ip++);
             break;
 
         case OP_RETURN_VOID:
-            if (!IntVectorSize(&vm->callStack))
+            if (!IVSize(&vm->callStack))
             {
                 if (vm->target)
                 {
