@@ -345,16 +345,19 @@ static boolean teExists(TreeEntry *te)
     return te->blob.exists;
 }
 
+static boolean teIsFile(TreeEntry *te)
+{
+    return teExists(te) && S_ISREG(te->mode);
+}
+
 static boolean teIsDirectory(TreeEntry *te)
 {
-    teStat(te);
-    return S_ISDIR(te->mode);
+    return teExists(te) && S_ISDIR(te->mode);
 }
 
 static boolean teIsExecutable(TreeEntry *te)
 {
-    teStat(te);
-    return S_ISREG(te->mode) && (te->mode & (S_IXUSR | S_IXGRP | S_IXOTH));
+    return teIsFile(te) && (te->mode & (S_IXUSR | S_IXGRP | S_IXOTH));
 }
 
 static size_t teSize(TreeEntry *te)
