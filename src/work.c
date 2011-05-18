@@ -90,6 +90,10 @@ void WorkDiscard(const VM *vm)
     size_t i = 0;
     size_t size;
 
+    if (DEBUG_WORK)
+    {
+        printf("remove work for: %p\n", (const void*)vm);
+    }
     while (i < ByteVectorSize(&queue))
     {
         work = (Work*)ByteVectorGetPointer(&queue, i);
