@@ -189,7 +189,8 @@ typedef struct
     objectref modify;
 
     objectref output;
-    objectref status;
+    objectref exitcode;
+    objectref internalError;
 } ExecEnv;
 
 static void nativePreExec(ExecEnv *env)
@@ -233,14 +234,27 @@ static boolean nativeExec(ExecEnv *env)
         return false;
     }
 
-    executable = FileSearchPath(argv[0], strlen(argv[0]), &length);
+    env->internalError = HeapBoxInteger(0);
+    executable = FileSearchPath(argv[0], strlen(argv[0]), &length, true);
     if (!executable)
     {
+        executable = FileSearchPath(argv[0], strlen(argv[0]), &length, false);
+        if (executable)
+        {
+            free(executable);
+            env->exitcode = HeapBoxInteger(126);
+            env->internalError = HeapBoxInteger(2);
+        }
+        else
+        {
+            env->exitcode = HeapBoxInteger(127);
+            env->internalError = HeapBoxInteger(1);
+        }
+        free(argv);
         HeapCollectionGet(env->output, HeapBoxInteger(0), &value);
         HeapSetFutureValue(value, HeapEmptyString);
         HeapCollectionGet(env->output, HeapBoxInteger(1), &value);
         HeapSetFutureValue(value, HeapEmptyString);
-        env->status = HeapBoxInteger(-1);
         return true;
     }
 
@@ -327,7 +341,7 @@ static boolean nativeExec(ExecEnv *env)
     {
         TaskFailErrno(false);
     }
-    env->status = HeapBoxInteger(WEXITSTATUS(status));
+    env->exitcode = HeapBoxInteger(WEXITSTATUS(status));
     LogGetOutBuffer(&p, &length);
     HeapCollectionGet(env->output, HeapBoxInteger(0), &value);
     HeapSetFutureValue(value, HeapCreateString((const char*)p, length));
@@ -890,7 +904,7 @@ void NativeInit(void)
 {
     addFunctionInfo("cp",          (preInvoke)nativePreCp,          (invoke)nativeCp,          2, 0);
     addFunctionInfo("echo",        null,                            (invoke)nativeEcho,        2, 0);
-    addFunctionInfo("exec",        (preInvoke)nativePreExec,        (invoke)nativeExec,        6, 2);
+    addFunctionInfo("exec",        (preInvoke)nativePreExec,        (invoke)nativeExec,        6, 3);
     addFunctionInfo("fail",        null,                            (invoke)nativeFail,        1, 0);
     addFunctionInfo("file",        null,                            (invoke)nativeFile,        3, 1);
     addFunctionInfo("filename",    null,                            (invoke)nativeFilename,    1, 1);

@@ -27,7 +27,7 @@ extern char *FileCreatePath(const char *restrict base, size_t baseLength,
                             const char *restrict extension, size_t extLength,
                             size_t *resultLength);
 extern nonnull char *FileSearchPath(const char *name, size_t length,
-                                    size_t *resultLength);
+                                    size_t *resultLength, boolean executable);
 extern nonnull const char *FileStripPath(const char *path, size_t *length);
 extern nonnull void FileTraverseGlob(const char *pattern, size_t length,
                                      TraverseCallback callback, void *userdata);

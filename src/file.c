@@ -1081,7 +1081,8 @@ char *FileCreatePath(const char *restrict base, size_t baseLength,
     return buffer;
 }
 
-char *FileSearchPath(const char *name, size_t length, size_t *resultLength)
+char *FileSearchPath(const char *name, size_t length, size_t *resultLength,
+                     boolean executable)
 {
     char *candidate;
     const char *path;
@@ -1106,7 +1107,8 @@ char *FileSearchPath(const char *name, size_t length, size_t *resultLength)
         for (p = path; p < stop && *p != ':'; p++);
         candidate = FileCreatePath(path, (size_t)(p - path), name, length,
                                    null, 0, resultLength);
-        if (FileIsExecutable(candidate, *resultLength))
+        if (executable ? FileIsExecutable(candidate, *resultLength) :
+            teIsFile(teGet(candidate, *resultLength)))
         {
             return candidate;
         }
