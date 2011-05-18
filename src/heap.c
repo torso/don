@@ -12,7 +12,7 @@
 #define INITIAL_HEAP_INDEX_SIZE 1
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))
 
-#define MUTABLE_OBJECT_MARK (((objectref)1 << (sizeof(objectref) * 8 - 1)))
+#define MUTABLE_OBJECT_MARK (((uint)1 << (sizeof(objectref) * 8 - 1)))
 #define INTEGER_LITERAL_MARK (MUTABLE_OBJECT_MARK >> 1)
 #define INTEGER_LITERAL_MASK (~INTEGER_LITERAL_MARK & ~MUTABLE_OBJECT_MARK)
 #define INTEGER_LITERAL_SHIFT 2
@@ -52,7 +52,7 @@ static void checkObject(objectref object)
 
 static pureconst boolean isInteger(objectref object)
 {
-    return (object & INTEGER_LITERAL_MARK) != 0;
+    return (uintFromRef(object) & INTEGER_LITERAL_MARK) != 0;
 }
 
 static pureconst boolean isMutableType(ObjectType type)
@@ -83,7 +83,7 @@ static pureconst boolean isMutableType(ObjectType type)
 
 static pure boolean isMutableRef(objectref object)
 {
-    return (object & MUTABLE_OBJECT_MARK) != 0;
+    return (uintFromRef(object) & MUTABLE_OBJECT_MARK) != 0;
 }
 
 static objectref getMutableRef(VM *vm, objectref object)
@@ -450,7 +450,7 @@ static objectref HeapFinishAllocMutable(VM *vm, byte *objectData)
 {
     objectref object = heapFinishAlloc(objectData);
     assert(isMutableType(HeapGetObjectType(object)));
-    return VMAddMutable(vm, object) | MUTABLE_OBJECT_MARK;
+    return refFromUint(VMAddMutable(vm, object) | MUTABLE_OBJECT_MARK);
 }
 
 objectref HeapClone(objectref object)
@@ -1093,7 +1093,7 @@ objectref HeapCreateArrayFromVector(const intvector *values)
     {
         return HeapEmptyList;
     }
-    return HeapCreateArray(IntVectorGetPointer(values, 0),
+    return HeapCreateArray((const objectref*)IntVectorGetPointer(values, 0),
                            IntVectorSize(values));
 }
 

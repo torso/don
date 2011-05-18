@@ -101,6 +101,7 @@ static void execute(VM *vm)
     byte *objectData;
     functionref function;
     nativefunctionref nativeFunction;
+    uint count;
 
     for (;;)
     {
@@ -171,12 +172,12 @@ static void execute(VM *vm)
             break;
 
         case OP_REORDER_STACK:
-            value = BytecodeReadUint16(&ip);
+            count = BytecodeReadUint16(&ip);
             size2 = IntVectorSize(&vm->stack);
-            size1 = size2 - value;
-            IntVectorGrow(&vm->stack, value);
-            IntVectorMove(&vm->stack, size1, size2, value);
-            while (value--)
+            size1 = size2 - count;
+            IntVectorGrow(&vm->stack, count);
+            IntVectorMove(&vm->stack, size1, size2, count);
+            while (count--)
             {
                 IntVectorSet(&vm->stack, size1++,
                              IntVectorGet(

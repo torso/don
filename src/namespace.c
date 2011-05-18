@@ -106,7 +106,7 @@ stringref NamespaceGetName(namespaceref ns)
 
 namespaceref NamespaceGetNamespace(namespaceref ns unused, stringref name)
 {
-    return IntHashMapGet(&nameNamespace, name);
+    return refFromUint(IntHashMapGet(&nameNamespace, uintFromRef(name)));
 }
 
 fieldref NamespaceGetField(namespaceref ns, stringref name)

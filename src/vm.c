@@ -101,7 +101,7 @@ uint VMAddMutable(VM *vm, objectref object)
 {
     assert(IntVectorSize(&vm->mutableIndex) <= vm->mutableCount);
     IntVectorSetSize(&vm->mutableIndex, vm->mutableCount + 1);
-    IntVectorSet(&vm->mutableIndex, vm->mutableCount, object);
+    IntVectorSet(&vm->mutableIndex, vm->mutableCount, uintFromRef(object));
     return vm->mutableCount++;
 }
 
@@ -113,7 +113,7 @@ objectref VMGetMutable(VM *vm, uint index)
     assert(index < vm->mutableCount);
     if (IntVectorSize(&vm->mutableIndex) > index)
     {
-        object = IntVectorGet(&vm->mutableIndex, index);
+        object = refFromUint(IntVectorGet(&vm->mutableIndex, index));
         if (object)
         {
             return object;
@@ -135,7 +135,7 @@ objectref VMGetMutable(VM *vm, uint index)
                     {
                         IntVectorSetSize(&vm->mutableIndex, index + 1);
                     }
-                    IntVectorSet(&vm->mutableIndex, index, object);
+                    IntVectorSet(&vm->mutableIndex, index, uintFromRef(object));
                 }
                 return object;
             }

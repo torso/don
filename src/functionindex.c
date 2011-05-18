@@ -32,7 +32,7 @@ static boolean isValidFunction(functionref function)
     {
         return false;
     }
-    return (sizeFromRef(function) - FunctionIndexGetFirstFunction()) %
+    return (sizeFromRef(function) - sizeFromRef(FunctionIndexGetFirstFunction())) %
         sizeof(FunctionInfo) == 0;
 }
 

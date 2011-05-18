@@ -21,7 +21,8 @@ static FieldInfo *getFieldInfo(fieldref field)
 {
     assert(field);
     return (FieldInfo*)ByteVectorGetPointer(
-        &fieldTable, (field - RESERVED_FIELD_COUNT - 1) * sizeof(FieldInfo));
+        &fieldTable,
+        (sizeFromRef(field) - RESERVED_FIELD_COUNT - 1) * sizeof(FieldInfo));
 }
 
 
@@ -120,9 +121,10 @@ fieldref FieldIndexGetFirstField(void)
 
 fieldref FieldIndexGetNextField(fieldref field)
 {
-    assert(field > RESERVED_FIELD_COUNT);
-    assert(field - RESERVED_FIELD_COUNT <= fieldCount);
-    return field - RESERVED_FIELD_COUNT != fieldCount ? field + 1 : 0;
+    assert(sizeFromRef(field) > RESERVED_FIELD_COUNT);
+    assert(sizeFromRef(field) - RESERVED_FIELD_COUNT <= fieldCount);
+    return sizeFromRef(field) - RESERVED_FIELD_COUNT != fieldCount ?
+        field + 1 : 0;
 }
 
 uint FieldIndexGetIndex(fieldref field)
