@@ -39,11 +39,6 @@ void BVAddSize(bytevector *v, size_t value)
     *p = value;
 }
 
-void BVAddRef(bytevector *v, ref_t value)
-{
-    BVAddUint(v, uintFromRef(value));
-}
-
 void BVAddAll(bytevector *v, const bytevector *src)
 {
     BVAddData(v, BVGetPointer(src, 0), BVSize(src));

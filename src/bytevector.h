@@ -15,7 +15,7 @@ extern nonnull void BVAddInt(bytevector *v, int value);
 extern nonnull void BVAddUint(bytevector *v, uint value);
 extern nonnull void BVAddUint16(bytevector *v, uint16 value);
 extern nonnull void BVAddSize(bytevector *v, size_t value);
-extern nonnull void BVAddRef(bytevector *v, ref_t value);
+#define BVAddRef(v, value) BVAddUint(v, uintFromRef(value))
 extern nonnull void BVAddAll(bytevector *v, const bytevector *src);
 extern nonnull void BVAddData(bytevector *v,
                                       const byte *data, size_t size);
