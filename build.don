@@ -9,10 +9,13 @@ run(args..., output=true)
    if valgrind
       logfile = @valgrind-log
       out, exitcode = exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "--log-file="logfile, args, env:["XDG_CACHE_HOME", "tempcache"], failOnError:false, echo:output, echoStderr:output)
-      if exitcode != 0
+      log = readFile(logfile)
+      rm(logfile)
+      if exitcode != 0 && !contains(log, "== Process terminating")
+         l = lines(log)
          log = ""
          copy = false
-         for line in lines(logfile)
+         for line in l
             if startsWith(line, "*")
                log = log line "\n"
                copy = false
@@ -25,12 +28,9 @@ run(args..., output=true)
                      copy = true
                   else
                      copy = false
-      else
-         log = readFile(logfile)
       out = [out[0], out[1] log]
       if output && log != ""
          echo(log)
-      rm(logfile)
    else
       out, exitcode = exec(args, env:["XDG_CACHE_HOME", "tempcache"], failOnError:false, echo:output, echoStderr:output)
    return out, exitcode
