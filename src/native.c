@@ -183,7 +183,6 @@ typedef struct
 
     objectref command;
     objectref env;
-    objectref failOnError;
     objectref echoOut;
     objectref echoErr;
     objectref access;
@@ -234,6 +233,17 @@ static boolean nativeExec(ExecEnv *env)
         return false;
     }
 
+    executable = FileSearchPath(argv[0], strlen(argv[0]), &length);
+    if (!executable)
+    {
+        HeapCollectionGet(env->output, HeapBoxInteger(0), &value);
+        HeapSetFutureValue(value, HeapEmptyString);
+        HeapCollectionGet(env->output, HeapBoxInteger(1), &value);
+        HeapSetFutureValue(value, HeapEmptyString);
+        env->status = HeapBoxInteger(-1);
+        return true;
+    }
+
     status = pipe(pipeOut);
     if (status == -1)
     {
@@ -245,12 +255,6 @@ static boolean nativeExec(ExecEnv *env)
         TaskFailErrno(false);
     }
 
-    executable = FileSearchPath(argv[0], strlen(argv[0]), &length);
-    if (!executable)
-    {
-        fprintf(stderr, "BUILD ERROR: Program not found: %s.\n", argv[0]);
-        TaskFailVM(env->work.vm);
-    }
     envp = HeapCollectionSize(env->env) ?
         EnvCreateCopy(env->work.vm, env->env) : EnvGetEnv();
 
@@ -323,11 +327,7 @@ static boolean nativeExec(ExecEnv *env)
     {
         TaskFailErrno(false);
     }
-    if (HeapIsTrue(env->failOnError) && status)
-    {
-        fprintf(stderr, "BUILD ERROR: Process exited with status %d.\n", status);
-        TaskFailVM(env->work.vm);
-    }
+    env->status = HeapBoxInteger(WEXITSTATUS(status));
     LogGetOutBuffer(&p, &length);
     HeapCollectionGet(env->output, HeapBoxInteger(0), &value);
     HeapSetFutureValue(value, HeapCreateString((const char*)p, length));
@@ -338,7 +338,6 @@ static boolean nativeExec(ExecEnv *env)
     LogPopErrBuffer();
     LogAutoNewline();
     LogErrAutoNewline();
-    env->status = HeapBoxInteger(status);
     return true;
 }
 
@@ -891,7 +890,7 @@ void NativeInit(void)
 {
     addFunctionInfo("cp",          (preInvoke)nativePreCp,          (invoke)nativeCp,          2, 0);
     addFunctionInfo("echo",        null,                            (invoke)nativeEcho,        2, 0);
-    addFunctionInfo("exec",        (preInvoke)nativePreExec,        (invoke)nativeExec,        7, 2);
+    addFunctionInfo("exec",        (preInvoke)nativePreExec,        (invoke)nativeExec,        6, 2);
     addFunctionInfo("fail",        null,                            (invoke)nativeFail,        1, 0);
     addFunctionInfo("file",        null,                            (invoke)nativeFile,        3, 1);
     addFunctionInfo("filename",    null,                            (invoke)nativeFilename,    1, 1);

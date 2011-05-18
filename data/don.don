@@ -11,7 +11,11 @@ echo(message, prefix = null)
    native.echo(message, prefix)
 
 exec(command..., env = [], failOnError = true, echo = true, echoStderr = true, access = @/, modify = @/)
-   output, exitcode = native.exec(command, env, failOnError, echo, echoStderr, fileset(access), fileset(modify))
+   output, exitcode = native.exec(command, env, echo, echoStderr, fileset(access), fileset(modify))
+   if failOnError && exitcode != 0
+      if exitcode == -1
+         fail("Command not found: " command[0])
+      fail("Process exited with status " exitcode)
    return output, exitcode
 
 fail(message = null, condition = true, silent = false)
