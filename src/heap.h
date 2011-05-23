@@ -144,7 +144,7 @@ extern nonnull objectref HeapRangeHigh(objectref range);
 
 extern nonnull objectref HeapSplit(objectref string, objectref delimiter,
                                    boolean removeEmpty,
-                                   boolean trimEmptyLastLine);
+                                   boolean trimLastIfEmpty);
 
 extern nonnull objectref HeapCreateArray(const objectref *values, size_t size);
 extern nonnull objectref HeapCreateArrayFromVector(const intvector *values);

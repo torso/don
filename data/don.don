@@ -52,8 +52,8 @@ getCache(label, version, key..., echoCachedOutput = true)
 indexOf(data, element)
    return native.indexOf(data, element)
 
-lines(value, trimEmptyLastLine = true)
-   return native.lines(value, trimEmptyLastLine)
+lines(value, trimLastIfEmpty = true)
+   return native.lines(value, trimLastIfEmpty)
 
 mv(src, dst)
    native.mv(src, dst)

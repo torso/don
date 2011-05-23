@@ -579,7 +579,7 @@ typedef struct
     Work work;
 
     objectref value;
-    objectref trimEmptyLastLine;
+    objectref trimLastIfEmpty;
 
     objectref result;
 } LinesEnv;
@@ -596,7 +596,8 @@ static boolean nativeLines(LinesEnv *env)
 {
     objectref content;
 
-    if (HeapIsFutureValue(env->value) || HeapIsFutureValue(env->trimEmptyLastLine))
+    if (HeapIsFutureValue(env->value) ||
+        HeapIsFutureValue(env->trimLastIfEmpty))
     {
         return false;
     }
@@ -604,7 +605,7 @@ static boolean nativeLines(LinesEnv *env)
     content = HeapIsFile(env->value) ? readFile(env->value) : env->value;
     assert(HeapIsString(content));
     env->result = HeapSplit(content, HeapNewline, false,
-                            HeapIsTrue(env->trimEmptyLastLine));
+                            HeapIsTrue(env->trimLastIfEmpty));
     return true;
 }
 

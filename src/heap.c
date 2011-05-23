@@ -1025,7 +1025,7 @@ objectref HeapRangeHigh(objectref range)
 
 
 objectref HeapSplit(objectref string, objectref delimiter, boolean removeEmpty,
-                    boolean trimEmptyLastLine)
+                    boolean trimLastIfEmpty)
 {
     size_t length;
     size_t delimiterLength;
@@ -1054,7 +1054,7 @@ objectref HeapSplit(objectref string, objectref delimiter, boolean removeEmpty,
         offsetref = HeapStringIndexOf(string, offset, delimiter);
         if (!offsetref)
         {
-            if (length != lastOffset || !(removeEmpty || trimEmptyLastLine))
+            if (length != lastOffset || !(removeEmpty || trimLastIfEmpty))
             {
                 IVAddRef(&substrings,
                          HeapCreateSubstring(string, lastOffset,
