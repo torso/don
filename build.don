@@ -9,7 +9,7 @@ run(args..., output=true)
    if valgrind
       logfile = @valgrind-log
       out, exitcode = exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "--log-file="logfile, args, env:["XDG_CACHE_HOME", "tempcache"], failOnError:false, echo:output, echoStderr:output)
-      log = readFile(logfile)
+      log = read(logfile)
       rm(logfile)
       if exitcode != 0 && !contains(log, "== Process terminating")
          l = lines(log)

@@ -1,5 +1,5 @@
 cat(file)
-   echo(readFile(file))
+   echo(read(file))
 
 contains(data, element)
    return indexOf(data, element) != null
@@ -54,7 +54,7 @@ lines(value, trimEmptyLastLine = true)
 mv(src, dst)
    native.mv(src, dst)
 
-readFile(file)
+read(file)
    return native.readFile(file)
 
 replace(data, original, replacement)
@@ -99,7 +99,7 @@ cc(files..., flags = [])
          if exitcode
             failed = true
          else
-            depend = readFile(dependFile)
+            depend = read(dependFile)
             depend = depend[indexOf(depend, ": ") + 2 .. size(depend) - 2]
             depend = replace(depend, "\\\n", "")
             depend = split(depend, removeEmpty:true)
