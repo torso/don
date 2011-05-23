@@ -29,7 +29,11 @@ fail(message = null, condition = true, silent = false)
          native.fail("BUILD FAILED: " message)
       native.fail("BUILD FAILED")
 
-file(path, name, extension = null)
+file(path, name = null, extension = null)
+   if name == null
+      name = path
+      path = null
+   fail("Either path or name must be non-null", condition:name == null)
    return native.file(path, name, extension)
 
 filename(path)

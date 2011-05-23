@@ -44,5 +44,8 @@ default:
 
    test("/a", "b", null, "/a/b")
 
+   test("/a", null, null, "/a")
+   test(null, "/a", null, "/a")
+
    if !failed
       echo("PASS")
