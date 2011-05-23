@@ -8,7 +8,7 @@ compile(extraflags=[])
 run(args..., output=true)
    if valgrind
       logfile = @valgrind-log
-      out, exitcode = exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "--log-file="logfile, args, env:["XDG_CACHE_HOME", "tempcache"], failOnError:false, echo:output, echoStderr:output)
+      out, exitcode = exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "--log-file="logfile, args, env:["XDG_CACHE_HOME", "tempcache"], fail:false, echo:output, echoStderr:output)
       log = read(logfile)
       rm(logfile)
       if exitcode != 0 && !contains(log, "== Process terminating")
@@ -32,7 +32,7 @@ run(args..., output=true)
       if output && log != ""
          echo(log)
    else
-      out, exitcode = exec(args, env:["XDG_CACHE_HOME", "tempcache"], failOnError:false, echo:output, echoStderr:output)
+      out, exitcode = exec(args, env:["XDG_CACHE_HOME", "tempcache"], fail:false, echo:output, echoStderr:output)
    return out, exitcode
 
 dotest(debug=false)
@@ -54,7 +54,7 @@ dotest(debug=false)
             if out[1]
                echo(out[1], prefix:"> ")
          if debug
-            exec(gdb, program, "-i", f, failOnError:false, env:["XDG_CACHE_HOME", "tempcache"])
+            exec(gdb, program, "-i", f, fail:false, env:["XDG_CACHE_HOME", "tempcache"])
       else
          pass += 1
    if fail
