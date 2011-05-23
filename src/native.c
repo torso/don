@@ -527,9 +527,9 @@ typedef struct
     objectref name;
 
     objectref result;
-} GetenvEnv;
+} GetEnvEnv;
 
-static boolean nativeGetenv(GetenvEnv *env)
+static boolean nativeGetEnv(GetEnvEnv *env)
 {
     char *buffer;
     size_t nameLength;
@@ -910,7 +910,7 @@ void NativeInit(void)
     addFunctionInfo("filename",    null,                            (invoke)nativeFilename,    1, 1);
     addFunctionInfo("fileset",     null,                            (invoke)nativeFileset,     1, 1);
     addFunctionInfo("getCache",    null,                            (invoke)nativeGetCache,    2, 2);
-    addFunctionInfo("getenv",      null,                            (invoke)nativeGetenv,      1, 1);
+    addFunctionInfo("getEnv",      null,                            (invoke)nativeGetEnv,      1, 1);
     addFunctionInfo("indexOf",     null,                            (invoke)nativeIndexOf,     2, 1);
     addFunctionInfo("lines",       (preInvoke)nativePreLines,       (invoke)nativeLines,       2, 1);
     addFunctionInfo("mv",          (preInvoke)nativePreMv,          (invoke)nativeMv,          2, 0);
