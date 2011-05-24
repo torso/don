@@ -11,7 +11,7 @@ run(args..., output=true)
       out, exitcode = exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes", "--log-file="logfile, args, env:["XDG_CACHE_HOME", "tempcache"], fail:false, echo:output, echoStderr:output)
       log = read(logfile)
       rm(logfile)
-      if exitcode != 0 && !contains(log, "== Process terminating")
+      if (exitcode != 0 || contains(log, "** Assertion failed")) && !contains(log, "== Process terminating")
          l = lines(log)
          log = ""
          copy = false
