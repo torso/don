@@ -13,9 +13,10 @@
 #include "fieldindex.h"
 #include "file.h"
 #include "hash.h"
-#include "log.h"
 #include "namespace.h"
 #include "native.h"
+#include "pipe.h"
+#include "log.h"
 #include "stringpool.h"
 #include "task.h"
 #include "work.h"
@@ -218,9 +219,10 @@ static boolean nativeExec(ExecEnv *env)
     const char *path;
     pid_t pid;
     int status;
-    int pipeOut[2];
-    int pipeErr[2];
-    const byte *p;
+    int fdOut[2];
+    int fdErr[2];
+    Pipe out;
+    Pipe err;
     size_t length;
 #ifdef HAVE_POSIX_SPAWN
     posix_spawn_file_actions_t psfa;
@@ -258,12 +260,12 @@ static boolean nativeExec(ExecEnv *env)
         return true;
     }
 
-    status = pipe(pipeOut);
+    status = pipe(fdOut);
     if (status == -1)
     {
         TaskFailErrno(false);
     }
-    status = pipe(pipeErr);
+    status = pipe(fdErr);
     if (status == -1)
     {
         TaskFailErrno(false);
@@ -283,12 +285,12 @@ static boolean nativeExec(ExecEnv *env)
 
 #ifdef HAVE_POSIX_SPAWN
     posix_spawn_file_actions_init(&psfa);
-    posix_spawn_file_actions_addclose(&psfa, pipeOut[0]);
-    posix_spawn_file_actions_addclose(&psfa, pipeErr[0]);
-    posix_spawn_file_actions_adddup2(&psfa, pipeOut[1], STDOUT_FILENO);
-    posix_spawn_file_actions_adddup2(&psfa, pipeErr[1], STDERR_FILENO);
-    posix_spawn_file_actions_addclose(&psfa, pipeOut[1]);
-    posix_spawn_file_actions_addclose(&psfa, pipeErr[1]);
+    posix_spawn_file_actions_addclose(&psfa, fdOut[0]);
+    posix_spawn_file_actions_addclose(&psfa, fdErr[0]);
+    posix_spawn_file_actions_adddup2(&psfa, fdOut[1], STDOUT_FILENO);
+    posix_spawn_file_actions_adddup2(&psfa, fdErr[1], STDERR_FILENO);
+    posix_spawn_file_actions_addclose(&psfa, fdOut[1]);
+    posix_spawn_file_actions_addclose(&psfa, fdErr[1]);
     status = posix_spawn(&pid, executable, &psfa, null, argv, (char**)envp);
     posix_spawn_file_actions_destroy(&psfa);
     if (status)
@@ -299,21 +301,21 @@ static boolean nativeExec(ExecEnv *env)
     pid = fork();
     if (!pid)
     {
-        close(pipeOut[0]);
-        close(pipeErr[0]);
+        close(fdOut[0]);
+        close(fdErr[0]);
 
-        status = dup2(pipeOut[1], STDOUT_FILENO);
+        status = dup2(fdOut[1], STDOUT_FILENO);
         if (status == -1)
         {
             TaskFailErrno(true);
         }
-        close(pipeOut[1]);
-        status = dup2(pipeErr[1], STDERR_FILENO);
+        close(fdOut[1]);
+        status = dup2(fdErr[1], STDERR_FILENO);
         if (status == -1)
         {
             TaskFailErrno(true);
         }
-        close(pipeErr[1]);
+        close(fdErr[1]);
 
         execve(executable, argv, (char**)envp);
         _exit(EXIT_FAILURE);
@@ -325,16 +327,24 @@ static boolean nativeExec(ExecEnv *env)
     {
         free((void*)envp);
     }
-    close(pipeOut[1]);
-    close(pipeErr[1]);
+    close(fdOut[1]);
+    close(fdErr[1]);
     if (pid < 0)
     {
         TaskFailOOM();
     }
 
-    LogPushOutBuffer(HeapIsTrue(env->echoOut));
-    LogPushErrBuffer(HeapIsTrue(env->echoErr));
-    LogConsumePipes(pipeOut[0], pipeErr[0]);
+    PipeInitFD(&out, fdOut[0]);
+    PipeInitFD(&err, fdErr[0]);
+    if (HeapIsTrue(env->echoOut))
+    {
+        PipeAddListener(&out, &LogPipeOutListener);
+    }
+    if (HeapIsTrue(env->echoErr))
+    {
+        PipeAddListener(&err, &LogPipeErrListener);
+    }
+    PipeConsume2(&out, &err);
 
     pid = waitpid(pid, &status, 0);
     if (pid < 0)
@@ -342,14 +352,16 @@ static boolean nativeExec(ExecEnv *env)
         TaskFailErrno(false);
     }
     env->exitcode = HeapBoxInteger(WEXITSTATUS(status));
-    LogGetOutBuffer(&p, &length);
     HeapCollectionGet(env->output, HeapBoxInteger(0), &value);
-    HeapSetFutureValue(value, HeapCreateString((const char*)p, length));
-    LogPopOutBuffer();
-    LogGetErrBuffer(&p, &length);
+    HeapSetFutureValue(value, HeapCreateString(
+                           (const char*)BVGetPointer(&out.buffer, 0),
+                           BVSize(&out.buffer)));
+    PipeDispose(&out);
     HeapCollectionGet(env->output, HeapBoxInteger(1), &value);
-    HeapSetFutureValue(value, HeapCreateString((const char*)p, length));
-    LogPopErrBuffer();
+    HeapSetFutureValue(value, HeapCreateString(
+                           (const char*)BVGetPointer(&err.buffer, 0),
+                           BVSize(&err.buffer)));
+    PipeDispose(&err);
     LogAutoNewline();
     LogErrAutoNewline();
     return true;

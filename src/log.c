@@ -10,6 +10,7 @@
 #include "file.h"
 #include "instruction.h"
 #include "heap.h"
+#include "pipe.h"
 #include "log.h"
 #include "stringpool.h"
 #include "task.h"
@@ -19,30 +20,31 @@
 
 typedef struct
 {
-    size_t begin;
-    boolean echo;
-} Buffer;
-
-typedef struct
-{
     bytevector buffer;
-    bytevector bufferStack;
     int fd;
-    int echoDisable;
-    size_t flushed;
     const char *prefix;
     size_t prefixLength;
-} Pipe;
+} LogPipe;
 
-static Pipe out;
-static Pipe err;
+static nonnull void logPrintRaw(const byte *data, size_t length);
+static nonnull void logPrintErrRaw(const byte *data, size_t length);
+static void logNewline(void);
+static void logErrNewline(void);
+
+static LogPipe out;
+static LogPipe err;
 static boolean hasParseError;
 
-
-static boolean buffered(Pipe *p)
+PipeListener LogPipeOutListener =
 {
-    return BVSize(&p->bufferStack) != 0;
-}
+    null, logPrintRaw
+};
+
+PipeListener LogPipeErrListener =
+{
+    null, logPrintErrRaw
+};
+
 
 static void logWrite(int filedes, const byte *buffer, size_t size)
 {
@@ -60,36 +62,21 @@ static void logWrite(int filedes, const byte *buffer, size_t size)
     }
 }
 
-static void flush(Pipe *p, size_t size)
+static void flush(LogPipe *p, size_t size)
 {
     size_t keep;
 
-    if (p->echoDisable)
-    {
-        return;
-    }
     keep = BVSize(&p->buffer) - size;
-    logWrite(p->fd, BVGetPointer(&p->buffer, p->flushed), size - p->flushed);
-    if (buffered(p))
-    {
-        p->flushed = size;
-    }
-    else
-    {
-        BVMove(&p->buffer, size, p->flushed, keep);
-        BVSetSize(&p->buffer, p->flushed + keep);
-    }
+    logWrite(p->fd, BVGetPointer(&p->buffer, 0), size);
+    BVMove(&p->buffer, size, 0, keep);
+    BVSetSize(&p->buffer, keep);
 }
 
-static void autoflush(Pipe *p, size_t newData)
+static void autoflush(LogPipe *p, size_t newData)
 {
     size_t i;
     const byte *data;
 
-    if (p->echoDisable)
-    {
-        return;
-    }
     data = BVGetPointer(&p->buffer, BVSize(&p->buffer));
     for (i = newData; i; i--)
     {
@@ -102,7 +89,7 @@ static void autoflush(Pipe *p, size_t newData)
     }
 }
 
-static void processNewData(Pipe *p, size_t newData)
+static void processNewData(LogPipe *p, size_t newData)
 {
     size_t beginOffset;
     size_t offset;
@@ -147,8 +134,6 @@ void LogInit(void)
 {
     BVInit(&out.buffer, MIN_READ_BUFFER * 2);
     BVInit(&err.buffer, MIN_READ_BUFFER * 2);
-    BVInit(&out.bufferStack, sizeof(Buffer) * 2);
-    BVInit(&err.bufferStack, sizeof(Buffer) * 2);
     out.fd = STDOUT_FILENO;
     err.fd = STDERR_FILENO;
 }
@@ -157,8 +142,6 @@ void LogDispose(void)
 {
     BVDispose(&out.buffer);
     BVDispose(&err.buffer);
-    BVDispose(&out.bufferStack);
-    BVDispose(&err.bufferStack);
 }
 
 
@@ -175,15 +158,14 @@ void LogParseError(stringref filename, size_t line, const char *format, va_list 
     fprintf(stderr, "\n");
 }
 
-static void logPrint(Pipe *p, const char *text, size_t length)
+static void logPrint(LogPipe *p, const char *text, size_t length)
 {
     if (!length)
     {
         text = "\n";
         length = 1;
     }
-    if (!buffered(p) && !BVSize(&p->buffer) &&
-        text[length - 1] == '\n')
+    if (!BVSize(&p->buffer) && text[length - 1] == '\n')
     {
         logWrite(p->fd, (const byte*)text, length);
         return;
@@ -192,37 +174,27 @@ static void logPrint(Pipe *p, const char *text, size_t length)
     processNewData(p, length);
 }
 
-void LogPrint(const char *text, size_t length)
+void logPrintRaw(const byte *data, size_t length)
 {
-    logPrint(&out, text, length);
+    logPrint(&out, (const char*)data, length);
 }
 
-void LogPrintErr(const char *text, size_t length)
+void logPrintErrRaw(const byte *data, size_t length)
 {
-    logPrint(&err, text, length);
-}
-
-void LogPrintSZ(const char *text)
-{
-    logPrint(&out, text, strlen(text));
-}
-
-void LogPrintErrSZ(const char *text)
-{
-    logPrint(&err, text, strlen(text));
+    logPrint(&err, (const char*)data, length);
 }
 
 void LogPrintAutoNewline(const char *text, size_t length)
 {
     if (!length)
     {
-        LogNewline();
+        logNewline();
         return;
     }
-    LogPrint(text, length);
+    logPrint(&out, text, length);
     if (text[length - 1] != '\n')
     {
-        LogNewline();
+        logNewline();
     }
 }
 
@@ -230,17 +202,17 @@ void LogPrintErrAutoNewline(const char *text, size_t length)
 {
     if (!length)
     {
-        LogErrNewline();
+        logErrNewline();
         return;
     }
-    LogPrintErr(text, length);
+    logPrint(&err, text, length);
     if (text[length - 1] != '\n')
     {
-        LogErrNewline();
+        logErrNewline();
     }
 }
 
-static void logPrintObjectAutoNewline(Pipe *p, objectref object)
+static void logPrintObjectAutoNewline(LogPipe *p, objectref object)
 {
     size_t length = HeapStringLength(object);
     byte *data;
@@ -275,12 +247,12 @@ void LogPrintErrObjectAutoNewline(objectref object)
     logPrintObjectAutoNewline(&err, object);
 }
 
-void LogNewline(void)
+void logNewline(void)
 {
     logPrint(&out, "\n", 1);
 }
 
-void LogErrNewline(void)
+void logErrNewline(void)
 {
     logPrint(&err, "\n", 1);
 }
@@ -289,7 +261,7 @@ void LogAutoNewline(void)
 {
     if (BVSize(&out.buffer) && BVPeek(&out.buffer) != '\n')
     {
-        LogNewline();
+        logNewline();
     }
 }
 
@@ -297,7 +269,7 @@ void LogErrAutoNewline(void)
 {
     if (BVSize(&err.buffer) && BVPeek(&err.buffer) != '\n')
     {
-        LogErrNewline();
+        logErrNewline();
     }
 }
 
@@ -305,166 +277,4 @@ void LogSetPrefix(const char *prefix, size_t length)
 {
     out.prefix = prefix;
     out.prefixLength = length;
-}
-
-void LogConsumePipes(int fdOut, int fdErr)
-{
-    fd_set set;
-    ssize_t ssize;
-    int status;
-    struct timeval tv;
-
-    memset(&tv, 0, sizeof(tv));
-    while (fdOut || fdErr)
-    {
-        FD_ZERO(&set);
-        if (fdOut)
-        {
-            FD_SET(fdOut, &set);
-        }
-        if (fdErr)
-        {
-            FD_SET(fdErr, &set);
-        }
-        status = select(FD_SETSIZE, &set, null, null,
-                        !out.echoDisable &&
-                        BVSize(&out.buffer) - out.flushed ?
-                        &tv : null);
-        if (status < 0)
-        {
-            if (errno == EINTR)
-            {
-                continue;
-            }
-            TaskFailErrno(false);
-        }
-        if (status == 0)
-        {
-            flush(&out, BVSize(&out.buffer));
-            continue;
-        }
-
-        if (FD_ISSET(fdOut, &set))
-        {
-            BVReserveAppendSize(&out.buffer, MIN_READ_BUFFER);
-            ssize = read(fdOut, BVGetAppendPointer(&out.buffer),
-                         BVGetReservedAppendSize(&out.buffer));
-            if (ssize)
-            {
-                if (ssize > 0)
-                {
-                    BVGrow(&out.buffer, (size_t)ssize);
-                    processNewData(&out, (size_t)ssize);
-                }
-                else if (errno != EWOULDBLOCK)
-                {
-                    close(fdOut);
-                    close(fdErr);
-                    TaskFailErrno(false);
-                }
-            }
-            else
-            {
-                close(fdOut);
-                fdOut = 0;
-            }
-        }
-        if (FD_ISSET(fdErr, &set))
-        {
-            BVReserveAppendSize(&err.buffer, MIN_READ_BUFFER);
-            ssize = read(fdErr, BVGetAppendPointer(&err.buffer),
-                         BVGetReservedAppendSize(&err.buffer));
-            if (ssize)
-            {
-                if (ssize > 0)
-                {
-                    BVGrow(&err.buffer, (size_t)ssize);
-                }
-                else if (errno != EWOULDBLOCK)
-                {
-                    close(fdOut);
-                    close(fdErr);
-                    TaskFailErrno(false);
-                }
-            }
-            else
-            {
-                close(fdErr);
-                fdErr = 0;
-            }
-        }
-    }
-    processNewData(&err, BVSize(&err.buffer));
-}
-
-static void pushBuffer(Pipe *p, boolean echo)
-{
-    size_t oldSize = BVSize(&p->bufferStack);
-    Buffer *buffer;
-
-    BVSetSize(&p->bufferStack, oldSize + sizeof(Buffer));
-    buffer = (Buffer*)BVGetPointer(&p->bufferStack, oldSize);
-    buffer->begin = BVSize(&p->buffer);
-    buffer->echo = echo;
-    if (!echo)
-    {
-        p->echoDisable++;
-    }
-}
-
-void LogPushOutBuffer(boolean echo)
-{
-    pushBuffer(&out, echo);
-}
-
-void LogPushErrBuffer(boolean echo)
-{
-    pushBuffer(&err, echo);
-}
-
-static void getBuffer(Pipe *p, const byte **output, size_t *length)
-{
-    Buffer *buffer = (Buffer*)BVGetPointer(
-        &p->bufferStack, BVSize(&p->bufferStack) - sizeof(Buffer));
-
-    *output = BVGetPointer(&p->buffer, buffer->begin);
-    *length = BVSize(&p->buffer) - buffer->begin;
-}
-
-void LogGetOutBuffer(const byte **output, size_t *length)
-{
-    getBuffer(&out, output, length);
-}
-
-void LogGetErrBuffer(const byte **output, size_t *length)
-{
-    getBuffer(&err, output, length);
-}
-
-static void popBuffer(Pipe *p)
-{
-    size_t bufferOffset = BVSize(&p->bufferStack) - sizeof(Buffer);
-    Buffer *buffer = (Buffer*)BVGetPointer(&p->bufferStack,
-                                           bufferOffset);
-
-    if (!buffer->echo)
-    {
-        BVSetSize(&p->buffer, buffer->begin);
-        BVSetSize(&p->bufferStack, bufferOffset);
-        p->echoDisable--;
-    }
-    else
-    {
-        BVSetSize(&p->bufferStack, bufferOffset);
-    }
-}
-
-void LogPopOutBuffer(void)
-{
-    popBuffer(&out);
-}
-
-void LogPopErrBuffer(void)
-{
-    popBuffer(&err);
 }
