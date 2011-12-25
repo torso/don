@@ -55,6 +55,9 @@ indexOf(data, element)
 lines(value, trimLastIfEmpty = true)
    return native.lines(value, trimLastIfEmpty)
 
+mkdir(path)
+   exec("mkdir", "-p", path, access:[], modify:path)
+
 mv(src, dst)
    native.mv(src, dst)
 
