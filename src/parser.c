@@ -617,6 +617,10 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     varargIndex = FunctionIndexHasVararg(function) ?
         FunctionIndexGetVarargIndex(function) : UINT_MAX;
 
+    estate->valueType = VALUE_INVOCATION;
+    estate->function = function;
+    estate->argumentCount = parameterCount;
+
     if (!readOperator(state, ')'))
     {
         for (;;)
@@ -799,9 +803,6 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         }
         while (argumentCount < parameterCount);
     }
-    estate->valueType = VALUE_INVOCATION;
-    estate->function = function;
-    estate->argumentCount = argumentCount;
     return true;
 }
 
