@@ -7,7 +7,7 @@ struct _VMBranch
 {
     VMBranch *parent;
     objectref condition;
-    uint children;
+    uint childCount;
     uint mutableCount;
     objectref mutableIndex[1];
 };

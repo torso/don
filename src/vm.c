@@ -48,7 +48,7 @@ VM *VMClone(VM *vm, objectref condition, const byte *ip)
 
     parent->parent = vm->parent;
     parent->condition = vm->condition;
-    parent->children = 2;
+    parent->childCount = 2;
     parent->mutableCount = mutableCount;
     if (mutableCount)
     {
@@ -82,7 +82,7 @@ void VMDispose(VM *vm)
     WorkDiscard(vm);
     while (parent)
     {
-        if (--parent->children)
+        if (--parent->childCount)
         {
             break;
         }
@@ -128,7 +128,7 @@ objectref VMGetMutable(VM *vm, uint index)
             object = branch->mutableIndex[index];
             if (object)
             {
-                if (branch->children != 1)
+                if (branch->childCount != 1)
                 {
                     object = HeapClone(object);
                     if (IVSize(&vm->mutableIndex) <= index)
