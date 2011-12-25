@@ -319,6 +319,7 @@ static void execute(VM *vm)
             return;
 
         case OP_UNKNOWN_VALUE:
+        default:
             assert(false);
             break;
         }
