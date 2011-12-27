@@ -1,4 +1,5 @@
 extern nonnull uint BytecodeReadUint(const byte **bytecode);
+extern nonnull int16 BytecodeReadInt16(const byte **bytecode);
 extern nonnull uint16 BytecodeReadUint16(const byte **bytecode);
 extern nonnull ref_t BytecodeReadRef(const byte **bytecode);
 #define BytecodeReadInt (int)BytecodeReadUint

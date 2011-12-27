@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include "common.h"
 #include "bytecode.h"
+#include "bytevector.h"
+#include "fieldindex.h"
 #include "functionindex.h"
 #include "instruction.h"
 #include "native.h"
@@ -15,6 +17,12 @@ uint BytecodeReadUint(const byte **bytecode)
     return value;
 }
 
+int16 BytecodeReadInt16(const byte **bytecode)
+{
+    byte value = *(*bytecode)++;
+    return (int16)((value << 8) + *(*bytecode)++);
+}
+
 uint16 BytecodeReadUint16(const byte **bytecode)
 {
     byte value = *(*bytecode)++;
@@ -26,17 +34,43 @@ ref_t BytecodeReadRef(const byte **bytecode)
     return refFromUint(BytecodeReadUint(bytecode));
 }
 
+static void appendNumberAsString(bytevector *buffer, int number)
+{
+    uint i = (uint)number;
+    size_t size;
+
+    if (!number)
+    {
+        BVAdd(buffer, '0');
+        return;
+    }
+    if (number < 0)
+    {
+        BVAdd(buffer, '-');
+        i = (uint)-number;
+    }
+    size = BVSize(buffer);
+    while (i)
+    {
+        BVInsert(buffer, size, (byte)('0' + i % 10));
+        i /= 10;
+    }
+}
+
 static const byte *disassemble(const byte *bytecode, const byte *base,
                                const byte **limit)
 {
     uint ip = (uint)(bytecode - base);
     functionref function;
     nativefunctionref nativeFunction;
-    uint arguments;
+    uint parameterCount;
+    uint argumentCount;
     uint value;
-    uint value2;
     ref_t ref;
     uint controlFlowNextInstruction = true;
+    uint i;
+    int argument;
+    bytevector buffer;
 
     switch ((Instruction)*bytecode++)
     {
@@ -85,16 +119,6 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_DUP:
         printf(" %u: dup\n", ip);
-        break;
-
-    case OP_REORDER_STACK:
-        value = BytecodeReadUint16(&bytecode);
-        printf(" %u: reorder_stack %d\n", ip, value);
-        for (value2 = 0; value2 < value; value2++)
-        {
-            printf("    value %u at %u\n", value2,
-                   BytecodeReadUint16(&bytecode));
-        }
         break;
 
     case OP_LOAD:
@@ -234,12 +258,68 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_INVOKE:
         function = BytecodeReadRef(&bytecode);
-        arguments = BytecodeReadUint16(&bytecode);
+        argumentCount = BytecodeReadUint16(&bytecode);
         value = *bytecode++;
         printf(" %u: invoke \"%s\" arguments: %u return: %u\n",
                ip,
                StringPoolGetString(FunctionIndexGetName(function)),
-               arguments, value);
+               argumentCount, value);
+        break;
+
+    case OP_INVOKE_REORDER:
+        function = BytecodeReadRef(&bytecode);
+        argumentCount = BytecodeReadUint16(&bytecode);
+        value = *bytecode++;
+        parameterCount = FunctionIndexGetParameterCount(function);
+        BVInit(&buffer, parameterCount * 5);
+        for (i = 0; i < parameterCount; i++)
+        {
+            if (i)
+            {
+                BVAdd(&buffer, ',');
+            }
+            argument = BytecodeReadInt16(&bytecode);
+            if (argument < 0)
+            {
+                BVAdd(&buffer, 's');
+                BVAdd(&buffer, ':');
+                appendNumberAsString(&buffer, argument);
+            }
+            else
+            {
+                switch (argument)
+                {
+                case FIELD_NULL:
+                    BVAddData(&buffer, (const byte*)"null", 4);
+                    break;
+
+                case FIELD_TRUE:
+                    BVAddData(&buffer, (const byte*)"true", 4);
+                    break;
+
+                case FIELD_FALSE:
+                    BVAddData(&buffer, (const byte*)"false", 5);
+                    break;
+
+                case FIELD_EMPTY_LIST:
+                    BVAddData(&buffer, (const byte*)"[]", 2);
+                    break;
+
+                default:
+                    BVAdd(&buffer, 'f');
+                    BVAdd(&buffer, ':');
+                    appendNumberAsString(&buffer, argument);
+                    break;
+                }
+            }
+        }
+        BVAdd(&buffer, 0);
+        printf(" %u: invoke \"%s\"(%s) arguments: %u return: %u\n",
+               ip,
+               StringPoolGetString(FunctionIndexGetName(function)),
+               BVGetPointer(&buffer, 0),
+               argumentCount, value);
+        BVDispose(&buffer);
         break;
 
     case OP_INVOKE_NATIVE:

@@ -81,8 +81,6 @@ extern nonnull void ParseStateWriteReturn(ParseState *state, uint values);
 extern nonnull void ParseStateWriteReturnVoid(ParseState *state);
 extern nonnull void ParseStateWriteInvocation(
     ParseState *state, functionref function,
-    uint argumentCount, uint returnValues);
+    uint argumentCount, int16 *arguments, uint returnValues);
 extern nonnull void ParseStateWriteNativeInvocation(ParseState *state,
                                                     nativefunctionref function);
-extern nonnull void ParseStateReorderStack(
-    ParseState *state, intvector *order, uint offset, uint count);

@@ -26,6 +26,13 @@ void BVAddUint(bytevector *v, uint value)
     *p = value;
 }
 
+void BVAddInt16(bytevector *v, int16 value)
+{
+    byte *p = vectorGrow(v, sizeof(value));
+    *p++ = (byte)(value >> 16);
+    *p = (byte)value;
+}
+
 void BVAddUint16(bytevector *v, uint16 value)
 {
     byte *p = vectorGrow(v, sizeof(value));

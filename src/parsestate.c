@@ -482,17 +482,37 @@ void ParseStateWriteReturnVoid(ParseState *state)
     BVAdd(state->bytecode, OP_RETURN_VOID);
 }
 
-void ParseStateWriteInvocation(ParseState *state,
-                               functionref function, uint argumentCount,
+void ParseStateWriteInvocation(ParseState *state, functionref function,
+                               uint argumentCount, int16 *arguments,
                                uint returnValues)
 {
+    uint parameterCount;
+    uint i;
+    int16 *argument;
+
     assert(argumentCount <= UINT16_MAX); /* TODO: report error */
     assert(returnValues <= UINT8_MAX); /* TODO: report error */
     ParseStateCheck(state);
-    BVAdd(state->bytecode, OP_INVOKE);
-    BVAddRef(state->bytecode, function);
-    BVAddUint16(state->bytecode, (uint16)argumentCount);
-    BVAdd(state->bytecode, (uint8)returnValues);
+    if (arguments)
+    {
+        BVAdd(state->bytecode, OP_INVOKE_REORDER);
+        BVAddRef(state->bytecode, function);
+        BVAddUint16(state->bytecode, (uint16)argumentCount);
+        BVAdd(state->bytecode, (uint8)returnValues);
+        parameterCount = FunctionIndexGetParameterCount(function);
+        for (i = 0, argument = arguments; i < parameterCount; i++, argument++)
+        {
+            BVAddInt16(state->bytecode, *argument);
+        }
+        free(arguments);
+    }
+    else
+    {
+        BVAdd(state->bytecode, OP_INVOKE);
+        BVAddRef(state->bytecode, function);
+        BVAddUint16(state->bytecode, (uint16)argumentCount);
+        BVAdd(state->bytecode, (uint8)returnValues);
+    }
 }
 
 void ParseStateWriteNativeInvocation(ParseState *state,
@@ -501,29 +521,4 @@ void ParseStateWriteNativeInvocation(ParseState *state,
     ParseStateCheck(state);
     BVAdd(state->bytecode, OP_INVOKE_NATIVE);
     BVAdd(state->bytecode, (byte)uintFromRef(function));
-}
-
-void ParseStateReorderStack(ParseState *state,
-                            intvector *order, uint offset, uint count)
-{
-    uint position;
-    uint baseOffset = offset;
-
-    assert(count);
-    assert(count <= UINT16_MAX);
-    ParseStateCheck(state);
-
-    BVAdd(state->bytecode, OP_REORDER_STACK);
-    BVAddUint16(state->bytecode, (uint16)count);
-    while (count)
-    {
-        position = IVGet(order, offset++);
-        if (position)
-        {
-            assert(position - 1 <= UINT16_MAX);
-            BVAddUint16(state->bytecode,
-                        (uint16)(position - baseOffset - 1));
-            count--;
-        }
-    }
 }

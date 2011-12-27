@@ -48,6 +48,8 @@ extern nonnull void VECTOR_FUNC(Add)(VECTOR_NAME *v, VECTOR_TYPE value);
 extern nonnull VECTOR_TYPE VECTOR_FUNC(Get)(const VECTOR_NAME *v, size_t index);
 extern nonnull void VECTOR_FUNC(Set)(VECTOR_NAME *v,
                                      size_t index, VECTOR_TYPE value);
+extern nonnull void VECTOR_FUNC(Insert)(VECTOR_NAME *v, size_t index,
+                                        VECTOR_TYPE value);
 
 extern nonnull VECTOR_TYPE VECTOR_FUNC(Peek)(const VECTOR_NAME *v);
 extern nonnull VECTOR_TYPE VECTOR_FUNC(Pop)(VECTOR_NAME *v);

@@ -91,12 +91,13 @@ static void execute(VM *vm)
     Instruction op;
     const byte *ip = vm->ip;
     uint argumentCount;
+    uint parameterCount;
     uint returnValueCount;
     int jumpOffset;
+    int argument;
     objectref value;
     objectref value2;
-    size_t size1;
-    size_t size2;
+    size_t size;
     stringref string;
     byte *objectData;
     functionref function;
@@ -138,11 +139,11 @@ static void execute(VM *vm)
             break;
 
         case OP_LIST:
-            size1 = BytecodeReadUint(&ip);
-            assert(size1);
-            objectData = HeapAlloc(TYPE_ARRAY, size1 * sizeof(objectref));
-            objectData += size1 * sizeof(objectref);
-            while (size1--)
+            size = BytecodeReadUint(&ip);
+            assert(size);
+            objectData = HeapAlloc(TYPE_ARRAY, size * sizeof(objectref));
+            objectData += size * sizeof(objectref);
+            while (size--)
             {
                 objectData -= sizeof(objectref);
                 *(objectref*)objectData = VMPop(vm);
@@ -169,22 +170,6 @@ static void execute(VM *vm)
 
         case OP_DUP:
             VMPush(vm, VMPeek(vm));
-            break;
-
-        case OP_REORDER_STACK:
-            count = BytecodeReadUint16(&ip);
-            size2 = IVSize(&vm->stack);
-            size1 = size2 - count;
-            IVGrow(&vm->stack, count);
-            IVMove(&vm->stack, size1, size2, count);
-            while (count--)
-            {
-                IVSet(&vm->stack, size1++,
-                      IVGet(
-                          &vm->stack,
-                          size2 + BytecodeReadUint16(&ip)));
-            }
-            IVSetSize(&vm->stack, size2);
             break;
 
         case OP_LOAD:
@@ -311,6 +296,34 @@ static void execute(VM *vm)
             pushStackFrame(vm, &ip, &vm->bp, function, returnValueCount);
             vm->ip = ip;
             return;
+
+        case OP_INVOKE_REORDER:
+            function = BytecodeReadRef(&ip);
+            argumentCount = BytecodeReadUint16(&ip);
+            parameterCount = FunctionIndexGetParameterCount(function);
+            assert(argumentCount <= parameterCount);
+            returnValueCount = *ip++;
+            size = IVSize(&vm->stack);
+            for (count = parameterCount; count; count--)
+            {
+                argument = BytecodeReadInt16(&ip);
+                if (argument < 0)
+                {
+                    VMPush(vm, IVGet(&vm->stack, size + (size_t)argument));
+                }
+                else
+                {
+                    VMPush(vm, vm->fields[argument]);
+                }
+            }
+            if (argumentCount)
+            {
+                IVMove(&vm->stack, size, size - argumentCount, parameterCount);
+                IVSetSize(&vm->stack, size + parameterCount - argumentCount);
+            }
+            pushStackFrame(vm, &ip, &vm->bp, function, returnValueCount);
+            vm->ip = ip;
+            break;
 
         case OP_INVOKE_NATIVE:
             nativeFunction = refFromUint(*ip++);

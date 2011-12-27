@@ -204,6 +204,14 @@ void VECTOR_FUNC(Set)(VECTOR_NAME *v, size_t index, VECTOR_TYPE value)
     v->data[index] = value;
 }
 
+void VECTOR_FUNC(Insert)(VECTOR_NAME *v, size_t index, VECTOR_TYPE value)
+{
+    VECTOR_TYPE *p = vectorGrow(v, 1);
+    VECTOR_TYPE *insert = (VECTOR_TYPE*)VECTOR_FUNC(GetPointer)(v, index);
+    memmove(insert + sizeof(value), insert, (size_t)(p - insert));
+    *insert = value;
+}
+
 VECTOR_TYPE VECTOR_FUNC(Peek)(const VECTOR_NAME *v)
 {
     vectorCheckIndex(v, 0);

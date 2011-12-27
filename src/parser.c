@@ -36,6 +36,7 @@ typedef struct
     nativefunctionref nativeFunction;
     functionref function;
     uint argumentCount;
+    int16 *arguments;
     boolean constant;
 } ExpressionState;
 
@@ -528,7 +529,7 @@ static boolean finishRValue(ParseState *state, ExpressionState *estate)
 
     case VALUE_INVOCATION:
         ParseStateWriteInvocation(state, estate->function,
-                                  estate->argumentCount, 1);
+                                  estate->argumentCount, estate->arguments, 1);
         return true;
 
     case VALUE_NATIVE_INVOCATION:
@@ -557,7 +558,7 @@ static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
 
     case VALUE_INVOCATION:
         ParseStateWriteInvocation(state, estate->function,
-                                  estate->argumentCount, 0);
+                                  estate->argumentCount, estate->arguments, 0);
         return true;
 
     case VALUE_NATIVE_INVOCATION:
@@ -584,10 +585,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     uint argumentCount = 0;
     uint line = state->line;
     boolean requireNamedParameters = false;
-    intvector namedParameters;
-    uint position;
-    uint firstOutOfOrder = 0;
-    boolean inOrder;
+    int position;
     uint i;
 
     ParseStateCheck(state);
@@ -620,6 +618,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     estate->valueType = VALUE_INVOCATION;
     estate->function = function;
     estate->argumentCount = parameterCount;
+    estate->arguments = null;
 
     if (!readOperator(state, ')'))
     {
@@ -629,14 +628,14 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             {
                 if (!peekIdentifier(state))
                 {
-                    IVDispose(&namedParameters);
+                    free(estate->arguments);
                     error(state, "Expected parameter name.");
                     return false;
                 }
                 estateArgument.identifier = readIdentifier(state);
                 if (!readExpectedOperator(state, ':'))
                 {
-                    IVDispose(&namedParameters);
+                    free(estate->arguments);
                     return false;
                 }
             }
@@ -651,15 +650,15 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                         argumentCount = varargIndex + 1;
                     }
                     requireNamedParameters = true;
-                    IVInit(&namedParameters, parameterCount); /* TODO: Allocate uint[]? */
-                    for (i = 0; i++ < argumentCount;)
+                    estate->arguments = (int16*)calloc(parameterCount,
+                                                       sizeof(int16));
+                    for (i = 0; i < argumentCount; i++)
                     {
-                        IVAdd(&namedParameters, i);
+                        estate->arguments[i] = (int16)(i + 1);
                     }
-                    IVGrowZero(&namedParameters,
-                               parameterCount - argumentCount);
                 }
             }
+            argumentCount++;
             if (requireNamedParameters)
             {
                 skipWhitespace(state);
@@ -667,21 +666,21 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 {
                     if (i == parameterCount)
                     {
-                        IVDispose(&namedParameters);
+                        free(estate->arguments);
                         error(state, "Invalid parameter name '%s'.",
                               StringPoolGetString(estateArgument.identifier));
                         return false;
                     }
                     if (parameterInfo[i].name == estateArgument.identifier)
                     {
-                        if (IVGet(&namedParameters, i))
+                        if (estate->arguments[i])
                         {
-                            IVDispose(&namedParameters);
+                            free(estate->arguments);
                             error(state, "More than one value for parameter '%s'.",
                                   StringPoolGetString(estateArgument.identifier));
                             return false;
                         }
-                        IVSet(&namedParameters, i, argumentCount + 1);
+                        estate->arguments[i] = (int16)argumentCount;
                         estateArgument.identifier = 0;
                         break;
                     }
@@ -691,23 +690,16 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             if (!parseExpression(state, &estateArgument) ||
                 !finishRValue(state, &estateArgument))
             {
-                if (requireNamedParameters)
-                {
-                    IVDispose(&namedParameters);
-                }
+                free(estate->arguments);
                 return false;
             }
-            argumentCount++;
             if (readOperator(state, ')'))
             {
                 break;
             }
             if (!readExpectedOperator(state, ','))
             {
-                if (requireNamedParameters)
-                {
-                    IVDispose(&namedParameters);
-                }
+                free(estate->arguments);
                 return false;
             }
             skipWhitespace(state);
@@ -733,59 +725,38 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 "Too many arguments for function '%s'. Got %d arguments, but at most %d were expected.",
                 StringPoolGetString(name), argumentCount, parameterCount);
         }
-        if (requireNamedParameters)
-        {
-            IVDispose(&namedParameters);
-        }
+        free(estate->arguments);
         return false;
     }
     if (requireNamedParameters)
     {
-        inOrder = true;
+        estate->argumentCount = argumentCount;
         for (i = 0; i < parameterCount; i++)
         {
-            position = IVGet(&namedParameters, i);
-            if (!position)
+            position = estate->arguments[i];
+            if (position)
             {
-                if (!parameterInfo[i].value)
-                {
-                    if (i == varargIndex)
-                    {
-                        ParseStateWriteInstruction(state, OP_EMPTY_LIST);
-                    }
-                    else
-                    {
-                        IVDispose(&namedParameters);
-                        errorOnLine(state, line,
-                                    "No value for parameter '%s' given.",
-                                    StringPoolGetString(parameterInfo[i].name));
-                        return false;
-                    }
-                }
-                if (parameterInfo[i].value)
-                {
-                    ParseStateGetField(state, parameterInfo[i].value);
-                }
-                position = ++argumentCount;
-                IVSet(&namedParameters, i, position);
+                estate->arguments[i] =
+                    (int16)(position - (int16)argumentCount - 1);
             }
-            if (position - 1 != i || !inOrder)
+            else if (parameterInfo[i].value)
             {
-                if (inOrder)
-                {
-                    firstOutOfOrder = i;
-                    inOrder = false;
-                }
+                estate->arguments[i] =
+                    (int16)FieldIndexGetIndex(parameterInfo[i].value);
+            }
+            else if (i == varargIndex)
+            {
+                estate->arguments[i] = FIELD_EMPTY_LIST;
+            }
+            else
+            {
+                free(estate->arguments);
+                errorOnLine(state, line,
+                            "No value for parameter '%s' given.",
+                            StringPoolGetString(parameterInfo[i].name));
+                return false;
             }
         }
-        if (!inOrder)
-        {
-            ParseStateReorderStack(
-                state, &namedParameters, firstOutOfOrder,
-                parameterCount - firstOutOfOrder);
-        }
-        IVDispose(&namedParameters);
-        argumentCount = parameterCount;
     }
     else if (argumentCount < parameterCount)
     {
@@ -1545,7 +1516,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     if (estate.valueType == VALUE_INVOCATION)
     {
         ParseStateWriteInvocation(
-            state, estate.function, estate.argumentCount,
+            state, estate.function, estate.argumentCount, estate.arguments,
             returnValueCount);
     }
     else if (estate.valueType == VALUE_NATIVE_INVOCATION)
