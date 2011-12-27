@@ -617,8 +617,11 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
 
     estate->valueType = VALUE_INVOCATION;
     estate->function = function;
-    estate->argumentCount = parameterCount;
     estate->arguments = null;
+    if (parameterCount)
+    {
+        estate->arguments = (int16*)calloc(parameterCount, sizeof(int16));
+    }
 
     if (!readOperator(state, ')'))
     {
@@ -648,14 +651,9 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                     {
                         ParseStateWriteList(state, argumentCount - varargIndex);
                         argumentCount = varargIndex + 1;
+                        estate->arguments[varargIndex] = (int16)(argumentCount);
                     }
                     requireNamedParameters = true;
-                    estate->arguments = (int16*)calloc(parameterCount,
-                                                       sizeof(int16));
-                    for (i = 0; i < argumentCount; i++)
-                    {
-                        estate->arguments[i] = (int16)(i + 1);
-                    }
                 }
             }
             argumentCount++;
@@ -686,6 +684,11 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                     }
                 }
             }
+            else if (argumentCount <= varargIndex &&
+                     argumentCount <= parameterCount)
+            {
+                estate->arguments[argumentCount - 1] = (int16)argumentCount;
+            }
             estateArgument.constant = false;
             if (!parseExpression(state, &estateArgument) ||
                 !finishRValue(state, &estateArgument))
@@ -709,8 +712,9 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     {
         ParseStateWriteList(state, argumentCount - varargIndex);
         argumentCount = varargIndex + 1;
+        estate->arguments[varargIndex] = (int16)argumentCount;
     }
-    if (argumentCount > parameterCount)
+    else if (argumentCount > parameterCount)
     {
         if (!parameterCount)
         {
@@ -728,51 +732,33 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         free(estate->arguments);
         return false;
     }
-    if (requireNamedParameters)
+
+    estate->argumentCount = argumentCount;
+    for (i = 0; i < parameterCount; i++)
     {
-        estate->argumentCount = argumentCount;
-        for (i = 0; i < parameterCount; i++)
+        position = estate->arguments[i];
+        if (position)
         {
-            position = estate->arguments[i];
-            if (position)
-            {
-                estate->arguments[i] =
-                    (int16)(position - (int16)argumentCount - 1);
-            }
-            else if (parameterInfo[i].value)
-            {
-                estate->arguments[i] =
-                    (int16)FieldIndexGetIndex(parameterInfo[i].value);
-            }
-            else if (i == varargIndex)
-            {
-                estate->arguments[i] = FIELD_EMPTY_LIST;
-            }
-            else
-            {
-                free(estate->arguments);
-                errorOnLine(state, line,
-                            "No value for parameter '%s' given.",
-                            StringPoolGetString(parameterInfo[i].name));
-                return false;
-            }
+            estate->arguments[i] =
+                (int16)(position - (int16)argumentCount - 1);
         }
-    }
-    else if (argumentCount < parameterCount)
-    {
-        if (!parameterInfo[argumentCount].value)
+        else if (parameterInfo[i].value)
         {
-            errorOnLine(state, line, "No value for parameter '%s' given.",
-                        StringPoolGetString(parameterInfo[argumentCount].name));
+            estate->arguments[i] =
+                (int16)FieldIndexGetIndex(parameterInfo[i].value);
+        }
+        else if (i == varargIndex)
+        {
+            estate->arguments[i] = FIELD_EMPTY_LIST;
+        }
+        else
+        {
+            free(estate->arguments);
+            errorOnLine(state, line,
+                        "No value for parameter '%s' given.",
+                        StringPoolGetString(parameterInfo[i].name));
             return false;
         }
-        do
-        {
-            assert(parameterInfo[argumentCount].value);
-            ParseStateGetField(state, parameterInfo[argumentCount].value);
-            argumentCount++;
-        }
-        while (argumentCount < parameterCount);
     }
     return true;
 }

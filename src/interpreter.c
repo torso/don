@@ -291,15 +291,6 @@ static void execute(VM *vm)
         case OP_INVOKE:
             function = BytecodeReadRef(&ip);
             argumentCount = BytecodeReadUint16(&ip);
-            assert(argumentCount == FunctionIndexGetParameterCount(function));
-            returnValueCount = *ip++;
-            pushStackFrame(vm, &ip, &vm->bp, function, returnValueCount);
-            vm->ip = ip;
-            return;
-
-        case OP_INVOKE_REORDER:
-            function = BytecodeReadRef(&ip);
-            argumentCount = BytecodeReadUint16(&ip);
             parameterCount = FunctionIndexGetParameterCount(function);
             assert(argumentCount <= parameterCount);
             returnValueCount = *ip++;

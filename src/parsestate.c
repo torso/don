@@ -493,26 +493,16 @@ void ParseStateWriteInvocation(ParseState *state, functionref function,
     assert(argumentCount <= UINT16_MAX); /* TODO: report error */
     assert(returnValues <= UINT8_MAX); /* TODO: report error */
     ParseStateCheck(state);
-    if (arguments)
+    BVAdd(state->bytecode, OP_INVOKE);
+    BVAddRef(state->bytecode, function);
+    BVAddUint16(state->bytecode, (uint16)argumentCount);
+    BVAdd(state->bytecode, (uint8)returnValues);
+    parameterCount = FunctionIndexGetParameterCount(function);
+    for (i = 0, argument = arguments; i < parameterCount; i++, argument++)
     {
-        BVAdd(state->bytecode, OP_INVOKE_REORDER);
-        BVAddRef(state->bytecode, function);
-        BVAddUint16(state->bytecode, (uint16)argumentCount);
-        BVAdd(state->bytecode, (uint8)returnValues);
-        parameterCount = FunctionIndexGetParameterCount(function);
-        for (i = 0, argument = arguments; i < parameterCount; i++, argument++)
-        {
-            BVAddInt16(state->bytecode, *argument);
-        }
-        free(arguments);
+        BVAddInt16(state->bytecode, *argument);
     }
-    else
-    {
-        BVAdd(state->bytecode, OP_INVOKE);
-        BVAddRef(state->bytecode, function);
-        BVAddUint16(state->bytecode, (uint16)argumentCount);
-        BVAdd(state->bytecode, (uint8)returnValues);
-    }
+    free(arguments);
 }
 
 void ParseStateWriteNativeInvocation(ParseState *state,

@@ -1447,7 +1447,6 @@ static objectref executeUnary(VM *vm, Instruction op, objectref value)
     case OP_RETURN:
     case OP_RETURN_VOID:
     case OP_INVOKE:
-    case OP_INVOKE_REORDER:
     case OP_INVOKE_NATIVE:
     case OP_UNKNOWN_VALUE:
         break;
@@ -1525,7 +1524,6 @@ static objectref executeBinaryPartial(Instruction op, objectref object,
     case OP_RETURN:
     case OP_RETURN_VOID:
     case OP_INVOKE:
-    case OP_INVOKE_REORDER:
     case OP_INVOKE_NATIVE:
     case OP_UNKNOWN_VALUE:
         break;
@@ -1646,7 +1644,6 @@ static objectref executeBinary(Instruction op,
     case OP_RETURN:
     case OP_RETURN_VOID:
     case OP_INVOKE:
-    case OP_INVOKE_REORDER:
     case OP_INVOKE_NATIVE:
     case OP_UNKNOWN_VALUE:
         break;

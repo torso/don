@@ -49,7 +49,6 @@ typedef enum
     OP_RETURN,
     OP_RETURN_VOID,
     OP_INVOKE,
-    OP_INVOKE_REORDER,
     OP_INVOKE_NATIVE,
 
     OP_UNKNOWN_VALUE

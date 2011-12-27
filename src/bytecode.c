@@ -260,16 +260,6 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         function = BytecodeReadRef(&bytecode);
         argumentCount = BytecodeReadUint16(&bytecode);
         value = *bytecode++;
-        printf(" %u: invoke \"%s\" arguments: %u return: %u\n",
-               ip,
-               StringPoolGetString(FunctionIndexGetName(function)),
-               argumentCount, value);
-        break;
-
-    case OP_INVOKE_REORDER:
-        function = BytecodeReadRef(&bytecode);
-        argumentCount = BytecodeReadUint16(&bytecode);
-        value = *bytecode++;
         parameterCount = FunctionIndexGetParameterCount(function);
         BVInit(&buffer, parameterCount * 5);
         for (i = 0; i < parameterCount; i++)
