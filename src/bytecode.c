@@ -18,7 +18,7 @@ uint BytecodeReadUint(const byte **bytecode)
 uint16 BytecodeReadUint16(const byte **bytecode)
 {
     byte value = *(*bytecode)++;
-    return (uint16)((value << 16) + *(*bytecode)++);
+    return (uint16)((value << 8) + *(*bytecode)++);
 }
 
 ref_t BytecodeReadRef(const byte **bytecode)
