@@ -59,9 +59,6 @@ extern nonnull void ParseStateSetField(ParseState *state, fieldref field);
 
 extern nonnull void ParseStateWriteInstruction(ParseState *state,
                                                Instruction instruction);
-extern nonnull void ParseStateWriteNullLiteral(ParseState *state);
-extern nonnull void ParseStateWriteTrueLiteral(ParseState *state);
-extern nonnull void ParseStateWriteFalseLiteral(ParseState *state);
 extern nonnull void ParseStateWriteIntegerLiteral(ParseState *state,
                                                   int value);
 extern nonnull void ParseStateWriteStringLiteral(ParseState *state,
@@ -81,7 +78,7 @@ extern nonnull void ParseStateWriteWhile(ParseState *state,
 extern nonnull void ParseStateWriteReturn(ParseState *state, uint values);
 extern nonnull void ParseStateWriteReturnVoid(ParseState *state);
 extern void ParseStateWriteInvocation(ParseState *state, functionref function,
-                                      uint argumentCount, int16 *arguments,
+                                      uint argumentCount, int *arguments,
                                       uint returnValues);
 extern nonnull void ParseStateWriteNativeInvocation(ParseState *state,
                                                     nativefunctionref function);

@@ -382,24 +382,6 @@ void ParseStateWriteInstruction(ParseState *state, Instruction instruction)
     BVAdd(state->bytecode, instruction);
 }
 
-void ParseStateWriteNullLiteral(ParseState *state)
-{
-    ParseStateCheck(state);
-    BVAdd(state->bytecode, OP_NULL);
-}
-
-void ParseStateWriteTrueLiteral(ParseState *state)
-{
-    ParseStateCheck(state);
-    BVAdd(state->bytecode, OP_TRUE);
-}
-
-void ParseStateWriteFalseLiteral(ParseState *state)
-{
-    ParseStateCheck(state);
-    BVAdd(state->bytecode, OP_FALSE);
-}
-
 void ParseStateWriteIntegerLiteral(ParseState *state, int value)
 {
     ParseStateCheck(state);
@@ -493,12 +475,12 @@ void ParseStateWriteReturnVoid(ParseState *state)
 }
 
 void ParseStateWriteInvocation(ParseState *state, functionref function,
-                               uint argumentCount, int16 *arguments,
+                               uint argumentCount, int *arguments,
                                uint returnValues)
 {
     uint parameterCount;
     uint i;
-    int16 *argument;
+    int *argument;
 
     assert(argumentCount <= UINT16_MAX); /* TODO: report error */
     assert(returnValues <= UINT8_MAX); /* TODO: report error */
@@ -510,7 +492,8 @@ void ParseStateWriteInvocation(ParseState *state, functionref function,
     parameterCount = FunctionIndexGetParameterCount(function);
     for (i = 0, argument = arguments; i < parameterCount; i++, argument++)
     {
-        BVAddInt16(state->bytecode, *argument);
+        assert(*argument >= INT16_MIN && *argument <= INT16_MAX);
+        BVAddInt16(state->bytecode, (int16)*argument);
     }
     free(arguments);
 }

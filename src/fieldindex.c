@@ -80,20 +80,7 @@ fieldref FieldIndexAddConstant(namespaceref ns,
                                stringref filename, uint line, uint fileOffset,
                                bytevector *bytecode, size_t start)
 {
-    fieldref field;
-    size_t size = BVSize(bytecode);
-
-    if (size - start == 1)
-    {
-        switch (BVGet(bytecode, start))
-        {
-        case OP_NULL: return FIELD_NULL + 1;
-        case OP_TRUE: return FIELD_TRUE + 1;
-        case OP_FALSE: return FIELD_FALSE + 1;
-        case OP_EMPTY_LIST: return FIELD_EMPTY_LIST + 1;
-        }
-    }
-    field = FieldIndexAdd(ns, filename, line, fileOffset);
+    fieldref field = FieldIndexAdd(ns, filename, line, fileOffset);
     FieldIndexSetBytecodeOffset(field, start, BVSize(bytecode));
     return field;
 }
