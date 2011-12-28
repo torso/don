@@ -588,6 +588,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     boolean requireNamedParameters = false;
     int position;
     uint i;
+    int variableIndex;
 
     ParseStateCheck(state);
     if (ns)
@@ -618,6 +619,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
 
     estate->valueType = VALUE_INVOCATION;
     estate->function = function;
+    estate->argumentCount = 0;
     estate->arguments = null;
     if (parameterCount)
     {
@@ -651,7 +653,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                                   StringPoolGetString(estateArgument.identifier));
                             return false;
                         }
-                        estateArgument.identifier = 0;
+                        estateArgument.identifier = peekReadIdentifier(state);
                         break;
                     }
                 }
@@ -664,8 +666,9 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             }
             else if (argumentCount == varargIndex)
             {
+                estate->argumentCount++;
                 argumentCount++;
-                estate->arguments[varargIndex] = (int16)argumentCount;
+                estate->arguments[varargIndex] = (int16)estate->argumentCount;
                 i = 0;
                 for (;;)
                 {
@@ -707,13 +710,36 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             }
 
             argumentCount++;
-            if (argumentIndex < parameterCount)
-            {
-                estate->arguments[argumentIndex] = (int16)argumentCount;
-            }
             estateArgument.constant = false;
-            if (!parseExpression(state, &estateArgument) ||
-                !finishRValue(state, &estateArgument))
+            if (!parseExpression(state, &estateArgument))
+            {
+                free(estate->arguments);
+                return false;
+            }
+            if (estateArgument.valueType == VALUE_VARIABLE)
+            {
+                if (argumentIndex < parameterCount)
+                {
+                    variableIndex = ParseStateGetVariableIndex(
+                        state, estateArgument.valueIdentifier);
+                    if (variableIndex < 0)
+                    {
+                        free(estate->arguments);
+                        return false;
+                    }
+                    estate->arguments[argumentIndex] =
+                        (int16)-(variableIndex + 1);
+                }
+            }
+            else if (finishRValue(state, &estateArgument))
+            {
+                if (argumentIndex < parameterCount)
+                {
+                    estate->argumentCount++;
+                    estate->arguments[argumentIndex] = (int16)estate->argumentCount;
+                }
+            }
+            else
             {
                 free(estate->arguments);
                 return false;
@@ -750,22 +776,31 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         return false;
     }
 
-    estate->argumentCount = argumentCount;
     for (i = 0; i < parameterCount; i++)
     {
         position = estate->arguments[i];
         if (position)
         {
-            estate->arguments[i] = (int16)(position - (int16)argumentCount - 1);
+            if (position > 0)
+            {
+                estate->arguments[i] =
+                    (int16)(position - (int16)estate->argumentCount - 1);
+            }
+            else
+            {
+                assert(estate->arguments[i] < (UINT16_MAX >> 1));
+                estate->arguments[i] =
+                    (int16)(((-estate->arguments[i] - 1) << 1) + 1);
+            }
         }
         else if (parameterInfo[i].value)
         {
             estate->arguments[i] =
-                (int16)FieldIndexGetIndex(parameterInfo[i].value);
+                (int16)(FieldIndexGetIndex(parameterInfo[i].value) << 1);
         }
         else if (i == varargIndex)
         {
-            estate->arguments[i] = FIELD_EMPTY_LIST;
+            estate->arguments[i] = FIELD_EMPTY_LIST << 1;
         }
         else
         {

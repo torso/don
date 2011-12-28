@@ -44,6 +44,7 @@ extern nonnull void ParseStateSetIndent(ParseState *state, uint indent);
 extern nonnull uint ParseStateBlockIndent(ParseState *state);
 
 extern nonnull boolean ParseStateIsParameter(ParseState *state, stringref name);
+extern nonnull int ParseStateGetVariableIndex(ParseState *state, stringref name);
 extern nonnull boolean ParseStateGetVariable(ParseState *state, stringref name);
 extern nonnull boolean ParseStateSetVariable(ParseState *state, stringref name);
 extern nonnull boolean ParseStateCreateUnnamedVariable(ParseState *state,
@@ -79,8 +80,8 @@ extern nonnull void ParseStateWriteWhile(ParseState *state,
                                          size_t loopTarget);
 extern nonnull void ParseStateWriteReturn(ParseState *state, uint values);
 extern nonnull void ParseStateWriteReturnVoid(ParseState *state);
-extern nonnull void ParseStateWriteInvocation(
-    ParseState *state, functionref function,
-    uint argumentCount, int16 *arguments, uint returnValues);
+extern void ParseStateWriteInvocation(ParseState *state, functionref function,
+                                      uint argumentCount, int16 *arguments,
+                                      uint returnValues);
 extern nonnull void ParseStateWriteNativeInvocation(ParseState *state,
                                                     nativefunctionref function);

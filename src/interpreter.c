@@ -302,9 +302,13 @@ static void execute(VM *vm)
                 {
                     VMPush(vm, IVGet(&vm->stack, size + (size_t)argument));
                 }
+                else if (argument & 1)
+                {
+                    VMPush(vm, getLocal(vm, vm->bp, (uint16)(argument >> 1)));
+                }
                 else
                 {
-                    VMPush(vm, vm->fields[argument]);
+                    VMPush(vm, vm->fields[argument >> 1]);
                 }
             }
             if (argumentCount)

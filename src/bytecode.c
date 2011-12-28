@@ -275,9 +275,15 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
                 BVAdd(&buffer, ':');
                 appendNumberAsString(&buffer, argument);
             }
+            else if (argument & 1)
+            {
+                BVAdd(&buffer, 'l');
+                BVAdd(&buffer, ':');
+                appendNumberAsString(&buffer, argument >> 1);
+            }
             else
             {
-                switch (argument)
+                switch (argument >> 1)
                 {
                 case FIELD_NULL:
                     BVAddData(&buffer, (const byte*)"null", 4);
@@ -298,7 +304,7 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
                 default:
                     BVAdd(&buffer, 'f');
                     BVAdd(&buffer, ':');
-                    appendNumberAsString(&buffer, argument);
+                    appendNumberAsString(&buffer, argument >> 1);
                     break;
                 }
             }

@@ -302,6 +302,16 @@ boolean ParseStateIsParameter(ParseState *state, stringref name)
     return local <= FunctionIndexGetParameterCount(state->function);
 }
 
+int ParseStateGetVariableIndex(ParseState *state, stringref name)
+{
+    uint16 local = getLocalIndex(state, name);
+    if (local == UINT16_MAX)
+    {
+        return -1;
+    }
+    return local;
+}
+
 boolean ParseStateGetVariable(ParseState *state, stringref name)
 {
     uint16 local = getLocalIndex(state, name);
