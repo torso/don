@@ -68,13 +68,16 @@ extern nonnull void ParseStateWriteFile(ParseState *state,
                                         stringref filename);
 extern nonnull void ParseStateWriteFileset(ParseState *state,
                                            stringref pattern);
-extern nonnull void ParseStateWriteBeginCondition(ParseState *state);
+extern nonnull void ParseStateWriteBeginCondition(ParseState *state,
+                                                  Instruction branchInstruction);
 extern nonnull boolean ParseStateWriteSecondConsequent(ParseState *state);
 extern nonnull boolean ParseStateWriteFinishCondition(ParseState *state);
 
-extern nonnull void ParseStateWriteIf(ParseState *state);
+extern nonnull void ParseStateWriteIf(ParseState *state,
+                                      Instruction branchInstruction);
 extern nonnull void ParseStateWriteWhile(ParseState *state,
-                                         size_t loopTarget);
+                                         size_t loopTarget,
+                                         Instruction branchInstruction);
 extern nonnull void ParseStateWriteReturn(ParseState *state, uint values);
 extern nonnull void ParseStateWriteReturnVoid(ParseState *state);
 extern void ParseStateWriteInvocation(ParseState *state, functionref function,
