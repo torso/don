@@ -63,6 +63,7 @@ extern objectref HeapNewline;
 extern void HeapInit(void);
 extern void HeapDispose(void);
 
+extern nonnull char *HeapDebug(objectref object, boolean address);
 extern nonnull ObjectType HeapGetObjectType(objectref object);
 extern nonnull size_t HeapGetObjectSize(objectref object);
 extern nonnull const byte *HeapGetObjectData(objectref object);

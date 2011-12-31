@@ -1,9 +1,12 @@
+#include <stdio.h>
 #include <memory.h>
 #include "common.h"
 #include "vm.h"
 #include "fieldindex.h"
 #include "functionindex.h"
 #include "work.h"
+
+static const boolean TRACE_STACK = false;
 
 static VM *VMAlloc(void)
 {
@@ -151,6 +154,13 @@ objectref VMPeek(VM *vm)
 
 objectref VMPop(VM *vm)
 {
+    char *buffer;
+    if (TRACE_STACK)
+    {
+        buffer = HeapDebug(IVPeek(&vm->stack), true);
+        printf("pop %s\n", buffer);
+        free(buffer);
+    }
     return IVPopRef(&vm->stack);
 }
 
@@ -165,6 +175,13 @@ void VMPopMany(VM *vm, objectref *dst, uint count)
 
 void VMPush(VM *vm, objectref value)
 {
+    char *buffer;
+    if (TRACE_STACK)
+    {
+        buffer = HeapDebug(value, true);
+        printf("push %s\n", buffer);
+        free(buffer);
+    }
     IVAddRef(&vm->stack, value);
 }
 

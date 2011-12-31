@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 500
+#include <stdio.h>
 #include <memory.h>
 #include <unistd.h>
 #include "common.h"
@@ -245,6 +247,41 @@ void HeapDispose(void)
     HeapPageIndex = null;
 }
 
+
+char *HeapDebug(objectref object, boolean address)
+{
+    size_t length = HeapStringLength(object);
+    char *buffer = (char*)malloc(length + 16); /* 16 ought to be enough */
+    char *p;
+    if (address)
+    {
+        snprintf(buffer, 12, "%u:", object);
+        p = buffer + strlen(buffer);
+    }
+    else
+    {
+        p = buffer;
+    }
+    if (object && HeapIsString(object))
+    {
+        *p++ = '\"';
+    }
+    else
+    {
+        *p++ = '[';
+    }
+    p = HeapWriteString(object, p);
+    if (object && HeapIsString(object))
+    {
+        *p++ = '\"';
+    }
+    else
+    {
+        *p++ = ']';
+    }
+    *p++ = 0;
+    return buffer;
+}
 
 ObjectType HeapGetObjectType(objectref object)
 {
