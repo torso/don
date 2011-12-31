@@ -57,6 +57,15 @@ void BVAddData(bytevector *v, const byte *data, size_t size)
     memcpy(p, data, size);
 }
 
+void BVAddString(bytevector *v, const char *string)
+{
+    if (BVSize(v) && !BVPeek(v))
+    {
+        BVPop(v);
+    }
+    BVAddData(v, (const byte*)string, strlen(string));
+}
+
 void BVInsertData(bytevector *v, size_t offset,
                   const byte *data, size_t size)
 {

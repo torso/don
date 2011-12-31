@@ -192,6 +192,7 @@ int main(int argc, const char **argv)
         IVAddRef(&targets, name);
     }
 
+    HeapInit();
     FunctionIndexInit();
     FunctionIndexAddFunction(0, StringPoolAdd(""), 0, 0, 0);
     FieldIndexInit();
@@ -227,7 +228,10 @@ int main(int argc, const char **argv)
          field;
          field = FieldIndexGetNextField(field))
     {
-        ParseField(field, &parsed);
+        if (!FieldIndexIsConstant(field))
+        {
+            ParseField(field, &parsed);
+        }
     }
 
     for (function = FunctionIndexGetNextFunction(
@@ -305,7 +309,6 @@ int main(int argc, const char **argv)
     CacheInit(cacheDirectory, cacheDirectoryLength);
 
     WorkInit();
-    HeapInit();
     for (j = 0; j < IVSize(&targets); j++)
     {
         InterpreterExecute(bytecode,

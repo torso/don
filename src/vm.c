@@ -23,14 +23,10 @@ VM *VMCreate(const byte *bytecode, functionref target)
 {
     VM *vm = VMAlloc();
 
-    memset(vm->fields, 0, FieldIndexGetCount() * sizeof(objectref));
+    FieldIndexCopyValues(vm->fields);
     vm->parent = null;
     vm->condition = HeapTrue;
     vm->mutableCount = 0;
-
-    vm->fields[FIELD_TRUE] = HeapTrue;
-    vm->fields[FIELD_FALSE] = HeapFalse;
-    vm->fields[FIELD_EMPTY_LIST] = HeapEmptyList;
 
     vm->target = target;
     vm->ip = bytecode +

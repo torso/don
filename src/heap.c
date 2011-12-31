@@ -1452,7 +1452,6 @@ static objectref executeUnary(VM *vm, Instruction op, objectref value)
     case OP_TRUE:
     case OP_FALSE:
     case OP_INTEGER:
-    case OP_STRING:
     case OP_EMPTY_LIST:
     case OP_LIST:
     case OP_FILE:
@@ -1539,7 +1538,6 @@ static objectref executeBinaryPartial(Instruction op, objectref object,
     case OP_TRUE:
     case OP_FALSE:
     case OP_INTEGER:
-    case OP_STRING:
     case OP_EMPTY_LIST:
     case OP_LIST:
     case OP_FILE:
@@ -1659,7 +1657,6 @@ static objectref executeBinary(Instruction op,
     case OP_TRUE:
     case OP_FALSE:
     case OP_INTEGER:
-    case OP_STRING:
     case OP_EMPTY_LIST:
     case OP_LIST:
     case OP_FILE:

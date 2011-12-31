@@ -5,6 +5,7 @@
 #include "fieldindex.h"
 #include "functionindex.h"
 #include "instruction.h"
+#include "heap.h"
 #include "native.h"
 #include "stringpool.h"
 
@@ -63,14 +64,15 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
     uint ip = (uint)(bytecode - base);
     functionref function;
     nativefunctionref nativeFunction;
+    fieldref field;
     uint parameterCount;
     uint argumentCount;
     uint value;
-    ref_t ref;
     uint controlFlowNextInstruction = true;
     uint i;
     int argument;
     bytevector buffer;
+    char *string;
 
     switch ((Instruction)*bytecode++)
     {
@@ -88,11 +90,6 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_INTEGER:
         printf(" %u: push integer %d\n", ip, BytecodeReadInt(&bytecode));
-        break;
-
-    case OP_STRING:
-        ref = BytecodeReadRef(&bytecode);
-        printf(" %u: push string \"%s\"\n", ip, StringPoolGetString(ref));
         break;
 
     case OP_EMPTY_LIST:
@@ -130,7 +127,18 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         break;
 
     case OP_LOAD_FIELD:
-        printf(" %u: load_field %u\n", ip, BytecodeReadUint(&bytecode));
+        value = BytecodeReadUint(&bytecode);
+        field = FieldIndexFromIndex(value);
+        if (FieldIndexIsConstant(field))
+        {
+            string = HeapDebug(FieldIndexValue(field), false);
+            printf(" %u: load %s\n", ip, string);
+            free(string);
+        }
+        else
+        {
+            printf(" %u: load_field %u\n", ip, value);
+        }
         break;
 
     case OP_STORE_FIELD:
@@ -283,29 +291,18 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
             }
             else
             {
-                switch (argument >> 1)
+                field = FieldIndexFromIndex((uint)argument >> 1);
+                if (FieldIndexIsConstant(field))
                 {
-                case FIELD_NULL:
-                    BVAddData(&buffer, (const byte*)"null", 4);
-                    break;
-
-                case FIELD_TRUE:
-                    BVAddData(&buffer, (const byte*)"true", 4);
-                    break;
-
-                case FIELD_FALSE:
-                    BVAddData(&buffer, (const byte*)"false", 5);
-                    break;
-
-                case FIELD_EMPTY_LIST:
-                    BVAddData(&buffer, (const byte*)"[]", 2);
-                    break;
-
-                default:
+                    string = HeapDebug(FieldIndexValue(field), false);
+                    BVAddString(&buffer, string);
+                    free(string);
+                }
+                else
+                {
                     BVAdd(&buffer, 'f');
                     BVAdd(&buffer, ':');
                     appendNumberAsString(&buffer, argument >> 1);
-                    break;
                 }
             }
         }

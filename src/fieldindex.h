@@ -19,13 +19,18 @@ extern fieldref FieldIndexAdd(namespaceref ns,
 extern fieldref FieldIndexAddConstant(namespaceref ns, stringref filename,
                                       uint line, uint fileOffset,
                                       bytevector *bytecode, size_t start);
+extern fieldref FieldIndexAddStringConstant(stringref string);
 extern void FieldIndexSetBytecodeOffset(fieldref field,
                                         size_t start, size_t stop);
 
-extern pure uint FieldIndexGetCount(void);
+extern pure size_t FieldIndexGetCount(void);
+extern pure boolean FieldIndexIsConstant(fieldref field);
+extern pure objectref FieldIndexValue(fieldref field);
+extern nonnull void FieldIndexCopyValues(objectref *target);
 extern pure fieldref FieldIndexGetFirstField(void);
 extern pure fieldref FieldIndexGetNextField(fieldref field);
 extern pureconst uint FieldIndexGetIndex(fieldref field);
+extern pureconst fieldref FieldIndexFromIndex(uint index);
 extern pure namespaceref FieldIndexGetNamespace(fieldref field);
 extern pure stringref FieldIndexGetFilename(fieldref field);
 extern pure uint FieldIndexGetLine(fieldref field);

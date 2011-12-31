@@ -130,10 +130,6 @@ static void execute(VM *vm)
             VMPush(vm, HeapBoxInteger(BytecodeReadInt(&ip)));
             break;
 
-        case OP_STRING:
-            VMPush(vm, HeapCreatePooledString(BytecodeReadRef(&ip)));
-            break;
-
         case OP_EMPTY_LIST:
             VMPush(vm, HeapEmptyList);
             break;

@@ -1057,7 +1057,8 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         {
             return false;
         }
-        ParseStateWriteStringLiteral(state, string);
+        estate->field = FieldIndexAddStringConstant(string);
+        estate->expressionType = EXPRESSION_CONSTANT;
         estate->valueType = VALUE_STRING;
         return true;
     }

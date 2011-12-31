@@ -20,6 +20,7 @@ extern nonnull void BVAddSize(bytevector *v, size_t value);
 extern nonnull void BVAddAll(bytevector *v, const bytevector *src);
 extern nonnull void BVAddData(bytevector *v,
                               const byte *data, size_t size);
+extern nonnull void BVAddString(bytevector *v, const char *string);
 extern nonnull void BVInsertData(bytevector *v, size_t offset,
                                  const byte *data, size_t size);
 extern nonnull void BVAppendString(bytevector *v, const char *data);

@@ -1,7 +1,10 @@
+#include <memory.h>
 #include "common.h"
 #include "bytevector.h"
 #include "fieldindex.h"
 #include "instruction.h"
+#include "heap.h"
+#include "intvector.h"
 
 typedef struct
 {
@@ -14,7 +17,7 @@ typedef struct
 } FieldInfo;
 
 static bytevector fieldTable;
-static uint fieldCount;
+static intvector values;
 
 
 static FieldInfo *getFieldInfo(fieldref field)
@@ -29,11 +32,18 @@ static FieldInfo *getFieldInfo(fieldref field)
 void FieldIndexInit(void)
 {
     BVInit(&fieldTable, 1024);
+    IVInit(&values, 128);
+    IVSetSize(&values, RESERVED_FIELD_COUNT);
+    IVSet(&values, FIELD_NULL, 0);
+    IVSet(&values, FIELD_TRUE, HeapTrue);
+    IVSet(&values, FIELD_FALSE, HeapFalse);
+    IVSet(&values, FIELD_EMPTY_LIST, HeapEmptyList);
 }
 
 void FieldIndexDispose(void)
 {
     BVDispose(&fieldTable);
+    IVDispose(&values);
 }
 
 
@@ -59,21 +69,27 @@ void FieldIndexFinishBytecode(const byte *parsed, bytevector *bytecode)
 }
 
 
-fieldref FieldIndexAdd(namespaceref ns,
-                       stringref filename, uint line, uint fileOffset)
+static fieldref addField(namespaceref ns, stringref filename, uint line,
+                         uint fileOffset, objectref value)
 {
     size_t size = BVSize(&fieldTable);
     FieldInfo *info;
 
     BVSetSize(&fieldTable, size + sizeof(FieldInfo));
-    fieldCount++;
     info = (FieldInfo*)BVGetPointer(&fieldTable, size);
     info->ns = ns;
     info->filename = filename;
     info->line = line;
     info->fileOffset = fileOffset;
     info->bytecodeStop = 0;
-    return refFromUint(fieldCount + RESERVED_FIELD_COUNT);
+    IVAdd(&values, value);
+    return refFromSize(IVSize(&values));
+}
+
+fieldref FieldIndexAdd(namespaceref ns,
+                       stringref filename, uint line, uint fileOffset)
+{
+    return addField(ns, filename, line, fileOffset, 0);
 }
 
 fieldref FieldIndexAddConstant(namespaceref ns,
@@ -83,6 +99,11 @@ fieldref FieldIndexAddConstant(namespaceref ns,
     fieldref field = FieldIndexAdd(ns, filename, line, fileOffset);
     FieldIndexSetBytecodeOffset(field, start, BVSize(bytecode));
     return field;
+}
+
+fieldref FieldIndexAddStringConstant(stringref string)
+{
+    return addField(0, 0, 0, 0, HeapCreatePooledString(string));
 }
 
 void FieldIndexSetBytecodeOffset(fieldref field, size_t start, size_t stop)
@@ -96,27 +117,48 @@ void FieldIndexSetBytecodeOffset(fieldref field, size_t start, size_t stop)
 }
 
 
-uint FieldIndexGetCount(void)
+size_t FieldIndexGetCount(void)
 {
-    return fieldCount + RESERVED_FIELD_COUNT;
+    return IVSize(&values);
+}
+
+boolean FieldIndexIsConstant(fieldref field)
+{
+    return field <= RESERVED_FIELD_COUNT || !FieldIndexGetFilename(field);
+}
+
+objectref FieldIndexValue(fieldref field)
+{
+    return IVGet(&values, uintFromRef(field) - 1);
+}
+
+void FieldIndexCopyValues(objectref *target)
+{
+    memcpy(target, IVGetPointer(&values, 0),
+           IVSize(&values) * sizeof(objectref));
 }
 
 fieldref FieldIndexGetFirstField(void)
 {
-    return refFromUint(fieldCount ? RESERVED_FIELD_COUNT + 1 : 0);
+    return refFromUint(IVSize(&values) > RESERVED_FIELD_COUNT ?
+                       RESERVED_FIELD_COUNT + 1 : 0);
 }
 
 fieldref FieldIndexGetNextField(fieldref field)
 {
     assert(sizeFromRef(field) > RESERVED_FIELD_COUNT);
-    assert(sizeFromRef(field) - RESERVED_FIELD_COUNT <= fieldCount);
-    return sizeFromRef(field) - RESERVED_FIELD_COUNT != fieldCount ?
-        field + 1 : 0;
+    assert(sizeFromRef(field) <= IVSize(&values));
+    return sizeFromRef(field) != IVSize(&values) ? field + 1 : 0;
 }
 
 uint FieldIndexGetIndex(fieldref field)
 {
     return uintFromRef(field) - 1;
+}
+
+fieldref FieldIndexFromIndex(uint index)
+{
+    return refFromUint(index + 1);
 }
 
 namespaceref FieldIndexGetNamespace(fieldref field)
