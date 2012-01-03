@@ -147,12 +147,6 @@ static void execute(VM *vm)
             VMPush(vm, HeapFinishAlloc(objectData));
             break;
 
-        case OP_FILE:
-            string = BytecodeReadRef(&ip);
-            VMPush(vm, HeapCreatePath(
-                       HeapCreatePooledString(string)));
-            break;
-
         case OP_FILESET:
             string = BytecodeReadRef(&ip);
             VMPush(vm, HeapCreateFilesetGlob(

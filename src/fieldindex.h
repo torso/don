@@ -20,6 +20,7 @@ extern fieldref FieldIndexAddConstant(namespaceref ns, stringref filename,
                                       uint line, uint fileOffset,
                                       bytevector *bytecode, size_t start);
 extern fieldref FieldIndexAddStringConstant(stringref string);
+extern fieldref FieldIndexAddFileConstant(stringref string);
 extern void FieldIndexSetBytecodeOffset(fieldref field,
                                         size_t start, size_t stop);
 

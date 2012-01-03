@@ -100,11 +100,6 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: new list %u\n", ip, BytecodeReadUint(&bytecode));
         break;
 
-    case OP_FILE:
-        printf(" %u: file %s\n", ip,
-               StringPoolGetString(BytecodeReadRef(&bytecode)));
-        break;
-
     case OP_FILESET:
         printf(" %u: fileset %s\n", ip,
                StringPoolGetString(BytecodeReadRef(&bytecode)));

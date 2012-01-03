@@ -106,6 +106,11 @@ fieldref FieldIndexAddStringConstant(stringref string)
     return addField(0, 0, 0, 0, HeapCreatePooledString(string));
 }
 
+fieldref FieldIndexAddFileConstant(stringref string)
+{
+    return addField(0, 0, 0, 0, HeapCreatePath(HeapCreatePooledString(string)));
+}
+
 void FieldIndexSetBytecodeOffset(fieldref field, size_t start, size_t stop)
 {
     FieldInfo *info = getFieldInfo(field);

@@ -8,7 +8,6 @@ typedef enum
     OP_INTEGER,
     OP_EMPTY_LIST,
     OP_LIST,
-    OP_FILE,
     OP_FILESET,
 
     OP_POP,

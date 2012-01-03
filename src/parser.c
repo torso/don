@@ -1115,7 +1115,8 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         estate->valueType = VALUE_FILE;
         if (!strchr(StringPoolGetString(string), '*'))
         {
-            ParseStateWriteFile(state, string);
+            estate->field = FieldIndexAddFileConstant(string);
+            estate->expressionType = EXPRESSION_CONSTANT;
             return true;
         }
         /* TODO: @{} syntax */
