@@ -939,10 +939,14 @@ static boolean parseBinaryOperationRest(
 
 static boolean parseExpression12(ParseState *state, ExpressionState *estate)
 {
+    ExpressionState estate2;
     stringref identifier = estate->identifier;
     stringref string;
     namespaceref ns;
     uint size;
+    size_t bytecodeSize;
+    boolean constant;
+    intvector values;
 
     ParseStateCheck(state);
     estate->expressionType = EXPRESSION_SIMPLE;
@@ -1085,24 +1089,63 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             return true;
         }
         size = 0;
+        bytecodeSize = BVSize(state->bytecode);
+        constant = true;
+        IVInit(&values, 16);
         do
         {
             size++;
             skipWhitespace(state);
-            if (!parseRValue(state, estate->constant))
+            estate2.identifier = 0;
+            estate2.constant = false;
+            if (!parseExpression(state, &estate2))
             {
+                if (constant)
+                {
+                    IVDispose(&values);
+                }
+                return false;
+            }
+            if (constant)
+            {
+                if (estate2.expressionType == EXPRESSION_CONSTANT)
+                {
+                    IVAdd(&values, estate2.field);
+                }
+                else
+                {
+                    constant = false;
+                    IVDispose(&values);
+                }
+            }
+            if (!finishRValue(state, &estate2))
+            {
+                if (constant)
+                {
+                    IVDispose(&values);
+                }
                 return false;
             }
             skipWhitespace(state);
         }
         while (readOperator(state, ','));
+        if (constant)
+        {
+            BVSetSize(state->bytecode, bytecodeSize);
+            estate->expressionType = EXPRESSION_CONSTANT;
+            estate->field = FieldIndexAddListConstant(&values);
+            IVDispose(&values);
+        }
+        else
+        {
+            ParseStateWriteList(state, size);
+        }
         skipWhitespace(state);
         if (!readExpectedOperator(state, ']'))
         {
             return false;
         }
         skipWhitespace(state);
-        ParseStateWriteList(state, size);
         return true;
     }
     if (readOperator(state, '@'))

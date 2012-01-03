@@ -17,7 +17,7 @@ typedef struct
 } FieldInfo;
 
 static bytevector fieldTable;
-static intvector values;
+static intvector fieldValues;
 
 
 static FieldInfo *getFieldInfo(fieldref field)
@@ -32,18 +32,18 @@ static FieldInfo *getFieldInfo(fieldref field)
 void FieldIndexInit(void)
 {
     BVInit(&fieldTable, 1024);
-    IVInit(&values, 128);
-    IVSetSize(&values, RESERVED_FIELD_COUNT);
-    IVSet(&values, FIELD_NULL, 0);
-    IVSet(&values, FIELD_TRUE, HeapTrue);
-    IVSet(&values, FIELD_FALSE, HeapFalse);
-    IVSet(&values, FIELD_EMPTY_LIST, HeapEmptyList);
+    IVInit(&fieldValues, 128);
+    IVSetSize(&fieldValues, RESERVED_FIELD_COUNT);
+    IVSet(&fieldValues, FIELD_NULL, 0);
+    IVSet(&fieldValues, FIELD_TRUE, HeapTrue);
+    IVSet(&fieldValues, FIELD_FALSE, HeapFalse);
+    IVSet(&fieldValues, FIELD_EMPTY_LIST, HeapEmptyList);
 }
 
 void FieldIndexDispose(void)
 {
     BVDispose(&fieldTable);
-    IVDispose(&values);
+    IVDispose(&fieldValues);
 }
 
 
@@ -82,8 +82,8 @@ static fieldref addField(namespaceref ns, stringref filename, uint line,
     info->line = line;
     info->fileOffset = fileOffset;
     info->bytecodeStop = 0;
-    IVAdd(&values, value);
-    return refFromSize(IVSize(&values));
+    IVAdd(&fieldValues, value);
+    return refFromSize(IVSize(&fieldValues));
 }
 
 fieldref FieldIndexAdd(namespaceref ns,
@@ -111,6 +111,22 @@ fieldref FieldIndexAddFileConstant(stringref string)
     return addField(0, 0, 0, 0, HeapCreatePath(HeapCreatePooledString(string)));
 }
 
+fieldref FieldIndexAddListConstant(const intvector *values)
+{
+    byte *objectData;
+    size_t size = IVSize(values);
+
+    objectData = HeapAlloc(TYPE_ARRAY, size * sizeof(objectref));
+    objectData += size * sizeof(objectref);
+    while (size--)
+    {
+        objectData -= sizeof(objectref);
+        *(objectref*)objectData =
+            IVGet(&fieldValues, FieldIndexGetIndex(IVGet(values, size)));
+    }
+    return addField(0, 0, 0, 0, HeapFinishAlloc(objectData));
+}
+
 void FieldIndexSetBytecodeOffset(fieldref field, size_t start, size_t stop)
 {
     FieldInfo *info = getFieldInfo(field);
@@ -124,7 +140,7 @@ void FieldIndexSetBytecodeOffset(fieldref field, size_t start, size_t stop)
 
 size_t FieldIndexGetCount(void)
 {
-    return IVSize(&values);
+    return IVSize(&fieldValues);
 }
 
 boolean FieldIndexIsConstant(fieldref field)
@@ -134,26 +150,26 @@ boolean FieldIndexIsConstant(fieldref field)
 
 objectref FieldIndexValue(fieldref field)
 {
-    return IVGet(&values, uintFromRef(field) - 1);
+    return IVGet(&fieldValues, uintFromRef(field) - 1);
 }
 
 void FieldIndexCopyValues(objectref *target)
 {
-    memcpy(target, IVGetPointer(&values, 0),
-           IVSize(&values) * sizeof(objectref));
+    memcpy(target, IVGetPointer(&fieldValues, 0),
+           IVSize(&fieldValues) * sizeof(objectref));
 }
 
 fieldref FieldIndexGetFirstField(void)
 {
-    return refFromUint(IVSize(&values) > RESERVED_FIELD_COUNT ?
+    return refFromUint(IVSize(&fieldValues) > RESERVED_FIELD_COUNT ?
                        RESERVED_FIELD_COUNT + 1 : 0);
 }
 
 fieldref FieldIndexGetNextField(fieldref field)
 {
     assert(sizeFromRef(field) > RESERVED_FIELD_COUNT);
-    assert(sizeFromRef(field) <= IVSize(&values));
-    return sizeFromRef(field) != IVSize(&values) ? field + 1 : 0;
+    assert(sizeFromRef(field) <= IVSize(&fieldValues));
+    return sizeFromRef(field) != IVSize(&fieldValues) ? field + 1 : 0;
 }
 
 uint FieldIndexGetIndex(fieldref field)
