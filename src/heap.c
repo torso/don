@@ -262,14 +262,29 @@ char *HeapDebug(objectref object, boolean address)
     {
         p = buffer;
     }
-    if (object && HeapIsString(object))
+    if (!object)
     {
-        *p++ = '\"';
+        *p++ = 'n';
+        *p++ = 'u';
+        *p++ = 'l';
+        *p++ = 'l';
     }
-    p = HeapWriteString(object, p);
-    if (object && HeapIsString(object))
+    else
     {
-        *p++ = '\"';
+        if (HeapIsString(object))
+        {
+            *p++ = '\"';
+        }
+        else if (HeapIsFile(object))
+        {
+            *p++ = '@';
+            *p++ = '\"';
+        }
+        p = HeapWriteString(object, p);
+        if (HeapIsString(object) || HeapIsFile(object))
+        {
+            *p++ = '\"';
+        }
     }
     *p++ = 0;
     return buffer;
