@@ -266,18 +266,10 @@ char *HeapDebug(objectref object, boolean address)
     {
         *p++ = '\"';
     }
-    else
-    {
-        *p++ = '[';
-    }
     p = HeapWriteString(object, p);
     if (object && HeapIsString(object))
     {
         *p++ = '\"';
-    }
-    else
-    {
-        *p++ = ']';
     }
     *p++ = 0;
     return buffer;
