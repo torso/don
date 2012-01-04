@@ -654,6 +654,9 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     int position;
     uint i;
     int variableIndex;
+    size_t bytecodeSize;
+    boolean constant;
+    intvector values;
 
     ParseStateCheck(state);
     if (ns)
@@ -732,18 +735,42 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             }
             else if (argumentCount == varargIndex)
             {
-                estate->argumentCount++;
                 argumentCount++;
-                estate->arguments[varargIndex] = -(int)estate->argumentCount;
                 i = 0;
+                bytecodeSize = BVSize(state->bytecode);
+                constant = true;
+                IVInit(&values, 16);
                 for (;;)
                 {
                     i++;
                     estateArgument.constant = false;
-                    if (!parseExpression(state, &estateArgument) ||
-                        !finishRValue(state, &estateArgument))
+                    if (!parseExpression(state, &estateArgument))
                     {
                         free(estate->arguments);
+                        if (constant)
+                        {
+                            IVDispose(&values);
+                        }
+                        return false;
+                    }
+                    if (constant)
+                    {
+                        if (estateArgument.expressionType == EXPRESSION_CONSTANT)
+                        {
+                            IVAdd(&values, estateArgument.field);
+                        }
+                        else
+                        {
+                            constant = false;
+                            IVDispose(&values);
+                        }
+                    }
+                    if (!finishRValue(state, &estateArgument))
+                    {
+                        if (constant)
+                        {
+                            IVDispose(&values);
+                        }
                         return false;
                     }
                     if (peekOperator(state, ')'))
@@ -753,6 +780,10 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                     if (!readExpectedOperator(state, ','))
                     {
                         free(estate->arguments);
+                        if (constant)
+                        {
+                            IVDispose(&values);
+                        }
                         return false;
                     }
                     skipWhitespace(state);
@@ -763,7 +794,20 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                         break;
                     }
                 }
-                ParseStateWriteList(state, i);
+                if (constant)
+                {
+                    BVSetSize(state->bytecode, bytecodeSize);
+                    estate->arguments[varargIndex] =
+                        ((int)FieldIndexGetIndex(
+                            FieldIndexAddListConstant(&values)) << 2) + 1;
+                    IVDispose(&values);
+                }
+                else
+                {
+                    ParseStateWriteList(state, i);
+                    estate->argumentCount++;
+                    estate->arguments[varargIndex] = -(int)estate->argumentCount;
+                }
                 if (readOperator(state, ')'))
                 {
                     break;
