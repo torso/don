@@ -101,6 +101,11 @@ fieldref FieldIndexAddConstant(namespaceref ns,
     return field;
 }
 
+fieldref FieldIndexAddIntegerConstant(int value)
+{
+    return addField(0, 0, 0, 0, HeapBoxInteger(value));
+}
+
 fieldref FieldIndexAddStringConstant(stringref string)
 {
     return addField(0, 0, 0, 0, HeapCreatePooledString(string));

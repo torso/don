@@ -59,8 +59,6 @@ extern nonnull void ParseStateSetField(ParseState *state, fieldref field);
 
 extern nonnull void ParseStateWriteInstruction(ParseState *state,
                                                Instruction instruction);
-extern nonnull void ParseStateWriteIntegerLiteral(ParseState *state,
-                                                  int value);
 extern nonnull void ParseStateWriteList(ParseState *state, uint size);
 extern nonnull void ParseStateWriteFileset(ParseState *state,
                                            stringref pattern);

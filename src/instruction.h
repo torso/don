@@ -5,7 +5,6 @@ typedef enum
     OP_NULL,
     OP_TRUE,
     OP_FALSE,
-    OP_INTEGER,
     OP_EMPTY_LIST,
     OP_LIST,
     OP_FILESET,

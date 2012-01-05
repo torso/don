@@ -88,10 +88,6 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: push false\n", ip);
         break;
 
-    case OP_INTEGER:
-        printf(" %u: push integer %d\n", ip, BytecodeReadInt(&bytecode));
-        break;
-
     case OP_EMPTY_LIST:
         printf(" %u: push []\n", ip);
         break;
@@ -127,7 +123,7 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         if (FieldIndexIsConstant(field))
         {
             string = HeapDebug(FieldIndexValue(field), false);
-            printf(" %u: load %s\n", ip, string);
+            printf(" %u: constant %s\n", ip, string);
             free(string);
         }
         else

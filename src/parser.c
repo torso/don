@@ -436,7 +436,7 @@ static boolean readExpectedOperator(ParseState *state, byte op)
 /* TODO: Parse big numbers */
 /* TODO: Parse non-decimal numbers */
 /* TODO: Parse non-integer numbers */
-static boolean parseNumber(ParseState *state)
+static boolean parseNumber(ParseState *state, ExpressionState *estate)
 {
     int value = 0;
 
@@ -456,7 +456,9 @@ static boolean parseNumber(ParseState *state)
         return false;
     }
 
-    ParseStateWriteIntegerLiteral(state, value);
+    estate->expressionType = EXPRESSION_CONSTANT;
+    estate->valueType = VALUE_NUMBER;
+    estate->field = FieldIndexAddIntegerConstant(value);
     return true;
 }
 
@@ -1095,8 +1097,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     }
     if (peekNumber(state))
     {
-        estate->valueType = VALUE_NUMBER;
-        return parseNumber(state);
+        return parseNumber(state, estate);
     }
     if (peekString(state))
     {

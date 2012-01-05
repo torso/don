@@ -126,10 +126,6 @@ static void execute(VM *vm)
             VMPush(vm, HeapFalse);
             break;
 
-        case OP_INTEGER:
-            VMPush(vm, HeapBoxInteger(BytecodeReadInt(&ip)));
-            break;
-
         case OP_EMPTY_LIST:
             VMPush(vm, HeapEmptyList);
             break;

@@ -19,6 +19,7 @@ extern fieldref FieldIndexAdd(namespaceref ns,
 extern fieldref FieldIndexAddConstant(namespaceref ns, stringref filename,
                                       uint line, uint fileOffset,
                                       bytevector *bytecode, size_t start);
+extern fieldref FieldIndexAddIntegerConstant(int value);
 extern fieldref FieldIndexAddStringConstant(stringref string);
 extern fieldref FieldIndexAddFileConstant(stringref string);
 extern nonnull fieldref FieldIndexAddListConstant(const intvector *values);

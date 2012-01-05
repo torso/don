@@ -382,13 +382,6 @@ void ParseStateWriteInstruction(ParseState *state, Instruction instruction)
     BVAdd(state->bytecode, instruction);
 }
 
-void ParseStateWriteIntegerLiteral(ParseState *state, int value)
-{
-    ParseStateCheck(state);
-    BVAdd(state->bytecode, OP_INTEGER);
-    BVAddInt(state->bytecode, value);
-}
-
 void ParseStateWriteList(ParseState *state, uint size)
 {
     ParseStateCheck(state);
