@@ -948,7 +948,7 @@ void NativeInvoke(VM *vm, nativefunctionref function)
 
     assert(info->parameterCount + info->returnValueCount <= NATIVE_MAX_VALUES);
     env.work.vm = vm;
-    env.work.condition = vm->condition;
+    env.work.condition = vm->base.condition;
     env.work.accessedFiles = 0;
     env.work.modifiedFiles = 0;
     VMPopMany(vm, env.values, info->parameterCount);

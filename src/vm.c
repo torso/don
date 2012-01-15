@@ -24,8 +24,8 @@ VM *VMCreate(const byte *bytecode, functionref target)
     VM *vm = VMAlloc();
 
     FieldIndexCopyValues(vm->fields);
-    vm->parent = null;
-    vm->condition = HeapTrue;
+    vm->base.parent = null;
+    vm->base.condition = HeapTrue;
     vm->mutableCount = 0;
 
     vm->target = target;
@@ -45,9 +45,9 @@ VM *VMClone(VM *vm, objectref condition, const byte *ip)
 
     assert(IVSize(&vm->mutableIndex) < UINT_MAX);
 
-    parent->parent = vm->parent;
-    parent->condition = vm->condition;
-    parent->childCount = 2;
+    parent->base.parent = vm->base.parent;
+    parent->base.condition = vm->base.condition;
+    parent->base.childCount = 2;
     parent->mutableCount = mutableCount;
     if (mutableCount)
     {
@@ -56,8 +56,8 @@ VM *VMClone(VM *vm, objectref condition, const byte *ip)
     }
     IVSetSize(&vm->mutableIndex, 0);
 
-    vm->parent = parent;
-    clone->parent = parent;
+    vm->base.parent = parent;
+    clone->base.parent = parent;
     clone->mutableCount = vm->mutableCount;
     memcpy(clone->fields, vm->fields, FieldIndexGetCount() * sizeof(objectref));
     IVAppendAll(&vm->callStack, &clone->callStack);
@@ -66,26 +66,27 @@ VM *VMClone(VM *vm, objectref condition, const byte *ip)
     clone->ip = ip;
     clone->bp = vm->bp;
 
-    clone->condition = HeapApplyBinary(clone, OP_AND, vm->condition, condition);
-    vm->condition = HeapApplyBinary(vm, OP_AND, vm->condition,
-                                    HeapApplyUnary(vm, OP_NOT, condition));
+    clone->base.condition = HeapApplyBinary(clone, OP_AND,
+                                            vm->base.condition, condition);
+    vm->base.condition = HeapApplyBinary(vm, OP_AND, vm->base.condition,
+                                         HeapApplyUnary(vm, OP_NOT, condition));
 
     return clone;
 }
 
 void VMDispose(VM *vm)
 {
-    VMBranch *parent = vm->parent;
+    VMBranch *parent = vm->base.parent;
     VMBranch *next;
 
     WorkDiscard(vm);
     while (parent)
     {
-        if (--parent->childCount)
+        if (--parent->base.childCount)
         {
             break;
         }
-        next = parent->parent;
+        next = parent->base.parent;
         free(parent);
         parent = next;
     }
@@ -119,7 +120,7 @@ objectref VMGetMutable(VM *vm, uint index)
         }
     }
 
-    for (branch = vm->parent;; branch = branch->parent)
+    for (branch = vm->base.parent;; branch = branch->base.parent)
     {
         assert(branch);
         if (branch->mutableCount > index)
@@ -127,7 +128,7 @@ objectref VMGetMutable(VM *vm, uint index)
             object = branch->mutableIndex[index];
             if (object)
             {
-                if (branch->childCount != 1)
+                if (branch->base.childCount != 1)
                 {
                     object = HeapClone(object);
                     if (IVSize(&vm->mutableIndex) <= index)

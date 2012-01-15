@@ -3,19 +3,23 @@
 
 struct _VMBranch;
 typedef struct _VMBranch VMBranch;
-struct _VMBranch
+typedef struct _VMBase
 {
     VMBranch *parent;
     objectref condition;
     uint childCount;
+} VMBase;
+
+struct _VMBranch
+{
+    VMBase base;
     uint mutableCount;
     objectref mutableIndex[1];
 };
 
 struct VM
 {
-    VMBranch *parent;
-    objectref condition;
+    VMBase base;
 
     uint mutableCount;
     intvector mutableIndex;
