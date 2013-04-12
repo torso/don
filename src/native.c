@@ -10,6 +10,7 @@
 #include "vm.h"
 #include "cache.h"
 #include "env.h"
+#include "fail.h"
 #include "fieldindex.h"
 #include "file.h"
 #include "hash.h"
@@ -18,7 +19,6 @@
 #include "pipe.h"
 #include "log.h"
 #include "stringpool.h"
-#include "task.h"
 #include "work.h"
 
 #define NATIVE_FUNCTION_COUNT 19
@@ -263,12 +263,12 @@ static boolean nativeExec(ExecEnv *env)
     status = pipe(fdOut);
     if (status == -1)
     {
-        TaskFailErrno(false);
+        FailErrno(false);
     }
     status = pipe(fdErr);
     if (status == -1)
     {
-        TaskFailErrno(false);
+        FailErrno(false);
     }
 
     envp = HeapCollectionSize(env->env) ?
@@ -295,7 +295,7 @@ static boolean nativeExec(ExecEnv *env)
     posix_spawn_file_actions_destroy(&psfa);
     if (status)
     {
-        TaskFailErrno(false);
+        FailErrno(false);
     }
 #else
     pid = fork();
@@ -307,13 +307,13 @@ static boolean nativeExec(ExecEnv *env)
         status = dup2(fdOut[1], STDOUT_FILENO);
         if (status == -1)
         {
-            TaskFailErrno(true);
+            FailErrno(true);
         }
         close(fdOut[1]);
         status = dup2(fdErr[1], STDERR_FILENO);
         if (status == -1)
         {
-            TaskFailErrno(true);
+            FailErrno(true);
         }
         close(fdErr[1]);
 
@@ -331,7 +331,7 @@ static boolean nativeExec(ExecEnv *env)
     close(fdErr[1]);
     if (pid < 0)
     {
-        TaskFailOOM();
+        FailOOM();
     }
 
     PipeInitFD(&out, fdOut[0]);
@@ -349,7 +349,7 @@ static boolean nativeExec(ExecEnv *env)
     pid = waitpid(pid, &status, 0);
     if (pid < 0)
     {
-        TaskFailErrno(false);
+        FailErrno(false);
     }
     env->exitcode = HeapBoxInteger(WEXITSTATUS(status));
     HeapCollectionGet(env->output, HeapBoxInteger(0), &value);
@@ -385,7 +385,7 @@ static boolean nativeFail(FailEnv *env)
     {
         LogPrintErrObjectAutoNewline(env->message);
     }
-    TaskFailVM(env->work.vm);
+    FailVM(env->work.vm);
 }
 
 typedef struct

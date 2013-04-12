@@ -11,9 +11,9 @@
 #include "common.h"
 #include "bytevector.h"
 #include "env.h"
+#include "fail.h"
 #include "file.h"
 #include "glob.h"
-#include "task.h"
 
 #define FILE_FREE_STRUCT 1
 #define FILE_FREE_FILENAME 2
@@ -231,13 +231,13 @@ static DIR *teOpenDir(TreeEntry *te)
 #endif
         if (!te->fd)
         {
-            TaskFailIO(concatFilename(te));
+            FailIO("Error opening directory", concatFilename(te));
         }
     }
     dir = fdopendir(te->fd);
     if (!dir)
     {
-        TaskFailIO(concatFilename(te));
+        FailIO("Error opening directory", concatFilename(te));
     }
     return dir;
 }
@@ -252,7 +252,7 @@ static void teCloseDir(TreeEntry *te, DIR *dir)
     if (closedir(dir))
     {
         assert(false);
-        TaskFailIO(concatFilename(te));
+        FailIO("Error closing directory", concatFilename(te));
     }
 }
 
@@ -268,7 +268,7 @@ static void teStat(TreeEntry *te)
         {
             if (fstat(te->fd, &s))
             {
-                TaskFailIO(concatFilename(te));
+                FailIO("Error accessing file", concatFilename(te));
             }
         }
         else
@@ -281,13 +281,13 @@ static void teStat(TreeEntry *te)
                 {
                     if (errno != ENOENT)
                     {
-                        TaskFailIO(concatFilename(te));
+                        FailIO("Error accessing file", concatFilename(te));
                     }
                     if (fstatat(fd, te->component, &s, AT_SYMLINK_NOFOLLOW))
                     {
                         if (errno != ENOENT)
                         {
-                            TaskFailIO(concatFilename(te));
+                            FailIO("Error accessing file", concatFilename(te));
                         }
                         te->hasStat = true;
                         te->blob.exists = false;
@@ -303,7 +303,7 @@ static void teStat(TreeEntry *te)
                 {
                     if (errno != ENOENT)
                     {
-                        TaskFailIO(concatFilename(te));
+                        FailIO("Error accessing file", concatFilename(te));
                     }
                     free(path);
                     te->hasStat = true;
@@ -317,7 +317,7 @@ static void teStat(TreeEntry *te)
                     {
                         if (errno != ENOENT)
                         {
-                            TaskFailIO(path);
+                            FailIO("Error accessing file", path);
                         }
                     }
                     else
@@ -382,7 +382,7 @@ static void teDeleteDirectory(TreeEntry *te)
     teOpen(te);
     if (!te->fd)
     {
-        TaskFailIO(concatFilename(te));
+        FailIO("Error opening directory", concatFilename(te));
     }
 #ifndef HAVE_POSIX_SPAWN
 #error TODO: dup clears O_CLOEXEC
@@ -390,19 +390,19 @@ static void teDeleteDirectory(TreeEntry *te)
     fd = dup(te->fd);
     if (fd == -1)
     {
-        TaskFailIO(concatFilename(te));
+        FailIO("Error duplicating file handle", concatFilename(te));
     }
     dir = fdopendir(fd);
     if (!dir)
     {
-        TaskFailIO(concatFilename(te));
+        FailIO("Error opening directory", concatFilename(te));
     }
     u.d.d_name[NAME_MAX] = 0;
     for (;;)
     {
         if (readdir_r(dir, &u.d, &res))
         {
-            TaskFailIO(concatFilename(te));
+            FailIO("Error reading directory", concatFilename(te));
         }
         if (!res)
         {
@@ -423,7 +423,7 @@ static void teDeleteDirectory(TreeEntry *te)
             tempChild.componentLength = strlen(u.d.d_name);
             if (errno != EISDIR)
             {
-                TaskFailIO(concatFilename(&tempChild));
+                FailIO("Error deleting file", concatFilename(&tempChild));
             }
             teDeleteDirectory(&tempChild); /* TODO: Iterate instead of recurse */
             assert(!tempChild.fd);
@@ -435,7 +435,7 @@ static void teDeleteDirectory(TreeEntry *te)
     if (closedir(dir))
     {
         assert(false);
-        TaskFailIO(concatFilename(te));
+        FailIO("Error closing directory", concatFilename(te));
     }
     teClose(te);
 #ifdef HAVE_OPENAT
@@ -444,7 +444,7 @@ static void teDeleteDirectory(TreeEntry *te)
     {
         if (unlinkat(fd, te->component, AT_REMOVEDIR))
         {
-            TaskFailIO(concatFilename(te));
+            FailIO("Error deleting directory", concatFilename(te));
         }
     }
     else
@@ -453,7 +453,7 @@ static void teDeleteDirectory(TreeEntry *te)
         path = concatFilename(te);
         if (rmdir(path))
         {
-            TaskFailIO(path);
+            FailIO("Error deleting directory", path);
         }
         free(path);
     }
@@ -503,7 +503,7 @@ static void teDelete(TreeEntry *te)
         }
         if (errno != EISDIR)
         {
-            TaskFailIO(concatFilename(te));
+            FailIO("Error deleting file", concatFilename(te));
         }
     }
     if (!unlinkat(teParentFD(te), te->component, AT_REMOVEDIR) ||
@@ -518,7 +518,7 @@ static void teDelete(TreeEntry *te)
     {
         if (unlinkat(teParentFD(te), te->component, 0))
         {
-            TaskFailIO(concatFilename(te));
+            FailIO("Error deleting file", concatFilename(te));
         }
         te->hasStat = true;
         te->blob.exists = false;
@@ -526,7 +526,7 @@ static void teDelete(TreeEntry *te)
     }
     if (errno != ENOTEMPTY)
     {
-        TaskFailIO(concatFilename(te));
+        FailIO("Error deleting directory", concatFilename(te));
     }
     teDeleteDirectory(te);
     te->hasStat = true;
@@ -544,7 +544,7 @@ static void teDelete(TreeEntry *te)
         }
         if (errno != EISDIR)
         {
-            TaskFailIO(concatFilename(te));
+            FailIO("Error deleting file", concatFilename(te));
         }
     }
     if (!rmdir(path) || errno == ENOENT)
@@ -559,7 +559,7 @@ static void teDelete(TreeEntry *te)
     {
         if (unlink(path))
         {
-            TaskFailIO(concatFilename(te));
+            FailIO("Error deleting file", concatFilename(te));
         }
         te->hasStat = true;
         te->blob.exists = false;
@@ -568,7 +568,7 @@ static void teDelete(TreeEntry *te)
     }
     if (errno != ENOTEMPTY)
     {
-        TaskFailIO(concatFilename(te));
+        FailIO("Error deleting directory", concatFilename(te));
     }
     free(path);
     teDeleteDirectory(te);
@@ -587,8 +587,7 @@ static void teMkdir(TreeEntry *te)
         {
             return;
         }
-        TaskFail("Cannot create directory, because a file already exists: %s\n",
-                 concatFilename(te));
+        FailIOErrno("Cannot create directory", concatFilename(te), EEXIST);
     }
     te->hasStat = false;
     name = concatFilename(te);
@@ -608,14 +607,14 @@ static void teMkdir(TreeEntry *te)
     }
     if (errno != EEXIST)
     {
-        TaskFailIO(name);
+        FailIO("Error creating directory", name);
     }
     if (teIsDirectory(te))
     {
         free(name);
         return;
     }
-    TaskFail("Cannot create directory, because a file already exists: %s\n", name);
+    FailIOErrno("Cannot create directory", name, EEXIST);
 }
 
 static void teWrite(TreeEntry *te, const byte *data, size_t size)
@@ -628,7 +627,7 @@ static void teWrite(TreeEntry *te, const byte *data, size_t size)
         written = write(te->fd, data, size);
         if (written < 0)
         {
-            TaskFailIO(concatFilename(te));
+            FailIO("Error writing to file", concatFilename(te));
         }
         assert((size_t)written <= size);
         size -= (size_t)written;
@@ -645,14 +644,14 @@ static void teMMap(TreeEntry *te)
         assert(!te->data);
         if (teIsDirectory(te))
         {
-            TaskFailIOErrno(EISDIR, concatFilename(te));
+            FailIOErrno("Cannot read file", concatFilename(te), EISDIR);
         }
         te->data = (byte*)mmap(null, teSize(te), PROT_READ, MAP_PRIVATE,
                                te->fd, 0);
         if (te->data == (byte*)-1)
         {
             te->data = null;
-            TaskFailIO(concatFilename(te));
+            FailIO("Error reading file", concatFilename(te));
         }
     }
     assert(te->data);
@@ -910,7 +909,7 @@ void FileInit(void)
     cwd = getcwd(null, 0);
     if (!cwd)
     {
-        TaskFailOOM();
+        FailOOM();
     }
     cwdLength = strlen(cwd);
     assert(cwdLength);
@@ -1162,13 +1161,13 @@ void FilePinDirectory(const char *path, size_t length)
     {
         if (errno != ENOENT)
         {
-            TaskFailIO(path);
+            FailIO("Error opening directory", path);
         }
         teMkdir(te);
         teDoOpen(te, fd, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
         if (!te->fd)
         {
-            TaskFailIO(path);
+            FailIO("Error opening directory", path);
         }
     }
 #else
@@ -1228,7 +1227,7 @@ void FileOpen(File *file, const char *path, size_t length)
 {
     if (!FileTryOpen(file, path, length))
     {
-        TaskFailIO(path);
+        FailIO("Error opening file", path);
     }
 }
 
@@ -1249,11 +1248,11 @@ boolean FileTryOpen(File *file, const char *path, size_t length)
         {
             return false;
         }
-        TaskFailIO(path);
+        FailIO("Error opening file", path);
     }
     if (pathIsDirectory(path, length) && !teIsDirectory(te))
     {
-        TaskFailIOErrno(ENOTDIR, path);
+        FailIOErrno("Error opening file", path, ENOTDIR);
     }
     te->refCount++;
     file->te = te;
@@ -1275,7 +1274,7 @@ void FileOpenAppend(File *file, const char *path, size_t length)
     teOpenWrite(te, O_APPEND);
     if (!te->fd)
     {
-        TaskFailIO(path);
+        FailIO("Error opening file", path);
     }
     te->refCount++;
     file->te = te;
@@ -1363,7 +1362,7 @@ void FileCopy(const char *srcPath, size_t srcLength,
     teOpen(teSrc);
     if (!teSrc->fd)
     {
-        TaskFailIO(concatFilename(teSrc));
+        FailIO("Error opening file", concatFilename(teSrc));
     }
     assert(!teIsDirectory(teSrc)); /* TODO: Copy directory */
     teStat(teDst);
@@ -1376,7 +1375,7 @@ void FileCopy(const char *srcPath, size_t srcLength,
     teOpenWrite(teDst, O_TRUNC);
     if (!teDst->fd)
     {
-        TaskFailIO(concatFilename(teDst));
+        FailIO("Error opening file", concatFilename(teDst));
     }
     teWrite(teDst, teSrc->data, teSize(teSrc));
     teClose(teDst);
@@ -1419,7 +1418,7 @@ void FileRename(const char *oldPath, size_t oldLength,
         return;
     }
     /* TODO: Rename directories and across file systems */
-    TaskFailIO(oldPathSZ); /* TODO: Proper error message with both paths. */
+    Fail("Error renaming file from %s to %s: %s", oldPathSZ, newPathSZ, strerror(errno));
 }
 
 void FileMMap(File *file, const byte **p, size_t *size)
@@ -1549,7 +1548,7 @@ static void teTraverseGlob(TreeEntry *base, bytevector *path,
         {
             if (readdir_r(dir, &u.d, &res))
             {
-                TaskFailIO(concatFilename(base));
+                FailIO("Error reading directory", concatFilename(base));
             }
             if (!res)
             {

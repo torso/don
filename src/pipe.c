@@ -3,8 +3,8 @@
 #include <unistd.h>
 #include "common.h"
 #include "bytevector.h"
+#include "fail.h"
 #include "pipe.h"
-#include "task.h"
 
 #define MIN_READ_BUFFER 1024
 
@@ -69,7 +69,7 @@ static void pipeConsume(Pipe *p1, Pipe *p2, fd_set *set)
             {
                 close(p2->fd);
             }
-            TaskFailErrno(false);
+            FailErrno(false);
         }
     }
 }
@@ -102,7 +102,7 @@ void PipeConsume2(Pipe *p1, Pipe *p2)
             {
                 continue;
             }
-            TaskFailErrno(false);
+            FailErrno(false);
         }
 
         pipeConsume(p1, p2, &set);

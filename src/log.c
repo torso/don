@@ -7,13 +7,13 @@
 #include <unistd.h>
 #include "common.h"
 #include "bytevector.h"
+#include "fail.h"
 #include "file.h"
 #include "instruction.h"
 #include "heap.h"
 #include "pipe.h"
 #include "log.h"
 #include "stringpool.h"
-#include "task.h"
 
 #define MIN_READ_BUFFER 1024
 
@@ -55,7 +55,7 @@ static void logWrite(int filedes, const byte *buffer, size_t size)
         written = write(filedes, buffer, size);
         if (written < 0)
         {
-            TaskFailErrno(false);
+            FailErrno(false);
         }
         size -= (size_t)written;
         buffer += written;

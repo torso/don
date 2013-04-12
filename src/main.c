@@ -9,6 +9,7 @@
 #include "bytecode.h"
 #include "cache.h"
 #include "env.h"
+#include "fail.h"
 #include "fieldindex.h"
 #include "file.h"
 #include "functionindex.h"
@@ -18,7 +19,6 @@
 #include "native.h"
 #include "parser.h"
 #include "stringpool.h"
-#include "task.h"
 #include "work.h"
 
 
@@ -355,7 +355,7 @@ void *mycalloc(size_t count, size_t eltsize)
     void *p = calloc(count, eltsize);
     if (!p)
     {
-        TaskFailOOM();
+        FailOOM();
     }
     return p;
 }
@@ -366,7 +366,7 @@ void *mymalloc(size_t size)
     void *p = malloc(size);
     if (!p)
     {
-        TaskFailOOM();
+        FailOOM();
     }
     return p;
 }
@@ -377,7 +377,7 @@ void *myrealloc(void *ptr, size_t size)
     void *p = realloc(ptr, size);
     if (!p)
     {
-        TaskFailOOM();
+        FailOOM();
     }
     return p;
 }
