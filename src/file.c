@@ -1388,7 +1388,6 @@ void FileRename(const char *oldPath, size_t oldLength,
 {
     TreeEntry *teOld;
     TreeEntry *teNew;
-    TreeEntry *teNewParent;
     char *oldPathSZ;
     char *newPathSZ;
 
@@ -1415,7 +1414,6 @@ void FileRename(const char *oldPath, size_t oldLength,
     {
         free(oldPathSZ);
         free(newPathSZ);
-        teNewParent = teNew->parent;
         teDispose(teOld); /* TODO: Reparent */
         teDispose(teNew);
         return;
