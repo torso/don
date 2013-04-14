@@ -401,11 +401,10 @@ void ParseStateWriteFileset(ParseState *state, stringref pattern)
     BVAddRef(state->bytecode, pattern);
 }
 
-void ParseStateWriteBeginCondition(ParseState *state,
-                                   Instruction branchInstruction)
+void ParseStateWriteBeginCondition(ParseState *state)
 {
     ParseStateCheck(state);
-    BVAdd(state->bytecode, branchInstruction);
+    BVAdd(state->bytecode, OP_BRANCH_FALSE);
     beginJumpBlock(state, BLOCK_CONDITION1);
     BVAddInt(state->bytecode, 0);
 }
@@ -423,19 +422,18 @@ boolean ParseStateWriteFinishCondition(ParseState *state)
 }
 
 
-void ParseStateWriteIf(ParseState *state, Instruction branchInstruction)
+void ParseStateWriteIf(ParseState *state)
 {
     ParseStateCheck(state);
-    BVAdd(state->bytecode, branchInstruction);
+    BVAdd(state->bytecode, OP_BRANCH_FALSE);
     beginJumpBlock(state, BLOCK_IF);
     BVAddInt(state->bytecode, 0);
 }
 
-void ParseStateWriteWhile(ParseState *state, size_t loopTarget,
-                          Instruction branchInstruction)
+void ParseStateWriteWhile(ParseState *state, size_t loopTarget)
 {
     ParseStateCheck(state);
-    BVAdd(state->bytecode, branchInstruction);
+    BVAdd(state->bytecode, OP_BRANCH_FALSE);
     beginLoopBlock(state, BLOCK_WHILE, loopTarget);
     BVAddInt(state->bytecode, 0);
 }
