@@ -56,7 +56,7 @@ extern void *nonnull myrealloc(void *ptr, size_t size);
 extern void _assert(const char *expression, const char *file, int line);
 #define assert(e) do { if (!(e)) { _assert(#e, __FILE__, __LINE__); } } while (false)
 #else
-#define assert(e) do { (void)sizeof(e); } while(0)
+#define assert(e) do { (void)sizeof(e); } while (false)
 #endif
 
 typedef struct bytevector bytevector;
