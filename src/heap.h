@@ -72,7 +72,6 @@ extern nonnull int HeapCompare(objectref object1, objectref object2);
 
 extern nonnull byte *HeapAlloc(ObjectType type, size_t size);
 extern nonnull objectref HeapFinishAlloc(byte *objectData);
-extern nonnull objectref HeapClone(objectref object);
 
 
 

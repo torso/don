@@ -13,16 +13,12 @@ typedef struct _VMBase
 struct _VMBranch
 {
     VMBase base;
-    uint mutableCount;
-    objectref mutableIndex[1];
 };
 
 struct VM
 {
     VMBase base;
 
-    uint mutableCount;
-    intvector mutableIndex;
     objectref *fields;
     intvector callStack;
     intvector stack;
@@ -39,9 +35,6 @@ struct VM
 extern nonnull VM *VMCreate(const byte *bytecode, functionref target);
 extern nonnull VM *VMClone(VM *vm, objectref condition, const byte *ip);
 extern nonnull void VMDispose(VM *vm);
-
-extern nonnull uint VMAddMutable(VM *vm, objectref object);
-extern nonnull objectref VMGetMutable(VM *vm, uint index);
 
 extern nonnull objectref VMPeek(VM *vm);
 extern nonnull objectref VMPop(VM *vm);

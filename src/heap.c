@@ -14,10 +14,9 @@
 #define INITIAL_HEAP_INDEX_SIZE 1
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))
 
-#define MUTABLE_OBJECT_MARK (((uint)1 << (sizeof(objectref) * 8 - 1)))
-#define INTEGER_LITERAL_MARK (MUTABLE_OBJECT_MARK >> 1)
-#define INTEGER_LITERAL_MASK (~INTEGER_LITERAL_MARK & ~MUTABLE_OBJECT_MARK)
-#define INTEGER_LITERAL_SHIFT 2
+#define INTEGER_LITERAL_MARK (((uint)1 << (sizeof(objectref) * 8 - 1)))
+#define INTEGER_LITERAL_MASK (~INTEGER_LITERAL_MARK)
+#define INTEGER_LITERAL_SHIFT 1
 
 #define OBJECT_OVERHEAD 8
 #define HEADER_SIZE 0
@@ -43,8 +42,6 @@ objectref HeapEmptyString;
 objectref HeapEmptyList;
 objectref HeapNewline;
 
-static byte *HeapAllocMutable(ObjectType type, size_t size);
-
 
 static void checkObject(objectref object)
 {
@@ -54,39 +51,6 @@ static void checkObject(objectref object)
 static pureconst boolean isInteger(objectref object)
 {
     return (uintFromRef(object) & INTEGER_LITERAL_MARK) != 0;
-}
-
-static pureconst boolean isMutableType(ObjectType type)
-{
-    switch (type)
-    {
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_STRING:
-    case TYPE_STRING_POOLED:
-    case TYPE_STRING_WRAPPED:
-    case TYPE_SUBSTRING:
-    case TYPE_FILE:
-    case TYPE_EMPTY_LIST:
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-    case TYPE_CONCAT_LIST:
-    case TYPE_FUTURE:
-        return false;
-    }
-    assert(false);
-    return false;
-}
-
-static pure boolean isMutableRef(objectref object)
-{
-    return (uintFromRef(object) & MUTABLE_OBJECT_MARK) != 0;
-}
-
-static objectref getMutableRef(VM *vm, objectref object)
-{
-    return VMGetMutable(vm, uintFromRef(object) & ~MUTABLE_OBJECT_MARK);
 }
 
 static objectref boxReference(ObjectType type, ref_t value)
@@ -280,7 +244,6 @@ char *HeapDebug(objectref object, boolean address)
 ObjectType HeapGetObjectType(objectref object)
 {
     checkObject(object);
-    assert(!isMutableRef(object));
     return isInteger(object) ? TYPE_INTEGER :
         (ObjectType)*(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_TYPE);
 }
@@ -288,14 +251,12 @@ ObjectType HeapGetObjectType(objectref object)
 size_t HeapGetObjectSize(objectref object)
 {
     checkObject(object);
-    assert(!isMutableRef(object));
     return *(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_SIZE);
 }
 
 const byte *HeapGetObjectData(objectref object)
 {
     checkObject(object);
-    assert(!isMutableRef(object));
     return HeapPageBase + sizeFromRef(object) + OBJECT_OVERHEAD;
 }
 
@@ -457,7 +418,6 @@ byte *HeapAlloc(ObjectType type, size_t size)
 {
     assert(size);
     assert(size <= UINT32_MAX - 1);
-    assert(!isMutableType(type));
     return heapAlloc(type, (uint32)size);
 }
 
@@ -469,27 +429,7 @@ static objectref heapFinishAlloc(byte *objectData)
 objectref HeapFinishAlloc(byte *objectData)
 {
     objectref object = heapFinishAlloc(objectData);
-    assert(!isMutableType(HeapGetObjectType(object)));
     return object;
-}
-
-static byte *HeapAllocMutable(ObjectType type, size_t size)
-{
-    assert(size);
-    assert(size <= UINT32_MAX - 1);
-    assert(isMutableType(type));
-    return heapAlloc(type, (uint32)size);
-}
-
-objectref HeapClone(objectref object)
-{
-    ObjectType type = HeapGetObjectType(object);
-    size_t size = HeapGetObjectSize(object);
-    byte *data = HeapAllocMutable(type, size);
-    const byte *src = HeapGetObjectData(object);
-    assert(isMutableType(type));
-    memcpy(data, src, size);
-    return heapFinishAlloc(data);
 }
 
 
@@ -1567,10 +1507,6 @@ objectref HeapTryWait(VM *vm, objectref object)
     FutureValueUnary *future1;
     FutureValueBinary *future2;
 
-    while (isMutableRef(object))
-    {
-        object = getMutableRef(vm, object);
-    }
     if (!HeapIsFutureValue(object))
     {
         return object;
