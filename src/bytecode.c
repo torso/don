@@ -152,12 +152,8 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: inv\n", ip);
         break;
 
-    case OP_ITER_INIT:
-        printf(" %u: iter_init\n", ip);
-        break;
-
-    case OP_ITER_NEXT:
-        printf(" %u: iter_next\n", ip);
+    case OP_ITER_GET:
+        printf(" %u: iter_get\n", ip);
         break;
 
     case OP_EQUALS:

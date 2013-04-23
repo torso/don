@@ -67,9 +67,8 @@ const char *const*EnvGetEnv(void)
     return env;
 }
 
-const char *const*EnvCreateCopy(VM *vm, objectref overrides)
+const char *const*EnvCreateCopy(objectref overrides)
 {
-    Iterator iter;
     objectref name;
     objectref value;
     size_t nameLength;
@@ -81,11 +80,11 @@ const char *const*EnvCreateCopy(VM *vm, objectref overrides)
     size_t indexSize;
     size_t dataSize = 0;
     size_t tempSize = 0;
+    size_t index;
 
-    HeapIteratorInit(&iter, overrides, false);
-    while (HeapIteratorNext(vm, &iter, &name))
+    for (index = 0; HeapCollectionGet(overrides, HeapBoxSize(index++), &name);)
     {
-        HeapIteratorNext(vm, &iter, &value);
+        HeapCollectionGet(overrides, HeapBoxSize(index++), &value);
         nameLength = HeapStringLength(name);
         if (value)
         {
@@ -104,10 +103,9 @@ const char *const*EnvCreateCopy(VM *vm, objectref overrides)
     memcpy(result, env, (envCount + 1) * sizeof(env[0]));
     count = envCount;
 
-    HeapIteratorInit(&iter, overrides, false);
-    while (HeapIteratorNext(vm, &iter, &name))
+    for (index = 0; HeapCollectionGet(overrides, HeapBoxSize(index++), &name);)
     {
-        HeapIteratorNext(vm, &iter, &value);
+        HeapCollectionGet(overrides, HeapBoxSize(index++), &value);
         nameLength = HeapStringLength(name);
         HeapWriteString(name, data);
         p = getEnvEntry(result, data, nameLength);

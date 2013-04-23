@@ -46,9 +46,9 @@ static const FunctionInfo *getFunctionInfo(nativefunctionref function)
     return (FunctionInfo*)&functionInfo[sizeFromRef(function)];
 }
 
-static char **createStringArray(VM *vm, objectref collection)
+static char **createStringArray(objectref collection)
 {
-    Iterator iter;
+    size_t index;
     objectref value;
     size_t size = sizeof(char*);
     uint count = 1;
@@ -59,8 +59,7 @@ static char **createStringArray(VM *vm, objectref collection)
     assert(HeapIsCollection(collection));
     assert(HeapCollectionSize(collection));
 
-    HeapIteratorInit(&iter, collection, true);
-    while (HeapIteratorNext(vm, &iter, &value))
+    for (index = 0; HeapCollectionGet(collection, HeapBoxSize(index++), &value);)
     {
         if (HeapIsFutureValue(value))
         {
@@ -74,8 +73,7 @@ static char **createStringArray(VM *vm, objectref collection)
 
     table = strings;
     stringData = (char*)&strings[count];
-    HeapIteratorInit(&iter, collection, true);
-    while (HeapIteratorNext(vm, &iter, &value))
+    for (index = 0; HeapCollectionGet(collection, HeapBoxSize(index++), &value);)
     {
         *table++ = stringData;
         stringData = HeapWriteString(value, stringData);
@@ -215,7 +213,7 @@ static boolean nativeExec(ExecEnv *env)
     objectref value;
     char **argv;
     const char *const*envp;
-    Iterator iter;
+    size_t index;
     const char *path;
     pid_t pid;
     int status;
@@ -230,7 +228,7 @@ static boolean nativeExec(ExecEnv *env)
 
     assert(HeapCollectionSize(env->env) % 2 == 0);
 
-    argv = createStringArray(env->work.vm, env->command);
+    argv = createStringArray(env->command);
     if (!argv)
     {
         return false;
@@ -271,12 +269,11 @@ static boolean nativeExec(ExecEnv *env)
         FailErrno(false);
     }
 
-    envp = HeapCollectionSize(env->env) ?
-        EnvCreateCopy(env->work.vm, env->env) : EnvGetEnv();
+    envp = HeapCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
 
     assert(!HeapIsFutureValue(env->work.modifiedFiles));
-    HeapIteratorInit(&iter, env->work.modifiedFiles, false);
-    while (HeapIteratorNext(env->work.vm, &iter, &value))
+    for (index = 0; HeapCollectionGet(env->work.modifiedFiles,
+                                      HeapBoxSize(index++), &value);)
     {
         assert(!HeapIsFutureValue(value));
         path = HeapGetPath(value, &length);
@@ -450,7 +447,7 @@ static boolean nativeFileset(FilesetEnv *env)
 {
     objectref o;
     intvector files;
-    Iterator iter;
+    size_t index;
 
     if (HeapIsFutureValue(env->value))
     {
@@ -460,8 +457,8 @@ static boolean nativeFileset(FilesetEnv *env)
     if (HeapIsCollection(env->value))
     {
         IVInit(&files, HeapCollectionSize(env->value));
-        HeapIteratorInit(&iter, env->value, true);
-        while (HeapIteratorNext(env->work.vm, &iter, &o))
+        for (index = 0;
+             HeapCollectionGet(env->value, HeapBoxSize(index++), &o);)
         {
             if (HeapIsFutureValue(o))
             {
@@ -796,7 +793,7 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
 {
     cacheref ref;
     objectref value;
-    Iterator iter;
+    size_t index;
     const char *path;
     size_t length;
     size_t outLength;
@@ -816,8 +813,8 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
     errLength = HeapStringLength(env->err);
     if (env->accessedFiles)
     {
-        HeapIteratorInit(&iter, env->accessedFiles, true);
-        while (HeapIteratorNext(env->work.vm, &iter, &value))
+        for (index = 0; HeapCollectionGet(env->accessedFiles,
+                                          HeapBoxSize(index++), &value);)
         {
             assert(!HeapIsFutureValue(value)); /* TODO: Don't assume fileset is always finished. */
             path = HeapGetPath(value, &length);

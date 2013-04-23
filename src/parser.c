@@ -1805,7 +1805,8 @@ static boolean parseFunctionBody(ParseState *state)
     uint prevIndent = 0;
     stringref identifier;
     size_t target;
-    uint16 iterVariable;
+    uint16 iterCollection;
+    uint16 iterIndex;
 
     for (;;)
     {
@@ -1913,7 +1914,8 @@ static boolean parseFunctionBody(ParseState *state)
                             return false;
                         }
                         skipWhitespace(state);
-                        if (!ParseStateCreateUnnamedVariable(state, &iterVariable) ||
+                        if (!ParseStateCreateUnnamedVariable(state, &iterCollection) ||
+                            !ParseStateCreateUnnamedVariable(state, &iterIndex) ||
                             !readExpectedKeyword(state, keywordIn))
                         {
                             return false;
@@ -1923,8 +1925,9 @@ static boolean parseFunctionBody(ParseState *state)
                         {
                             return false;
                         }
-                        ParseStateWriteInstruction(state, OP_ITER_INIT);
-                        ParseStateSetUnnamedVariable(state, iterVariable);
+                        ParseStateSetUnnamedVariable(state, iterCollection);
+                        ParseStateGetField(state, FieldIndexAddIntegerConstant(-1));
+                        ParseStateSetUnnamedVariable(state, iterIndex);
                         if (!peekNewline(state))
                         {
                             error(state, "Garbage after for statement.");
@@ -1932,8 +1935,13 @@ static boolean parseFunctionBody(ParseState *state)
                         }
                         skipEndOfLine(state);
                         target = ParseStateGetJumpTarget(state);
-                        ParseStateGetUnnamedVariable(state, iterVariable);
-                        ParseStateWriteInstruction(state, OP_ITER_NEXT);
+                        ParseStateGetUnnamedVariable(state, iterCollection);
+                        ParseStateGetUnnamedVariable(state, iterIndex);
+                        ParseStateGetField(state, FieldIndexAddIntegerConstant(1));
+                        ParseStateWriteInstruction(state, OP_ADD);
+                        ParseStateWriteInstruction(state, OP_DUP);
+                        ParseStateSetUnnamedVariable(state, iterIndex);
+                        ParseStateWriteInstruction(state, OP_ITER_GET);
                         if (!ParseStateSetVariable(state, identifier))
                         {
                             return false;

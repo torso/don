@@ -178,15 +178,13 @@ static void execute(VM *vm)
         case OP_NOT:
         case OP_NEG:
         case OP_INV:
-        case OP_ITER_INIT:
             VMPush(vm, HeapApplyUnary(vm, op, VMPop(vm)));
             break;
 
-        case OP_ITER_NEXT:
+        case OP_ITER_GET:
             value = HeapWait(vm, VMPop(vm));
-            assert(HeapGetObjectType(value) == TYPE_ITERATOR);
-            assert(HeapGetObjectSize(value) == sizeof(Iterator));
-            VMPushBoolean(vm, HeapIteratorObjectNext(vm, value, &value));
+            value2 = HeapWait(vm, VMPop(vm));
+            VMPushBoolean(vm, HeapCollectionGet(value2, value, &value));
             VMPush(vm, value);
             break;
 

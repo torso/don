@@ -12,7 +12,6 @@ typedef enum
     TYPE_ARRAY,
     TYPE_INTEGER_RANGE,
     TYPE_CONCAT_LIST,
-    TYPE_ITERATOR,
     TYPE_FUTURE
 } ObjectType;
 
@@ -162,14 +161,6 @@ extern nonnull size_t HeapCollectionSize(objectref object);
 extern nonnull boolean HeapCollectionGet(objectref object,
                                          objectref indexObject,
                                          objectref *value);
-
-
-
-extern nonnull void HeapIteratorInit(Iterator *iter, objectref object,
-                                     boolean flatten);
-extern nonnull boolean HeapIteratorObjectNext(VM *vm, objectref iter,
-                                              objectref *value);
-extern boolean HeapIteratorNext(VM *vm, Iterator *iter, objectref *value);
 
 
 
