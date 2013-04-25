@@ -96,11 +96,11 @@ const char *const*EnvCreateCopy(objectref overrides)
         }
     }
 
-    indexSize = (count + 1) * sizeof(env[0]);
+    indexSize = (count + 1) * sizeof(*env);
     data = (char*)malloc(indexSize + dataSize + tempSize);
     result = (const char**)data;
     data += indexSize;
-    memcpy(result, env, (envCount + 1) * sizeof(env[0]));
+    memcpy(result, env, (envCount + 1) * sizeof(*env));
     count = envCount;
 
     for (index = 0; HeapCollectionGet(overrides, HeapBoxSize(index++), &name);)

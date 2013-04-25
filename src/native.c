@@ -989,7 +989,7 @@ void NativeInvoke(VM *vm, nativefunctionref function)
     env.work.modifiedFiles = 0;
     VMPopMany(vm, env.values, info->parameterCount);
     memset(env.values + info->parameterCount, 0,
-           info->returnValueCount * sizeof(env.values[0]));
+           info->returnValueCount * sizeof(*env.values));
     for (i = info->parameterCount, p = env.values; i; i--, p++)
     {
         *p = HeapTryWait(vm, *p);

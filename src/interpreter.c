@@ -30,8 +30,8 @@ static void addVM(VM *vm)
     if (vmCount == vmTableSize)
     {
         vmTableSize *= 2;
-        newTable = (VM**)malloc(vmTableSize * sizeof(vmTable[0]));
-        memcpy(newTable, vmTable, vmCount * sizeof(vmTable[0]));
+        newTable = (VM**)malloc(vmTableSize * sizeof(*vmTable));
+        memcpy(newTable, vmTable, vmCount * sizeof(*vmTable));
         free(vmTable);
         vmTable = newTable;
     }
@@ -325,7 +325,7 @@ void InterpreterExecute(const byte *bytecode, functionref target)
     boolean idle = false;
 
     vmBytecode = bytecode;
-    vmTable = (VM**)malloc(vmTableSize * sizeof(vmTable[0]));
+    vmTable = (VM**)malloc(vmTableSize * sizeof(*vmTable));
     addVM(VMCreate(bytecode, target));
 
     do
