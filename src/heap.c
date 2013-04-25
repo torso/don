@@ -92,7 +92,6 @@ static const char *getString(objectref object)
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_FILE:
-    case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
@@ -133,7 +132,6 @@ static boolean isCollectionType(ObjectType type)
     case TYPE_FILE:
         return false;
 
-    case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
@@ -182,7 +180,7 @@ void HeapInit(void)
     HeapTrue = HeapFinishAlloc(heapAlloc(TYPE_BOOLEAN_TRUE, 0));
     HeapFalse = HeapFinishAlloc(heapAlloc(TYPE_BOOLEAN_FALSE, 0));
     HeapEmptyString = HeapFinishAlloc(heapAlloc(TYPE_STRING, 0));
-    HeapEmptyList = HeapFinishAlloc(heapAlloc(TYPE_EMPTY_LIST, 0));
+    HeapEmptyList = HeapFinishAlloc(heapAlloc(TYPE_ARRAY, 0));
     HeapNewline = HeapCreateString("\n", 1);
 }
 
@@ -312,11 +310,6 @@ void HeapHash(VM *vm, objectref object, HashState *hash)
         HashUpdate(hash, (const byte*)path, pathLength);
         break;
 
-    case TYPE_EMPTY_LIST:
-        value = TYPE_ARRAY;
-        HashUpdate(hash, &value, 1);
-        break;
-
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
@@ -372,7 +365,6 @@ boolean HeapEquals(objectref object1, objectref object2)
         return size1 == size2 &&
             !memcmp(getString(object1), getString(object2), size1);
 
-    case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
@@ -582,7 +574,6 @@ objectref HeapCreateSubstring(objectref string, size_t offset, size_t length)
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_FILE:
-    case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
@@ -613,7 +604,6 @@ boolean HeapIsString(objectref object)
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_FILE:
-    case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
@@ -677,7 +667,6 @@ size_t HeapStringLength(objectref object)
     case TYPE_FILE:
         return HeapStringLength(unboxReference(TYPE_FILE, object));
 
-    case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
@@ -766,7 +755,6 @@ char *HeapWriteString(objectref object, char *dst)
     case TYPE_FILE:
         return HeapWriteString(unboxReference(TYPE_FILE, object), dst);
 
-    case TYPE_EMPTY_LIST:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
@@ -1097,9 +1085,6 @@ size_t HeapCollectionSize(objectref object)
     assert(!HeapIsFutureValue(object));
     switch (HeapGetObjectType(object))
     {
-    case TYPE_EMPTY_LIST:
-        return 0;
-
     case TYPE_ARRAY:
         return HeapGetObjectSize(object) / sizeof(objectref);
 
@@ -1159,9 +1144,6 @@ boolean HeapCollectionGet(objectref object, objectref indexObject,
     }
     switch (HeapGetObjectType(object))
     {
-    case TYPE_EMPTY_LIST:
-        return false;
-
     case TYPE_ARRAY:
         data = (const objectref*)HeapGetObjectData(object);
         *value = data[index];
