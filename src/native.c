@@ -46,10 +46,55 @@ static const FunctionInfo *getFunctionInfo(nativefunctionref function)
     return (FunctionInfo*)&functionInfo[sizeFromRef(function)];
 }
 
-static char **createStringArray(objectref collection)
+static boolean addStringsLength(objectref collection, uint *count, size_t *size)
 {
     size_t index;
     objectref value;
+    for (index = 0; HeapCollectionGet(collection, HeapBoxSize(index++), &value);)
+    {
+        if (HeapIsFutureValue(value))
+        {
+            return false;
+        }
+        if (HeapIsCollection(value))
+        {
+            if (!addStringsLength(value, count, size))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            *size += HeapStringLength(value) + 1 + sizeof(char*);
+            (*count)++;
+        }
+    }
+    return true;
+}
+
+static void writeStrings(objectref collection, char ***table, char **stringData)
+{
+    size_t index;
+    objectref value;
+    for (index = 0; HeapCollectionGet(collection, HeapBoxSize(index++), &value);)
+    {
+        if (HeapIsCollection(value))
+        {
+            writeStrings(value, table, stringData);
+        }
+        else
+        {
+            **table = *stringData;
+            *stringData = HeapWriteString(value, *stringData);
+            **stringData = 0;
+            (*table)++;
+            (*stringData)++;
+        }
+    }
+}
+
+static char **createStringArray(objectref collection)
+{
     size_t size = sizeof(char*);
     uint count = 1;
     char **strings;
@@ -59,28 +104,46 @@ static char **createStringArray(objectref collection)
     assert(HeapIsCollection(collection));
     assert(HeapCollectionSize(collection));
 
-    for (index = 0; HeapCollectionGet(collection, HeapBoxSize(index++), &value);)
+    if (!addStringsLength(collection, &count, &size))
     {
-        if (HeapIsFutureValue(value))
-        {
-            return null;
-        }
-        size += HeapStringLength(value) + 1 + sizeof(char*);
-        count++;
+        return null;
     }
 
     strings = (char**)malloc(size);
 
     table = strings;
     stringData = (char*)&strings[count];
-    for (index = 0; HeapCollectionGet(collection, HeapBoxSize(index++), &value);)
-    {
-        *table++ = stringData;
-        stringData = HeapWriteString(value, stringData);
-        *stringData++ = 0;
-    }
+    writeStrings(collection, &table, &stringData);
     *table = null;
     return strings;
+}
+
+static boolean appendFiles(objectref value, intvector *result)
+{
+    objectref o;
+    size_t index;
+
+    if (HeapIsFutureValue(value))
+    {
+        return false;
+    }
+
+    if (HeapIsCollection(value))
+    {
+        for (index = 0;
+             HeapCollectionGet(value, HeapBoxSize(index++), &o);)
+        {
+            if (!appendFiles(o, result))
+            {
+                return false;
+            }
+        }
+    }
+    else
+    {
+        IVAddRef(result, HeapCreatePath(value));
+    }
+    return true;
 }
 
 static objectref readFile(objectref object)
@@ -445,38 +508,14 @@ typedef struct
 /* TODO: Remove duplicate files. */
 static boolean nativeFileset(FilesetEnv *env)
 {
-    objectref o;
+    boolean status;
     intvector files;
-    size_t index;
 
-    if (HeapIsFutureValue(env->value))
-    {
-        return false;
-    }
-
-    if (HeapIsCollection(env->value))
-    {
-        IVInit(&files, HeapCollectionSize(env->value));
-        for (index = 0;
-             HeapCollectionGet(env->value, HeapBoxSize(index++), &o);)
-        {
-            if (HeapIsFutureValue(o))
-            {
-                return false;
-            }
-            o = HeapCreatePath(o);
-            IVAddRef(&files, o);
-        }
-        /* TODO: Reuse collection if possible. */
-        env->result = HeapCreateArrayFromVector(&files);
-        IVDispose(&files);
-    }
-    else
-    {
-        o = HeapCreatePath(env->value);
-        env->result = HeapCreateArray(&o, 1);
-    }
-    return true;
+    IVInit(&files, 16);
+    status = appendFiles(env->value, &files);
+    env->result = HeapCreateArrayFromVector(&files);
+    IVDispose(&files);
+    return status;
 }
 
 typedef struct
