@@ -115,15 +115,15 @@ cc(files..., flags = [])
    fail(condition:failed)
    return result
 
-link(files..., libs = [], name = "a.out")
+link(files..., flags = [], libs = [], name = "a.out")
    files = fileset(files)
    env = [env("LANG"), env("LC_CTYPE"), env("LC_MESSAGES"), env("LC_ALL"), env("GCC_EXEC_PREFIX"), env("COMPILER_PATH"), env("LIBRARY_PATH"), env("CPATH"), env("C_INCLUDE_PATH"), env("CPLUS_INCLUDE_PATH"), env("OBJC_INCLUDE_PATH")]
    libargs = []
    for l in libs
       libargs = libargs::["-l"l]
-   cache, uptodate = getCache("link", 0, files, libs, env)
+   cache, uptodate = getCache("link", 0, files, flags, libs, env)
    program = file(cache, name)
    if !uptodate
-      out, exitcode = exec("cc", "-o", program, files, libargs, modify:program)
+      out, exitcode = exec("cc", "-o", program, files, flags, libargs, modify:program)
       setUptodate(cache, out, accessedFiles:files)
    return program
