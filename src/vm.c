@@ -23,8 +23,8 @@ VM *VMCreate(const byte *bytecode, functionref target)
     VM *vm = VMAlloc();
 
     FieldIndexCopyValues(vm->fields);
-    vm->base.parent = null;
-    vm->base.condition = HeapTrue;
+    vm->parent = null;
+    vm->condition = HeapTrue;
 
     vm->target = target;
     vm->ip = bytecode +
@@ -38,12 +38,12 @@ VM *VMClone(VM *vm, objectref condition, const byte *ip)
     VM *clone = VMAlloc();
     VMBranch *parent = (VMBranch*)malloc(sizeof(VMBranch));
 
-    parent->base.parent = vm->base.parent;
-    parent->base.condition = vm->base.condition;
-    parent->base.childCount = 2;
+    parent->parent = vm->parent;
+    parent->condition = vm->condition;
+    parent->childCount = 2;
 
-    vm->base.parent = parent;
-    clone->base.parent = parent;
+    vm->parent = parent;
+    clone->parent = parent;
     memcpy(clone->fields, vm->fields, FieldIndexGetCount() * sizeof(objectref));
     IVAppendAll(&vm->callStack, &clone->callStack);
     IVAppendAll(&vm->stack, &clone->stack);
@@ -51,27 +51,26 @@ VM *VMClone(VM *vm, objectref condition, const byte *ip)
     clone->ip = ip;
     clone->bp = vm->bp;
 
-    clone->base.condition = HeapApplyBinary(clone, OP_AND,
-                                            vm->base.condition, condition);
-    vm->base.condition = HeapApplyBinary(vm, OP_AND, vm->base.condition,
-                                         HeapApplyUnary(vm, OP_NOT, condition));
+    clone->condition = HeapApplyBinary(clone, OP_AND, vm->condition, condition);
+    vm->condition = HeapApplyBinary(vm, OP_AND, vm->condition,
+                                    HeapApplyUnary(vm, OP_NOT, condition));
 
     return clone;
 }
 
 void VMDispose(VM *vm)
 {
-    VMBranch *parent = vm->base.parent;
+    VMBranch *parent = vm->parent;
     VMBranch *next;
 
     WorkDiscard(vm);
     while (parent)
     {
-        if (--parent->base.childCount)
+        if (--parent->childCount)
         {
             break;
         }
-        next = parent->base.parent;
+        next = parent->parent;
         free(parent);
         parent = next;
     }

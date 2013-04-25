@@ -3,21 +3,18 @@
 
 struct _VMBranch;
 typedef struct _VMBranch VMBranch;
-typedef struct _VMBase
+
+struct _VMBranch
 {
     VMBranch *parent;
     objectref condition;
     uint childCount;
-} VMBase;
-
-struct _VMBranch
-{
-    VMBase base;
 };
 
 struct VM
 {
-    VMBase base;
+    VMBranch *parent;
+    objectref condition;
 
     objectref *fields;
     intvector callStack;

@@ -340,8 +340,8 @@ void InterpreterExecute(const byte *bytecode, functionref target)
         for (i = 0; i < vmCount; i++)
         {
             vm = vmTable[i];
-            vm->base.condition = HeapTryWait(vm, vm->base.condition);
-            if (vm->base.condition == HeapFalse)
+            vm->condition = HeapTryWait(vm, vm->condition);
+            if (vm->condition == HeapFalse)
             {
                 removeVM(i--);
             }
