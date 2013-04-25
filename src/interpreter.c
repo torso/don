@@ -178,12 +178,12 @@ static void execute(VM *vm)
         case OP_NOT:
         case OP_NEG:
         case OP_INV:
-            VMPush(vm, HeapApplyUnary(vm, op, VMPop(vm)));
+            VMPush(vm, HeapApplyUnary(op, VMPop(vm)));
             break;
 
         case OP_ITER_GET:
-            value = HeapWait(vm, VMPop(vm));
-            value2 = HeapWait(vm, VMPop(vm));
+            value = HeapWait(VMPop(vm));
+            value2 = HeapWait(VMPop(vm));
             VMPushBoolean(vm, HeapCollectionGet(value2, value, &value));
             VMPush(vm, value);
             break;
@@ -206,7 +206,7 @@ static void execute(VM *vm)
         case OP_RANGE:
             value = VMPop(vm);
             value2 = VMPop(vm);
-            VMPush(vm, HeapApplyBinary(vm, op, value, value2));
+            VMPush(vm, HeapApplyBinary(op, value, value2));
             break;
 
         case OP_JUMP:
@@ -216,7 +216,7 @@ static void execute(VM *vm)
 
         case OP_BRANCH_TRUE:
             jumpOffset = BytecodeReadInt(&ip);
-            value = HeapTryWait(vm, VMPop(vm));
+            value = HeapTryWait(VMPop(vm));
             if (HeapIsFutureValue(value))
             {
                 addVM(VMClone(vm, value, ip + jumpOffset));
@@ -234,10 +234,10 @@ static void execute(VM *vm)
 
         case OP_BRANCH_FALSE:
             jumpOffset = BytecodeReadInt(&ip);
-            value = HeapTryWait(vm, VMPop(vm));
+            value = HeapTryWait(VMPop(vm));
             if (HeapIsFutureValue(value))
             {
-                addVM(VMClone(vm, HeapApplyUnary(vm, OP_NOT, value),
+                addVM(VMClone(vm, HeapApplyUnary(OP_NOT, value),
                               ip + jumpOffset));
             }
             else
@@ -340,7 +340,7 @@ void InterpreterExecute(const byte *bytecode, functionref target)
         for (i = 0; i < vmCount; i++)
         {
             vm = vmTable[i];
-            vm->condition = HeapTryWait(vm, vm->condition);
+            vm->condition = HeapTryWait(vm->condition);
             if (vm->condition == HeapFalse)
             {
                 removeVM(i--);

@@ -132,13 +132,13 @@ void WorkExecute(void)
     assert(BVSize(&queue) >= getWorkSize(work));
     parameterCount = NativeGetParameterCount(work->function);
 
-    work->condition = HeapTryWait(work->vm, work->condition);
+    work->condition = HeapTryWait(work->condition);
     assert(work->condition == HeapTrue);
     for (i = parameterCount, p1 = (objectref*)(work+1);
          i--;
          p1++)
     {
-        *p1 = HeapTryWait(work->vm, *p1);
+        *p1 = HeapTryWait(*p1);
         assert(!HeapIsFutureValue(*p1));
     }
     memcpy(&env, work, getWorkSize(work));

@@ -28,7 +28,7 @@ extern nonnull char *HeapDebug(objectref object, boolean address);
 extern nonnull ObjectType HeapGetObjectType(objectref object);
 extern nonnull size_t HeapGetObjectSize(objectref object);
 extern nonnull const byte *HeapGetObjectData(objectref object);
-extern nonnull void HeapHash(VM *vm, objectref object, HashState *hash);
+extern nonnull void HeapHash(objectref object, HashState *hash);
 extern nonnull boolean HeapEquals(objectref object1, objectref object2);
 extern nonnull int HeapCompare(objectref object1, objectref object2);
 
@@ -128,11 +128,11 @@ extern nonnull boolean HeapCollectionGet(objectref object,
 extern boolean HeapIsFutureValue(objectref object);
 extern objectref HeapCreateFutureValue(void);
 extern void HeapSetFutureValue(objectref object, objectref value);
-extern objectref HeapTryWait(VM *vm, objectref object);
-extern objectref HeapWait(VM *vm, objectref object);
+extern objectref HeapTryWait(objectref object);
+extern objectref HeapWait(objectref object);
 
 
 
-extern objectref HeapApplyUnary(VM *vm, Instruction op, objectref value);
-extern objectref HeapApplyBinary(VM *vm, Instruction op,
+extern objectref HeapApplyUnary(Instruction op, objectref value);
+extern objectref HeapApplyBinary(Instruction op,
                                  objectref value1, objectref value2);

@@ -258,7 +258,7 @@ const byte *HeapGetObjectData(objectref object)
     return HeapPageBase + sizeFromRef(object) + OBJECT_OVERHEAD;
 }
 
-void HeapHash(VM *vm, objectref object, HashState *hash)
+void HeapHash(objectref object, HashState *hash)
 {
     byte value;
     const char *path;
@@ -318,7 +318,7 @@ void HeapHash(VM *vm, objectref object, HashState *hash)
         for (index = 0; HeapCollectionGet(object, HeapBoxSize(index++), &item);)
         {
             /* TODO: Avoid recursion */
-            HeapHash(vm, item, hash);
+            HeapHash(item, hash);
         }
         break;
 
@@ -1484,7 +1484,7 @@ void HeapSetFutureValue(objectref object, objectref value)
     future->op = OP_DUP;
 }
 
-objectref HeapTryWait(VM *vm, objectref object)
+objectref HeapTryWait(objectref object)
 {
     FutureValueUnary *future1;
     FutureValueBinary *future2;
@@ -1500,7 +1500,7 @@ objectref HeapTryWait(VM *vm, objectref object)
         {
             return object;
         }
-        future1->value = HeapTryWait(vm, future1->value);
+        future1->value = HeapTryWait(future1->value);
         return HeapIsFutureValue(future1->value) ?
             object : executeUnary(future1->op, future1->value);
     }
@@ -1511,8 +1511,8 @@ objectref HeapTryWait(VM *vm, objectref object)
         {
             return object;
         }
-        future2->value1 = HeapTryWait(vm, future2->value1);
-        future2->value2 = HeapTryWait(vm, future2->value2);
+        future2->value1 = HeapTryWait(future2->value1);
+        future2->value2 = HeapTryWait(future2->value2);
         return (HeapIsFutureValue(future2->value1) ||
                 HeapIsFutureValue(future2->value2)) ?
             executeBinaryPartial(future2->op, object,
@@ -1521,24 +1521,24 @@ objectref HeapTryWait(VM *vm, objectref object)
     }
 }
 
-objectref HeapWait(VM *vm, objectref object)
+objectref HeapWait(objectref object)
 {
-    object = HeapTryWait(vm, object);
+    object = HeapTryWait(object);
     while (HeapIsFutureValue(object))
     {
         WorkExecute();
-        object = HeapTryWait(vm, object);
+        object = HeapTryWait(object);
     }
     return object;
 }
 
 
-objectref HeapApplyUnary(VM *vm, Instruction op, objectref value)
+objectref HeapApplyUnary(Instruction op, objectref value)
 {
     byte *data;
     FutureValueUnary *future;
 
-    value = HeapTryWait(vm, value);
+    value = HeapTryWait(value);
     if (HeapIsFutureValue(value))
     {
         data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueUnary));
@@ -1550,14 +1550,14 @@ objectref HeapApplyUnary(VM *vm, Instruction op, objectref value)
     return executeUnary(op, value);
 }
 
-objectref HeapApplyBinary(VM *vm, Instruction op,
+objectref HeapApplyBinary(Instruction op,
                           objectref value1, objectref value2)
 {
     byte *data;
     FutureValueBinary *future;
 
-    value1 = HeapTryWait(vm, value1);
-    value2 = HeapTryWait(vm, value2);
+    value1 = HeapTryWait(value1);
+    value2 = HeapTryWait(value2);
     if (HeapIsFutureValue(value1) || HeapIsFutureValue(value2))
     {
         data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueBinary));

@@ -545,7 +545,7 @@ static boolean nativeGetCache(GetCacheEnv *env)
     }
 
     HashInit(&hashState);
-    HeapHash(env->work.vm, env->key, &hashState);
+    HeapHash(env->key, &hashState);
     HashFinal(&hashState, hash);
     ref = CacheGet(hash);
     uptodate = CacheCheckUptodate(ref);
@@ -992,7 +992,7 @@ void NativeInvoke(VM *vm, nativefunctionref function)
            info->returnValueCount * sizeof(*env.values));
     for (i = info->parameterCount, p = env.values; i; i--, p++)
     {
-        *p = HeapTryWait(vm, *p);
+        *p = HeapTryWait(*p);
     }
     if (info->preFunction)
     {

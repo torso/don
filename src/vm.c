@@ -51,9 +51,9 @@ VM *VMClone(VM *vm, objectref condition, const byte *ip)
     clone->ip = ip;
     clone->bp = vm->bp;
 
-    clone->condition = HeapApplyBinary(clone, OP_AND, vm->condition, condition);
-    vm->condition = HeapApplyBinary(vm, OP_AND, vm->condition,
-                                    HeapApplyUnary(vm, OP_NOT, condition));
+    clone->condition = HeapApplyBinary(OP_AND, vm->condition, condition);
+    vm->condition = HeapApplyBinary(OP_AND, vm->condition,
+                                    HeapApplyUnary(OP_NOT, condition));
 
     return clone;
 }
