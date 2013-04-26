@@ -49,7 +49,7 @@ typedef struct
     functionref function;
     uint argumentCount;
     int *arguments;
-    boolean constant;
+    boolean parseConstant;
 } ExpressionState;
 
 static stringref keywordElse;
@@ -65,7 +65,8 @@ static stringref keywordWhile;
 static stringref maxStatementKeyword;
 static stringref maxKeyword;
 
-static boolean parseExpression(ParseState *state, ExpressionState *estate);
+static boolean parseExpression(ParseState *state, ExpressionState *estate,
+                               boolean constant);
 static boolean parseRValue(ParseState *state, boolean constant);
 
 static boolean isInitialIdentifierCharacter(byte c)
@@ -727,8 +728,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 for (;;)
                 {
                     i++;
-                    estateArgument.constant = false;
-                    if (!parseExpression(state, &estateArgument))
+                    if (!parseExpression(state, &estateArgument, false))
                     {
                         free(estate->arguments);
                         if (constant)
@@ -804,8 +804,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             }
 
             argumentCount++;
-            estateArgument.constant = false;
-            if (!parseExpression(state, &estateArgument))
+            if (!parseExpression(state, &estateArgument, false))
             {
                 free(estate->arguments);
                 return false;
@@ -1010,7 +1009,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
                            StringPoolGetString(identifier));
             return false;
         }
-        if (estate->constant)
+        if (estate->parseConstant)
         {
             statementError(state, "Expected constant.");
             return false;
@@ -1093,7 +1092,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '('))
     {
         skipWhitespace(state);
-        if (!parseExpression(state, estate) ||
+        if (!parseExpression(state, estate, estate->parseConstant) ||
             !finishRValue(state, estate))
         {
             return false;
@@ -1121,8 +1120,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             size++;
             skipWhitespace(state);
             estate2.identifier = 0;
-            estate2.constant = false;
-            if (!parseExpression(state, &estate2))
+            if (!parseExpression(state, &estate2, false))
             {
                 if (constant)
                 {
@@ -1206,7 +1204,7 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
         {
             skipWhitespace(state);
             if (!finishRValue(state, estate) ||
-                !parseRValue(state, estate->constant))
+                !parseRValue(state, estate->parseConstant))
             {
                 return false;
             }
@@ -1605,8 +1603,10 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression(ParseState *state, ExpressionState *estate)
+static boolean parseExpression(ParseState *state, ExpressionState *estate,
+                               boolean constant)
 {
+    estate->parseConstant = constant;
     if (!parseExpression2(state, estate))
     {
         return false;
@@ -1620,14 +1620,14 @@ static boolean parseExpression(ParseState *state, ExpressionState *estate)
             return false;
         }
         ParseStateWriteBeginCondition(state);
-        if (!parseRValue(state, estate->constant) ||
+        if (!parseRValue(state, constant) ||
             !readExpectedOperator(state, ':') ||
             !ParseStateWriteSecondConsequent(state))
         {
             return false;
         }
         skipWhitespace(state);
-        if (!parseRValue(state, estate->constant) ||
+        if (!parseRValue(state, constant) ||
             !ParseStateWriteFinishCondition(state))
         {
             return false;
@@ -1644,8 +1644,7 @@ static boolean parseRValue(ParseState *state, boolean constant)
     ExpressionState estate;
 
     estate.identifier = 0;
-    estate.constant = constant;
-    return parseExpression(state, &estate) &&
+    return parseExpression(state, &estate, constant) &&
         finishRValue(state, &estate);
 }
 
@@ -1654,8 +1653,7 @@ static boolean parseBooleanValue(ParseState *state)
     ExpressionState estate;
 
     estate.identifier = 0;
-    estate.constant = false;
-    if (!parseExpression(state, &estate) ||
+    if (!parseExpression(state, &estate, false) ||
         !finishExpression(state, &estate))
     {
         return false;
@@ -1696,8 +1694,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     {
         skipWhitespace(state);
         estate.identifier = 0;
-        estate.constant = false;
-        if (!parseExpression(state, &estate))
+        if (!parseExpression(state, &estate, false))
         {
             BVDispose(&lvalues);
             return false;
@@ -1713,8 +1710,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     }
     skipWhitespace(state);
     estate.identifier = 0;
-    estate.constant = false;
-    if (!parseExpression(state, &estate))
+    if (!parseExpression(state, &estate, false))
     {
         BVDispose(&lvalues);
         return false;
@@ -1761,8 +1757,7 @@ static boolean parseExpressionStatement(ParseState *state,
     ExpressionState estate;
 
     estate.identifier = identifier;
-    estate.constant = false;
-    if (!parseExpression(state, &estate))
+    if (!parseExpression(state, &estate, false))
     {
         return false;
     }
@@ -2040,8 +2035,7 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
                     skipWhitespace(state);
                     start = BVSize(state->bytecode);
                     estate.identifier = 0;
-                    estate.constant = true;
-                    if (!parseExpression(state, &estate))
+                    if (!parseExpression(state, &estate, true))
                     {
                         return false;
                     }
