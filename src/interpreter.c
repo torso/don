@@ -91,18 +91,18 @@ static void execute(VM *vm)
     Instruction op;
     const byte *ip = vm->ip;
     uint argumentCount;
-    uint parameterCount;
     uint returnValueCount;
+    uint i;
     int jumpOffset;
-    int argument;
     objectref value;
     objectref value2;
     size_t size;
+    size_t src;
+    size_t dst;
     stringref string;
     byte *objectData;
     functionref function;
     nativefunctionref nativeFunction;
-    uint count;
 
     for (;;)
     {
@@ -156,6 +156,19 @@ static void execute(VM *vm)
 
         case OP_DUP:
             VMPush(vm, VMPeek(vm));
+            break;
+
+        case OP_REORDER_STACK:
+            argumentCount = BytecodeReadUint16(&ip);
+            src = IVSize(&vm->stack);
+            dst = src - argumentCount;
+            IVAppend(&vm->stack, dst, &vm->stack, argumentCount);
+            for (i = 0; i < argumentCount; i++)
+            {
+                IVSet(&vm->stack, dst + i,
+                      IVGet(&vm->stack, src + BytecodeReadUint16(&ip)));
+            }
+            IVSetSize(&vm->stack, src);
             break;
 
         case OP_LOAD:
@@ -274,32 +287,7 @@ static void execute(VM *vm)
 
         case OP_INVOKE:
             function = BytecodeReadRef(&ip);
-            argumentCount = BytecodeReadUint16(&ip);
-            parameterCount = FunctionIndexGetParameterCount(function);
-            assert(argumentCount <= parameterCount);
             returnValueCount = *ip++;
-            size = IVSize(&vm->stack);
-            for (count = parameterCount; count; count--)
-            {
-                argument = BytecodeReadInt16(&ip);
-                if (argument < 0)
-                {
-                    VMPush(vm, IVGet(&vm->stack, size + (size_t)argument));
-                }
-                else if (argument & 1)
-                {
-                    VMPush(vm, getLocal(vm, vm->bp, (uint16)(argument >> 1)));
-                }
-                else
-                {
-                    VMPush(vm, vm->fields[argument >> 1]);
-                }
-            }
-            if (argumentCount)
-            {
-                IVMove(&vm->stack, size, size - argumentCount, parameterCount);
-                IVSetSize(&vm->stack, size + parameterCount - argumentCount);
-            }
             pushStackFrame(vm, &ip, &vm->bp, function, returnValueCount);
             vm->ip = ip;
             break;

@@ -1,4 +1,4 @@
 default:
    echo("PASS")
-   fail("FAIL", false)
+   fail("FAIL" false)
    fail(condition:false)

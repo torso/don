@@ -11,6 +11,7 @@ typedef enum
 
     OP_POP,
     OP_DUP,
+    OP_REORDER_STACK,
     OP_LOAD,
     OP_STORE,
     OP_LOAD_FIELD,

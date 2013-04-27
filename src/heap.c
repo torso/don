@@ -1231,6 +1231,7 @@ static objectref executeUnary(Instruction op, objectref value)
     case OP_LIST:
     case OP_FILESET:
     case OP_POP:
+    case OP_REORDER_STACK:
     case OP_LOAD:
     case OP_STORE:
     case OP_LOAD_FIELD:
@@ -1315,6 +1316,7 @@ static objectref executeBinaryPartial(Instruction op, objectref object,
     case OP_LIST:
     case OP_FILESET:
     case OP_POP:
+    case OP_REORDER_STACK:
     case OP_LOAD:
     case OP_STORE:
     case OP_LOAD_FIELD:
@@ -1437,6 +1439,7 @@ static objectref executeBinary(Instruction op,
     case OP_LIST:
     case OP_FILESET:
     case OP_POP:
+    case OP_REORDER_STACK:
     case OP_LOAD:
     case OP_STORE:
     case OP_LOAD_FIELD:

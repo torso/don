@@ -2,7 +2,7 @@ cat(file)
    echo(read(file))
 
 contains(data, element)
-   return indexOf(data, element) != null
+   return indexOf(data element) != null
 
 cp(src, dst)
    native.cp(src, dst)
@@ -36,7 +36,7 @@ file(path, name = null, extension = null)
    if name == null
       name = path
       path = null
-   fail("Either path or name must be non-null", condition:name == null)
+   fail("Either path or name must be non-null" condition:name == null)
    return native.file(path, name, extension)
 
 filename(path)
@@ -56,7 +56,7 @@ lines(value, trimLastIfEmpty = true)
    return native.lines(value, trimLastIfEmpty)
 
 mkdir(path)
-   exec("mkdir", "-p", path, access:{}, modify:path)
+   exec("mkdir" "-p" path access:{} modify:path)
 
 mv(src, dst)
    native.mv(src, dst)
@@ -90,7 +90,7 @@ sum(n...)
    return result
 
 startsWith(data, element)
-   return indexOf(data, element) == 0
+   return indexOf(data element) == 0
 
 
 cc(files..., flags = {})
@@ -98,19 +98,19 @@ cc(files..., flags = {})
    failed = false
    env = {env("LANG"), env("LC_CTYPE"), env("LC_MESSAGES"), env("LC_ALL"), env("GCC_EXEC_PREFIX"), env("COMPILER_PATH"), env("LIBRARY_PATH"), env("CPATH"), env("C_INCLUDE_PATH"), env("CPLUS_INCLUDE_PATH"), env("OBJC_INCLUDE_PATH")}
    for f in fileset(files)
-      cache, uptodate = getCache("cc", 0, f, flags, env)
-      ofile = file(cache, filename(f), "o")
+      cache, uptodate = getCache("cc" 0 f flags env)
+      ofile = file(cache filename(f) "o")
       if !uptodate
-         dependFile = file(cache, filename(f), "d")
-         out, exitcode = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f, fail:false, modify:{dependFile, ofile})
+         dependFile = file(cache filename(f) "d")
+         out, exitcode = exec("cc" "-c" "-MD" "-MF" dependFile "-o" ofile flags f fail:false modify:{dependFile, ofile})
          if exitcode
             failed = true
          else
             depend = read(dependFile)
-            depend = depend[indexOf(depend, ": ") + 2 .. size(depend) - 2]
-            depend = replace(depend, "\\\n", "")
-            depend = split(depend, removeEmpty:true)
-            setUptodate(cache, out, accessedFiles:fileset(depend))
+            depend = depend[indexOf(depend ": ") + 2 .. size(depend) - 2]
+            depend = replace(depend "\\\n" "")
+            depend = split(depend removeEmpty:true)
+            setUptodate(cache out accessedFiles:fileset(depend))
       result = result::{ofile}
    fail(condition:failed)
    return result
@@ -121,9 +121,9 @@ link(files..., flags = {}, libs = {}, name = "a.out")
    libargs = {}
    for l in libs
       libargs = libargs::{"-l"l}
-   cache, uptodate = getCache("link", 0, files, flags, libs, env)
-   program = file(cache, name)
+   cache, uptodate = getCache("link" 0 files flags libs env)
+   program = file(cache name)
    if !uptodate
-      out, exitcode = exec("cc", "-o", program, files, flags, libargs, modify:program)
-      setUptodate(cache, out, accessedFiles:files)
+      out, exitcode = exec("cc" "-o" program files flags libargs modify:program)
+      setUptodate(cache out accessedFiles:files)
    return program

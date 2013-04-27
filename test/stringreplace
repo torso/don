@@ -1,17 +1,17 @@
 test(a, b, c, expected, count)
-   result, i = replace(a, b, c)
+   result, i = replace(a b c)
    if result != expected || i != count
       echo("FAIL: "a" "b" "c": "result" "i)
 
 default:
-   test("abcd", "ab", "e", "ecd", 1)
-   test("abcd", "bc", "e", "aed", 1)
-   test("abcd", "cd", "e", "abe", 1)
+   test("abcd" "ab" "e" "ecd" 1)
+   test("abcd" "bc" "e" "aed" 1)
+   test("abcd" "cd" "e" "abe" 1)
 
-   test("ababcd", "ab", "e", "eecd", 2)
-   test("abbcd", "b", "e", "aeecd", 2)
-   test("abbcd", "b", "abb", "aabbabbcd", 2)
+   test("ababcd" "ab" "e" "eecd" 2)
+   test("abbcd" "b" "e" "aeecd" 2)
+   test("abbcd" "b" "abb" "aabbabbcd" 2)
 
-   test("abc", "abcd", "abcde", "abc", 0)
+   test("abc" "abcd" "abcde" "abc" 0)
 
    echo("PASS")

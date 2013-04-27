@@ -17,21 +17,21 @@ sum3(j, n..., k = 4)
    return result + j + k
 
 default:
-   if sum() != 0 || sum(2) != 2 || sum(2, 3) != 5
+   if sum() != 0 || sum(2) != 2 || sum(2 3) != 5
       echo("FAIL1")
 
-   if sum2() != 2 || sum2(2) != 4 || sum2(2, 3) != 7
+   if sum2() != 2 || sum2(2) != 4 || sum2(2 3) != 7
       echo("FAIL2")
-   if sum2(j:4) != 4 || sum2(2, j:4) != 6 || sum2(2, 3, j:4) != 9
+   if sum2(j:4) != 4 || sum2(2 j:4) != 6 || sum2(2 3 j:4) != 9
       echo("FAIL3")
-   if sum2(n:{3}, j:7) != 10 || sum2(j:7, n:{3}) != 10
+   if sum2(n:{3} j:7) != 10 || sum2(j:7 n:{3}) != 10
       echo("FAIL4")
 
-   if sum3(2) != 6 || sum3(2, 3) != 9 || sum3(2, 3, 4) != 13
+   if sum3(2) != 6 || sum3(2 3) != 9 || sum3(2 3 4) != 13
       echo("FAIL5")
-   if sum3(j:4) != 8 || sum3(j:4, n:{2}) != 10 || sum3(n:{2}, j:4) != 10
+   if sum3(j:4) != 8 || sum3(j:4 n:{2}) != 10 || sum3(n:{2} j:4) != 10
       echo("FAIL6")
-   if sum3(n:{3}, j:7, k:8) != 18 || sum3(k:8, j:7, n:{3}) != 18
+   if sum3(n:{3} j:7 k:8) != 18 || sum3(k:8 j:7 n:{3}) != 18
       echo("FAIL7")
 
    echo("PASS")

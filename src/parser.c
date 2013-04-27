@@ -47,8 +47,6 @@ typedef struct
     fieldref field;
     nativefunctionref nativeFunction;
     functionref function;
-    uint argumentCount;
-    int *arguments;
     boolean parseConstant;
 } ExpressionState;
 
@@ -559,8 +557,7 @@ static boolean finishExpression(ParseState *state, const ExpressionState *estate
         return true;
 
     case EXPRESSION_INVOCATION:
-        ParseStateWriteInvocation(state, estate->function,
-                                  estate->argumentCount, estate->arguments, 1);
+        ParseStateWriteInvocation(state, estate->function, 1);
         return true;
 
     case EXPRESSION_NATIVE_INVOCATION:
@@ -607,8 +604,7 @@ static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
         return false;
 
     case EXPRESSION_INVOCATION:
-        ParseStateWriteInvocation(state, estate->function,
-                                  estate->argumentCount, estate->arguments, 0);
+        ParseStateWriteInvocation(state, estate->function, 0);
         return true;
 
     case EXPRESSION_NATIVE_INVOCATION:
@@ -624,26 +620,10 @@ static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
     return false;
 }
 
-static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
-                                   namespaceref ns, stringref name)
+static functionref lookupFunction(ParseState *state, namespaceref ns,
+                                  stringref name)
 {
-    ExpressionState estateArgument;
-    functionref function = 0;
-    uint parameterCount;
-    const ParameterInfo *parameterInfo;
-    uint varargIndex;
-    uint argumentCount = 0;
-    uint argumentIndex;
-    uint line = state->line;
-    boolean requireNamedParameters = false;
-    int position;
-    uint i;
-    int variableIndex;
-    size_t bytecodeSize;
-    boolean constant;
-    intvector values;
-
-    ParseStateCheck(state);
+    functionref function;
     if (ns)
     {
         function = NamespaceGetFunction(ns, name);
@@ -652,7 +632,6 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
             statementError(state, "Unknown function '%s.%s'.",
                            StringPoolGetString(NamespaceGetName(ns)),
                            StringPoolGetString(name));
-            return false;
         }
     }
     else
@@ -662,8 +641,174 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         {
             statementError(state, "Unknown function '%s'.",
                            StringPoolGetString(name));
+        }
+    }
+    return function;
+}
+
+static boolean parseUnnamedArguments(ParseState *state, ExpressionState *estate,
+                                     uint *count)
+{
+    assert(!estate->identifier);
+    for (;;)
+    {
+        estate->identifier = peekReadIdentifier(state);
+        if (estate->identifier && peekOperator(state, ':'))
+        {
+            break;
+        }
+        if (!parseExpression(state, estate, false) ||
+            !finishRValue(state, estate))
+        {
             return false;
         }
+        (*count)++;
+        if (peekOperator(state, ')'))
+        {
+            break;
+        }
+        skipWhitespace(state);
+    }
+    return true;
+}
+
+static boolean parseOrderedNamedArguments(ParseState *state,
+                                          ExpressionState *estate,
+                                          const ParameterInfo *parameterInfo,
+                                          uint parameterCount, uint *count)
+{
+    while (*count < parameterCount && estate->identifier &&
+           estate->identifier == parameterInfo[*count].name &&
+           readOperator(state, ':'))
+    {
+        if (!parseRValue(state, false))
+        {
+            return false;
+        }
+        (*count)++;
+        if (peekOperator(state, ')'))
+        {
+            estate->identifier = 0;
+            break;
+        }
+        skipWhitespace(state);
+        estate->identifier = peekReadIdentifier(state);
+    }
+    return true;
+}
+
+static uint findArgumentIndex(const ParameterInfo *parameterInfo,
+                              uint parameterCount, stringref name)
+{
+    uint i;
+    for (i = 0; i < parameterCount; i++)
+    {
+        if (parameterInfo[i].name == name)
+        {
+            break;
+        }
+    }
+    return i;
+}
+
+static boolean parseNamedArguments(ParseState *state,
+                                   ExpressionState *estate,
+                                   const ParameterInfo *parameterInfo,
+                                   uint parameterCount, uint varargIndex,
+                                   uint *count)
+{
+    uint orderedArgumentCount = *count;
+    uint argumentIndex;
+    uint16 *unorderedValues = (uint16*)calloc(
+        max(parameterCount - orderedArgumentCount, 1),
+        sizeof(*unorderedValues));
+    uint16 unorderedArgumentCount = 0;
+
+    assert(estate->identifier);
+    do
+    {
+        argumentIndex = findArgumentIndex(parameterInfo, parameterCount,
+                                          estate->identifier);
+        if (argumentIndex >= parameterCount)
+        {
+            free(unorderedValues);
+            error(state, "Invalid parameter name '%s'.",
+                  StringPoolGetString(estate->identifier));
+            return false;
+        }
+        if (argumentIndex < orderedArgumentCount ||
+            unorderedValues[argumentIndex - orderedArgumentCount])
+        {
+            free(unorderedValues);
+            error(state, "More than one value for parameter '%s'.",
+                  StringPoolGetString(estate->identifier));
+            return false;
+        }
+        if (!readExpectedOperator(state, ':') ||
+            !parseRValue(state, false))
+        {
+            free(unorderedValues);
+            return false;
+        }
+        unorderedValues[argumentIndex - orderedArgumentCount] =
+            ++unorderedArgumentCount;
+        skipWhitespace(state);
+        estate->identifier = peekReadIdentifier(state);
+    }
+    while (estate->identifier);
+
+    for (argumentIndex = 0; argumentIndex < unorderedArgumentCount;
+         argumentIndex++)
+    {
+        if (unorderedValues[argumentIndex])
+        {
+            /* Zero is a valid value. To distinguish it from unset values (this
+             * if statement), all written values were one too high. */
+            unorderedValues[argumentIndex]--;
+        }
+        else
+        {
+            uint index = orderedArgumentCount + argumentIndex;
+            fieldref value = parameterInfo[index].value;
+            if (!value)
+            {
+                if (index != varargIndex)
+                {
+                    statementError(
+                        state, "No value for parameter '%s' given.",
+                        StringPoolGetString(parameterInfo[index].name));
+                    free(unorderedValues);
+                    return false;
+                }
+                value = FIELD_EMPTY_LIST + 1;
+            }
+            ParseStateGetField(state, value);
+            unorderedValues[argumentIndex] = unorderedArgumentCount++;
+        }
+    }
+    ParseStateReorderStack(state, unorderedValues, unorderedArgumentCount);
+    *count += unorderedArgumentCount;
+    free(unorderedValues);
+    return true;
+}
+
+static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
+                                   namespaceref ns, stringref name)
+{
+    ExpressionState estateArgument;
+    functionref function;
+    uint parameterCount;
+    const ParameterInfo *parameterInfo;
+    uint varargIndex;
+    uint argumentCount = 0;
+    uint line = state->line;
+    uint i;
+
+    ParseStateCheck(state);
+    function = lookupFunction(state, ns, name);
+    if (!function)
+    {
+        return false;
     }
     parameterCount = FunctionIndexGetParameterCount(function);
     parameterInfo = FunctionIndexGetParameterInfo(function);
@@ -673,236 +818,52 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     estate->expressionType = EXPRESSION_INVOCATION;
     estate->valueType = VALUE_UNKNOWN;
     estate->function = function;
-    estate->argumentCount = 0;
-    estate->arguments = null;
-    if (parameterCount)
-    {
-        estate->arguments = (int*)calloc(parameterCount, sizeof(int));
-    }
 
+    assert(!estate->identifier);
+    estateArgument.identifier = 0;
     if (!readOperator(state, ')'))
     {
-        estateArgument.identifier = peekReadIdentifier(state);
-        for (;;)
+        if (!parseUnnamedArguments(state, &estateArgument, &argumentCount))
         {
-            if (estateArgument.identifier && readOperator(state, ':'))
+            return false;
+        }
+        if (argumentCount > varargIndex)
+        {
+            ParseStateWriteList(state, argumentCount - varargIndex);
+            argumentCount = varargIndex + 1;
+        }
+        if (!parseOrderedNamedArguments(state, &estateArgument, parameterInfo,
+                                        parameterCount, &argumentCount))
+        {
+            return false;
+        }
+        if (estateArgument.identifier)
+        {
+            if (!parseNamedArguments(state, &estateArgument, parameterInfo,
+                                     parameterCount, varargIndex,
+                                     &argumentCount))
             {
-                requireNamedParameters = true;
-                for (argumentIndex = 0;; argumentIndex++)
-                {
-                    if (argumentIndex == parameterCount)
-                    {
-                        free(estate->arguments);
-                        error(state, "Invalid parameter name '%s'.",
-                              StringPoolGetString(estateArgument.identifier));
-                        return false;
-                    }
-                    if (parameterInfo[argumentIndex].name ==
-                        estateArgument.identifier)
-                    {
-                        if (estate->arguments[argumentIndex])
-                        {
-                            free(estate->arguments);
-                            error(state, "More than one value for parameter '%s'.",
-                                  StringPoolGetString(estateArgument.identifier));
-                            return false;
-                        }
-                        estateArgument.identifier = peekReadIdentifier(state);
-                        break;
-                    }
-                }
-            }
-            else if (requireNamedParameters)
-            {
-                free(estate->arguments);
-                error(state, "Expected parameter name.");
                 return false;
             }
-            else if (argumentCount == varargIndex)
-            {
-                argumentCount++;
-                i = 0;
-                bytecodeSize = BVSize(state->bytecode);
-                constant = true;
-                IVInit(&values, 16);
-                for (;;)
-                {
-                    i++;
-                    if (!parseExpression(state, &estateArgument, false))
-                    {
-                        free(estate->arguments);
-                        if (constant)
-                        {
-                            IVDispose(&values);
-                        }
-                        return false;
-                    }
-                    if (constant)
-                    {
-                        if (estateArgument.expressionType == EXPRESSION_CONSTANT)
-                        {
-                            IVAdd(&values, estateArgument.field);
-                        }
-                        else
-                        {
-                            constant = false;
-                            IVDispose(&values);
-                        }
-                    }
-                    if (!finishRValue(state, &estateArgument))
-                    {
-                        if (constant)
-                        {
-                            IVDispose(&values);
-                        }
-                        return false;
-                    }
-                    if (peekOperator(state, ')'))
-                    {
-                        break;
-                    }
-                    if (!readExpectedOperator(state, ','))
-                    {
-                        free(estate->arguments);
-                        if (constant)
-                        {
-                            IVDispose(&values);
-                        }
-                        return false;
-                    }
-                    skipWhitespace(state);
-
-                    estateArgument.identifier = peekReadIdentifier(state);
-                    if (estateArgument.identifier && peekOperator(state, ':'))
-                    {
-                        break;
-                    }
-                }
-                if (constant)
-                {
-                    BVSetSize(state->bytecode, bytecodeSize);
-                    estate->arguments[varargIndex] =
-                        ((int)FieldIndexGetIndex(
-                            FieldIndexAddListConstant(&values)) << 2) + 1;
-                    IVDispose(&values);
-                }
-                else
-                {
-                    ParseStateWriteList(state, i);
-                    estate->argumentCount++;
-                    estate->arguments[varargIndex] = -(int)estate->argumentCount;
-                }
-                if (readOperator(state, ')'))
-                {
-                    break;
-                }
-                continue;
-            }
-            else
-            {
-                argumentIndex = argumentCount;
-            }
-
-            argumentCount++;
-            if (!parseExpression(state, &estateArgument, false))
-            {
-                free(estate->arguments);
-                return false;
-            }
-            if (estateArgument.expressionType == EXPRESSION_VARIABLE)
-            {
-                if (argumentIndex < parameterCount)
-                {
-                    variableIndex = ParseStateGetVariableIndex(
-                        state, estateArgument.valueIdentifier);
-                    if (variableIndex < 0)
-                    {
-                        free(estate->arguments);
-                        return false;
-                    }
-                    estate->arguments[argumentIndex] = (variableIndex << 2) + 3;
-                }
-            }
-            else if (estateArgument.expressionType == EXPRESSION_CONSTANT)
-            {
-                if (argumentIndex < parameterCount)
-                {
-                    estate->arguments[argumentIndex] =
-                        ((int)FieldIndexGetIndex(estateArgument.field) << 2) + 1;
-                }
-            }
-            else if (finishRValue(state, &estateArgument))
-            {
-                if (argumentIndex < parameterCount)
-                {
-                    estate->argumentCount++;
-                    estate->arguments[argumentIndex] = -(int16)estate->argumentCount;
-                }
-            }
-            else
-            {
-                free(estate->arguments);
-                return false;
-            }
-            if (readOperator(state, ')'))
-            {
-                break;
-            }
-            if (!readExpectedOperator(state, ','))
-            {
-                free(estate->arguments);
-                return false;
-            }
-            skipWhitespace(state);
-            estateArgument.identifier = peekReadIdentifier(state);
+        }
+        if (!readExpectedOperator(state, ')'))
+        {
+            return false;
         }
     }
-    if (argumentCount > parameterCount)
-    {
-        if (!parameterCount)
-        {
-            errorOnLine(state, line,
-                        "Function '%s' does not take any arguments.",
-                        StringPoolGetString(name));
-        }
-        else
-        {
-            errorOnLine(
-                state, line,
-                "Too many arguments for function '%s'. Got %d arguments, but at most %d were expected.",
-                StringPoolGetString(name), argumentCount, parameterCount);
-        }
-        free(estate->arguments);
-        return false;
-    }
 
-    for (i = 0; i < parameterCount; i++)
+    for (i = argumentCount; i < parameterCount; i++)
     {
-        position = estate->arguments[i];
-        if (position)
+        if (parameterInfo[i].value)
         {
-            if (position < 0)
-            {
-                estate->arguments[i] =
-                    -position - (int)estate->argumentCount - 1;
-            }
-            else
-            {
-                estate->arguments[i] >>= 1;
-            }
-        }
-        else if (parameterInfo[i].value)
-        {
-            estate->arguments[i] =
-                (int)FieldIndexGetIndex(parameterInfo[i].value) << 1;
+            ParseStateGetField(state, parameterInfo[i].value);
         }
         else if (i == varargIndex)
         {
-            estate->arguments[i] = FIELD_EMPTY_LIST << 1;
+            ParseStateWriteList(state, 0);
         }
         else
         {
-            free(estate->arguments);
             errorOnLine(state, line, "No value for parameter '%s' given.",
                         StringPoolGetString(parameterInfo[i].name));
             return false;
@@ -929,7 +890,6 @@ static boolean parseNativeInvocationRest(ParseState *state,
     estate->expressionType = EXPRESSION_NATIVE_INVOCATION;
     estate->valueType = VALUE_UNKNOWN;
     estate->nativeFunction = function;
-    estate->argumentCount = parameterCount;
 
     assert(parameterCount);
     while (parameterCount--)
@@ -1710,9 +1670,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
     returnValueCount = (uint)(BVSize(&lvalues) / sizeof(estate) + 1);
     if (estate.expressionType == EXPRESSION_INVOCATION)
     {
-        ParseStateWriteInvocation(
-            state, estate.function, estate.argumentCount, estate.arguments,
-            returnValueCount);
+        ParseStateWriteInvocation(state, estate.function, returnValueCount);
     }
     else if (estate.expressionType == EXPRESSION_NATIVE_INVOCATION)
     {

@@ -3,49 +3,49 @@ failed = false
 
 test(path, name, ext, result)
    testno += 1
-   if ""file(path, name, ext) != result
-      echo("FAIL"testno": "path" "name" "ext": "file(path, name, ext)" != "result)
+   if ""file(path name ext) != result
+      echo("FAIL"testno": "path" "name" "ext": "file(path name ext)" != "result)
       failed = true
 
 default:
-   test(@/, "a", null, "/a")
-   test(@/a, "b", null, "/a/b")
-   test(@/a/, "b", null, "/a/b")
-   test(@/a/, "b/", null, "/a/b/")
-   test(@/a, ".", null, "/a/")
-   test(@/a, "..", null, "/a/..")
+   test(@/ "a" null "/a")
+   test(@/a "b" null "/a/b")
+   test(@/a/ "b" null "/a/b")
+   test(@/a/ "b/" null "/a/b/")
+   test(@/a "." null "/a/")
+   test(@/a ".." null "/a/..")
 
-   test(@/, "a", "e", "/a.e")
-   test(@/a, "b", "e", "/a/b.e")
-   test(@/a/, "b", "e", "/a/b.e")
+   test(@/ "a" "e" "/a.e")
+   test(@/a "b" "e" "/a/b.e")
+   test(@/a/ "b" "e" "/a/b.e")
 
-   test(@/, "a.c", "e", "/a.e")
-   test(@/a, "b.c", "e", "/a/b.e")
-   test(@/a/, "b.c", "e", "/a/b.e")
+   test(@/ "a.c" "e" "/a.e")
+   test(@/a "b.c" "e" "/a/b.e")
+   test(@/a/ "b.c" "e" "/a/b.e")
 
-   test(@/a, "/b", "e", "/b.e")
-   test(@/a, "/b.c", "e", "/b.e")
+   test(@/a "/b" "e" "/b.e")
+   test(@/a "/b.c" "e" "/b.e")
 
-   test(@/, "a", "", "/a")
-   test(@/a, "b", "", "/a/b")
-   test(@/a/, "b", "", "/a/b")
+   test(@/ "a" "" "/a")
+   test(@/a "b" "" "/a/b")
+   test(@/a/ "b" "" "/a/b")
 
-   test(@/, "a.c", "", "/a")
-   test(@/a, "b.c", "", "/a/b")
-   test(@/a/, "b.c", "", "/a/b")
+   test(@/ "a.c" "" "/a")
+   test(@/a "b.c" "" "/a/b")
+   test(@/a/ "b.c" "" "/a/b")
 
-   test(@/a, "/b", "", "/b")
-   test(@/a, "/b.c", "", "/b")
+   test(@/a "/b" "" "/b")
+   test(@/a "/b.c" "" "/b")
 
-   test(@/, "a", ".e", "/a.e")
-   test(@/, "a.c", ".e", "/a.e")
-   test(@/, "a", ".", "/a")
-   test(@/, "a.c", ".", "/a")
+   test(@/ "a" ".e" "/a.e")
+   test(@/ "a.c" ".e" "/a.e")
+   test(@/ "a" "." "/a")
+   test(@/ "a.c" "." "/a")
 
-   test("/a", "b", null, "/a/b")
+   test("/a" "b" null "/a/b")
 
-   test("/a", null, null, "/a")
-   test(null, "/a", null, "/a")
+   test("/a" null null "/a")
+   test(null "/a" null "/a")
 
    if !failed
       echo("PASS")

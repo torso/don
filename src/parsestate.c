@@ -382,6 +382,19 @@ void ParseStateWriteInstruction(ParseState *state, Instruction instruction)
     BVAdd(state->bytecode, instruction);
 }
 
+void ParseStateReorderStack(ParseState *state, const uint16 *reorder,
+                            uint16 count)
+{
+    const uint16 *stop;
+    ParseStateCheck(state);
+    BVAdd(state->bytecode, OP_REORDER_STACK);
+    BVAddUint16(state->bytecode, count);
+    for (stop = reorder + count; reorder != stop; reorder++)
+    {
+        BVAddUint16(state->bytecode, *reorder);
+    }
+}
+
 void ParseStateWriteList(ParseState *state, uint size)
 {
     ParseStateCheck(state);
@@ -454,27 +467,13 @@ void ParseStateWriteReturnVoid(ParseState *state)
 }
 
 void ParseStateWriteInvocation(ParseState *state, functionref function,
-                               uint argumentCount, int *arguments,
                                uint returnValues)
 {
-    uint parameterCount;
-    uint i;
-    int *argument;
-
-    assert(argumentCount <= UINT16_MAX); /* TODO: report error */
     assert(returnValues <= UINT8_MAX); /* TODO: report error */
     ParseStateCheck(state);
     BVAdd(state->bytecode, OP_INVOKE);
     BVAddRef(state->bytecode, function);
-    BVAddUint16(state->bytecode, (uint16)argumentCount);
     BVAdd(state->bytecode, (uint8)returnValues);
-    parameterCount = FunctionIndexGetParameterCount(function);
-    for (i = 0, argument = arguments; i < parameterCount; i++, argument++)
-    {
-        assert(*argument >= INT16_MIN && *argument <= INT16_MAX);
-        BVAddInt16(state->bytecode, (int16)*argument);
-    }
-    free(arguments);
 }
 
 void ParseStateWriteNativeInvocation(ParseState *state,

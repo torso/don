@@ -59,6 +59,8 @@ extern nonnull void ParseStateSetField(ParseState *state, fieldref field);
 
 extern nonnull void ParseStateWriteInstruction(ParseState *state,
                                                Instruction instruction);
+extern nonnull void ParseStateReorderStack(ParseState *state,
+                                           const uint16 *reorder, uint16 count);
 extern nonnull void ParseStateWriteList(ParseState *state, uint size);
 extern nonnull void ParseStateWriteFileset(ParseState *state,
                                            stringref pattern);
@@ -71,8 +73,8 @@ extern nonnull void ParseStateWriteWhile(ParseState *state,
                                          size_t loopTarget);
 extern nonnull void ParseStateWriteReturn(ParseState *state, uint values);
 extern nonnull void ParseStateWriteReturnVoid(ParseState *state);
-extern void ParseStateWriteInvocation(ParseState *state, functionref function,
-                                      uint argumentCount, int *arguments,
-                                      uint returnValues);
+extern nonnull void ParseStateWriteInvocation(ParseState *state,
+                                              functionref function,
+                                              uint returnValues);
 extern nonnull void ParseStateWriteNativeInvocation(ParseState *state,
                                                     nativefunctionref function);

@@ -1,19 +1,19 @@
 test(text, substring, expectedResult)
-   i = indexOf(text, substring)
+   i = indexOf(text substring)
    if i != expectedResult
       echo("FAIL: "text" "substring": "i)
 
 default:
-   test("", "", null)
-   test("abc", "", null)
+   test("" "" null)
+   test("abc" "" null)
 
-   test("abc", "a", 0)
-   test("abc", "b", 1)
-   test("abc", "c", 2)
+   test("abc" "a" 0)
+   test("abc" "b" 1)
+   test("abc" "c" 2)
 
-   test("abc", "ab", 0)
-   test("abc", "bc", 1)
-   test("abc", "ac", null)
-   test("abc", "abcd", null)
+   test("abc" "ab" 0)
+   test("abc" "bc" 1)
+   test("abc" "ac" null)
+   test("abc" "abcd" null)
 
    echo("PASS")
