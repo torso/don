@@ -59,6 +59,7 @@ extern nonnull void ParseStateSetField(ParseState *state, fieldref field);
 
 extern nonnull void ParseStateWriteInstruction(ParseState *state,
                                                Instruction instruction);
+extern nonnull void ParseStateWritePush(ParseState *state, objectref value);
 extern nonnull void ParseStateReorderStack(ParseState *state,
                                            const uint16 *reorder, uint16 count);
 extern nonnull void ParseStateWriteList(ParseState *state, uint size);

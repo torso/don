@@ -16,6 +16,7 @@ typedef struct
     uint bytecodeOffset;
     size_t parameterInfoOffset;
     uint parameterCount;
+    uint requiredArgumentCount;
     uint vararg;
     uint localCount;
     uint localNamesOffset;
@@ -77,7 +78,8 @@ functionref FunctionIndexAddFunction(namespaceref ns, stringref name,
 }
 
 void FunctionIndexAddParameter(functionref function, stringref name,
-                               fieldref value, boolean vararg)
+                               boolean hasValue, objectref value,
+                               boolean vararg)
 {
     FunctionInfo *info;
     ParameterInfo *paramInfo;
@@ -94,6 +96,11 @@ void FunctionIndexAddParameter(functionref function, stringref name,
     }
     assert(&FunctionIndexGetParameterInfo(function)[info->parameterCount] ==
            paramInfo);
+    if (!hasValue)
+    {
+        assert(info->requiredArgumentCount == info->parameterCount);
+        info->requiredArgumentCount++;
+    }
     info->parameterCount++;
     if (vararg)
     {
@@ -200,6 +207,11 @@ void FunctionIndexSetBytecodeOffset(functionref function, size_t offset)
 uint FunctionIndexGetParameterCount(functionref function)
 {
     return getFunctionInfo(function)->parameterCount;
+}
+
+uint FunctionIndexGetRequiredArgumentCount(functionref function)
+{
+    return getFunctionInfo(function)->requiredArgumentCount;
 }
 
 const ParameterInfo *FunctionIndexGetParameterInfo(functionref function)

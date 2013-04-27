@@ -228,10 +228,7 @@ int main(int argc, const char **argv)
          field;
          field = FieldIndexGetNextField(field))
     {
-        if (!FieldIndexIsConstant(field))
-        {
-            ParseField(field, &parsed);
-        }
+        ParseField(field, &parsed);
     }
 
     for (function = FunctionIndexGetNextFunction(

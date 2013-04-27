@@ -7,6 +7,7 @@
 #include "file.h"
 #include "functionindex.h"
 #include "instruction.h"
+#include "heap.h"
 #include "inthashmap.h"
 #include "intvector.h"
 #include "log.h"
@@ -44,6 +45,7 @@ typedef struct
     ExpressionType expressionType;
     ValueType valueType;
     stringref valueIdentifier;
+    objectref constant;
     fieldref field;
     nativefunctionref nativeFunction;
     functionref function;
@@ -456,7 +458,7 @@ static boolean parseNumber(ParseState *state, ExpressionState *estate)
 
     estate->expressionType = EXPRESSION_CONSTANT;
     estate->valueType = VALUE_NUMBER;
-    estate->field = FieldIndexAddIntegerConstant(value);
+    estate->constant = HeapBoxInteger(value);
     return true;
 }
 
@@ -536,22 +538,9 @@ static boolean finishExpression(ParseState *state, const ExpressionState *estate
         return ParseStateGetVariable(state, estate->valueIdentifier);
 
     case EXPRESSION_CONSTANT:
-        switch (estate->field)
-        {
-        case FIELD_NULL + 1:
-            ParseStateWriteInstruction(state, OP_NULL);
-            return true;
-        case FIELD_TRUE + 1:
-            ParseStateWriteInstruction(state, OP_TRUE);
-            return true;
-        case FIELD_FALSE + 1:
-            ParseStateWriteInstruction(state, OP_FALSE);
-            return true;
-        case FIELD_EMPTY_LIST + 1:
-            ParseStateWriteInstruction(state, OP_EMPTY_LIST);
-            return true;
-        }
-        /* fallthrough */
+        ParseStateWritePush(state, estate->constant);
+        return true;
+
     case EXPRESSION_FIELD:
         ParseStateGetField(state, estate->field);
         return true;
@@ -714,7 +703,8 @@ static uint findArgumentIndex(const ParameterInfo *parameterInfo,
 static boolean parseNamedArguments(ParseState *state,
                                    ExpressionState *estate,
                                    const ParameterInfo *parameterInfo,
-                                   uint parameterCount, uint varargIndex,
+                                   uint parameterCount,
+                                   uint requiredArgumentCount, uint varargIndex,
                                    uint *count)
 {
     uint orderedArgumentCount = *count;
@@ -769,20 +759,24 @@ static boolean parseNamedArguments(ParseState *state,
         else
         {
             uint index = orderedArgumentCount + argumentIndex;
-            fieldref value = parameterInfo[index].value;
-            if (!value)
+            objectref value;
+            if (index >= requiredArgumentCount)
             {
-                if (index != varargIndex)
-                {
-                    statementError(
-                        state, "No value for parameter '%s' given.",
-                        StringPoolGetString(parameterInfo[index].name));
-                    free(unorderedValues);
-                    return false;
-                }
-                value = FIELD_EMPTY_LIST + 1;
+                value = parameterInfo[index].value;
             }
-            ParseStateGetField(state, value);
+            else if (index == varargIndex)
+            {
+                value = HeapEmptyList;
+            }
+            else
+            {
+                statementError(
+                    state, "No value for parameter '%s' given.",
+                    StringPoolGetString(parameterInfo[index].name));
+                free(unorderedValues);
+                return false;
+            }
+            ParseStateWritePush(state, value);
             unorderedValues[argumentIndex] = unorderedArgumentCount++;
         }
     }
@@ -801,8 +795,8 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     const ParameterInfo *parameterInfo;
     uint varargIndex;
     uint argumentCount = 0;
+    uint requiredArgumentCount;
     uint line = state->line;
-    uint i;
 
     ParseStateCheck(state);
     function = lookupFunction(state, ns, name);
@@ -811,6 +805,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         return false;
     }
     parameterCount = FunctionIndexGetParameterCount(function);
+    requiredArgumentCount = FunctionIndexGetRequiredArgumentCount(function);
     parameterInfo = FunctionIndexGetParameterInfo(function);
     varargIndex = FunctionIndexHasVararg(function) ?
         FunctionIndexGetVarargIndex(function) : UINT_MAX;
@@ -840,8 +835,8 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         if (estateArgument.identifier)
         {
             if (!parseNamedArguments(state, &estateArgument, parameterInfo,
-                                     parameterCount, varargIndex,
-                                     &argumentCount))
+                                     parameterCount, requiredArgumentCount,
+                                     varargIndex, &argumentCount))
             {
                 return false;
             }
@@ -852,22 +847,20 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         }
     }
 
-    for (i = argumentCount; i < parameterCount; i++)
+    if (argumentCount == varargIndex)
     {
-        if (parameterInfo[i].value)
-        {
-            ParseStateGetField(state, parameterInfo[i].value);
-        }
-        else if (i == varargIndex)
-        {
-            ParseStateWriteList(state, 0);
-        }
-        else
-        {
-            errorOnLine(state, line, "No value for parameter '%s' given.",
-                        StringPoolGetString(parameterInfo[i].name));
-            return false;
-        }
+        ParseStateWriteList(state, 0);
+        argumentCount++;
+    }
+    if (argumentCount < requiredArgumentCount)
+    {
+        errorOnLine(state, line, "No value for parameter '%s' given.",
+                    StringPoolGetString(parameterInfo[argumentCount].name));
+        return false;
+    }
+    while (argumentCount < parameterCount)
+    {
+        ParseStateWritePush(state, parameterInfo[argumentCount++].value);
     }
     return true;
 }
@@ -950,19 +943,19 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             if (identifier == keywordTrue)
             {
                 estate->valueType = VALUE_BOOLEAN;
-                estate->field = FIELD_TRUE + 1;
+                estate->constant = HeapTrue;
                 return true;
             }
             else if (identifier == keywordFalse)
             {
                 estate->valueType = VALUE_BOOLEAN;
-                estate->field = FIELD_FALSE + 1;
+                estate->constant = HeapFalse;
                 return true;
             }
             else if (identifier == keywordNull)
             {
                 estate->valueType = VALUE_NULL;
-                estate->field = FIELD_NULL + 1;
+                estate->constant = 0;
                 return true;
             }
             statementError(state, "Unexpected keyword '%s'.",
@@ -1044,9 +1037,9 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         {
             return false;
         }
-        estate->field = FieldIndexAddStringConstant(string);
         estate->expressionType = EXPRESSION_CONSTANT;
         estate->valueType = VALUE_STRING;
+        estate->constant = HeapCreatePooledString(string);
         return true;
     }
     if (readOperator(state, '('))
@@ -1067,7 +1060,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         if (readOperator(state, '}'))
         {
             estate->expressionType = EXPRESSION_CONSTANT;
-            estate->field = FIELD_EMPTY_LIST + 1;
+            estate->constant = HeapEmptyList;
             return true;
         }
         size = 0;
@@ -1091,7 +1084,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             {
                 if (estate2.expressionType == EXPRESSION_CONSTANT)
                 {
-                    IVAdd(&values, estate2.field);
+                    IVAdd(&values, estate2.constant);
                 }
                 else
                 {
@@ -1114,7 +1107,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         {
             BVSetSize(state->bytecode, bytecodeSize);
             estate->expressionType = EXPRESSION_CONSTANT;
-            estate->field = FieldIndexAddListConstant(&values);
+            estate->constant = HeapCreateArrayFromVector(&values);
             IVDispose(&values);
         }
         else
@@ -1134,8 +1127,8 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         estate->valueType = VALUE_FILE;
         if (!strchr(StringPoolGetString(string), '*'))
         {
-            estate->field = FieldIndexAddFileConstant(string);
             estate->expressionType = EXPRESSION_CONSTANT;
+            estate->constant = HeapCreatePath(HeapCreatePooledString(string));
             return true;
         }
         /* TODO: @{} syntax */
@@ -1871,7 +1864,7 @@ static boolean parseFunctionBody(ParseState *state)
                             return false;
                         }
                         ParseStateSetUnnamedVariable(state, iterCollection);
-                        ParseStateGetField(state, FieldIndexAddIntegerConstant(-1));
+                        ParseStateWritePush(state, HeapBoxInteger(-1));
                         ParseStateSetUnnamedVariable(state, iterIndex);
                         if (!peekNewline(state))
                         {
@@ -1882,7 +1875,7 @@ static boolean parseFunctionBody(ParseState *state)
                         target = ParseStateGetJumpTarget(state);
                         ParseStateGetUnnamedVariable(state, iterCollection);
                         ParseStateGetUnnamedVariable(state, iterIndex);
-                        ParseStateGetField(state, FieldIndexAddIntegerConstant(1));
+                        ParseStateWritePush(state, HeapBoxInteger(1));
                         ParseStateWriteInstruction(state, OP_ADD);
                         ParseStateWriteInstruction(state, OP_DUP);
                         ParseStateSetUnnamedVariable(state, iterIndex);
@@ -1950,10 +1943,9 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
 {
     ExpressionState estate;
     stringref parameterName;
-    fieldref field = 0;
+    objectref value = 0;
     boolean vararg;
     boolean requireDefaultValues = false;
-    size_t start;
 
     if (readOperator(state, ':'))
     {
@@ -1983,28 +1975,13 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
                 {
                     requireDefaultValues = true;
                     skipWhitespace(state);
-                    start = BVSize(state->bytecode);
                     estate.identifier = 0;
                     if (!parseExpression(state, &estate, true))
                     {
                         return false;
                     }
-                    if (estate.expressionType == EXPRESSION_CONSTANT)
-                    {
-                        field = estate.field;
-                    }
-                    else
-                    {
-                        if (!finishRValue(state, &estate))
-                        {
-                            return false;
-                        }
-                        field = FieldIndexAddConstant(
-                            state->ns,
-                            state->filename, state->line,
-                            getOffset(state, state->start),
-                            state->bytecode, start);
-                    }
+                    assert(estate.expressionType == EXPRESSION_CONSTANT);
+                    value = estate.constant;
                 }
                 else if (requireDefaultValues)
                 {
@@ -2019,7 +1996,8 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
                     vararg = true;
                 }
                 FunctionIndexAddParameter(function, parameterName,
-                                          field, vararg);
+                                          requireDefaultValues && !vararg,
+                                          value, vararg);
                 if (readOperator(state, ')'))
                 {
                     break;

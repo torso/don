@@ -17,7 +17,7 @@ typedef struct
 } FieldInfo;
 
 static bytevector fieldTable;
-static intvector fieldValues;
+static size_t fieldCount;
 
 
 static FieldInfo *getFieldInfo(fieldref field)
@@ -25,25 +25,18 @@ static FieldInfo *getFieldInfo(fieldref field)
     assert(field);
     return (FieldInfo*)BVGetPointer(
         &fieldTable,
-        (sizeFromRef(field) - RESERVED_FIELD_COUNT - 1) * sizeof(FieldInfo));
+        (sizeFromRef(field) - 1) * sizeof(FieldInfo));
 }
 
 
 void FieldIndexInit(void)
 {
     BVInit(&fieldTable, 1024);
-    IVInit(&fieldValues, 128);
-    IVSetSize(&fieldValues, RESERVED_FIELD_COUNT);
-    IVSet(&fieldValues, FIELD_NULL, 0);
-    IVSet(&fieldValues, FIELD_TRUE, HeapTrue);
-    IVSet(&fieldValues, FIELD_FALSE, HeapFalse);
-    IVSet(&fieldValues, FIELD_EMPTY_LIST, HeapEmptyList);
 }
 
 void FieldIndexDispose(void)
 {
     BVDispose(&fieldTable);
-    IVDispose(&fieldValues);
 }
 
 
@@ -70,7 +63,7 @@ void FieldIndexFinishBytecode(const byte *parsed, bytevector *bytecode)
 
 
 static fieldref addField(namespaceref ns, stringref filename, uint line,
-                         uint fileOffset, objectref value)
+                         uint fileOffset)
 {
     size_t size = BVSize(&fieldTable);
     FieldInfo *info;
@@ -82,54 +75,13 @@ static fieldref addField(namespaceref ns, stringref filename, uint line,
     info->line = line;
     info->fileOffset = fileOffset;
     info->bytecodeStop = 0;
-    IVAdd(&fieldValues, value);
-    return refFromSize(IVSize(&fieldValues));
+    return refFromSize(++fieldCount);
 }
 
 fieldref FieldIndexAdd(namespaceref ns,
                        stringref filename, uint line, uint fileOffset)
 {
-    return addField(ns, filename, line, fileOffset, 0);
-}
-
-fieldref FieldIndexAddConstant(namespaceref ns,
-                               stringref filename, uint line, uint fileOffset,
-                               bytevector *bytecode, size_t start)
-{
-    fieldref field = FieldIndexAdd(ns, filename, line, fileOffset);
-    FieldIndexSetBytecodeOffset(field, start, BVSize(bytecode));
-    return field;
-}
-
-fieldref FieldIndexAddIntegerConstant(int value)
-{
-    return addField(0, 0, 0, 0, HeapBoxInteger(value));
-}
-
-fieldref FieldIndexAddStringConstant(stringref string)
-{
-    return addField(0, 0, 0, 0, HeapCreatePooledString(string));
-}
-
-fieldref FieldIndexAddFileConstant(stringref string)
-{
-    return addField(0, 0, 0, 0, HeapCreatePath(HeapCreatePooledString(string)));
-}
-
-fieldref FieldIndexAddListConstant(const intvector *values)
-{
-    byte *objectData;
-    size_t size = IVSize(values);
-
-    objectData = HeapAlloc(TYPE_ARRAY, size * sizeof(objectref));
-    objectData += size * sizeof(objectref);
-    while (size--)
-    {
-        objectData -= sizeof(objectref);
-        *(objectref*)objectData =
-            IVGet(&fieldValues, FieldIndexGetIndex(IVGet(values, size)));
-    }
-    return addField(0, 0, 0, 0, HeapFinishAlloc(objectData));
+    return addField(ns, filename, line, fileOffset);
 }
 
 void FieldIndexSetBytecodeOffset(fieldref field, size_t start, size_t stop)
@@ -145,36 +97,18 @@ void FieldIndexSetBytecodeOffset(fieldref field, size_t start, size_t stop)
 
 size_t FieldIndexGetCount(void)
 {
-    return IVSize(&fieldValues);
-}
-
-boolean FieldIndexIsConstant(fieldref field)
-{
-    return field <= RESERVED_FIELD_COUNT || !FieldIndexGetFilename(field);
-}
-
-objectref FieldIndexValue(fieldref field)
-{
-    return IVGet(&fieldValues, uintFromRef(field) - 1);
-}
-
-void FieldIndexCopyValues(objectref *target)
-{
-    memcpy(target, IVGetPointer(&fieldValues, 0),
-           IVSize(&fieldValues) * sizeof(objectref));
+    return fieldCount;
 }
 
 fieldref FieldIndexGetFirstField(void)
 {
-    return refFromUint(IVSize(&fieldValues) > RESERVED_FIELD_COUNT ?
-                       RESERVED_FIELD_COUNT + 1 : 0);
+    return min(refFromSize(fieldCount), 1);
 }
 
 fieldref FieldIndexGetNextField(fieldref field)
 {
-    assert(sizeFromRef(field) > RESERVED_FIELD_COUNT);
-    assert(sizeFromRef(field) <= IVSize(&fieldValues));
-    return sizeFromRef(field) != IVSize(&fieldValues) ? field + 1 : 0;
+    assert(sizeFromRef(field) <= fieldCount);
+    return sizeFromRef(field) != fieldCount ? field + 1 : 0;
 }
 
 uint FieldIndexGetIndex(fieldref field)

@@ -6,6 +6,7 @@
 #include "file.h"
 #include "functionindex.h"
 #include "instruction.h"
+#include "heap.h"
 #include "inthashmap.h"
 #include "intvector.h"
 #include "log.h"
@@ -380,6 +381,32 @@ void ParseStateWriteInstruction(ParseState *state, Instruction instruction)
 {
     ParseStateCheck(state);
     BVAdd(state->bytecode, instruction);
+}
+
+void ParseStateWritePush(ParseState *state, objectref value)
+{
+    ParseStateCheck(state);
+    if (!value)
+    {
+        BVAdd(state->bytecode, OP_NULL);
+    }
+    else if (value == HeapTrue)
+    {
+        BVAdd(state->bytecode, OP_TRUE);
+    }
+    else if (value == HeapFalse)
+    {
+        BVAdd(state->bytecode, OP_FALSE);
+    }
+    else if (value == HeapEmptyList)
+    {
+        BVAdd(state->bytecode, OP_EMPTY_LIST);
+    }
+    else
+    {
+        BVAdd(state->bytecode, OP_PUSH);
+        BVAddUint(state->bytecode, uintFromRef(value));
+    }
 }
 
 void ParseStateReorderStack(ParseState *state, const uint16 *reorder,

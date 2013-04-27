@@ -10,7 +10,8 @@ static const boolean TRACE_STACK = false;
 
 static VM *VMAlloc(void)
 {
-    byte *data = (byte*)malloc(sizeof(VM) + FieldIndexGetCount() * sizeof(objectref));
+    byte *data = (byte*)calloc(
+        sizeof(VM) + FieldIndexGetCount() * sizeof(objectref), 1);
     VM *vm = (VM*)data;
     vm->fields = (objectref*)(data + sizeof(VM));
     IVInit(&vm->callStack, 128);
@@ -22,7 +23,6 @@ VM *VMCreate(const byte *bytecode, functionref target)
 {
     VM *vm = VMAlloc();
 
-    FieldIndexCopyValues(vm->fields);
     vm->parent = null;
     vm->condition = HeapTrue;
 

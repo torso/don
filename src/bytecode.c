@@ -41,7 +41,6 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
     uint ip = (uint)(bytecode - base);
     functionref function;
     nativefunctionref nativeFunction;
-    fieldref field;
     uint value;
     uint i;
     uint controlFlowNextInstruction = true;
@@ -49,20 +48,26 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     switch ((Instruction)*bytecode++)
     {
+    case OP_PUSH:
+        string = HeapDebug(refFromUint(BytecodeReadUint(&bytecode)), false);
+        printf(" %u: push %s\n", ip, string);
+        free(string);
+        break;
+
     case OP_NULL:
-        printf(" %u: push null\n", ip);
+        printf(" %u: push_null\n", ip);
         break;
 
     case OP_TRUE:
-        printf(" %u: push true\n", ip);
+        printf(" %u: push_true\n", ip);
         break;
 
     case OP_FALSE:
-        printf(" %u: push false\n", ip);
+        printf(" %u: push_false\n", ip);
         break;
 
     case OP_EMPTY_LIST:
-        printf(" %u: push []\n", ip);
+        printf(" %u: push_{}\n", ip);
         break;
 
     case OP_LIST:
@@ -100,18 +105,7 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         break;
 
     case OP_LOAD_FIELD:
-        value = BytecodeReadUint(&bytecode);
-        field = FieldIndexFromIndex(value);
-        if (FieldIndexIsConstant(field))
-        {
-            string = HeapDebug(FieldIndexValue(field), false);
-            printf(" %u: constant %s\n", ip, string);
-            free(string);
-        }
-        else
-        {
-            printf(" %u: load_field %u\n", ip, value);
-        }
+        printf(" %u: load_field %u\n", ip, BytecodeReadUint(&bytecode));
         break;
 
     case OP_STORE_FIELD:

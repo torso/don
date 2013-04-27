@@ -77,7 +77,7 @@ typedef ref_t stringref;
 typedef struct
 {
     stringref name;
-    fieldref value;
+    objectref value;
 } ParameterInfo;
 
 extern pureconst ref_t refFromSize(size_t i);

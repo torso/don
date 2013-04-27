@@ -1223,6 +1223,7 @@ static objectref executeUnary(Instruction op, objectref value)
     case OP_INV:
         return HeapBoxInteger(~HeapUnboxInteger(value));
 
+    case OP_PUSH:
     case OP_ITER_GET:
     case OP_NULL:
     case OP_TRUE:
@@ -1309,6 +1310,7 @@ static objectref executeBinaryPartial(Instruction op, objectref object,
     case OP_RANGE:
         return object;
 
+    case OP_PUSH:
     case OP_NULL:
     case OP_TRUE:
     case OP_FALSE:
@@ -1432,6 +1434,7 @@ static objectref executeBinary(Instruction op,
     case OP_RANGE:
         return HeapCreateRange(value2, value1);
 
+    case OP_PUSH:
     case OP_NULL:
     case OP_TRUE:
     case OP_FALSE:

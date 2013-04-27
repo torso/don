@@ -114,6 +114,10 @@ static void execute(VM *vm)
         op = (Instruction)*ip++;
         switch (op)
         {
+        case OP_PUSH:
+            VMPush(vm, BytecodeReadUint(&ip));
+            break;
+
         case OP_NULL:
             VMPush(vm, 0);
             break;
