@@ -1,5 +1,5 @@
 default:
-   if []
+   if {}
       echo("FAIL")
-   if [null]
+   if {null}
       echo("PASS")

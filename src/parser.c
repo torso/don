@@ -1100,11 +1100,11 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         estate->expressionType = EXPRESSION_SIMPLE;
         return readExpectedOperator(state, ')');
     }
-    if (readOperator(state, '['))
+    if (readOperator(state, '{'))
     {
         estate->valueType = VALUE_LIST;
         skipWhitespace(state);
-        if (readOperator(state, ']'))
+        if (readOperator(state, '}'))
         {
             skipWhitespace(state);
             estate->expressionType = EXPRESSION_CONSTANT;
@@ -1163,7 +1163,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             ParseStateWriteList(state, size);
         }
         skipWhitespace(state);
-        if (!readExpectedOperator(state, ']'))
+        if (!readExpectedOperator(state, '}'))
         {
             return false;
         }
@@ -1448,6 +1448,7 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
         case ':':
         case ')':
         case ']':
+        case '}':
         case '=':
         case '<':
         case '>':

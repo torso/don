@@ -758,7 +758,7 @@ char *HeapWriteString(objectref object, char *dst)
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
-        *dst++ = '[';
+        *dst++ = '{';
         for (index = 0; HeapCollectionGet(object, HeapBoxSize(index), &item);
              index++)
         {
@@ -769,7 +769,7 @@ char *HeapWriteString(objectref object, char *dst)
             }
             dst = HeapWriteString(item, dst);
         }
-        *dst++ = ']';
+        *dst++ = '}';
         return dst;
 
     case TYPE_FUTURE:
