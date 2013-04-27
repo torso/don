@@ -1106,7 +1106,6 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         skipWhitespace(state);
         if (readOperator(state, '}'))
         {
-            skipWhitespace(state);
             estate->expressionType = EXPRESSION_CONSTANT;
             estate->field = FIELD_EMPTY_LIST + 1;
             return true;
@@ -1163,12 +1162,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             ParseStateWriteList(state, size);
         }
         skipWhitespace(state);
-        if (!readExpectedOperator(state, '}'))
-        {
-            return false;
-        }
-        skipWhitespace(state);
-        return true;
+        return readExpectedOperator(state, '}');
     }
     if (readOperator(state, '@'))
     {
