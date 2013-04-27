@@ -17,19 +17,19 @@ exec(command..., env = {}, fail = true, echo = true, echoStderr = true, access =
    output, exitcode, internalError = native.exec(command, env, echo, echoStderr, fileset(access), fileset(modify))
    if fail && exitcode != 0
       if internalError == 1
-         don.fail("Command not found: " command[0])
+         don.fail("Command not found: "command[0])
       if internalError == 2
-         don.fail("File is not executable: " command[0])
-      don.fail("Process exited with status " exitcode)
+         don.fail("File is not executable: "command[0])
+      don.fail("Process exited with status "exitcode)
    return output, exitcode
 
 fail(message = null, condition = true, silent = false)
    if condition
       if silent
          native.fail(null)
-      message = message == null ? "" : "" message
+      message = message == null ? "" : ""message
       if message != ""
-         native.fail("BUILD FAILED: " message)
+         native.fail("BUILD FAILED: "message)
       native.fail("BUILD FAILED")
 
 file(path, name = null, extension = null)

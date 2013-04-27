@@ -1,7 +1,7 @@
 test(a, b, c, expected)
    result = split(a, b, removeEmpty:c)
    if result != expected
-      echo("FAIL: " a " " b " "  c ": " result)
+      echo("FAIL: "a" "b" "c": "result)
 
 default:
    test("a b c", " ", false, {"a", "b", "c"})

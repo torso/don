@@ -17,18 +17,18 @@ run(args..., output=true)
          copy = false
          for line in l
             if startsWith(line, "*")
-               log = log line "\n"
+               log = log""line"\n"
                copy = false
             else
                if contains(line, "==    ") && copy
-                  log = log line "\n"
+                  log = log""line"\n"
                else
                   if contains(line, "VALGRIND_PRINTF_BACKTRACE")
-                     log = log line "\n"
+                     log = log""line"\n"
                      copy = true
                   else
                      copy = false
-      out = {out[0], out[1] log}
+      out = {out[0], out[1]""log}
       if output && log != ""
          echo(log)
    else
@@ -46,7 +46,7 @@ dotest(debug=false)
          fail += 1
          if hasOutput
             echo("")
-         echo("FAIL: " filename(f))
+         echo("FAIL: "filename(f))
          hasOutput = out[0] != "" || out[1] != ""
          if hasOutput
             if out[0]
@@ -59,8 +59,8 @@ dotest(debug=false)
          pass += 1
    if fail
       echo("")
-   echo("pass:  " pass)
-   echo("fail:  " fail)
+   echo("pass:  "pass)
+   echo("fail:  "fail)
    fail(condition:fail, silent:true)
 
 test:

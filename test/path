@@ -3,8 +3,8 @@ failed = false
 
 test(path, result)
    testno += 1
-   if "" path != result
-      echo("FAIL" testno ": " path " != " result)
+   if ""path != result
+      echo("FAIL"testno": "path" != "result)
       failed = true
 
 default:

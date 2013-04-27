@@ -3,5 +3,5 @@ default:
    for i in {"P", "A", "S", "S"}
       out, exitcode = exec("echo", "-n", i, echo:false)
       if exitcode == 0
-         result = result out[0]
+         result = result""out[0]
    echo(result)

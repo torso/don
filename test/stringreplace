@@ -1,7 +1,7 @@
 test(a, b, c, expected, count)
    result, i = replace(a, b, c)
    if result != expected || i != count
-      echo("FAIL: " a " " b " " c ": " result " " i)
+      echo("FAIL: "a" "b" "c": "result" "i)
 
 default:
    test("abcd", "ab", "e", "ecd", 1)

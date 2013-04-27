@@ -3,8 +3,8 @@ failed = false
 
 test(path, name, ext, result)
    testno += 1
-   if "" file(path, name, ext) != result
-      echo("FAIL" testno ": " path " " name " " ext ": " file(path, name, ext) " != " result)
+   if ""file(path, name, ext) != result
+      echo("FAIL"testno": "path" "name" "ext": "file(path, name, ext)" != "result)
       failed = true
 
 default:

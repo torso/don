@@ -1219,16 +1219,59 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
         }
         break;
     }
-    skipWhitespace(state);
     return true;
 }
 
 static boolean parseExpression10(ParseState *state, ExpressionState *estate)
 {
+    boolean first = true;
+    boolean acceptNonString;
+    for (;;)
+    {
+        if (!parseExpression11(state, estate))
+        {
+            return false;
+        }
+        acceptNonString = estate->expressionType == EXPRESSION_CONSTANT &&
+            estate->valueType == VALUE_STRING;
+        if (!first)
+        {
+            if (!finishRValue(state, estate))
+            {
+                return false;
+            }
+            ParseStateWriteInstruction(state, OP_CONCAT_STRING);
+            estate->expressionType = EXPRESSION_SIMPLE;
+            estate->valueType = VALUE_STRING;
+        }
+        if (!peekString(state) &&
+            (!acceptNonString ||
+             (!peekIdentifier(state) && !peekNumber(state) &&
+              !peekOperator(state, '(') &&
+              !peekOperator(state, '{') && !peekOperator(state, '@'))))
+        {
+            return true;
+        }
+        /* TODO: Parse concatenated string as constant if possible. */
+        if (estate->parseConstant)
+        {
+            statementError(state, "Expected constant.");
+            return false;
+        }
+        if (!finishRValue(state, estate))
+        {
+            return false;
+        }
+        first = false;
+    }
+}
+
+static boolean parseExpression9(ParseState *state, ExpressionState *estate)
+{
     if (readOperator(state, '-'))
     {
         assert(!readOperator(state, '-')); /* TODO: -- operator */
-        if (!parseExpression11(state, estate) ||
+        if (!parseExpression10(state, estate) ||
             !finishRValue(state, estate))
         {
             return false;
@@ -1241,7 +1284,7 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '!'))
     {
-        if (!parseExpression11(state, estate) ||
+        if (!parseExpression10(state, estate) ||
             !finishBoolean(state, estate))
         {
             return false;
@@ -1253,7 +1296,7 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '~'))
     {
-        if (!parseExpression11(state, estate) ||
+        if (!parseExpression10(state, estate) ||
             !finishRValue(state, estate))
         {
             return false;
@@ -1264,7 +1307,7 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
         estate->valueType = VALUE_NUMBER;
         return true;
     }
-    if (!parseExpression11(state, estate))
+    if (!parseExpression10(state, estate))
     {
         return false;
     }
@@ -1272,9 +1315,9 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression9(ParseState *state, ExpressionState *estate)
+static boolean parseExpression8(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression10(state, estate))
+    if (!parseExpression9(state, estate))
     {
         return false;
     }
@@ -1287,7 +1330,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
                 return true;
             }
             if (!parseBinaryOperationRest(
-                    state, estate, parseExpression10, OP_MUL, VALUE_NUMBER))
+                    state, estate, parseExpression9, OP_MUL, VALUE_NUMBER))
             {
                 return false;
             }
@@ -1300,7 +1343,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
                 return true;
             }
             if (!parseBinaryOperationRest(
-                    state, estate, parseExpression10, OP_DIV, VALUE_NUMBER))
+                    state, estate, parseExpression9, OP_DIV, VALUE_NUMBER))
             {
                 return false;
             }
@@ -1313,52 +1356,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
                 return true;
             }
             if (!parseBinaryOperationRest(
-                    state, estate, parseExpression10, OP_REM, VALUE_NUMBER))
-            {
-                return false;
-            }
-            continue;
-        }
-        break;
-    }
-    return true;
-}
-
-static boolean parseExpression8(ParseState *state, ExpressionState *estate)
-{
-    if (!parseExpression9(state, estate))
-    {
-        return false;
-    }
-    for (;;)
-    {
-        if (readOperator(state, '+'))
-        {
-            if (reverseIfOperator(state, '='))
-            {
-                return true;
-            }
-            assert(!readOperator(state, '+')); /* TODO: ++ operator */
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression9, OP_ADD, VALUE_NUMBER))
-            {
-                return false;
-            }
-            continue;
-        }
-        else if (readOperator(state, '-'))
-        {
-            if (peekOperator(state, '=') ||
-                (estate->valueType != VALUE_UNKNOWN &&
-                 estate->valueType != VALUE_NUMBER &&
-                 state->current[0] != ' '))
-            {
-                state->current--;
-                return true;
-            }
-            assert(!readOperator(state, '-')); /* TODO: -- operator */
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression9, OP_SUB, VALUE_NUMBER))
+                    state, estate, parseExpression9, OP_REM, VALUE_NUMBER))
             {
                 return false;
             }
@@ -1377,7 +1375,38 @@ static boolean parseExpression7(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        /* TODO: Parse operators << >> */
+        if (readOperator(state, '+'))
+        {
+            if (reverseIfOperator(state, '='))
+            {
+                return true;
+            }
+            assert(!readOperator(state, '+')); /* TODO: ++ operator */
+            if (!parseBinaryOperationRest(
+                    state, estate, parseExpression8, OP_ADD, VALUE_NUMBER))
+            {
+                return false;
+            }
+            continue;
+        }
+        else if (readOperator(state, '-'))
+        {
+            if (peekOperator(state, '=') ||
+                (estate->valueType != VALUE_UNKNOWN &&
+                 estate->valueType != VALUE_NUMBER &&
+                 state->current[0] != ' '))
+            {
+                state->current--;
+                return true;
+            }
+            assert(!readOperator(state, '-')); /* TODO: -- operator */
+            if (!parseBinaryOperationRest(
+                    state, estate, parseExpression8, OP_SUB, VALUE_NUMBER))
+            {
+                return false;
+            }
+            continue;
+        }
         break;
     }
     return true;
@@ -1391,7 +1420,7 @@ static boolean parseExpression6(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        /* TODO: Parse operators & | ^ */
+        /* TODO: Parse operators << >> */
         break;
     }
     return true;
@@ -1405,24 +1434,7 @@ static boolean parseExpression5(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        if (readOperator2(state, '.', '.'))
-        {
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression6, OP_RANGE, VALUE_LIST))
-            {
-                return false;
-            }
-            continue;
-        }
-        if (readOperator2(state, ':', ':'))
-        {
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression6, OP_CONCAT_LIST, VALUE_LIST))
-            {
-                return false;
-            }
-            continue;
-        }
+        /* TODO: Parse operators & | ^ */
         break;
     }
     return true;
@@ -1436,42 +1448,27 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        switch (state->current[0])
+        if (readOperator2(state, '.', '.'))
         {
-        case ',':
-        case ':':
-        case ')':
-        case ']':
-        case '}':
-        case '=':
-        case '<':
-        case '>':
-        case '&':
-        case '|':
-        case '?':
-            return true;
+            if (!parseBinaryOperationRest(
+                    state, estate, parseExpression5, OP_RANGE, VALUE_LIST))
+            {
+                return false;
+            }
+            continue;
         }
-        if (peekNewline(state) ||
-            peekOperator2(state, '!', '=') ||
-            peekOperator2(state, '+', '=') ||
-            peekOperator2(state, '-', '=') ||
-            peekOperator2(state, '*', '=') ||
-            peekOperator2(state, '/', '=') ||
-            peekOperator2(state, '%', '='))
+        if (readOperator2(state, ':', ':'))
         {
-            return true;;
+            if (!parseBinaryOperationRest(
+                    state, estate, parseExpression5, OP_CONCAT_LIST, VALUE_LIST))
+            {
+                return false;
+            }
+            continue;
         }
-        if (!finishRValue(state, estate) ||
-            !parseExpression5(state, estate) ||
-            !finishRValue(state, estate))
-        {
-            return false;
-        }
-        ParseStateWriteInstruction(state, OP_CONCAT_STRING);
-        estate->expressionType = EXPRESSION_SIMPLE;
-        estate->valueType = VALUE_STRING;
-        skipWhitespace(state);
+        break;
     }
+    return true;
 }
 
 static boolean parseExpression3(ParseState *state, ExpressionState *estate)
