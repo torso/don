@@ -36,8 +36,9 @@ extern nonnull void VECTOR_FUNC(Move)(VECTOR_NAME *v,
                                       size_t src, size_t dst, size_t size);
 extern nonnull void VECTOR_FUNC(Zero)(VECTOR_NAME *v,
                                       size_t offset, size_t size);
-extern nonnull void VECTOR_FUNC(Append)(const VECTOR_NAME *src, size_t srcOffset,
-                                 VECTOR_NAME *dst, size_t size);
+extern nonnull void VECTOR_FUNC(Append)(const VECTOR_NAME *src,
+                                        size_t srcOffset, VECTOR_NAME *dst,
+                                        size_t size);
 extern nonnull void VECTOR_FUNC(AppendAll)(const VECTOR_NAME *src,
                                            VECTOR_NAME *dst);
 extern nonnull void VECTOR_FUNC(RemoveRange)(VECTOR_NAME *v,
