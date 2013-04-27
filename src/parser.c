@@ -2228,6 +2228,7 @@ void ParseFunctionDeclaration(functionref function, bytevector *bytecode)
                    FunctionIndexGetFilename(function),
                    FunctionIndexGetLine(function),
                    FunctionIndexGetFileOffset(function));
+    state.statementLine = state.line;
     if (!parseFunctionDeclaration(&state, function))
     {
         FunctionIndexSetFailedDeclaration(function);
