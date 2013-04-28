@@ -1,0 +1,11 @@
+default:
+   if '{} != {}
+      echo("FAIL1")
+   if '{x} != {"x"}
+      echo("FAIL2")
+   if '{x+2} != {"x+2"}
+      echo("FAIL3")
+   if '{x + "2"} != {"x" "+" "\"2\""}
+      echo("FAIL4")
+
+   echo("PASS")

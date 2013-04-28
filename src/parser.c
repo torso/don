@@ -888,6 +888,7 @@ static boolean parseQuotedValue(ParseState *state, ExpressionState *estate)
     static const char terminators[] = " \n\r(){}[]";
     const byte *begin = state->current;
     ParseStateCheck(state);
+    assert(!estate->identifier);
     while (!eof(state) &&
            !memchr(terminators, *state->current, sizeof(terminators)))
     {
@@ -902,6 +903,31 @@ static boolean parseQuotedValue(ParseState *state, ExpressionState *estate)
     estate->valueType = VALUE_STRING;
     estate->constant = HeapCreatePooledString(
         StringPoolAdd2((const char*)begin, getOffset(state, begin)));
+    return true;
+}
+
+static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
+{
+    intvector values;
+
+    ParseStateCheck(state);
+    assert(!estate->identifier);
+    IVInit(&values, 16);
+    skipWhitespace(state);
+    while (!readOperator(state, '}'))
+    {
+        if (!parseQuotedValue(state, estate))
+        {
+            IVDispose(&values);
+            return false;
+        }
+        skipWhitespace(state);
+        IVAdd(&values, estate->constant);
+    }
+    estate->expressionType = EXPRESSION_CONSTANT;
+    estate->valueType = VALUE_LIST;
+    estate->constant = HeapCreateArrayFromVector(&values);
+    IVDispose(&values);
     return true;
 }
 
@@ -1017,6 +1043,10 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '\''))
     {
+        if (readOperator(state, '{'))
+        {
+            return parseQuotedListRest(state, estate);
+        }
         return parseQuotedValue(state, estate);
     }
     if (peekNumber(state))
