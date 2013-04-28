@@ -883,6 +883,28 @@ static boolean parseBinaryOperationRest(
     return true;
 }
 
+static boolean parseQuotedValue(ParseState *state, ExpressionState *estate)
+{
+    static const char terminators[] = " \n\r(){}[]";
+    const byte *begin = state->current;
+    ParseStateCheck(state);
+    while (!eof(state) &&
+           !memchr(terminators, *state->current, sizeof(terminators)))
+    {
+        state->current++;
+    }
+    if (state->current == begin)
+    {
+        error(state, "Invalid quoted value.");
+        return false;
+    }
+    estate->expressionType = EXPRESSION_CONSTANT;
+    estate->valueType = VALUE_STRING;
+    estate->constant = HeapCreatePooledString(
+        StringPoolAdd2((const char*)begin, getOffset(state, begin)));
+    return true;
+}
+
 static boolean parseExpression12(ParseState *state, ExpressionState *estate)
 {
     ExpressionState estate2;
@@ -992,6 +1014,10 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         estate->expressionType = EXPRESSION_VARIABLE;
         estate->valueIdentifier = identifier;
         return true;
+    }
+    if (readOperator(state, '\''))
+    {
+        return parseQuotedValue(state, estate);
     }
     if (peekNumber(state))
     {

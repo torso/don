@@ -1,0 +1,11 @@
+default:
+   if 'x != "x"
+      echo("FAIL1")
+   if 'xy != "xy"
+      echo("FAIL2")
+   if 'x+2 != "x+2"
+      echo("FAIL3")
+   if ('x) != "x"
+      echo("FAIL4")
+
+   echo("PASS")
