@@ -33,7 +33,7 @@ run(args... output:true)
          echo(log)
    else
       out, exitcode = exec(args env:{"XDG_CACHE_HOME", "tempcache"} fail:false echo:output echoStderr:output)
-   return out, exitcode
+   return out exitcode
 
 dotest(debug:false)
    program = compile()

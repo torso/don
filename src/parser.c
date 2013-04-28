@@ -483,10 +483,6 @@ static boolean parseReturnRest(ParseState *state)
             ParseStateWriteReturn(state, values);
             return true;
         }
-        if (!readExpectedOperator(state, ','))
-        {
-            return false;
-        }
         skipWhitespace(state);
     }
 }
