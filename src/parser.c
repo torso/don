@@ -1971,7 +1971,7 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
                     return false;
                 }
                 skipWhitespace(state);
-                if (readOperator(state, '='))
+                if (readOperator(state, ':'))
                 {
                     requireDefaultValues = true;
                     skipWhitespace(state);
