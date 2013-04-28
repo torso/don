@@ -4,13 +4,13 @@ sum(n...)
       result += i
    return result
 
-sum2(n..., j:2)
+sum2(n... j:2)
    result = 0
    for i in n
       result += i
    return result + j
 
-sum3(j, n..., k:4)
+sum3(j n... k:4)
    result = 0
    for i in n
       result += i

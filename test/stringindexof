@@ -1,4 +1,4 @@
-test(text, substring, expectedResult)
+test(text substring expectedResult)
    i = indexOf(text substring)
    if i != expectedResult
       echo("FAIL: "text" "substring": "i)

@@ -1,7 +1,7 @@
 testno = 0
 failed = false
 
-test(path, result)
+test(path result)
    testno += 1
    if ""path != result
       echo("FAIL"testno": "path" != "result)

@@ -1,7 +1,7 @@
 f1(a)
    return a == 2
 
-f2(a, b, c, d, e)
+f2(a b c d e)
    return a == 1 && b == 5 && c == 2 && d == 3 && e == 4
 
 default:

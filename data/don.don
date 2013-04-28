@@ -1,19 +1,19 @@
 cat(file)
    echo(read(file))
 
-contains(data, element)
+contains(data element)
    return indexOf(data element) != null
 
-cp(src, dst)
+cp(src dst)
    native.cp(src, dst)
 
-echo(message, prefix:null)
+echo(message prefix:null)
    native.echo(message, prefix)
 
 env(name)
    return native.getEnv(name)
 
-exec(command..., env:{}, fail:true, echo:true, echoStderr:true, access:@/, modify:@/)
+exec(command... env:{} fail:true echo:true echoStderr:true access:@/ modify:@/)
    output, exitcode, internalError = native.exec(command, env, echo, echoStderr, fileset(access), fileset(modify))
    if fail && exitcode != 0
       if internalError == 1
@@ -23,7 +23,7 @@ exec(command..., env:{}, fail:true, echo:true, echoStderr:true, access:@/, modif
       don.fail("Process exited with status "exitcode)
    return output, exitcode
 
-fail(message:null, condition:true, silent:false)
+fail(message:null condition:true silent:false)
    if condition
       if silent
          native.fail(null)
@@ -32,7 +32,7 @@ fail(message:null, condition:true, silent:false)
          native.fail("BUILD FAILED: "message)
       native.fail("BUILD FAILED")
 
-file(path, name:null, extension:null)
+file(path name:null extension:null)
    if name == null
       name = path
       path = null
@@ -45,33 +45,33 @@ filename(path)
 fileset(value)
    return native.fileset(value)
 
-getCache(label, version, key..., echoCachedOutput:true)
+getCache(label version key... echoCachedOutput:true)
    cacheFile, uptodate = native.getCache({label, version, key}, echoCachedOutput)
    return cacheFile, uptodate
 
-indexOf(data, element)
+indexOf(data element)
    return native.indexOf(data, element)
 
-lines(value, trimLastIfEmpty:true)
+lines(value trimLastIfEmpty:true)
    return native.lines(value, trimLastIfEmpty)
 
 mkdir(path)
    exec("mkdir" "-p" path access:{} modify:path)
 
-mv(src, dst)
+mv(src dst)
    native.mv(src, dst)
 
 read(file)
    return native.readFile(file)
 
-replace(data, original, replacement)
+replace(data original replacement)
    result, count = native.replace(data, original, replacement)
    return result, count
 
 rm(file)
    native.rm(file)
 
-setUptodate(cacheFile, output, accessedFiles:{})
+setUptodate(cacheFile output accessedFiles:{})
    native.setUptodate(cacheFile, output[0], output[1], fileset(accessedFiles))
 
 sign(n)
@@ -80,7 +80,7 @@ sign(n)
 size(value)
    return native.size(value)
 
-split(value, delimiter:" ", removeEmpty:false)
+split(value delimiter:" " removeEmpty:false)
    return native.split(value, delimiter, removeEmpty)
 
 sum(n...)
@@ -89,11 +89,11 @@ sum(n...)
       result += i
    return result
 
-startsWith(data, element)
+startsWith(data element)
    return indexOf(data element) == 0
 
 
-cc(files..., flags:{})
+cc(files... flags:{})
    result = {}
    failed = false
    env = {env("LANG"), env("LC_CTYPE"), env("LC_MESSAGES"), env("LC_ALL"), env("GCC_EXEC_PREFIX"), env("COMPILER_PATH"), env("LIBRARY_PATH"), env("CPATH"), env("C_INCLUDE_PATH"), env("CPLUS_INCLUDE_PATH"), env("OBJC_INCLUDE_PATH")}
@@ -115,7 +115,7 @@ cc(files..., flags:{})
    fail(condition:failed)
    return result
 
-link(files..., flags:{}, libs:{}, name:"a.out")
+link(files... flags:{} libs:{} name:"a.out")
    files = fileset(files)
    env = {env("LANG"), env("LC_CTYPE"), env("LC_MESSAGES"), env("LC_ALL"), env("GCC_EXEC_PREFIX"), env("COMPILER_PATH"), env("LIBRARY_PATH"), env("CPATH"), env("C_INCLUDE_PATH"), env("CPLUS_INCLUDE_PATH"), env("OBJC_INCLUDE_PATH")}
    libargs = {}

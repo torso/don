@@ -2002,11 +2002,6 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
                 {
                     break;
                 }
-                if (!readOperator(state, ','))
-                {
-                    error(state, "Expected ',' or ')'.");
-                    return false;
-                }
                 skipWhitespace(state);
             }
         }
