@@ -3,19 +3,19 @@
 extern void NamespaceInit(void);
 extern void NamespaceDispose(void);
 
-extern namespaceref NamespaceCreate(stringref name);
+extern namespaceref NamespaceCreate(objectref name);
 
-extern void NamespaceAddField(namespaceref ns, stringref name, fieldref field);
-extern void NamespaceAddFunction(namespaceref ns, stringref name,
+extern void NamespaceAddField(namespaceref ns, objectref name, fieldref field);
+extern void NamespaceAddFunction(namespaceref ns, objectref name,
                                  functionref function);
-extern void NamespaceAddTarget(namespaceref ns, stringref name,
+extern void NamespaceAddTarget(namespaceref ns, objectref name,
                                functionref target);
 
-extern stringref NamespaceGetName(namespaceref ns);
-extern namespaceref NamespaceGetNamespace(namespaceref ns, stringref name);
-extern fieldref NamespaceGetField(namespaceref ns, stringref name);
-extern functionref NamespaceGetFunction(namespaceref ns, stringref name);
-extern functionref NamespaceGetTarget(namespaceref ns, stringref name);
+extern objectref NamespaceGetName(namespaceref ns);
+extern namespaceref NamespaceGetNamespace(namespaceref ns, objectref name);
+extern fieldref NamespaceGetField(namespaceref ns, objectref name);
+extern functionref NamespaceGetFunction(namespaceref ns, objectref name);
+extern functionref NamespaceGetTarget(namespaceref ns, objectref name);
 
-extern fieldref NamespaceLookupField(namespaceref ns, stringref name);
-extern functionref NamespaceLookupFunction(namespaceref ns, stringref name);
+extern fieldref NamespaceLookupField(namespaceref ns, objectref name);
+extern functionref NamespaceLookupFunction(namespaceref ns, objectref name);

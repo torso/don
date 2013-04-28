@@ -7,6 +7,7 @@
 #include "file.h"
 #include "hash.h"
 #include "math.h"
+#include "parser.h"
 #include "stringpool.h"
 #include "util.h"
 #include "work.h"
@@ -77,10 +78,6 @@ static const char *getString(objectref object)
     case TYPE_STRING:
         return (const char*)HeapGetObjectData(object);
 
-    case TYPE_STRING_POOLED:
-        return StringPoolGetString(
-            unboxReference(TYPE_STRING_POOLED, object));
-
     case TYPE_STRING_WRAPPED:
         return *(const char**)HeapGetObjectData(object);
 
@@ -126,7 +123,6 @@ static boolean isCollectionType(ObjectType type)
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_STRING:
-    case TYPE_STRING_POOLED:
     case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
     case TYPE_FILE:
@@ -177,9 +173,11 @@ void HeapInit(void)
     HeapPageLimit = HeapPageIndex[0] + PAGE_SIZE;
     HeapPageFree = HeapPageIndex[0] + sizeof(int);
     HeapPageOffset = 0;
+    StringPoolInit();
+    ParserAddKeywords();
     HeapTrue = HeapFinishAlloc(heapAlloc(TYPE_BOOLEAN_TRUE, 0));
     HeapFalse = HeapFinishAlloc(heapAlloc(TYPE_BOOLEAN_FALSE, 0));
-    HeapEmptyString = HeapFinishAlloc(heapAlloc(TYPE_STRING, 0));
+    HeapEmptyString = HeapFinishAlloc(heapAlloc(TYPE_STRING, 1));
     HeapEmptyList = HeapFinishAlloc(heapAlloc(TYPE_ARRAY, 0));
     HeapNewline = HeapCreateString("\n", 1);
 }
@@ -294,7 +292,6 @@ void HeapHash(objectref object, HashState *hash)
         break;
 
     case TYPE_STRING:
-    case TYPE_STRING_POOLED:
     case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         value = TYPE_STRING;
@@ -357,7 +354,6 @@ boolean HeapEquals(objectref object1, objectref object2)
         return false;
 
     case TYPE_STRING:
-    case TYPE_STRING_POOLED:
     case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         size1 = HeapStringLength(object1);
@@ -507,21 +503,20 @@ objectref HeapCreateString(const char *restrict string, size_t length)
         return HeapEmptyString;
     }
 
-    objectData = HeapAlloc(TYPE_STRING, length);
+    objectData = HeapAlloc(TYPE_STRING, length + 1);
     memcpy(objectData, string, length);
+    objectData[length] = 0;
     return HeapFinishAlloc(objectData);
 }
 
 objectref HeapCreateUninitialisedString(size_t length, char **data)
 {
+    byte *objectData;
     assert(length);
-    *(byte**)data = HeapAlloc(TYPE_STRING, length);
-    return HeapFinishAlloc((byte*)*data);
-}
-
-objectref HeapCreatePooledString(stringref string)
-{
-    return boxReference(TYPE_STRING_POOLED, string);
+    objectData = HeapAlloc(TYPE_STRING, length + 1);
+    objectData[length] = 0;
+    *(byte**)data = objectData;
+    return HeapFinishAlloc(objectData);
 }
 
 objectref HeapCreateWrappedString(const char *restrict string,
@@ -560,7 +555,6 @@ objectref HeapCreateSubstring(objectref string, size_t offset, size_t length)
     case TYPE_STRING:
         break;
 
-    case TYPE_STRING_POOLED:
     case TYPE_STRING_WRAPPED:
         return HeapCreateWrappedString(&getString(string)[offset], length);
 
@@ -595,7 +589,6 @@ boolean HeapIsString(objectref object)
     switch (HeapGetObjectType(object))
     {
     case TYPE_STRING:
-    case TYPE_STRING_POOLED:
     case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         return true;
@@ -614,6 +607,12 @@ boolean HeapIsString(objectref object)
     }
     assert(false);
     return false;
+}
+
+const char *HeapGetString(objectref object)
+{
+    assert(HeapGetObjectType(object) == TYPE_STRING);
+    return (const char*)HeapGetObjectData(object);
 }
 
 size_t HeapStringLength(objectref object)
@@ -652,11 +651,7 @@ size_t HeapStringLength(objectref object)
         return size;
 
     case TYPE_STRING:
-        return HeapGetObjectSize(object);
-
-    case TYPE_STRING_POOLED:
-        return StringPoolGetStringLength(
-            unboxReference(TYPE_STRING_POOLED, object));
+        return HeapGetObjectSize(object) - 1;
 
     case TYPE_STRING_WRAPPED:
         return *(size_t*)&HeapGetObjectData(object)[sizeof(const char**)];
@@ -745,7 +740,6 @@ char *HeapWriteString(objectref object, char *dst)
         return dst + size + 1;
 
     case TYPE_STRING:
-    case TYPE_STRING_POOLED:
     case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         size = HeapStringLength(object);
@@ -1107,7 +1101,6 @@ size_t HeapCollectionSize(objectref object)
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_STRING:
-    case TYPE_STRING_POOLED:
     case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
     case TYPE_FILE:
@@ -1175,7 +1168,6 @@ boolean HeapCollectionGet(objectref object, objectref indexObject,
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_STRING:
-    case TYPE_STRING_POOLED:
     case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
     case TYPE_FILE:
@@ -1398,9 +1390,10 @@ static objectref executeBinary(Instruction op,
         {
             return HeapEmptyString;
         }
-        data = HeapAlloc(TYPE_STRING, size1 + size2);
+        data = HeapAlloc(TYPE_STRING, size1 + size2 + 1);
         HeapWriteString(value2, (char*)data);
         HeapWriteString(value1, (char*)data + size1);
+        data[size1 + size2] = 0;
         return HeapFinishAlloc(data);
 
     case OP_INDEXED_ACCESS:

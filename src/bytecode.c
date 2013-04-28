@@ -76,7 +76,7 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_FILESET:
         printf(" %u: fileset %s\n", ip,
-               StringPoolGetString(BytecodeReadRef(&bytecode)));
+               HeapGetString(BytecodeReadRef(&bytecode)));
         break;
 
     case OP_POP:
@@ -231,13 +231,13 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         function = BytecodeReadRef(&bytecode);
         value = *bytecode++;
         printf(" %u: invoke \"%s\" return: %u\n", ip,
-               StringPoolGetString(FunctionIndexGetName(function)), value);
+               HeapGetString(FunctionIndexGetName(function)), value);
         break;
 
     case OP_INVOKE_NATIVE:
         nativeFunction = refFromUint(*bytecode++);
         printf(" %u: invoke native \"%s\"\n",
-               ip, StringPoolGetString(NativeGetName(nativeFunction)));
+               ip, HeapGetString(NativeGetName(nativeFunction)));
         break;
 
     case OP_UNKNOWN_VALUE:

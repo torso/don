@@ -4,7 +4,6 @@ typedef enum
     TYPE_BOOLEAN_FALSE,
     TYPE_INTEGER,
     TYPE_STRING,
-    TYPE_STRING_POOLED,
     TYPE_STRING_WRAPPED,
     TYPE_SUBSTRING,
     TYPE_FILE,
@@ -53,12 +52,18 @@ extern nonnull int HeapIntegerSign(objectref object);
 extern nonnull objectref HeapCreateString(const char *string, size_t length);
 extern nonnull objectref HeapCreateUninitialisedString(size_t length,
                                                        char **data);
-extern nonnull objectref HeapCreatePooledString(stringref string);
 extern nonnull objectref HeapCreateWrappedString(const char *string,
                                                  size_t length);
 extern nonnull objectref HeapCreateSubstring(objectref string, size_t offset,
                                              size_t length);
 extern nonnull boolean HeapIsString(objectref object);
+
+/*
+  Returns a null-terminated string. This function must only be used when the
+  string was added through the string pool. (This should be true for all code
+  running before the VM starts.)
+*/
+extern nonnull const char *HeapGetString(objectref object);
 
 /*
   Returns the size of the string in bytes. If the value isn't a string, the

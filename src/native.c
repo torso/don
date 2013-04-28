@@ -28,7 +28,7 @@ typedef boolean (*invoke)(void*);
 
 typedef struct
 {
-    stringref name;
+    objectref name;
     preInvoke preFunction;
     invoke function;
     uint parameterCount;
@@ -1022,7 +1022,7 @@ void NativeWork(Work *work)
     assert(finished);
 }
 
-nativefunctionref NativeFindFunction(stringref name)
+nativefunctionref NativeFindFunction(objectref name)
 {
     uint i;
     for (i = 1; i < NATIVE_FUNCTION_COUNT; i++)
@@ -1035,7 +1035,7 @@ nativefunctionref NativeFindFunction(stringref name)
     return 0;
 }
 
-stringref NativeGetName(nativefunctionref function)
+objectref NativeGetName(nativefunctionref function)
 {
     return getFunctionInfo(function)->name;
 }

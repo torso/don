@@ -72,11 +72,10 @@ typedef ref_t functionref;
 typedef ref_t namespaceref;
 typedef ref_t nativefunctionref;
 typedef ref_t objectref;
-typedef ref_t stringref;
 
 typedef struct
 {
-    stringref name;
+    objectref name;
     objectref value;
 } ParameterInfo;
 

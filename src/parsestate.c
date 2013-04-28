@@ -66,7 +66,7 @@ static uint16 getFreeLocalIndex(ParseState *state)
     return (uint16)count;
 }
 
-static uint16 getLocalIndex(ParseState *state, stringref name)
+static uint16 getLocalIndex(ParseState *state, objectref name)
 {
     uint local;
     ParseStateCheck(state);
@@ -86,7 +86,7 @@ static uint16 getLocalIndex(ParseState *state, stringref name)
 
 void ParseStateInit(ParseState *state, bytevector *bytecode,
                     namespaceref ns, functionref function,
-                    stringref filename, uint line, uint offset)
+                    objectref filename, uint line, uint offset)
 {
     const ParameterInfo *parameterInfo;
     uint parameterCount;
@@ -95,8 +95,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
 
     assert(filename);
     assert(line == 1 || line <= offset);
-    FileOpen(&state->fh, StringPoolGetString(filename),
-             StringPoolGetStringLength(filename));
+    FileOpen(&state->fh, HeapGetString(filename), HeapStringLength(filename));
     FileMMap(&state->fh, &state->start, &size);
     state->current = state->start + offset;
     state->limit = state->start + size;
@@ -120,7 +119,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
                 {
                     IntHashMapDispose(&state->locals);
                     setError(state, "Multiple uses of parameter name '%s'.",
-                             StringPoolGetString(parameterInfo->name));
+                             HeapGetString(parameterInfo->name));
                     return;
                 }
             }
@@ -293,7 +292,7 @@ uint ParseStateBlockIndent(ParseState *state)
 }
 
 
-boolean ParseStateIsParameter(ParseState *state, stringref name)
+boolean ParseStateIsParameter(ParseState *state, objectref name)
 {
     uint local = IntHashMapGet(&state->locals, uintFromRef(name));
     if (!local)
@@ -303,7 +302,7 @@ boolean ParseStateIsParameter(ParseState *state, stringref name)
     return local <= FunctionIndexGetParameterCount(state->function);
 }
 
-int ParseStateGetVariableIndex(ParseState *state, stringref name)
+int ParseStateGetVariableIndex(ParseState *state, objectref name)
 {
     uint16 local = getLocalIndex(state, name);
     if (local == UINT16_MAX)
@@ -313,7 +312,7 @@ int ParseStateGetVariableIndex(ParseState *state, stringref name)
     return local;
 }
 
-boolean ParseStateGetVariable(ParseState *state, stringref name)
+boolean ParseStateGetVariable(ParseState *state, objectref name)
 {
     uint16 local = getLocalIndex(state, name);
     if (local == UINT16_MAX)
@@ -324,7 +323,7 @@ boolean ParseStateGetVariable(ParseState *state, stringref name)
     return true;
 }
 
-boolean ParseStateSetVariable(ParseState *state, stringref name)
+boolean ParseStateSetVariable(ParseState *state, objectref name)
 {
     uint16 local = getLocalIndex(state, name);
     if (local == UINT16_MAX)
@@ -434,7 +433,7 @@ void ParseStateWriteList(ParseState *state, uint size)
     BVAddUint(state->bytecode, size);
 }
 
-void ParseStateWriteFileset(ParseState *state, stringref pattern)
+void ParseStateWriteFileset(ParseState *state, objectref pattern)
 {
     ParseStateCheck(state);
     ParseStateWriteInstruction(state, OP_FILESET);

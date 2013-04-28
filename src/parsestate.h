@@ -13,7 +13,7 @@ typedef struct
     namespaceref ns;
     functionref function;
     File fh;
-    stringref filename;
+    objectref filename;
     uint line;
     uint statementLine;
     uint indent;
@@ -29,7 +29,7 @@ extern nonnull void ParseStateCheck(const ParseState *state);
 extern void ParseStateInit(ParseState *restrict state,
                            bytevector *restrict bytecode,
                            namespaceref ns, functionref function,
-                           stringref filename, uint line, uint offset);
+                           objectref filename, uint line, uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
 extern nonnull boolean ParseStateFinish(ParseState *restrict state);
 extern nonnull boolean ParseStateFinishBlock(ParseState *restrict state,
@@ -43,10 +43,10 @@ extern nonnull void ParseStateFinishJump(ParseState *state, size_t branch);
 extern nonnull void ParseStateSetIndent(ParseState *state, uint indent);
 extern nonnull uint ParseStateBlockIndent(ParseState *state);
 
-extern nonnull boolean ParseStateIsParameter(ParseState *state, stringref name);
-extern nonnull int ParseStateGetVariableIndex(ParseState *state, stringref name);
-extern nonnull boolean ParseStateGetVariable(ParseState *state, stringref name);
-extern nonnull boolean ParseStateSetVariable(ParseState *state, stringref name);
+extern nonnull boolean ParseStateIsParameter(ParseState *state, objectref name);
+extern nonnull int ParseStateGetVariableIndex(ParseState *state, objectref name);
+extern nonnull boolean ParseStateGetVariable(ParseState *state, objectref name);
+extern nonnull boolean ParseStateSetVariable(ParseState *state, objectref name);
 extern nonnull boolean ParseStateCreateUnnamedVariable(ParseState *state,
                                                        uint16 *result);
 extern nonnull void ParseStateGetUnnamedVariable(ParseState *state,
@@ -64,7 +64,7 @@ extern nonnull void ParseStateReorderStack(ParseState *state,
                                            const uint16 *reorder, uint16 count);
 extern nonnull void ParseStateWriteList(ParseState *state, uint size);
 extern nonnull void ParseStateWriteFileset(ParseState *state,
-                                           stringref pattern);
+                                           objectref pattern);
 extern nonnull void ParseStateWriteBeginCondition(ParseState *state);
 extern nonnull boolean ParseStateWriteSecondConsequent(ParseState *state);
 extern nonnull boolean ParseStateWriteFinishCondition(ParseState *state);

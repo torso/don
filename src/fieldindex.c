@@ -9,7 +9,7 @@
 typedef struct
 {
     namespaceref ns;
-    stringref filename;
+    objectref filename;
     uint line;
     uint fileOffset;
     uint bytecodeStart;
@@ -62,7 +62,7 @@ void FieldIndexFinishBytecode(const byte *parsed, bytevector *bytecode)
 }
 
 
-static fieldref addField(namespaceref ns, stringref filename, uint line,
+static fieldref addField(namespaceref ns, objectref filename, uint line,
                          uint fileOffset)
 {
     size_t size = BVSize(&fieldTable);
@@ -79,7 +79,7 @@ static fieldref addField(namespaceref ns, stringref filename, uint line,
 }
 
 fieldref FieldIndexAdd(namespaceref ns,
-                       stringref filename, uint line, uint fileOffset)
+                       objectref filename, uint line, uint fileOffset)
 {
     return addField(ns, filename, line, fileOffset);
 }
@@ -126,7 +126,7 @@ namespaceref FieldIndexGetNamespace(fieldref field)
     return getFieldInfo(field)->ns;
 }
 
-stringref FieldIndexGetFilename(fieldref field)
+objectref FieldIndexGetFilename(fieldref field)
 {
     return getFieldInfo(field)->filename;
 }

@@ -73,13 +73,13 @@ int main(int argc, const char **argv)
     const char *env;
     size_t envLength;
     char *string;
-    stringref filename;
+    objectref filename;
     File inputFile;
     char *cacheDirectory;
     size_t cacheDirectoryLength;
     File donNamespaceFile;
     namespaceref defaultNamespace;
-    stringref name;
+    objectref name;
     fieldref field;
     functionref function;
     boolean parseOptions = true;
@@ -94,8 +94,7 @@ int main(int argc, const char **argv)
 
     IVInit(&targets, 4);
     LogInit();
-    StringPoolInit();
-    ParserAddKeywords();
+    HeapInit();
     FileInit();
 
     for (i = 1; i < argc; i++)
@@ -192,7 +191,6 @@ int main(int argc, const char **argv)
         IVAddRef(&targets, name);
     }
 
-    HeapInit();
     FunctionIndexInit();
     FunctionIndexAddFunction(0, StringPoolAdd(""), 0, 0, 0);
     FieldIndexInit();
@@ -207,8 +205,8 @@ int main(int argc, const char **argv)
                             &size);
     filename = StringPoolAdd2(string, size);
     free(string);
-    FileOpen(&donNamespaceFile, StringPoolGetString(filename),
-             StringPoolGetStringLength(filename));
+    FileOpen(&donNamespaceFile, HeapGetString(filename),
+             HeapStringLength(filename));
     FileMMap(&donNamespaceFile, &p, &size);
     ParseFile(filename, NamespaceCreate(StringPoolAdd("don")));
 
@@ -218,8 +216,7 @@ int main(int argc, const char **argv)
                             &size);
     filename = StringPoolAdd2(string, size);
     free(string);
-    FileOpen(&inputFile, StringPoolGetString(filename),
-             StringPoolGetStringLength(filename));
+    FileOpen(&inputFile, HeapGetString(filename), HeapStringLength(filename));
     FileMMap(&inputFile, &p, &size);
     defaultNamespace = NamespaceCreate(0);
     ParseFile(filename, defaultNamespace);
@@ -275,7 +272,7 @@ int main(int argc, const char **argv)
             else if (FunctionIndexGetBytecodeOffset(function))
             {
                 printf("Function %s:\n",
-                       StringPoolGetString(FunctionIndexGetName(function)));
+                       HeapGetString(FunctionIndexGetName(function)));
                 BytecodeDisassembleFunction(
                     bytecode + FunctionIndexGetBytecodeOffset(function),
                     bytecodeLimit);
@@ -294,8 +291,7 @@ int main(int argc, const char **argv)
         name = IVGetRef(&targets, j);
         if (!NamespaceGetTarget(defaultNamespace, name))
         {
-            fprintf(stderr, "'%s' is not a target.\n",
-                    StringPoolGetString(name));
+            fprintf(stderr, "'%s' is not a target.\n", HeapGetString(name));
             fail = true;
         }
     }

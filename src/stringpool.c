@@ -1,5 +1,7 @@
 #include <string.h>
 #include "common.h"
+#include "instruction.h"
+#include "heap.h"
 #include "stringpool.h"
 #include "util.h"
 
@@ -10,8 +12,6 @@
 #define TABLE_ENTRY_VALUE 1
 #define TABLE_ENTRY_SIZE 2
 
-static char *stringData = null;
-static size_t dataSize = 0;
 static uint *table = null;
 
 
@@ -45,7 +45,7 @@ static uint getSlotHash(const uint *t, uint slot)
     return t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_HASH];
 }
 
-static stringref getSlotValue(const uint *t, uint slot)
+static objectref getSlotValue(const uint *t, uint slot)
 {
     checkSlot(t, slot);
     return refFromUint(t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE]);
@@ -62,40 +62,36 @@ static boolean slotContainsString(const uint *t, uint slot, uint hash,
 {
     checkTable(t);
     return getSlotHash(t, slot) == hash &&
-        StringPoolGetStringLength(getSlotValue(t, slot)) == length &&
-        memcmp(StringPoolGetString(getSlotValue(t, slot)), string, length) == 0;
+        HeapStringLength(getSlotValue(t, slot)) == length &&
+        memcmp(HeapGetString(getSlotValue(t, slot)), string, length) == 0;
 }
 
 void StringPoolInit(void)
 {
-    assert(!stringData);
     assert(!table);
-    stringData = (char*)malloc(65536);
     table = (uint*)calloc(1024 + TABLE_DATA_BEGIN, sizeof(uint));
     table[TABLE_SIZE] = 1024;
 }
 
 void StringPoolDispose(void)
 {
-    free(stringData);
     free(table);
 }
 
-stringref StringPoolAdd(const char *token)
+objectref StringPoolAdd(const char *token)
 {
     assert(token != null);
     return StringPoolAdd2(token, strlen(token));
 }
 
-stringref StringPoolAdd2(const char *token, size_t length)
+objectref StringPoolAdd2(const char *token, size_t length)
 {
     uint hash;
     uint slot;
-    stringref ref;
+    objectref ref;
     uint *cachedTable = table;
 
     assert(token);
-    assert(stringData);
     assert(cachedTable);
     assert(length <= 65535);
 
@@ -113,30 +109,8 @@ stringref StringPoolAdd2(const char *token, size_t length)
             slot = 0;
         }
     }
-    stringData[dataSize++] = (char)(length >> 8);
-    stringData[dataSize++] = (char)length;
-    ref = refFromSize(dataSize);
-    memcpy(&stringData[dataSize], token, length);
-    stringData[dataSize + length] = 0;
+    ref = HeapCreateString(token, length);
     table[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE] = uintFromRef(ref);
     table[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_HASH] = hash;
-    dataSize += length + 1;
     return ref;
-}
-
-const char *StringPoolGetString(stringref ref)
-{
-    assert(stringData);
-    assert(ref);
-    assert((size_t)ref < dataSize);
-    return &stringData[sizeFromRef(ref)];
-}
-
-size_t StringPoolGetStringLength(stringref ref)
-{
-    assert(stringData);
-    assert(ref);
-    assert((size_t)ref < dataSize);
-    return (size_t)((stringData[sizeFromRef(ref) - 2] << 8) +
-                    stringData[sizeFromRef(ref) - 1]);
 }

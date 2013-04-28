@@ -150,10 +150,10 @@ boolean LogFlushParseErrors(void)
     return hasParseError;
 }
 
-void LogParseError(stringref filename, size_t line, const char *format, va_list ap)
+void LogParseError(objectref filename, size_t line, const char *format, va_list ap)
 {
     hasParseError = true;
-    fprintf(stderr, "%s:%ld: ", StringPoolGetString(filename), line);
+    fprintf(stderr, "%s:%ld: ", HeapGetString(filename), line);
     vfprintf(stderr, format, ap);
     fprintf(stderr, "\n");
 }

@@ -53,7 +53,7 @@ static void printWork(const char *prefix, const Work *work)
     }
     *(b-2) = 0;
     printf("%s[%p] %s(%s)\n", prefix, (void*)work->vm,
-           StringPoolGetString(NativeGetName(work->function)), buffer);
+           HeapGetString(NativeGetName(work->function)), buffer);
     free(buffer);
 }
 

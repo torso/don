@@ -99,7 +99,7 @@ static void execute(VM *vm)
     size_t size;
     size_t src;
     size_t dst;
-    stringref string;
+    objectref string;
     byte *objectData;
     functionref function;
     nativefunctionref nativeFunction;
@@ -149,9 +149,8 @@ static void execute(VM *vm)
 
         case OP_FILESET:
             string = BytecodeReadRef(&ip);
-            VMPush(vm, HeapCreateFilesetGlob(
-                       StringPoolGetString(string),
-                       StringPoolGetStringLength(string)));
+            VMPush(vm, HeapCreateFilesetGlob(HeapGetString(string),
+                                             HeapStringLength(string)));
             break;
 
         case OP_POP:

@@ -41,10 +41,10 @@ typedef enum
 
 typedef struct
 {
-    stringref identifier;
+    objectref identifier;
     ExpressionType expressionType;
     ValueType valueType;
-    stringref valueIdentifier;
+    objectref valueIdentifier;
     objectref constant;
     fieldref field;
     nativefunctionref nativeFunction;
@@ -52,18 +52,18 @@ typedef struct
     boolean parseConstant;
 } ExpressionState;
 
-static stringref keywordElse;
-static stringref keywordFalse;
-static stringref keywordFor;
-static stringref keywordIf;
-static stringref keywordIn;
-static stringref keywordNull;
-static stringref keywordReturn;
-static stringref keywordTrue;
-static stringref keywordWhile;
+static objectref keywordElse;
+static objectref keywordFalse;
+static objectref keywordFor;
+static objectref keywordIf;
+static objectref keywordIn;
+static objectref keywordNull;
+static objectref keywordReturn;
+static objectref keywordTrue;
+static objectref keywordWhile;
 
-static stringref maxStatementKeyword;
-static stringref maxKeyword;
+static objectref maxStatementKeyword;
+static objectref maxKeyword;
 
 static boolean parseExpression(ParseState *state, ExpressionState *estate,
                                boolean constant);
@@ -199,7 +199,7 @@ static boolean peekComment(const ParseState *state)
     return state->current[0] == ';';
 }
 
-static boolean isKeyword(stringref identifier)
+static boolean isKeyword(objectref identifier)
 {
     return identifier <= maxKeyword;
 }
@@ -210,7 +210,7 @@ static boolean peekIdentifier(const ParseState *state)
     return isInitialIdentifierCharacter(state->current[0]);
 }
 
-static stringref readIdentifier(ParseState *state)
+static objectref readIdentifier(ParseState *state)
 {
     const byte *begin = state->current;
 
@@ -220,7 +220,7 @@ static stringref readIdentifier(ParseState *state)
     return StringPoolAdd2((const char*)begin, getOffset(state, begin));
 }
 
-static stringref peekReadIdentifier(ParseState *state)
+static objectref peekReadIdentifier(ParseState *state)
 {
     if (peekIdentifier(state))
     {
@@ -229,9 +229,9 @@ static stringref peekReadIdentifier(ParseState *state)
     return 0;
 }
 
-static stringref readVariableName(ParseState *state)
+static objectref readVariableName(ParseState *state)
 {
-    stringref identifier = peekReadIdentifier(state);
+    objectref identifier = peekReadIdentifier(state);
     if (!identifier || isKeyword(identifier))
     {
         error(state, "Expected variable name.");
@@ -240,14 +240,14 @@ static stringref readVariableName(ParseState *state)
     return identifier;
 }
 
-static boolean readExpectedKeyword(ParseState *state, stringref keyword)
+static boolean readExpectedKeyword(ParseState *state, objectref keyword)
 {
-    stringref identifier = peekReadIdentifier(state);
+    objectref identifier = peekReadIdentifier(state);
     if (identifier == keyword)
     {
         return true;
     }
-    statementError(state, "Expected keyword %s.", StringPoolGetString(keyword));
+    statementError(state, "Expected keyword %s.", HeapGetString(keyword));
     return false;
 }
 
@@ -268,12 +268,12 @@ static boolean peekString(const ParseState *state)
     return state->current[0] == '"';
 }
 
-static stringref readString(ParseState *state)
+static objectref readString(ParseState *state)
 {
     bytevector string;
     boolean copied = false;
     const byte *begin;
-    stringref s;
+    objectref s;
 
     ParseStateCheck(state);
     assert(peekString(state));
@@ -343,7 +343,7 @@ static stringref readString(ParseState *state)
     }
 }
 
-static stringref readFilename(ParseState *state)
+static objectref readFilename(ParseState *state)
 {
     const byte *begin;
 
@@ -578,7 +578,7 @@ static boolean finishBoolean(ParseState *state, ExpressionState *estate)
 }
 
 static functionref lookupFunction(ParseState *state, namespaceref ns,
-                                  stringref name)
+                                  objectref name)
 {
     functionref function;
     if (ns)
@@ -587,8 +587,8 @@ static functionref lookupFunction(ParseState *state, namespaceref ns,
         if (!function)
         {
             statementError(state, "Unknown function '%s.%s'.",
-                           StringPoolGetString(NamespaceGetName(ns)),
-                           StringPoolGetString(name));
+                           HeapGetString(NamespaceGetName(ns)),
+                           HeapGetString(name));
         }
     }
     else
@@ -597,7 +597,7 @@ static functionref lookupFunction(ParseState *state, namespaceref ns,
         if (!function)
         {
             statementError(state, "Unknown function '%s'.",
-                           StringPoolGetString(name));
+                           HeapGetString(name));
         }
     }
     return function;
@@ -655,7 +655,7 @@ static boolean parseOrderedNamedArguments(ParseState *state,
 }
 
 static uint findArgumentIndex(const ParameterInfo *parameterInfo,
-                              uint parameterCount, stringref name)
+                              uint parameterCount, objectref name)
 {
     uint i;
     for (i = 0; i < parameterCount; i++)
@@ -691,7 +691,7 @@ static boolean parseNamedArguments(ParseState *state,
         {
             free(unorderedValues);
             error(state, "Invalid parameter name '%s'.",
-                  StringPoolGetString(estate->identifier));
+                  HeapGetString(estate->identifier));
             return false;
         }
         if (argumentIndex < orderedArgumentCount ||
@@ -699,7 +699,7 @@ static boolean parseNamedArguments(ParseState *state,
         {
             free(unorderedValues);
             error(state, "More than one value for parameter '%s'.",
-                  StringPoolGetString(estate->identifier));
+                  HeapGetString(estate->identifier));
             return false;
         }
         if (!readExpectedOperator(state, ':') ||
@@ -740,7 +740,7 @@ static boolean parseNamedArguments(ParseState *state,
             {
                 statementError(
                     state, "No value for parameter '%s' given.",
-                    StringPoolGetString(parameterInfo[index].name));
+                    HeapGetString(parameterInfo[index].name));
                 free(unorderedValues);
                 return false;
             }
@@ -755,7 +755,7 @@ static boolean parseNamedArguments(ParseState *state,
 }
 
 static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
-                                   namespaceref ns, stringref name)
+                                   namespaceref ns, objectref name)
 {
     ExpressionState estateArgument;
     functionref function;
@@ -823,7 +823,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     if (argumentCount < requiredArgumentCount)
     {
         errorOnLine(state, line, "No value for parameter '%s' given.",
-                    StringPoolGetString(parameterInfo[argumentCount].name));
+                    HeapGetString(parameterInfo[argumentCount].name));
         return false;
     }
     while (argumentCount < parameterCount)
@@ -835,7 +835,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
 
 static boolean parseNativeInvocationRest(ParseState *state,
                                          ExpressionState *estate,
-                                         stringref name)
+                                         objectref name)
 {
     nativefunctionref function = NativeFindFunction(name);
     uint parameterCount;
@@ -844,7 +844,7 @@ static boolean parseNativeInvocationRest(ParseState *state,
     if (!function)
     {
         statementError(state, "Unknown native function '%s'.",
-                       StringPoolGetString(name));
+                       HeapGetString(name));
         return false;
     }
     parameterCount = NativeGetParameterCount(function);
@@ -901,8 +901,8 @@ static boolean parseQuotedValue(ParseState *state, ExpressionState *estate)
     }
     estate->expressionType = EXPRESSION_CONSTANT;
     estate->valueType = VALUE_STRING;
-    estate->constant = HeapCreatePooledString(
-        StringPoolAdd2((const char*)begin, getOffset(state, begin)));
+    estate->constant = StringPoolAdd2((const char*)begin,
+                                      getOffset(state, begin));
     return true;
 }
 
@@ -934,8 +934,8 @@ static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
 static boolean parseExpression12(ParseState *state, ExpressionState *estate)
 {
     ExpressionState estate2;
-    stringref identifier = estate->identifier;
-    stringref string;
+    objectref identifier = estate->identifier;
+    objectref string;
     namespaceref ns;
     uint size;
     size_t bytecodeSize;
@@ -974,7 +974,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
                 return true;
             }
             statementError(state, "Unexpected keyword '%s'.",
-                           StringPoolGetString(identifier));
+                           HeapGetString(identifier));
             return false;
         }
         if (estate->parseConstant)
@@ -999,7 +999,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
                     return parseNativeInvocationRest(state, estate, identifier);
                 }
                 statementError(state, "Unknown namespace '%s'.",
-                               StringPoolGetString(identifier));
+                               HeapGetString(identifier));
                 return false;
             }
             identifier = readVariableName(state);
@@ -1016,8 +1016,8 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             if (!estate->field)
             {
                 statementError(state, "Unknown field '%s.%s'.",
-                               StringPoolGetString(NamespaceGetName(ns)),
-                               StringPoolGetString(identifier));
+                               HeapGetString(NamespaceGetName(ns)),
+                               HeapGetString(identifier));
             }
             return true;
         }
@@ -1062,7 +1062,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         }
         estate->expressionType = EXPRESSION_CONSTANT;
         estate->valueType = VALUE_STRING;
-        estate->constant = HeapCreatePooledString(string);
+        estate->constant = string;
         return true;
     }
     if (readOperator(state, '('))
@@ -1146,10 +1146,10 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             return false;
         }
         estate->valueType = VALUE_FILE;
-        if (!strchr(StringPoolGetString(string), '*'))
+        if (!strchr(HeapGetString(string), '*'))
         {
             estate->expressionType = EXPRESSION_CONSTANT;
-            estate->constant = HeapCreatePath(HeapCreatePooledString(string));
+            estate->constant = HeapCreatePath(string);
             return true;
         }
         /* TODO: @{} syntax */
@@ -1716,7 +1716,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
 }
 
 static boolean parseExpressionStatement(ParseState *state,
-                                        stringref identifier)
+                                        objectref identifier)
 {
     ExpressionState estate;
 
@@ -1778,7 +1778,7 @@ static boolean parseFunctionBody(ParseState *state)
     uint indent;
     uint currentIndent = 0;
     uint prevIndent = 0;
-    stringref identifier;
+    objectref identifier;
     size_t target;
     uint16 iterCollection;
     uint16 iterIndex;
@@ -1979,7 +1979,7 @@ static boolean parseFunctionBody(ParseState *state)
 static boolean parseFunctionDeclaration(ParseState *state, functionref function)
 {
     ExpressionState estate;
-    stringref parameterName;
+    objectref parameterName;
     objectref value = 0;
     boolean vararg;
     boolean requireDefaultValues = false;
@@ -2023,7 +2023,7 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
                 else if (requireDefaultValues)
                 {
                     error(state, "Default value for parameter '%s' required.",
-                          StringPoolGetString(parameterName));
+                          HeapGetString(parameterName));
                     return false;
                 }
                 else if (readOperator3(state, '.', '.', '.'))
@@ -2056,7 +2056,7 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
 
 static void parseScript(ParseState *state)
 {
-    stringref name;
+    objectref name;
     boolean allowIndent = false;
 
     ParseStateCheck(state);
@@ -2131,7 +2131,7 @@ void ParserAddKeywords(void)
     maxKeyword = keywordWhile;
 }
 
-void ParseFile(stringref filename, namespaceref ns)
+void ParseFile(objectref filename, namespaceref ns)
 {
     ParseState state;
 
