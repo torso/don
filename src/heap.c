@@ -675,7 +675,7 @@ size_t HeapStringLength(objectref object)
         {
             size--;
         }
-        size = size * 2 + 2;
+        size = size + 2;
         for (index = 0; HeapCollectionGet(object, HeapBoxSize(index++), &item);)
         {
             size += HeapStringLength(item);
@@ -764,7 +764,6 @@ char *HeapWriteString(objectref object, char *dst)
         {
             if (index)
             {
-                *dst++ = ',';
                 *dst++ = ' ';
             }
             dst = HeapWriteString(item, dst);

@@ -1037,7 +1037,6 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         do
         {
             size++;
-            skipWhitespace(state);
             estate2.identifier = 0;
             if (!parseExpression(state, &estate2, false))
             {
@@ -1069,7 +1068,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             }
             skipWhitespace(state);
         }
-        while (readOperator(state, ','));
+        while (!readOperator(state, '}'));
         if (constant)
         {
             BVSetSize(state->bytecode, bytecodeSize);
@@ -1081,8 +1080,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         {
             ParseStateWriteList(state, size);
         }
-        skipWhitespace(state);
-        return readExpectedOperator(state, '}');
+        return true;
     }
     if (readOperator(state, '@'))
     {

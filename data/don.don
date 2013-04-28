@@ -46,7 +46,7 @@ fileset(value)
    return native.fileset(value)
 
 getCache(label version key... echoCachedOutput:true)
-   cacheFile uptodate = native.getCache({label, version, key} echoCachedOutput)
+   cacheFile uptodate = native.getCache({label version key} echoCachedOutput)
    return cacheFile uptodate
 
 indexOf(data element)
@@ -96,13 +96,13 @@ startsWith(data element)
 cc(files... flags:{})
    result = {}
    failed = false
-   env = {env("LANG"), env("LC_CTYPE"), env("LC_MESSAGES"), env("LC_ALL"), env("GCC_EXEC_PREFIX"), env("COMPILER_PATH"), env("LIBRARY_PATH"), env("CPATH"), env("C_INCLUDE_PATH"), env("CPLUS_INCLUDE_PATH"), env("OBJC_INCLUDE_PATH")}
+   env = {env("LANG") env("LC_CTYPE") env("LC_MESSAGES") env("LC_ALL") env("GCC_EXEC_PREFIX") env("COMPILER_PATH") env("LIBRARY_PATH") env("CPATH") env("C_INCLUDE_PATH") env("CPLUS_INCLUDE_PATH") env("OBJC_INCLUDE_PATH")}
    for f in fileset(files)
       cache uptodate = getCache("cc" 0 f flags env)
       ofile = file(cache filename(f) "o")
       if !uptodate
          dependFile = file(cache filename(f) "d")
-         out exitcode = exec("cc" "-c" "-MD" "-MF" dependFile "-o" ofile flags f fail:false modify:{dependFile, ofile})
+         out exitcode = exec("cc" "-c" "-MD" "-MF" dependFile "-o" ofile flags f fail:false modify:{dependFile ofile})
          if exitcode
             failed = true
          else
@@ -117,7 +117,7 @@ cc(files... flags:{})
 
 link(files... flags:{} libs:{} name:"a.out")
    files = fileset(files)
-   env = {env("LANG"), env("LC_CTYPE"), env("LC_MESSAGES"), env("LC_ALL"), env("GCC_EXEC_PREFIX"), env("COMPILER_PATH"), env("LIBRARY_PATH"), env("CPATH"), env("C_INCLUDE_PATH"), env("CPLUS_INCLUDE_PATH"), env("OBJC_INCLUDE_PATH")}
+   env = {env("LANG") env("LC_CTYPE") env("LC_MESSAGES") env("LC_ALL") env("GCC_EXEC_PREFIX") env("COMPILER_PATH") env("LIBRARY_PATH") env("CPATH") env("C_INCLUDE_PATH") env("CPLUS_INCLUDE_PATH") env("OBJC_INCLUDE_PATH")}
    libargs = {}
    for l in libs
       libargs = libargs::{"-l"l}
