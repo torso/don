@@ -1,5 +1,5 @@
 test(a b c expected count)
-   result, i = replace(a b c)
+   result i = replace(a b c)
    if result != expected || i != count
       echo("FAIL: "a" "b" "c": "result" "i)
 

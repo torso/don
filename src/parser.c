@@ -577,34 +577,6 @@ static boolean finishBoolean(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean finishVoidValue(ParseState *state, ExpressionState *estate)
-{
-    switch (estate->expressionType)
-    {
-    case EXPRESSION_SIMPLE:
-    case EXPRESSION_VARIABLE:
-    case EXPRESSION_CONSTANT:
-    case EXPRESSION_FIELD:
-        statementError(state, "Not a statement.");
-        return false;
-
-    case EXPRESSION_INVOCATION:
-        ParseStateWriteInvocation(state, estate->function, 0);
-        return true;
-
-    case EXPRESSION_NATIVE_INVOCATION:
-        if (!checkNativeFunctionReturnValueCount(state,
-                                                 estate->nativeFunction, 0))
-        {
-            return false;
-        }
-        ParseStateWriteNativeInvocation(state, estate->nativeFunction);
-        return true;
-    }
-    assert(false);
-    return false;
-}
-
 static functionref lookupFunction(ParseState *state, namespaceref ns,
                                   stringref name)
 {
@@ -1643,7 +1615,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
         BVAddData(&lvalues, (byte*)&estate, sizeof(estate));
         skipWhitespace(state);
     }
-    while (readOperator(state, ','));
+    while (peekIdentifier(state));
     if (!readExpectedOperator(state, '='))
     {
         BVDispose(&lvalues);
@@ -1705,31 +1677,47 @@ static boolean parseExpressionStatement(ParseState *state,
         skipWhitespace(state);
         return parseRValue(state, false) && finishLValue(state, &estate);
     }
-    else if (readOperator2(state, '+', '='))
+    if (readOperator2(state, '+', '='))
     {
         return parseAssignmentExpressionRest(state, &estate, OP_ADD);
     }
-    else if (readOperator2(state, '-', '='))
+    if (readOperator2(state, '-', '='))
     {
         return parseAssignmentExpressionRest(state, &estate, OP_SUB);
     }
-    else if (readOperator2(state, '*', '='))
+    if (readOperator2(state, '*', '='))
     {
         return parseAssignmentExpressionRest(state, &estate, OP_MUL);
     }
-    else if (readOperator2(state, '/', '='))
+    if (readOperator2(state, '/', '='))
     {
         return parseAssignmentExpressionRest(state, &estate, OP_DIV);
     }
-    else if (readOperator2(state, '%', '='))
+    if (readOperator2(state, '%', '='))
     {
         return parseAssignmentExpressionRest(state, &estate, OP_REM);
     }
-    else if (readOperator(state, ','))
+    if (estate.expressionType == EXPRESSION_INVOCATION)
+    {
+        ParseStateWriteInvocation(state, estate.function, 0);
+        return true;
+    }
+    if (estate.expressionType == EXPRESSION_NATIVE_INVOCATION)
+    {
+        if (!checkNativeFunctionReturnValueCount(state,
+                                                 estate.nativeFunction, 0))
+        {
+            return false;
+        }
+        ParseStateWriteNativeInvocation(state, estate.nativeFunction);
+        return true;
+    }
+    if (peekIdentifier(state))
     {
         return parseMultiAssignmentRest(state) && finishLValue(state, &estate);
     }
-    return finishVoidValue(state, &estate);
+    statementError(state, "Not a statement.");
+    return false;
 }
 
 static boolean parseFunctionBody(ParseState *state)

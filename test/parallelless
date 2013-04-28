@@ -1,4 +1,4 @@
 default:
-   output, exitcode = exec("echo" echo:false)
+   output exitcode = exec("echo" echo:false)
    if exitcode < 1
       echo("PASS")

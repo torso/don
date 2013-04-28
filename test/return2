@@ -2,7 +2,7 @@ f()
     return 2 5
 
 default:
-    a, b = f()
+    a b = f()
     if a == 2
         if b == 5
             echo("PASS")

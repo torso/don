@@ -8,7 +8,7 @@ compile(extraflags:{} linkflags:{})
 run(args... output:true)
    if valgrind
       logfile = @valgrind-log
-      out, exitcode = exec("valgrind" "-q" "--leak-check=full" "--show-reachable=yes" "--log-file="logfile args env:{"XDG_CACHE_HOME", "tempcache"} fail:false echo:output echoStderr:output)
+      out exitcode = exec("valgrind" "-q" "--leak-check=full" "--show-reachable=yes" "--log-file="logfile args env:{"XDG_CACHE_HOME", "tempcache"} fail:false echo:output echoStderr:output)
       log = read(logfile)
       rm(logfile)
       if (exitcode != 0 || contains(log "** Assertion failed")) && !contains(log "== Process terminating")
@@ -32,7 +32,7 @@ run(args... output:true)
       if output && log != ""
          echo(log)
    else
-      out, exitcode = exec(args env:{"XDG_CACHE_HOME", "tempcache"} fail:false echo:output echoStderr:output)
+      out exitcode = exec(args env:{"XDG_CACHE_HOME", "tempcache"} fail:false echo:output echoStderr:output)
    return out exitcode
 
 dotest(debug:false)
@@ -41,7 +41,7 @@ dotest(debug:false)
    fail = 0
    hasOutput = false
    for f in @test/*
-      out, exitcode = run(program "-i" f output:false)
+      out exitcode = run(program "-i" f output:false)
       if exitcode || out[0] != "PASS\n" || out[1] != ""
          fail += 1
          if hasOutput
@@ -75,18 +75,18 @@ dbgtest:
 
 default:
    valgrind = true
-   out, exitcode = run(compile() "-i" "input")
+   out exitcode = run(compile() "-i" "input")
    fail(condition:exitcode)
 
 prof:
    p = compile()
-   out, exitcode = run(compile(extraflags:{"-pg"} linkflags:{"-pg"}) "-i" "input")
+   out exitcode = run(compile(extraflags:{"-pg"} linkflags:{"-pg"}) "-i" "input")
    fail(condition:exitcode)
    exec("gprof" p)
 
 strace:
    valgrind = false
-   out, exitcode = run("strace" "-qvC" compile() "-i" "input")
+   out exitcode = run("strace" "-qvC" compile() "-i" "input")
    fail(condition:exitcode)
 
 debug:
