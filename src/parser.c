@@ -855,14 +855,13 @@ static boolean parseNativeInvocationRest(ParseState *state,
     assert(parameterCount);
     while (parameterCount--)
     {
-        if (!parseRValue(state, false) ||
-            !readExpectedOperator(state, parameterCount ? ',' : ')'))
+        if (!parseRValue(state, false))
         {
             return false;
         }
         skipWhitespace(state);
     }
-    return true;
+    return readExpectedOperator(state, ')');
 }
 
 static boolean parseBinaryOperationRest(

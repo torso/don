@@ -5,16 +5,16 @@ contains(data element)
    return indexOf(data element) != null
 
 cp(src dst)
-   native.cp(src, dst)
+   native.cp(src dst)
 
 echo(message prefix:null)
-   native.echo(message, prefix)
+   native.echo(message prefix)
 
 env(name)
    return native.getEnv(name)
 
 exec(command... env:{} fail:true echo:true echoStderr:true access:@/ modify:@/)
-   output exitcode internalError = native.exec(command, env, echo, echoStderr, fileset(access), fileset(modify))
+   output exitcode internalError = native.exec(command env echo echoStderr fileset(access) fileset(modify))
    if fail && exitcode != 0
       if internalError == 1
          don.fail("Command not found: "command[0])
@@ -37,7 +37,7 @@ file(path name:null extension:null)
       name = path
       path = null
    fail("Either path or name must be non-null" condition:name == null)
-   return native.file(path, name, extension)
+   return native.file(path name extension)
 
 filename(path)
    return native.filename(path)
@@ -46,33 +46,33 @@ fileset(value)
    return native.fileset(value)
 
 getCache(label version key... echoCachedOutput:true)
-   cacheFile uptodate = native.getCache({label, version, key}, echoCachedOutput)
+   cacheFile uptodate = native.getCache({label, version, key} echoCachedOutput)
    return cacheFile uptodate
 
 indexOf(data element)
-   return native.indexOf(data, element)
+   return native.indexOf(data element)
 
 lines(value trimLastIfEmpty:true)
-   return native.lines(value, trimLastIfEmpty)
+   return native.lines(value trimLastIfEmpty)
 
 mkdir(path)
    exec("mkdir" "-p" path access:{} modify:path)
 
 mv(src dst)
-   native.mv(src, dst)
+   native.mv(src dst)
 
 read(file)
    return native.readFile(file)
 
 replace(data original replacement)
-   result count = native.replace(data, original, replacement)
+   result count = native.replace(data original replacement)
    return result count
 
 rm(file)
    native.rm(file)
 
 setUptodate(cacheFile output accessedFiles:{})
-   native.setUptodate(cacheFile, output[0], output[1], fileset(accessedFiles))
+   native.setUptodate(cacheFile output[0] output[1] fileset(accessedFiles))
 
 sign(n)
    return n > 0 ? 1 : n ? -1 : 0
@@ -81,7 +81,7 @@ size(value)
    return native.size(value)
 
 split(value delimiter:" " removeEmpty:false)
-   return native.split(value, delimiter, removeEmpty)
+   return native.split(value delimiter removeEmpty)
 
 sum(n...)
    result = 0
