@@ -50,6 +50,7 @@ typedef struct
     nativefunctionref nativeFunction;
     functionref function;
     boolean parseConstant;
+    boolean allowSpace;
 } ExpressionState;
 
 static objectref keywordElse;
@@ -67,6 +68,9 @@ static objectref maxKeyword;
 
 static boolean parseExpression(ParseState *state, ExpressionState *estate,
                                boolean constant);
+static boolean parseUnquotedExpression(ParseState *state,
+                                       ExpressionState *estate,
+                                       boolean constant);
 static boolean parseRValue(ParseState *state, boolean constant);
 
 static boolean isInitialIdentifierCharacter(byte c)
@@ -151,6 +155,14 @@ static void skipWhitespace(ParseState *state)
     while (state->current[0] == ' ')
     {
         state->current++;
+    }
+}
+
+static void skipExpressionWhitespace(ParseState *state, ExpressionState *estate)
+{
+    if (estate->allowSpace)
+    {
+        skipWhitespace(state);
     }
 }
 
@@ -908,7 +920,11 @@ static boolean parseQuotedValue(ParseState *state, ExpressionState *estate)
 
 static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
 {
+    ExpressionState estate2;
+    const size_t bytecodeSize = BVSize(state->bytecode);
+    boolean constant = true;
     intvector values;
+    uint size = 0;
 
     ParseStateCheck(state);
     assert(!estate->identifier);
@@ -916,19 +932,57 @@ static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
     skipWhitespace(state);
     while (!readOperator(state, '}'))
     {
-        if (!parseQuotedValue(state, estate))
+        size++;
+        estate2.identifier = 0;
+        if (readOperator(state, '$'))
         {
-            IVDispose(&values);
-            return false;
+            if (!parseUnquotedExpression(state, &estate2, estate->parseConstant))
+            {
+                goto fail;
+            }
+        }
+        else if (!parseQuotedValue(state, &estate2))
+        {
+            goto fail;
+        }
+        if (constant)
+        {
+            if (estate2.expressionType == EXPRESSION_CONSTANT)
+            {
+                IVAdd(&values, estate2.constant);
+            }
+            else
+            {
+                constant = false;
+                IVDispose(&values);
+            }
+        }
+        if (!finishRValue(state, &estate2))
+        {
+            goto fail;
         }
         skipWhitespace(state);
-        IVAdd(&values, estate->constant);
     }
-    estate->expressionType = EXPRESSION_CONSTANT;
     estate->valueType = VALUE_LIST;
-    estate->constant = HeapCreateArrayFromVector(&values);
-    IVDispose(&values);
+    if (constant)
+    {
+        BVSetSize(state->bytecode, bytecodeSize);
+        estate->expressionType = EXPRESSION_CONSTANT;
+        estate->constant = HeapCreateArrayFromVector(&values);
+        IVDispose(&values);
+    }
+    else
+    {
+        estate->expressionType = EXPRESSION_SIMPLE;
+        ParseStateWriteList(state, size);
+    }
     return true;
+fail:
+    if (constant)
+    {
+        IVDispose(&values);
+    }
+    return false;
 }
 
 static boolean parseExpression12(ParseState *state, ExpressionState *estate)
@@ -1068,8 +1122,8 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '('))
     {
         skipWhitespace(state);
-        if (!parseExpression(state, estate, estate->parseConstant) ||
-            !finishRValue(state, estate))
+        estate2.identifier = 0;
+        if (!parseRValue(state, estate->parseConstant))
         {
             return false;
         }
@@ -1251,7 +1305,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
             return false;
         }
         ParseStateWriteInstruction(state, OP_NEG);
-        skipWhitespace(state);
+        skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_SIMPLE;
         estate->valueType = VALUE_NUMBER;
         return true;
@@ -1264,7 +1318,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
             return false;
         }
         ParseStateWriteInstruction(state, OP_NOT);
-        skipWhitespace(state);
+        skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_SIMPLE;
         return true;
     }
@@ -1276,17 +1330,12 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
             return false;
         }
         ParseStateWriteInstruction(state, OP_INV);
-        skipWhitespace(state);
+        skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_SIMPLE;
         estate->valueType = VALUE_NUMBER;
         return true;
     }
-    if (!parseExpression10(state, estate))
-    {
-        return false;
-    }
-    skipWhitespace(state);
-    return true;
+    return parseExpression10(state, estate);
 }
 
 static boolean parseExpression8(ParseState *state, ExpressionState *estate)
@@ -1297,6 +1346,7 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
+        skipExpressionWhitespace(state, estate);
         if (readOperator(state, '*'))
         {
             if (reverseIfOperator(state, '='))
@@ -1524,7 +1574,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
     {
         if (readOperator2(state, '&', '&'))
         {
-            skipWhitespace(state);
+            skipExpressionWhitespace(state, estate);
             if (!finishBoolean(state, estate))
             {
                 return false;
@@ -1540,12 +1590,12 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
             ParseStateFinishJump(state, branch);
             estate->expressionType = EXPRESSION_SIMPLE;
             estate->valueType = VALUE_BOOLEAN;
-            skipWhitespace(state);
+            skipExpressionWhitespace(state, estate);
             continue;
         }
         if (readOperator2(state, '|', '|'))
         {
-            skipWhitespace(state);
+            skipExpressionWhitespace(state, estate);
             if (!finishBoolean(state, estate))
             {
                 return false;
@@ -1561,7 +1611,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
             ParseStateFinishJump(state, branch);
             estate->expressionType = EXPRESSION_SIMPLE;
             estate->valueType = VALUE_BOOLEAN;
-            skipWhitespace(state);
+            skipExpressionWhitespace(state, estate);
             continue;
         }
         break;
@@ -1569,31 +1619,31 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression(ParseState *state, ExpressionState *estate,
-                               boolean constant)
+static boolean parseExpressionRest(ParseState *state, ExpressionState *estate)
 {
-    estate->parseConstant = constant;
+    const boolean parseConstant = estate->parseConstant;
+
     if (!parseExpression2(state, estate))
     {
         return false;
     }
     if (readOperator(state, '?'))
     {
-        skipWhitespace(state);
+        skipExpressionWhitespace(state, estate);
         /* TODO: Avoid recursion. */
         if (!finishBoolean(state, estate))
         {
             return false;
         }
         ParseStateWriteBeginCondition(state);
-        if (!parseRValue(state, constant) ||
+        if (!parseRValue(state, parseConstant) ||
             !readExpectedOperator(state, ':') ||
             !ParseStateWriteSecondConsequent(state))
         {
             return false;
         }
-        skipWhitespace(state);
-        if (!parseRValue(state, constant) ||
+        skipExpressionWhitespace(state, estate);
+        if (!parseRValue(state, parseConstant) ||
             !ParseStateWriteFinishCondition(state))
         {
             return false;
@@ -1603,6 +1653,23 @@ static boolean parseExpression(ParseState *state, ExpressionState *estate,
         return true;
     }
     return true;
+}
+
+static boolean parseExpression(ParseState *state, ExpressionState *estate,
+                               boolean constant)
+{
+    estate->parseConstant = constant;
+    estate->allowSpace = true;
+    return parseExpressionRest(state, estate);
+}
+
+static boolean parseUnquotedExpression(ParseState *state,
+                                       ExpressionState *estate,
+                                       boolean constant)
+{
+    estate->parseConstant = constant;
+    estate->allowSpace = false;
+    return parseExpressionRest(state, estate);
 }
 
 static boolean parseRValue(ParseState *state, boolean constant)

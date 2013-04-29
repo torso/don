@@ -1,4 +1,6 @@
 default:
+   x = 5
+
    if '{} != {}
       echo("FAIL1")
    if '{x} != {"x"}
@@ -7,5 +9,12 @@ default:
       echo("FAIL3")
    if '{x + "2"} != {"x" "+" "\"2\""}
       echo("FAIL4")
+
+   if {x} != {5}
+      echo("FAIL5")
+   if '{$x} != {5}
+      echo("FAIL6")
+   if '{$x-2 $x - 2} != {3 5 '- '2}
+      echo("FAIL7")
 
    echo("PASS")
