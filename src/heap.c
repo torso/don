@@ -356,6 +356,10 @@ boolean HeapEquals(objectref object1, objectref object2)
     case TYPE_STRING:
     case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
+        if (!HeapIsString(object2))
+        {
+            return false;
+        }
         size1 = HeapStringLength(object1);
         size2 = HeapStringLength(object2);
         return size1 == size2 &&
