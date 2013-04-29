@@ -652,7 +652,10 @@ static boolean parseUnnamedArguments(ParseState *state, ExpressionState *estate,
         {
             break;
         }
-        skipWhitespace(state);
+        if (!skipWhitespaceAndNewline(state))
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -676,7 +679,10 @@ static boolean parseOrderedNamedArguments(ParseState *state,
             estate->identifier = 0;
             break;
         }
-        skipWhitespace(state);
+        if (!skipWhitespaceAndNewline(state))
+        {
+            return false;
+        }
         estate->identifier = peekReadIdentifier(state);
     }
     return true;
@@ -738,7 +744,11 @@ static boolean parseNamedArguments(ParseState *state,
         }
         unorderedValues[argumentIndex - orderedArgumentCount] =
             ++unorderedArgumentCount;
-        skipWhitespace(state);
+        if (!skipWhitespaceAndNewline(state))
+        {
+            free(unorderedValues);
+            return false;
+        }
         estate->identifier = peekReadIdentifier(state);
     }
     while (estate->identifier);
