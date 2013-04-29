@@ -280,6 +280,22 @@ static boolean peekString(const ParseState *state)
     return state->current[0] == '"';
 }
 
+static boolean skipWhitespaceAndNewline(ParseState *state)
+{
+    ParseStateCheck(state);
+    skipWhitespace(state);
+    while (peekNewline(state))
+    {
+        skipEndOfLine(state);
+        if (readIndent(state) <= state->indent && !peekNewline(state))
+        {
+            error(state, "Continued line must have increased indentation.");
+            return false;
+        }
+    }
+    return true;
+}
+
 static objectref readString(ParseState *state)
 {
     bytevector string;
@@ -928,8 +944,11 @@ static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
 
     ParseStateCheck(state);
     assert(!estate->identifier);
+    if (!skipWhitespaceAndNewline(state))
+    {
+        return false;
+    }
     IVInit(&values, 16);
-    skipWhitespace(state);
     while (!readOperator(state, '}'))
     {
         size++;
@@ -957,11 +976,10 @@ static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
                 IVDispose(&values);
             }
         }
-        if (!finishRValue(state, &estate2))
+        if (!finishRValue(state, &estate2) || !skipWhitespaceAndNewline(state))
         {
             goto fail;
         }
-        skipWhitespace(state);
     }
     estate->valueType = VALUE_LIST;
     if (constant)

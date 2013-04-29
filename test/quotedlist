@@ -17,4 +17,8 @@ default:
    if '{$x-2 $x - 2} != {3 5 '- '2}
       echo("FAIL7")
 
+   if '{1
+        2} != {'1 '2}
+      echo("FAIL8")
+
    echo("PASS")
