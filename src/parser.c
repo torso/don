@@ -2036,7 +2036,7 @@ static boolean parseFunctionBody(ParseState *state)
             }
             else
             {
-                statementError(state, "Not a statement2.");
+                statementError(state, "Not a statement.");
                 return false;
             }
         }
