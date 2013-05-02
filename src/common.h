@@ -71,6 +71,11 @@ typedef ref_t fieldref;
 typedef ref_t functionref;
 typedef ref_t namespaceref;
 typedef ref_t nativefunctionref;
+
+/*
+  A reference to a value. Generally manipulated by the functions in value.h, but
+  is actually an index in the heap.
+*/
 typedef ref_t vref;
 
 typedef struct

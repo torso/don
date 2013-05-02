@@ -10,6 +10,7 @@
 #include "parser.h"
 #include "stringpool.h"
 #include "util.h"
+#include "value.h"
 #include "work.h"
 
 #define INITIAL_HEAP_INDEX_SIZE 1
@@ -422,33 +423,6 @@ vref HeapFinishAlloc(byte *objectData)
 {
     vref object = heapFinishAlloc(objectData);
     return object;
-}
-
-
-boolean HeapIsTrue(vref object)
-{
-    assert(!HeapIsFutureValue(object));
-    if (object == HeapTrue)
-    {
-        return true;
-    }
-    if (object == HeapFalse || !object)
-    {
-        return false;
-    }
-    if (HeapGetObjectType(object) == TYPE_INTEGER)
-    {
-        return HeapUnboxInteger(object) != 0;
-    }
-    if (HeapIsString(object))
-    {
-        return HeapStringLength(object) != 0;
-    }
-    if (HeapIsCollection(object))
-    {
-        return HeapCollectionSize(object) != 0;
-    }
-    return true;
 }
 
 
@@ -1204,7 +1178,7 @@ static vref executeUnary(Instruction op, vref value)
         return value;
 
     case OP_CAST_BOOLEAN:
-        return HeapIsTrue(value) ? HeapTrue : HeapFalse;
+        return VIsTruthy(value) ? HeapTrue : HeapFalse;
 
     case OP_NOT:
         assert(value == HeapTrue || value == HeapFalse);
@@ -1288,8 +1262,8 @@ static vref executeBinaryPartial(Instruction op, vref object,
         return object;
 
     case OP_AND:
-        if ((!HeapIsFutureValue(value1) && !HeapIsTrue(value1)) ||
-            (!HeapIsFutureValue(value2) && !HeapIsTrue(value2)))
+        if ((!HeapIsFutureValue(value1) && !VIsTruthy(value1)) ||
+            (!HeapIsFutureValue(value2) && !VIsTruthy(value2)))
         {
             return HeapFalse;
         }
@@ -1363,7 +1337,7 @@ static vref executeBinary(Instruction op,
         return HeapCompare(value2, value1) > 0 ? HeapTrue : HeapFalse;
 
     case OP_AND:
-        return HeapIsTrue(value1) && HeapIsTrue(value2) ? HeapTrue : HeapFalse;
+        return VIsTruthy(value1) && VIsTruthy(value2) ? HeapTrue : HeapFalse;
     case OP_ADD:
         return HeapBoxInteger(HeapUnboxInteger(value2) +
                               HeapUnboxInteger(value1));

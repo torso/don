@@ -19,6 +19,7 @@
 #include "pipe.h"
 #include "log.h"
 #include "stringpool.h"
+#include "value.h"
 #include "work.h"
 
 #define NATIVE_FUNCTION_COUNT 19
@@ -191,7 +192,7 @@ static boolean nativeCp(CpEnv *env)
     size_t srcLength;
     size_t dstLength;
 
-    if (env->work.condition != HeapTrue ||
+    if (!VIsTruthy(env->work.condition) ||
         HeapIsFutureValue(env->src) || HeapIsFutureValue(env->dst))
     {
         return false;
@@ -216,7 +217,7 @@ static boolean nativeEcho(EchoEnv *env)
     char *buffer;
     size_t length;
 
-    if (env->work.condition != HeapTrue ||
+    if (!VIsTruthy(env->work.condition) ||
         HeapIsFutureValue(env->message) || HeapIsFutureValue(env->prefix))
     {
         return false;
@@ -396,11 +397,11 @@ static boolean nativeExec(ExecEnv *env)
 
     PipeInitFD(&out, fdOut[0]);
     PipeInitFD(&err, fdErr[0]);
-    if (HeapIsTrue(env->echoOut))
+    if (VIsTruthy(env->echoOut))
     {
         PipeAddListener(&out, &LogPipeOutListener);
     }
-    if (HeapIsTrue(env->echoErr))
+    if (VIsTruthy(env->echoErr))
     {
         PipeAddListener(&err, &LogPipeErrListener);
     }
@@ -436,7 +437,7 @@ typedef struct
 
 static boolean nativeFail(FailEnv *env)
 {
-    if (env->work.condition != HeapTrue)
+    if (!VIsTruthy(env->work.condition))
     {
         env->work.vm->ip = null;
         return false;
@@ -538,7 +539,7 @@ static boolean nativeGetCache(GetCacheEnv *env)
     byte hash[DIGEST_SIZE];
     boolean uptodate;
 
-    if (env->work.condition != HeapTrue ||
+    if (!VIsTruthy(env->work.condition) ||
         HeapIsFutureValue(env->key) || HeapIsFutureValue(env->echoCachedOutput))
     {
         return false;
@@ -555,7 +556,7 @@ static boolean nativeGetCache(GetCacheEnv *env)
     if (uptodate)
     {
         env->uptodate = HeapTrue;
-        if (HeapIsTrue(env->echoCachedOutput))
+        if (VIsTruthy(env->echoCachedOutput))
         {
             CacheEchoCachedOutput(ref);
         }
@@ -653,7 +654,7 @@ static boolean nativeLines(LinesEnv *env)
     content = HeapIsFile(env->value) ? readFile(env->value) : env->value;
     assert(HeapIsString(content));
     env->result = HeapSplit(content, HeapNewline, false,
-                            HeapIsTrue(env->trimLastIfEmpty));
+                            VIsTruthy(env->trimLastIfEmpty));
     return true;
 }
 
@@ -681,7 +682,7 @@ static boolean nativeMv(MvEnv *env)
     size_t oldLength;
     size_t newLength;
 
-    if (env->work.condition != HeapTrue ||
+    if (!VIsTruthy(env->work.condition) ||
         HeapIsFutureValue(env->src) || HeapIsFutureValue(env->dst))
     {
         return false;
@@ -709,7 +710,7 @@ static void nativePreReadFile(ReadFileEnv *env)
 
 static boolean nativeReadFile(ReadFileEnv *env)
 {
-    if (env->work.condition != HeapTrue || HeapIsFutureValue(env->file))
+    if (!VIsTruthy(env->work.condition) || HeapIsFutureValue(env->file))
     {
         return false;
     }
@@ -801,7 +802,7 @@ static boolean nativeRm(RmEnv *env)
     const char *path;
     size_t length;
 
-    if (env->work.condition != HeapTrue || HeapIsFutureValue(env->file))
+    if (!VIsTruthy(env->work.condition) || HeapIsFutureValue(env->file))
     {
         return false;
     }
@@ -839,7 +840,7 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
     size_t errLength;
     char *output = null;
 
-    if (env->work.condition != HeapTrue ||
+    if (!VIsTruthy(env->work.condition) ||
         HeapIsFutureValue(env->cacheFile) || HeapIsFutureValue(env->out) ||
         HeapIsFutureValue(env->err) || HeapIsFutureValue(env->accessedFiles))
     {
@@ -930,7 +931,7 @@ static boolean nativeSplit(SplitEnv *env)
     data = HeapIsFile(env->value) ? readFile(env->value) : env->value;
     assert(HeapIsString(data));
     assert(HeapIsString(env->delimiter));
-    env->result = HeapSplit(data, env->delimiter, HeapIsTrue(env->removeEmpty),
+    env->result = HeapSplit(data, env->delimiter, VIsTruthy(env->removeEmpty),
                             false);
     return true;
 }

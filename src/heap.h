@@ -13,6 +13,11 @@ typedef enum
     TYPE_FUTURE
 } ObjectType;
 
+/*
+  These values may be reused freely, so that new objects doesn't have to be
+  allocated. Never compare to these values. Use the functions in value.h, as
+  additional processing may be needed to determine the value of a vref.
+*/
 extern vref HeapTrue;
 extern vref HeapFalse;
 extern vref HeapEmptyString;
@@ -33,10 +38,6 @@ extern nonnull int HeapCompare(vref object1, vref object2);
 
 extern nonnull byte *HeapAlloc(ObjectType type, size_t size);
 extern nonnull vref HeapFinishAlloc(byte *objectData);
-
-
-
-extern nonnull boolean HeapIsTrue(vref object);
 
 
 

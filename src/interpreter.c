@@ -12,6 +12,7 @@
 #include "math.h"
 #include "native.h"
 #include "stringpool.h"
+#include "value.h"
 #include "work.h"
 
 static const boolean TRACE = false;
@@ -232,37 +233,32 @@ static void execute(VM *vm)
 
         case OP_BRANCH_TRUE:
             jumpOffset = BytecodeReadInt(&ip);
-            value = HeapTryWait(VMPop(vm));
-            if (HeapIsFutureValue(value))
+            switch (VGetBool(VMPop(vm)))
             {
+            case TRUTHY:
+                ip += jumpOffset;
+                break;
+            case FALSY:
+                break;
+            case FUTURE:
                 addVM(VMClone(vm, value, ip + jumpOffset));
-            }
-            else
-            {
-                assert(value == HeapTrue || value == HeapFalse);
-                if (value == HeapTrue)
-                {
-                    ip += jumpOffset;
-                }
+                break;
             }
             vm->ip = ip;
             return;
 
         case OP_BRANCH_FALSE:
             jumpOffset = BytecodeReadInt(&ip);
-            value = HeapTryWait(VMPop(vm));
-            if (HeapIsFutureValue(value))
+            switch (VGetBool(VMPop(vm)))
             {
-                addVM(VMClone(vm, HeapApplyUnary(OP_NOT, value),
-                              ip + jumpOffset));
-            }
-            else
-            {
-                assert(value == HeapTrue || value == HeapFalse);
-                if (value != HeapTrue)
-                {
-                    ip += jumpOffset;
-                }
+            case TRUTHY:
+                break;
+            case FALSY:
+                ip += jumpOffset;
+                break;
+            case FUTURE:
+                addVM(VMClone(vm, value, ip + jumpOffset));
+                break;
             }
             vm->ip = ip;
             return;
@@ -332,7 +328,7 @@ void InterpreterExecute(const byte *bytecode, functionref target)
         {
             vm = vmTable[i];
             vm->condition = HeapTryWait(vm->condition);
-            if (vm->condition == HeapFalse)
+            if (VIsFalsy(vm->condition))
             {
                 removeVM(i--);
             }
