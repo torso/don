@@ -9,7 +9,6 @@
 #include "bytevector.h"
 #include "fail.h"
 #include "file.h"
-#include "instruction.h"
 #include "heap.h"
 #include "pipe.h"
 #include "log.h"

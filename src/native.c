@@ -19,7 +19,6 @@
 #include "pipe.h"
 #include "log.h"
 #include "stringpool.h"
-#include "value.h"
 #include "work.h"
 
 #define NATIVE_FUNCTION_COUNT 19

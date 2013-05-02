@@ -1,7 +1,5 @@
 #include "common.h"
-#include "instruction.h"
 #include "heap.h"
-#include "value.h"
 
 VBool VGetBool(vref value)
 {

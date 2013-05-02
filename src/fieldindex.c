@@ -2,7 +2,6 @@
 #include "common.h"
 #include "bytevector.h"
 #include "fieldindex.h"
-#include "instruction.h"
 #include "heap.h"
 #include "intvector.h"
 

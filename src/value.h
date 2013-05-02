@@ -1,5 +1,20 @@
 typedef enum
 {
+    TYPE_BOOLEAN_TRUE,
+    TYPE_BOOLEAN_FALSE,
+    TYPE_INTEGER,
+    TYPE_STRING,
+    TYPE_STRING_WRAPPED,
+    TYPE_SUBSTRING,
+    TYPE_FILE,
+    TYPE_ARRAY,
+    TYPE_INTEGER_RANGE,
+    TYPE_CONCAT_LIST,
+    TYPE_FUTURE
+} VType;
+
+typedef enum
+{
     TRUTHY,
     FALSY,
     FUTURE /* Value not yet known. */

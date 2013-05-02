@@ -1,6 +1,5 @@
 #include <string.h>
 #include "common.h"
-#include "instruction.h"
 #include "heap.h"
 #include "stringpool.h"
 #include "util.h"

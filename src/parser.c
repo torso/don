@@ -6,7 +6,6 @@
 #include "fieldindex.h"
 #include "file.h"
 #include "functionindex.h"
-#include "instruction.h"
 #include "heap.h"
 #include "inthashmap.h"
 #include "intvector.h"

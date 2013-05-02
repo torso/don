@@ -12,7 +12,6 @@
 #include "math.h"
 #include "native.h"
 #include "stringpool.h"
-#include "value.h"
 #include "work.h"
 
 static const boolean TRACE = false;

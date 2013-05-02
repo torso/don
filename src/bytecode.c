@@ -4,7 +4,6 @@
 #include "bytevector.h"
 #include "fieldindex.h"
 #include "functionindex.h"
-#include "instruction.h"
 #include "heap.h"
 #include "native.h"
 #include "stringpool.h"

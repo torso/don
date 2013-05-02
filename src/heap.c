@@ -10,7 +10,6 @@
 #include "parser.h"
 #include "stringpool.h"
 #include "util.h"
-#include "value.h"
 #include "work.h"
 
 #define INITIAL_HEAP_INDEX_SIZE 1
@@ -55,14 +54,14 @@ static pureconst boolean isInteger(vref object)
     return (uintFromRef(object) & INTEGER_LITERAL_MARK) != 0;
 }
 
-static vref boxReference(ObjectType type, ref_t value)
+static vref boxReference(VType type, ref_t value)
 {
     byte *objectData = HeapAlloc(type, sizeof(ref_t));
     *(ref_t*)objectData = value;
     return HeapFinishAlloc(objectData);
 }
 
-static ref_t unboxReference(ObjectType type, vref object)
+static ref_t unboxReference(VType type, vref object)
 {
     assert(HeapGetObjectType(object) == type);
     return *(ref_t*)HeapGetObjectData(object);
@@ -116,7 +115,7 @@ static const char *toString(vref object, boolean *copy)
 }
 
 
-static boolean isCollectionType(ObjectType type)
+static boolean isCollectionType(VType type)
 {
     switch (type)
     {
@@ -141,7 +140,7 @@ static boolean isCollectionType(ObjectType type)
     return false;
 }
 
-static byte *heapAlloc(ObjectType type, uint32 size)
+static byte *heapAlloc(VType type, uint32 size)
 {
     uint32 *objectData = (uint32*)HeapPageFree;
     assert(HeapPageFree + OBJECT_OVERHEAD + size <= HeapPageLimit); /* TODO: Grow heap. */
@@ -238,11 +237,11 @@ char *HeapDebug(vref object, boolean address)
     return buffer;
 }
 
-ObjectType HeapGetObjectType(vref object)
+VType HeapGetObjectType(vref object)
 {
     checkObject(object);
     return isInteger(object) ? TYPE_INTEGER :
-        (ObjectType)*(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_TYPE);
+        (VType)*(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_TYPE);
 }
 
 size_t HeapGetObjectSize(vref object)
@@ -407,7 +406,7 @@ int HeapCompare(vref object1, vref object2)
 }
 
 
-byte *HeapAlloc(ObjectType type, size_t size)
+byte *HeapAlloc(VType type, size_t size)
 {
     assert(size);
     assert(size <= UINT32_MAX - 1);

@@ -25,7 +25,6 @@ struct VM
     uint bp;
 };
 
-#include "instruction.h"
 #include "heap.h"
 
 

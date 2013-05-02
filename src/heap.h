@@ -1,17 +1,5 @@
-typedef enum
-{
-    TYPE_BOOLEAN_TRUE,
-    TYPE_BOOLEAN_FALSE,
-    TYPE_INTEGER,
-    TYPE_STRING,
-    TYPE_STRING_WRAPPED,
-    TYPE_SUBSTRING,
-    TYPE_FILE,
-    TYPE_ARRAY,
-    TYPE_INTEGER_RANGE,
-    TYPE_CONCAT_LIST,
-    TYPE_FUTURE
-} ObjectType;
+#include "instruction.h"
+#include "value.h"
 
 /*
   These values may be reused freely, so that new objects doesn't have to be
@@ -29,14 +17,14 @@ extern void HeapInit(void);
 extern void HeapDispose(void);
 
 extern nonnull char *HeapDebug(vref object, boolean address);
-extern nonnull ObjectType HeapGetObjectType(vref object);
+extern nonnull VType HeapGetObjectType(vref object);
 extern nonnull size_t HeapGetObjectSize(vref object);
 extern nonnull const byte *HeapGetObjectData(vref object);
 extern nonnull void HeapHash(vref object, HashState *hash);
 extern nonnull boolean HeapEquals(vref object1, vref object2);
 extern nonnull int HeapCompare(vref object1, vref object2);
 
-extern nonnull byte *HeapAlloc(ObjectType type, size_t size);
+extern nonnull byte *HeapAlloc(VType type, size_t size);
 extern nonnull vref HeapFinishAlloc(byte *objectData);
 
 
