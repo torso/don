@@ -11,9 +11,9 @@ static const boolean TRACE_STACK = false;
 static VM *VMAlloc(void)
 {
     byte *data = (byte*)calloc(
-        sizeof(VM) + FieldIndexGetCount() * sizeof(objectref), 1);
+        sizeof(VM) + FieldIndexGetCount() * sizeof(vref), 1);
     VM *vm = (VM*)data;
-    vm->fields = (objectref*)(data + sizeof(VM));
+    vm->fields = (vref*)(data + sizeof(VM));
     IVInit(&vm->callStack, 128);
     IVInit(&vm->stack, 1024);
     return vm;
@@ -33,7 +33,7 @@ VM *VMCreate(const byte *bytecode, functionref target)
     return vm;
 }
 
-VM *VMClone(VM *vm, objectref condition, const byte *ip)
+VM *VMClone(VM *vm, vref condition, const byte *ip)
 {
     VM *clone = VMAlloc();
     VMBranch *parent = (VMBranch*)malloc(sizeof(VMBranch));
@@ -44,7 +44,7 @@ VM *VMClone(VM *vm, objectref condition, const byte *ip)
 
     vm->parent = parent;
     clone->parent = parent;
-    memcpy(clone->fields, vm->fields, FieldIndexGetCount() * sizeof(objectref));
+    memcpy(clone->fields, vm->fields, FieldIndexGetCount() * sizeof(vref));
     IVAppendAll(&vm->callStack, &clone->callStack);
     IVAppendAll(&vm->stack, &clone->stack);
     clone->target = vm->target;
@@ -80,12 +80,12 @@ void VMDispose(VM *vm)
 }
 
 
-objectref VMPeek(VM *vm)
+vref VMPeek(VM *vm)
 {
     return IVPeekRef(&vm->stack);
 }
 
-objectref VMPop(VM *vm)
+vref VMPop(VM *vm)
 {
     char *buffer;
     if (TRACE_STACK)
@@ -97,7 +97,7 @@ objectref VMPop(VM *vm)
     return IVPopRef(&vm->stack);
 }
 
-void VMPopMany(VM *vm, objectref *dst, uint count)
+void VMPopMany(VM *vm, vref *dst, uint count)
 {
     dst += count - 1;
     while (count--)
@@ -106,7 +106,7 @@ void VMPopMany(VM *vm, objectref *dst, uint count)
     }
 }
 
-void VMPush(VM *vm, objectref value)
+void VMPush(VM *vm, vref value)
 {
     char *buffer;
     if (TRACE_STACK)
@@ -123,7 +123,7 @@ void VMPushBoolean(VM *vm, boolean value)
     VMPush(vm, value ? HeapTrue : HeapFalse);
 }
 
-void VMPushMany(VM *vm, const objectref *values, uint count)
+void VMPushMany(VM *vm, const vref *values, uint count)
 {
     while (count--)
     {

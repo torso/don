@@ -1,11 +1,11 @@
 extern void FunctionIndexInit(void);
 extern void FunctionIndexDispose(void);
 
-extern functionref FunctionIndexAddFunction(namespaceref ns, objectref name,
-                                            objectref filename, uint line,
+extern functionref FunctionIndexAddFunction(namespaceref ns, vref name,
+                                            vref filename, uint line,
                                             uint fileOffset);
-extern void FunctionIndexAddParameter(functionref function, objectref name,
-                                      boolean hasValue, objectref value,
+extern void FunctionIndexAddParameter(functionref function, vref name,
+                                      boolean hasValue, vref value,
                                       boolean vararg);
 extern void FunctionIndexFinishParameters(functionref function,
                                           uint line, uint fileOffset);
@@ -15,9 +15,9 @@ extern functionref FunctionIndexGetFirstFunction(void);
 extern functionref FunctionIndexGetNextFunction(functionref function);
 
 extern functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset);
-extern objectref FunctionIndexGetName(functionref function);
+extern vref FunctionIndexGetName(functionref function);
 extern namespaceref FunctionIndexGetNamespace(functionref function);
-extern objectref FunctionIndexGetFilename(functionref function);
+extern vref FunctionIndexGetFilename(functionref function);
 extern uint FunctionIndexGetLine(functionref function);
 extern uint FunctionIndexGetFileOffset(functionref function);
 extern boolean FunctionIndexIsTarget(functionref function);
@@ -29,8 +29,8 @@ extern const ParameterInfo *FunctionIndexGetParameterInfo(functionref function);
 extern boolean FunctionIndexHasVararg(functionref function);
 extern uint FunctionIndexGetVarargIndex(functionref function);
 extern uint FunctionIndexGetLocalsCount(functionref function);
-extern objectref FunctionIndexGetLocalName(functionref function,
-                                           uint16 local);
+extern vref FunctionIndexGetLocalName(functionref function,
+                                      uint16 local);
 extern nonnull void FunctionIndexSetLocals(functionref function,
                                            const inthashmap *locals,
                                            uint count);

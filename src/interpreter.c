@@ -44,12 +44,12 @@ static void removeVM(uint index)
     vmTable[index] = vmTable[--vmCount];
 }
 
-static objectref getLocal(VM *vm, uint bp, uint16 local)
+static vref getLocal(VM *vm, uint bp, uint16 local)
 {
     return IVGetRef(&vm->stack, bp + local);
 }
 
-static void storeLocal(VM *vm, uint bp, uint16 local, objectref value)
+static void storeLocal(VM *vm, uint bp, uint16 local, vref value)
 {
     IVSetRef(&vm->stack, bp + local, value);
 }
@@ -94,12 +94,12 @@ static void execute(VM *vm)
     uint returnValueCount;
     uint i;
     int jumpOffset;
-    objectref value;
-    objectref value2;
+    vref value;
+    vref value2;
     size_t size;
     size_t src;
     size_t dst;
-    objectref string;
+    vref string;
     byte *objectData;
     functionref function;
     nativefunctionref nativeFunction;
@@ -137,12 +137,12 @@ static void execute(VM *vm)
         case OP_LIST:
             size = BytecodeReadUint(&ip);
             assert(size);
-            objectData = HeapAlloc(TYPE_ARRAY, size * sizeof(objectref));
-            objectData += size * sizeof(objectref);
+            objectData = HeapAlloc(TYPE_ARRAY, size * sizeof(vref));
+            objectData += size * sizeof(vref);
             while (size--)
             {
-                objectData -= sizeof(objectref);
-                *(objectref*)objectData = VMPop(vm);
+                objectData -= sizeof(vref);
+                *(vref*)objectData = VMPop(vm);
             }
             VMPush(vm, HeapFinishAlloc(objectData));
             break;

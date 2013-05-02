@@ -15,7 +15,7 @@
 #define INITIAL_HEAP_INDEX_SIZE 1
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))
 
-#define INTEGER_LITERAL_MARK (((uint)1 << (sizeof(objectref) * 8 - 1)))
+#define INTEGER_LITERAL_MARK (((uint)1 << (sizeof(vref) * 8 - 1)))
 #define INTEGER_LITERAL_MASK (~INTEGER_LITERAL_MARK)
 #define INTEGER_LITERAL_SHIFT 1
 
@@ -25,7 +25,7 @@
 
 typedef struct
 {
-    objectref string;
+    vref string;
     size_t offset;
     size_t length;
 } SubString;
@@ -37,37 +37,37 @@ static byte *HeapPageFree;
 static const byte *HeapPageLimit;
 static size_t HeapPageOffset;
 
-objectref HeapTrue;
-objectref HeapFalse;
-objectref HeapEmptyString;
-objectref HeapEmptyList;
-objectref HeapNewline;
+vref HeapTrue;
+vref HeapFalse;
+vref HeapEmptyString;
+vref HeapEmptyList;
+vref HeapNewline;
 
 
-static void checkObject(objectref object)
+static void checkObject(vref object)
 {
     assert(object);
 }
 
-static pureconst boolean isInteger(objectref object)
+static pureconst boolean isInteger(vref object)
 {
     return (uintFromRef(object) & INTEGER_LITERAL_MARK) != 0;
 }
 
-static objectref boxReference(ObjectType type, ref_t value)
+static vref boxReference(ObjectType type, ref_t value)
 {
     byte *objectData = HeapAlloc(type, sizeof(ref_t));
     *(ref_t*)objectData = value;
     return HeapFinishAlloc(objectData);
 }
 
-static ref_t unboxReference(ObjectType type, objectref object)
+static ref_t unboxReference(ObjectType type, vref object)
 {
     assert(HeapGetObjectType(object) == type);
     return *(ref_t*)HeapGetObjectData(object);
 }
 
-static const char *getString(objectref object)
+static const char *getString(vref object)
 {
     const SubString *ss;
 
@@ -99,7 +99,7 @@ static const char *getString(objectref object)
     return null;
 }
 
-static const char *toString(objectref object, boolean *copy)
+static const char *toString(vref object, boolean *copy)
 {
     *copy = false;
     if (HeapIsString(object))
@@ -150,12 +150,12 @@ static byte *heapAlloc(ObjectType type, uint32 size)
     return (byte*)objectData;
 }
 
-static objectref heapTop(void)
+static vref heapTop(void)
 {
     return refFromSize((size_t)(HeapPageFree - HeapPageBase));
 }
 
-static objectref heapNext(objectref object)
+static vref heapNext(vref object)
 {
     checkObject(object);
     return refFromSize(
@@ -195,7 +195,7 @@ void HeapDispose(void)
 }
 
 
-char *HeapDebug(objectref object, boolean address)
+char *HeapDebug(vref object, boolean address)
 {
     size_t length = HeapStringLength(object);
     char *buffer = (char*)malloc(length + 16); /* 16 ought to be enough */
@@ -237,32 +237,32 @@ char *HeapDebug(objectref object, boolean address)
     return buffer;
 }
 
-ObjectType HeapGetObjectType(objectref object)
+ObjectType HeapGetObjectType(vref object)
 {
     checkObject(object);
     return isInteger(object) ? TYPE_INTEGER :
         (ObjectType)*(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_TYPE);
 }
 
-size_t HeapGetObjectSize(objectref object)
+size_t HeapGetObjectSize(vref object)
 {
     checkObject(object);
     return *(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_SIZE);
 }
 
-const byte *HeapGetObjectData(objectref object)
+const byte *HeapGetObjectData(vref object)
 {
     checkObject(object);
     return HeapPageBase + sizeFromRef(object) + OBJECT_OVERHEAD;
 }
 
-void HeapHash(objectref object, HashState *hash)
+void HeapHash(vref object, HashState *hash)
 {
     byte value;
     const char *path;
     size_t pathLength;
     size_t index;
-    objectref item;
+    vref item;
 
     assert(!HeapIsFutureValue(object));
 
@@ -325,13 +325,13 @@ void HeapHash(objectref object, HashState *hash)
     }
 }
 
-boolean HeapEquals(objectref object1, objectref object2)
+boolean HeapEquals(vref object1, vref object2)
 {
     size_t index;
     size_t size1;
     size_t size2;
-    objectref item1;
-    objectref item2;
+    vref item1;
+    vref item2;
     boolean success;
 
     assert(!HeapIsFutureValue(object1));
@@ -398,7 +398,7 @@ boolean HeapEquals(objectref object1, objectref object2)
     return false;
 }
 
-int HeapCompare(objectref object1, objectref object2)
+int HeapCompare(vref object1, vref object2)
 {
     int i1 = HeapUnboxInteger(object1);
     int i2 = HeapUnboxInteger(object2);
@@ -413,19 +413,19 @@ byte *HeapAlloc(ObjectType type, size_t size)
     return heapAlloc(type, (uint32)size);
 }
 
-static objectref heapFinishAlloc(byte *objectData)
+static vref heapFinishAlloc(byte *objectData)
 {
     return refFromSize((size_t)(HeapPageOffset + objectData - OBJECT_OVERHEAD - HeapPageBase));
 }
 
-objectref HeapFinishAlloc(byte *objectData)
+vref HeapFinishAlloc(byte *objectData)
 {
-    objectref object = heapFinishAlloc(objectData);
+    vref object = heapFinishAlloc(objectData);
     return object;
 }
 
 
-boolean HeapIsTrue(objectref object)
+boolean HeapIsTrue(vref object)
 {
     assert(!HeapIsFutureValue(object));
     if (object == HeapTrue)
@@ -452,7 +452,7 @@ boolean HeapIsTrue(objectref object)
 }
 
 
-objectref HeapBoxInteger(int value)
+vref HeapBoxInteger(int value)
 {
     assert(value == HeapUnboxInteger(
                refFromUint(((uint)value & INTEGER_LITERAL_MASK) |
@@ -461,33 +461,33 @@ objectref HeapBoxInteger(int value)
                        INTEGER_LITERAL_MARK);
 }
 
-objectref HeapBoxUint(uint value)
+vref HeapBoxUint(uint value)
 {
     assert(value <= INT_MAX);
     return HeapBoxInteger((int)value);
 }
 
-objectref HeapBoxSize(size_t value)
+vref HeapBoxSize(size_t value)
 {
     assert(value <= INT_MAX);
     return HeapBoxInteger((int)value);
 }
 
-int HeapUnboxInteger(objectref object)
+int HeapUnboxInteger(vref object)
 {
     assert(isInteger(object));
     return ((signed)uintFromRef(object) << INTEGER_LITERAL_SHIFT) >>
         INTEGER_LITERAL_SHIFT;
 }
 
-size_t HeapUnboxSize(objectref object)
+size_t HeapUnboxSize(vref object)
 {
     assert(isInteger(object));
     assert(HeapUnboxInteger(object) >= 0);
     return (size_t)HeapUnboxInteger(object);
 }
 
-int HeapIntegerSign(objectref object)
+int HeapIntegerSign(vref object)
 {
     int i = HeapUnboxInteger(object);
     if (i > 0)
@@ -498,7 +498,7 @@ int HeapIntegerSign(objectref object)
 }
 
 
-objectref HeapCreateString(const char *restrict string, size_t length)
+vref HeapCreateString(const char *restrict string, size_t length)
 {
     byte *restrict objectData;
 
@@ -513,7 +513,7 @@ objectref HeapCreateString(const char *restrict string, size_t length)
     return HeapFinishAlloc(objectData);
 }
 
-objectref HeapCreateUninitialisedString(size_t length, char **data)
+vref HeapCreateUninitialisedString(size_t length, char **data)
 {
     byte *objectData;
     assert(length);
@@ -523,8 +523,8 @@ objectref HeapCreateUninitialisedString(size_t length, char **data)
     return HeapFinishAlloc(objectData);
 }
 
-objectref HeapCreateWrappedString(const char *restrict string,
-                                  size_t length)
+vref HeapCreateWrappedString(const char *restrict string,
+                             size_t length)
 {
     byte *restrict data;
 
@@ -538,7 +538,7 @@ objectref HeapCreateWrappedString(const char *restrict string,
     return HeapFinishAlloc(data);
 }
 
-objectref HeapCreateSubstring(objectref string, size_t offset, size_t length)
+vref HeapCreateSubstring(vref string, size_t offset, size_t length)
 {
     SubString *ss;
     byte *data;
@@ -587,7 +587,7 @@ objectref HeapCreateSubstring(objectref string, size_t offset, size_t length)
     return HeapFinishAlloc(data);
 }
 
-boolean HeapIsString(objectref object)
+boolean HeapIsString(vref object)
 {
     assert(!HeapIsFutureValue(object));
     switch (HeapGetObjectType(object))
@@ -613,18 +613,18 @@ boolean HeapIsString(objectref object)
     return false;
 }
 
-const char *HeapGetString(objectref object)
+const char *HeapGetString(vref object)
 {
     assert(HeapGetObjectType(object) == TYPE_STRING);
     return (const char*)HeapGetObjectData(object);
 }
 
-size_t HeapStringLength(objectref object)
+size_t HeapStringLength(vref object)
 {
     uint i;
     size_t size;
     size_t index;
-    objectref item;
+    vref item;
 
     assert(!HeapIsFutureValue(object));
     if (!object)
@@ -688,12 +688,12 @@ size_t HeapStringLength(objectref object)
     return 0;
 }
 
-char *HeapWriteString(objectref object, char *dst)
+char *HeapWriteString(vref object, char *dst)
 {
     size_t size;
     uint i;
     size_t index;
-    objectref item;
+    vref item;
 
     assert(!HeapIsFutureValue(object));
     if (!object)
@@ -776,7 +776,7 @@ char *HeapWriteString(objectref object, char *dst)
     return null;
 }
 
-char *HeapWriteSubstring(objectref object, size_t offset, size_t length,
+char *HeapWriteSubstring(vref object, size_t offset, size_t length,
                          char *dst)
 {
     assert(HeapStringLength(object) >= offset + length);
@@ -784,8 +784,8 @@ char *HeapWriteSubstring(objectref object, size_t offset, size_t length,
     return dst + length;
 }
 
-objectref HeapStringIndexOf(objectref text, size_t startOffset,
-                            objectref substring)
+vref HeapStringIndexOf(vref text, size_t startOffset,
+                       vref substring)
 {
     size_t textLength = HeapStringLength(text);
     size_t subLength = HeapStringLength(substring);
@@ -815,7 +815,7 @@ objectref HeapStringIndexOf(objectref text, size_t startOffset,
 }
 
 
-objectref HeapCreatePath(objectref path)
+vref HeapCreatePath(vref path)
 {
     const char *src;
     size_t srcLength;
@@ -838,19 +838,19 @@ objectref HeapCreatePath(objectref path)
     return boxReference(TYPE_FILE, path);
 }
 
-const char *HeapGetPath(objectref path, size_t *length)
+const char *HeapGetPath(vref path, size_t *length)
 {
-    objectref s = unboxReference(TYPE_FILE, path);
+    vref s = unboxReference(TYPE_FILE, path);
     *length = HeapStringLength(s);
     return getString(s);
 }
 
-boolean HeapIsFile(objectref object)
+boolean HeapIsFile(vref object)
 {
     return HeapGetObjectType(object) == TYPE_FILE;
 }
 
-objectref HeapPathFromParts(objectref path, objectref name, objectref extension)
+vref HeapPathFromParts(vref path, vref name, vref extension)
 {
     const char *pathString = null;
     const char *nameString;
@@ -863,7 +863,7 @@ objectref HeapPathFromParts(objectref path, objectref name, objectref extension)
     boolean freeExtension = false;
     char *resultPath;
     size_t resultPathLength;
-    objectref result;
+    vref result;
 
     assert(!HeapIsFutureValue(path));
     assert(!HeapIsFutureValue(name));
@@ -912,20 +912,20 @@ static void createPath(const char *path, size_t length, void *userdata)
     (*(size_t*)userdata)++;
 }
 
-objectref HeapCreateFilesetGlob(const char *pattern, size_t length)
+vref HeapCreateFilesetGlob(const char *pattern, size_t length)
 {
-    objectref object = heapTop();
+    vref object = heapTop();
     size_t count = 0;
     byte *objectData;
-    objectref *files;
+    vref *files;
 
     FileTraverseGlob(pattern, length, createPath, &count);
     if (!count)
     {
         return HeapEmptyList;
     }
-    objectData = HeapAlloc(TYPE_ARRAY, count * sizeof(objectref)); /* TODO: Fileset type */
-    files = (objectref*)objectData;
+    objectData = HeapAlloc(TYPE_ARRAY, count * sizeof(vref)); /* TODO: Fileset type */
+    files = (vref*)objectData;
     while (count--)
     {
         assert(HeapIsString(object));
@@ -939,7 +939,7 @@ objectref HeapCreateFilesetGlob(const char *pattern, size_t length)
 }
 
 
-objectref HeapCreateRange(objectref lowObject, objectref highObject)
+vref HeapCreateRange(vref lowObject, vref highObject)
 {
     byte *objectData;
     int *p;
@@ -955,31 +955,31 @@ objectref HeapCreateRange(objectref lowObject, objectref highObject)
     return HeapFinishAlloc(objectData);
 }
 
-boolean HeapIsRange(objectref object)
+boolean HeapIsRange(vref object)
 {
     return HeapGetObjectType(object) == TYPE_INTEGER_RANGE;
 }
 
-objectref HeapRangeLow(objectref range)
+vref HeapRangeLow(vref range)
 {
     return HeapBoxInteger(((int*)HeapGetObjectData(range))[0]);
 }
 
-objectref HeapRangeHigh(objectref range)
+vref HeapRangeHigh(vref range)
 {
     return HeapBoxInteger(((int*)HeapGetObjectData(range))[1]);
 }
 
 
-objectref HeapSplit(objectref string, objectref delimiter, boolean removeEmpty,
-                    boolean trimLastIfEmpty)
+vref HeapSplit(vref string, vref delimiter, boolean removeEmpty,
+               boolean trimLastIfEmpty)
 {
     size_t length;
     size_t delimiterLength;
     size_t offset;
     size_t lastOffset;
-    objectref offsetref;
-    objectref value;
+    vref offsetref;
+    vref value;
     intvector substrings;
 
     assert(HeapIsString(string));
@@ -1025,29 +1025,29 @@ objectref HeapSplit(objectref string, objectref delimiter, boolean removeEmpty,
 }
 
 
-objectref HeapCreateArray(const objectref *values, size_t size)
+vref HeapCreateArray(const vref *values, size_t size)
 {
     byte *data;
-    size *= sizeof(objectref);
+    size *= sizeof(vref);
     data = HeapAlloc(TYPE_ARRAY, size);
     memcpy(data, values, size);
     return HeapFinishAlloc(data);
 }
 
-objectref HeapCreateArrayFromVector(const intvector *values)
+vref HeapCreateArrayFromVector(const intvector *values)
 {
     if (!IVSize(values))
     {
         return HeapEmptyList;
     }
-    return HeapCreateArray((const objectref*)IVGetPointer(values, 0),
+    return HeapCreateArray((const vref*)IVGetPointer(values, 0),
                            IVSize(values));
 }
 
-objectref HeapConcatList(objectref list1, objectref list2)
+vref HeapConcatList(vref list1, vref list2)
 {
     byte *data;
-    objectref *subLists;
+    vref *subLists;
 
     assert(HeapIsCollection(list1));
     assert(HeapIsCollection(list2));
@@ -1059,31 +1059,31 @@ objectref HeapConcatList(objectref list1, objectref list2)
     {
         return list1;
     }
-    data = HeapAlloc(TYPE_CONCAT_LIST, sizeof(objectref) * 2);
-    subLists = (objectref*)data;
+    data = HeapAlloc(TYPE_CONCAT_LIST, sizeof(vref) * 2);
+    subLists = (vref*)data;
     subLists[0] = list1;
     subLists[1] = list2;
     return HeapFinishAlloc(data);
 }
 
-boolean HeapIsCollection(objectref object)
+boolean HeapIsCollection(vref object)
 {
     return isCollectionType(HeapGetObjectType(object));
 }
 
-size_t HeapCollectionSize(objectref object)
+size_t HeapCollectionSize(vref object)
 {
     const byte *data;
     const int *intData;
-    const objectref *objects;
-    const objectref *limit;
+    const vref *objects;
+    const vref *limit;
     size_t size;
 
     assert(!HeapIsFutureValue(object));
     switch (HeapGetObjectType(object))
     {
     case TYPE_ARRAY:
-        return HeapGetObjectSize(object) / sizeof(objectref);
+        return HeapGetObjectSize(object) / sizeof(vref);
 
     case TYPE_INTEGER_RANGE:
         intData = (const int *)HeapGetObjectData(object);
@@ -1092,8 +1092,8 @@ size_t HeapCollectionSize(objectref object)
 
     case TYPE_CONCAT_LIST:
         data = HeapGetObjectData(object);
-        objects = (const objectref*)data;
-        limit = (const objectref*)(data + HeapGetObjectSize(object));
+        objects = (const vref*)data;
+        limit = (const vref*)(data + HeapGetObjectSize(object));
         size = 0;
         while (objects < limit)
         {
@@ -1115,11 +1115,11 @@ size_t HeapCollectionSize(objectref object)
     }
 }
 
-boolean HeapCollectionGet(objectref object, objectref indexObject,
-                          objectref *restrict value)
+boolean HeapCollectionGet(vref object, vref indexObject,
+                          vref *restrict value)
 {
-    const objectref *restrict data;
-    const objectref *restrict limit;
+    const vref *restrict data;
+    const vref *restrict limit;
     const int *restrict intData;
     ssize_t i;
     size_t index;
@@ -1141,7 +1141,7 @@ boolean HeapCollectionGet(objectref object, objectref indexObject,
     switch (HeapGetObjectType(object))
     {
     case TYPE_ARRAY:
-        data = (const objectref*)HeapGetObjectData(object);
+        data = (const vref*)HeapGetObjectData(object);
         *value = data[index];
         return true;
 
@@ -1153,7 +1153,7 @@ boolean HeapCollectionGet(objectref object, objectref indexObject,
         return true;
 
     case TYPE_CONCAT_LIST:
-        data = (const objectref*)HeapGetObjectData(object);
+        data = (const vref*)HeapGetObjectData(object);
         limit = data + HeapGetObjectSize(object);
         while (data < limit)
         {
@@ -1185,18 +1185,18 @@ boolean HeapCollectionGet(objectref object, objectref indexObject,
 
 typedef struct
 {
-    objectref value;
+    vref value;
     Instruction op;
 } FutureValueUnary;
 
 typedef struct
 {
-    objectref value1;
-    objectref value2;
+    vref value1;
+    vref value2;
     Instruction op;
 } FutureValueBinary;
 
-static objectref executeUnary(Instruction op, objectref value)
+static vref executeUnary(Instruction op, vref value)
 {
     switch (op)
     {
@@ -1262,8 +1262,8 @@ static objectref executeUnary(Instruction op, objectref value)
     return null;
 }
 
-static objectref executeBinaryPartial(Instruction op, objectref object,
-                                      objectref value1, objectref value2)
+static vref executeBinaryPartial(Instruction op, vref object,
+                                 vref value1, vref value2)
 {
     switch (op)
     {
@@ -1337,8 +1337,8 @@ static objectref executeBinaryPartial(Instruction op, objectref object,
     return null;
 }
 
-static objectref executeBinary(Instruction op,
-                               objectref value1, objectref value2)
+static vref executeBinary(Instruction op,
+                          vref value1, vref value2)
 {
     byte *data;
     size_t size1;
@@ -1462,12 +1462,12 @@ static objectref executeBinary(Instruction op,
     return null;
 }
 
-boolean HeapIsFutureValue(objectref object)
+boolean HeapIsFutureValue(vref object)
 {
     return object && HeapGetObjectType(object) == TYPE_FUTURE;
 }
 
-objectref HeapCreateFutureValue(void)
+vref HeapCreateFutureValue(void)
 {
     byte *data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueUnary));
     FutureValueUnary *future = (FutureValueUnary*)data;
@@ -1476,7 +1476,7 @@ objectref HeapCreateFutureValue(void)
     return HeapFinishAlloc(data);
 }
 
-void HeapSetFutureValue(objectref object, objectref value)
+void HeapSetFutureValue(vref object, vref value)
 {
     FutureValueUnary *future = (FutureValueUnary*)HeapGetObjectData(object);
     assert(HeapGetObjectSize(object) == sizeof(FutureValueUnary));
@@ -1486,7 +1486,7 @@ void HeapSetFutureValue(objectref object, objectref value)
     future->op = OP_DUP;
 }
 
-objectref HeapTryWait(objectref object)
+vref HeapTryWait(vref object)
 {
     FutureValueUnary *future1;
     FutureValueBinary *future2;
@@ -1523,7 +1523,7 @@ objectref HeapTryWait(objectref object)
     }
 }
 
-objectref HeapWait(objectref object)
+vref HeapWait(vref object)
 {
     object = HeapTryWait(object);
     while (HeapIsFutureValue(object))
@@ -1535,7 +1535,7 @@ objectref HeapWait(objectref object)
 }
 
 
-objectref HeapApplyUnary(Instruction op, objectref value)
+vref HeapApplyUnary(Instruction op, vref value)
 {
     byte *data;
     FutureValueUnary *future;
@@ -1552,8 +1552,8 @@ objectref HeapApplyUnary(Instruction op, objectref value)
     return executeUnary(op, value);
 }
 
-objectref HeapApplyBinary(Instruction op,
-                          objectref value1, objectref value2)
+vref HeapApplyBinary(Instruction op,
+                     vref value1, vref value2)
 {
     byte *data;
     FutureValueBinary *future;

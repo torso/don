@@ -15,12 +15,12 @@ static void printWork(const char *prefix, const Work *work)
     char *buffer;
     char *b;
     size_t length;
-    objectref *p;
+    vref *p;
     uint i;
 
     assert(NativeGetParameterCount(work->function));
     length = 0;
-    for (i = NativeGetParameterCount(work->function), p = (objectref*)(work+1);
+    for (i = NativeGetParameterCount(work->function), p = (vref*)(work+1);
          i--;
          p++)
     {
@@ -35,7 +35,7 @@ static void printWork(const char *prefix, const Work *work)
     }
     buffer = (char*)malloc(length);
     b = buffer;
-    for (i = NativeGetParameterCount(work->function), p = (objectref*)(work+1);
+    for (i = NativeGetParameterCount(work->function), p = (vref*)(work+1);
          i--;
          p++)
     {
@@ -61,7 +61,7 @@ static size_t getWorkSize(const Work *work)
 {
     return sizeof(*work) +
         (NativeGetParameterCount(work->function) +
-         NativeGetReturnValueCount(work->function)) * sizeof(objectref);
+         NativeGetReturnValueCount(work->function)) * sizeof(vref);
 }
 
 void WorkInit(void)
@@ -117,14 +117,14 @@ boolean WorkQueueEmpty(void)
 void WorkExecute(void)
 {
     Work *work;
-    objectref *p1;
-    objectref *p2;
+    vref *p1;
+    vref *p2;
     uint parameterCount;
     uint i;
     struct
     {
         Work work;
-        objectref values[NATIVE_MAX_VALUES];
+        vref values[NATIVE_MAX_VALUES];
     } env;
 
     assert(BVSize(&queue));
@@ -134,9 +134,7 @@ void WorkExecute(void)
 
     work->condition = HeapTryWait(work->condition);
     assert(work->condition == HeapTrue);
-    for (i = parameterCount, p1 = (objectref*)(work+1);
-         i--;
-         p1++)
+    for (i = parameterCount, p1 = (vref*)(work+1); i--; p1++)
     {
         *p1 = HeapTryWait(*p1);
         assert(!HeapIsFutureValue(*p1));
@@ -149,7 +147,7 @@ void WorkExecute(void)
     }
     NativeWork(&env.work);
     for (i = NativeGetReturnValueCount(work->function),
-             p1 = (objectref*)(work+1) + parameterCount,
+             p1 = (vref*)(work+1) + parameterCount,
              p2 = env.values + parameterCount;
          i--;
          p1++, p2++)

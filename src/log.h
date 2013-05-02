@@ -2,7 +2,7 @@ extern void LogInit(void);
 extern void LogDispose(void);
 
 extern boolean LogFlushParseErrors(void);
-extern attrprintf(3, 0) void LogParseError(objectref filename, size_t line,
+extern attrprintf(3, 0) void LogParseError(vref filename, size_t line,
                                            const char *format, va_list ap);
 
 /*
@@ -12,8 +12,8 @@ extern attrprintf(3, 0) void LogParseError(objectref filename, size_t line,
 extern nonnull void LogPrintAutoNewline(const char *text, size_t length);
 extern nonnull void LogPrintErrAutoNewline(const char *text, size_t length);
 
-extern nonnull void LogPrintObjectAutoNewline(objectref object);
-extern nonnull void LogPrintErrObjectAutoNewline(objectref object);
+extern nonnull void LogPrintObjectAutoNewline(vref object);
+extern nonnull void LogPrintErrObjectAutoNewline(vref object);
 extern void LogAutoNewline(void);
 extern void LogErrAutoNewline(void);
 

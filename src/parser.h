@@ -1,5 +1,5 @@
 extern void ParserAddKeywords(void);
-extern void ParseFile(objectref filename, namespaceref ns);
+extern void ParseFile(vref filename, namespaceref ns);
 extern nonnull void ParseField(fieldref field, bytevector *bytecode);
 extern nonnull void ParseFunctionDeclaration(functionref function,
                                              bytevector *bytecode);

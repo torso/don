@@ -71,12 +71,12 @@ typedef ref_t fieldref;
 typedef ref_t functionref;
 typedef ref_t namespaceref;
 typedef ref_t nativefunctionref;
-typedef ref_t objectref;
+typedef ref_t vref;
 
 typedef struct
 {
-    objectref name;
-    objectref value;
+    vref name;
+    vref value;
 } ParameterInfo;
 
 extern pureconst ref_t refFromSize(size_t i);

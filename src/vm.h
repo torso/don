@@ -7,16 +7,16 @@ typedef struct _VMBranch VMBranch;
 struct _VMBranch
 {
     VMBranch *parent;
-    objectref condition;
+    vref condition;
     uint childCount;
 };
 
 struct VM
 {
     VMBranch *parent;
-    objectref condition;
+    vref condition;
 
-    objectref *fields;
+    vref *fields;
     intvector callStack;
     intvector stack;
 
@@ -30,12 +30,12 @@ struct VM
 
 
 extern nonnull VM *VMCreate(const byte *bytecode, functionref target);
-extern nonnull VM *VMClone(VM *vm, objectref condition, const byte *ip);
+extern nonnull VM *VMClone(VM *vm, vref condition, const byte *ip);
 extern nonnull void VMDispose(VM *vm);
 
-extern nonnull objectref VMPeek(VM *vm);
-extern nonnull objectref VMPop(VM *vm);
-extern nonnull void VMPopMany(VM *vm, objectref *dst, uint count);
-extern nonnull void VMPush(VM *vm, objectref value);
+extern nonnull vref VMPeek(VM *vm);
+extern nonnull vref VMPop(VM *vm);
+extern nonnull void VMPopMany(VM *vm, vref *dst, uint count);
+extern nonnull void VMPush(VM *vm, vref value);
 extern nonnull void VMPushBoolean(VM *vm, boolean value);
-extern nonnull void VMPushMany(VM *vm, const objectref *values, uint count);
+extern nonnull void VMPushMany(VM *vm, const vref *values, uint count);

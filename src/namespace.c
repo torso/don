@@ -5,7 +5,7 @@
 
 typedef struct
 {
-    objectref name;
+    vref name;
     inthashmap namespaces;
     inthashmap fieldIndex;
     inthashmap functionIndex;
@@ -58,7 +58,7 @@ void NamespaceDispose(void)
 }
 
 
-namespaceref NamespaceCreate(objectref name)
+namespaceref NamespaceCreate(vref name)
 {
     Namespace *entry;
     namespaceref ref =
@@ -79,19 +79,19 @@ namespaceref NamespaceCreate(objectref name)
 }
 
 
-void NamespaceAddField(namespaceref ns, objectref name, fieldref field)
+void NamespaceAddField(namespaceref ns, vref name, fieldref field)
 {
     IntHashMapAdd(&getNamespace(ns)->fieldIndex,
                   uintFromRef(name), uintFromRef(field));
 }
 
-void NamespaceAddFunction(namespaceref ns, objectref name, functionref function)
+void NamespaceAddFunction(namespaceref ns, vref name, functionref function)
 {
     IntHashMapAdd(&getNamespace(ns)->functionIndex,
                   uintFromRef(name), uintFromRef(function));
 }
 
-void NamespaceAddTarget(namespaceref ns, objectref name, functionref target)
+void NamespaceAddTarget(namespaceref ns, vref name, functionref target)
 {
     NamespaceAddFunction(ns, name, target);
     IntHashMapAdd(&getNamespace(ns)->targetIndex,
@@ -99,36 +99,36 @@ void NamespaceAddTarget(namespaceref ns, objectref name, functionref target)
 }
 
 
-objectref NamespaceGetName(namespaceref ns)
+vref NamespaceGetName(namespaceref ns)
 {
     return getNamespace(ns)->name;
 }
 
-namespaceref NamespaceGetNamespace(namespaceref ns unused, objectref name)
+namespaceref NamespaceGetNamespace(namespaceref ns unused, vref name)
 {
     return refFromUint(IntHashMapGet(&nameNamespace, uintFromRef(name)));
 }
 
-fieldref NamespaceGetField(namespaceref ns, objectref name)
+fieldref NamespaceGetField(namespaceref ns, vref name)
 {
     return refFromUint(IntHashMapGet(&getNamespace(ns)->fieldIndex,
                                      uintFromRef(name)));
 }
 
-functionref NamespaceGetFunction(namespaceref ns, objectref name)
+functionref NamespaceGetFunction(namespaceref ns, vref name)
 {
     return refFromUint(IntHashMapGet(&getNamespace(ns)->functionIndex,
                                      uintFromRef(name)));
 }
 
-functionref NamespaceGetTarget(namespaceref ns, objectref name)
+functionref NamespaceGetTarget(namespaceref ns, vref name)
 {
     return refFromUint(IntHashMapGet(&getNamespace(ns)->targetIndex,
                                      uintFromRef(name)));
 }
 
 
-fieldref NamespaceLookupField(namespaceref ns, objectref name)
+fieldref NamespaceLookupField(namespaceref ns, vref name)
 {
     uint i = IntHashMapGet(&getNamespace(ns)->fieldIndex, uintFromRef(name));
     if (!i)
@@ -138,7 +138,7 @@ fieldref NamespaceLookupField(namespaceref ns, objectref name)
     return refFromUint(i);
 }
 
-functionref NamespaceLookupFunction(namespaceref ns, objectref name)
+functionref NamespaceLookupFunction(namespaceref ns, vref name)
 {
     uint i = IntHashMapGet(&getNamespace(ns)->functionIndex, uintFromRef(name));
     if (!i)

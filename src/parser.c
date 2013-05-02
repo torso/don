@@ -41,11 +41,11 @@ typedef enum
 
 typedef struct
 {
-    objectref identifier;
+    vref identifier;
     ExpressionType expressionType;
     ValueType valueType;
-    objectref valueIdentifier;
-    objectref constant;
+    vref valueIdentifier;
+    vref constant;
     fieldref field;
     nativefunctionref nativeFunction;
     functionref function;
@@ -53,18 +53,18 @@ typedef struct
     boolean allowSpace;
 } ExpressionState;
 
-static objectref keywordElse;
-static objectref keywordFalse;
-static objectref keywordFor;
-static objectref keywordIf;
-static objectref keywordIn;
-static objectref keywordNull;
-static objectref keywordReturn;
-static objectref keywordTrue;
-static objectref keywordWhile;
+static vref keywordElse;
+static vref keywordFalse;
+static vref keywordFor;
+static vref keywordIf;
+static vref keywordIn;
+static vref keywordNull;
+static vref keywordReturn;
+static vref keywordTrue;
+static vref keywordWhile;
 
-static objectref maxStatementKeyword;
-static objectref maxKeyword;
+static vref maxStatementKeyword;
+static vref maxKeyword;
 
 static boolean parseExpression(ParseState *state, ExpressionState *estate,
                                boolean constant);
@@ -211,7 +211,7 @@ static boolean peekComment(const ParseState *state)
     return state->current[0] == ';';
 }
 
-static boolean isKeyword(objectref identifier)
+static boolean isKeyword(vref identifier)
 {
     return identifier <= maxKeyword;
 }
@@ -222,7 +222,7 @@ static boolean peekIdentifier(const ParseState *state)
     return isInitialIdentifierCharacter(state->current[0]);
 }
 
-static objectref readIdentifier(ParseState *state)
+static vref readIdentifier(ParseState *state)
 {
     const byte *begin = state->current;
 
@@ -232,7 +232,7 @@ static objectref readIdentifier(ParseState *state)
     return StringPoolAdd2((const char*)begin, getOffset(state, begin));
 }
 
-static objectref peekReadIdentifier(ParseState *state)
+static vref peekReadIdentifier(ParseState *state)
 {
     if (peekIdentifier(state))
     {
@@ -241,9 +241,9 @@ static objectref peekReadIdentifier(ParseState *state)
     return 0;
 }
 
-static objectref readVariableName(ParseState *state)
+static vref readVariableName(ParseState *state)
 {
-    objectref identifier = peekReadIdentifier(state);
+    vref identifier = peekReadIdentifier(state);
     if (!identifier || isKeyword(identifier))
     {
         error(state, "Expected variable name.");
@@ -252,9 +252,9 @@ static objectref readVariableName(ParseState *state)
     return identifier;
 }
 
-static boolean readExpectedKeyword(ParseState *state, objectref keyword)
+static boolean readExpectedKeyword(ParseState *state, vref keyword)
 {
-    objectref identifier = peekReadIdentifier(state);
+    vref identifier = peekReadIdentifier(state);
     if (identifier == keyword)
     {
         return true;
@@ -296,12 +296,12 @@ static boolean skipWhitespaceAndNewline(ParseState *state)
     return true;
 }
 
-static objectref readString(ParseState *state)
+static vref readString(ParseState *state)
 {
     bytevector string;
     boolean copied = false;
     const byte *begin;
-    objectref s;
+    vref s;
 
     ParseStateCheck(state);
     assert(peekString(state));
@@ -371,7 +371,7 @@ static objectref readString(ParseState *state)
     }
 }
 
-static objectref readFilename(ParseState *state)
+static vref readFilename(ParseState *state)
 {
     const byte *begin;
 
@@ -606,7 +606,7 @@ static boolean finishBoolean(ParseState *state, ExpressionState *estate)
 }
 
 static functionref lookupFunction(ParseState *state, namespaceref ns,
-                                  objectref name)
+                                  vref name)
 {
     functionref function;
     if (ns)
@@ -689,7 +689,7 @@ static boolean parseOrderedNamedArguments(ParseState *state,
 }
 
 static uint findArgumentIndex(const ParameterInfo *parameterInfo,
-                              uint parameterCount, objectref name)
+                              uint parameterCount, vref name)
 {
     uint i;
     for (i = 0; i < parameterCount; i++)
@@ -765,7 +765,7 @@ static boolean parseNamedArguments(ParseState *state,
         else
         {
             uint index = orderedArgumentCount + argumentIndex;
-            objectref value;
+            vref value;
             if (index >= requiredArgumentCount)
             {
                 value = parameterInfo[index].value;
@@ -793,7 +793,7 @@ static boolean parseNamedArguments(ParseState *state,
 }
 
 static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
-                                   namespaceref ns, objectref name)
+                                   namespaceref ns, vref name)
 {
     ExpressionState estateArgument;
     functionref function;
@@ -873,7 +873,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
 
 static boolean parseNativeInvocationRest(ParseState *state,
                                          ExpressionState *estate,
-                                         objectref name)
+                                         vref name)
 {
     nativefunctionref function = NativeFindFunction(name);
     uint parameterCount;
@@ -1016,8 +1016,8 @@ fail:
 static boolean parseExpression12(ParseState *state, ExpressionState *estate)
 {
     ExpressionState estate2;
-    objectref identifier = estate->identifier;
-    objectref string;
+    vref identifier = estate->identifier;
+    vref string;
     namespaceref ns;
     uint size;
     size_t bytecodeSize;
@@ -1811,7 +1811,7 @@ static boolean parseMultiAssignmentRest(ParseState *state)
 }
 
 static boolean parseExpressionStatement(ParseState *state,
-                                        objectref identifier)
+                                        vref identifier)
 {
     ExpressionState estate;
 
@@ -1873,7 +1873,7 @@ static boolean parseFunctionBody(ParseState *state)
     uint indent;
     uint currentIndent = 0;
     uint prevIndent = 0;
-    objectref identifier;
+    vref identifier;
     size_t target;
     uint16 iterCollection;
     uint16 iterIndex;
@@ -2074,8 +2074,8 @@ static boolean parseFunctionBody(ParseState *state)
 static boolean parseFunctionDeclaration(ParseState *state, functionref function)
 {
     ExpressionState estate;
-    objectref parameterName;
-    objectref value = 0;
+    vref parameterName;
+    vref value = 0;
     boolean vararg;
     boolean requireDefaultValues = false;
 
@@ -2151,7 +2151,7 @@ static boolean parseFunctionDeclaration(ParseState *state, functionref function)
 
 static void parseScript(ParseState *state)
 {
-    objectref name;
+    vref name;
     boolean allowIndent = false;
 
     ParseStateCheck(state);
@@ -2226,7 +2226,7 @@ void ParserAddKeywords(void)
     maxKeyword = keywordWhile;
 }
 
-void ParseFile(objectref filename, namespaceref ns)
+void ParseFile(vref filename, namespaceref ns)
 {
     ParseState state;
 

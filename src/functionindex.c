@@ -7,9 +7,9 @@
 
 typedef struct
 {
-    objectref name;
+    vref name;
     namespaceref ns;
-    objectref filename;
+    vref filename;
     uint line;
     uint fileOffset;
 
@@ -60,8 +60,8 @@ void FunctionIndexDispose(void)
 }
 
 
-functionref FunctionIndexAddFunction(namespaceref ns, objectref name,
-                                     objectref filename, uint line, uint fileOffset)
+functionref FunctionIndexAddFunction(namespaceref ns, vref name,
+                                     vref filename, uint line, uint fileOffset)
 {
     functionref function = refFromSize(BVSize(&functionTable));
     FunctionInfo *info;
@@ -77,8 +77,8 @@ functionref FunctionIndexAddFunction(namespaceref ns, objectref name,
     return function;
 }
 
-void FunctionIndexAddParameter(functionref function, objectref name,
-                               boolean hasValue, objectref value,
+void FunctionIndexAddParameter(functionref function, vref name,
+                               boolean hasValue, vref value,
                                boolean vararg)
 {
     FunctionInfo *info;
@@ -168,7 +168,7 @@ functionref FunctionIndexGetFunctionFromBytecode(uint bytecodeOffset)
     return prevFunction;
 }
 
-objectref FunctionIndexGetName(functionref function)
+vref FunctionIndexGetName(functionref function)
 {
     return getFunctionInfo(function)->name;
 }
@@ -178,7 +178,7 @@ namespaceref FunctionIndexGetNamespace(functionref function)
     return getFunctionInfo(function)->ns;
 }
 
-objectref FunctionIndexGetFilename(functionref function)
+vref FunctionIndexGetFilename(functionref function)
 {
     return getFunctionInfo(function)->filename;
 }
@@ -237,7 +237,7 @@ uint FunctionIndexGetLocalsCount(functionref function)
     return getFunctionInfo(function)->localCount;
 }
 
-objectref FunctionIndexGetLocalName(functionref function, uint16 local)
+vref FunctionIndexGetLocalName(functionref function, uint16 local)
 {
     assert(local < FunctionIndexGetLocalsCount(function));
     return IVGetRef(&localNames,

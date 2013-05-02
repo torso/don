@@ -150,7 +150,7 @@ boolean LogFlushParseErrors(void)
     return hasParseError;
 }
 
-void LogParseError(objectref filename, size_t line, const char *format, va_list ap)
+void LogParseError(vref filename, size_t line, const char *format, va_list ap)
 {
     hasParseError = true;
     fprintf(stderr, "%s:%ld: ", HeapGetString(filename), line);
@@ -212,7 +212,7 @@ void LogPrintErrAutoNewline(const char *text, size_t length)
     }
 }
 
-static void logPrintObjectAutoNewline(LogPipe *p, objectref object)
+static void logPrintObjectAutoNewline(LogPipe *p, vref object)
 {
     size_t length = HeapStringLength(object);
     byte *data;
@@ -237,12 +237,12 @@ static void logPrintObjectAutoNewline(LogPipe *p, objectref object)
     processNewData(p, BVSize(&p->buffer));
 }
 
-void LogPrintObjectAutoNewline(objectref object)
+void LogPrintObjectAutoNewline(vref object)
 {
     logPrintObjectAutoNewline(&out, object);
 }
 
-void LogPrintErrObjectAutoNewline(objectref object)
+void LogPrintErrObjectAutoNewline(vref object)
 {
     logPrintObjectAutoNewline(&err, object);
 }

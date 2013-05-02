@@ -1,10 +1,10 @@
 typedef struct _Work
 {
     nativefunctionref function;
-    objectref condition;
+    vref condition;
     VM *vm;
-    objectref accessedFiles;
-    objectref modifiedFiles;
+    vref accessedFiles;
+    vref modifiedFiles;
 } Work;
 
 extern void WorkInit(void);

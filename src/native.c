@@ -28,7 +28,7 @@ typedef boolean (*invoke)(void*);
 
 typedef struct
 {
-    objectref name;
+    vref name;
     preInvoke preFunction;
     invoke function;
     uint parameterCount;
@@ -46,10 +46,10 @@ static const FunctionInfo *getFunctionInfo(nativefunctionref function)
     return (FunctionInfo*)&functionInfo[sizeFromRef(function)];
 }
 
-static boolean addStringsLength(objectref collection, uint *count, size_t *size)
+static boolean addStringsLength(vref collection, uint *count, size_t *size)
 {
     size_t index;
-    objectref value;
+    vref value;
     for (index = 0; HeapCollectionGet(collection, HeapBoxSize(index++), &value);)
     {
         if (HeapIsFutureValue(value))
@@ -72,10 +72,10 @@ static boolean addStringsLength(objectref collection, uint *count, size_t *size)
     return true;
 }
 
-static void writeStrings(objectref collection, char ***table, char **stringData)
+static void writeStrings(vref collection, char ***table, char **stringData)
 {
     size_t index;
-    objectref value;
+    vref value;
     for (index = 0; HeapCollectionGet(collection, HeapBoxSize(index++), &value);)
     {
         if (HeapIsCollection(value))
@@ -93,7 +93,7 @@ static void writeStrings(objectref collection, char ***table, char **stringData)
     }
 }
 
-static char **createStringArray(objectref collection)
+static char **createStringArray(vref collection)
 {
     size_t size = sizeof(char*);
     uint count = 1;
@@ -118,9 +118,9 @@ static char **createStringArray(objectref collection)
     return strings;
 }
 
-static boolean appendFiles(objectref value, intvector *result)
+static boolean appendFiles(vref value, intvector *result)
 {
-    objectref o;
+    vref o;
     size_t index;
 
     if (HeapIsFutureValue(value))
@@ -146,12 +146,12 @@ static boolean appendFiles(objectref value, intvector *result)
     return true;
 }
 
-static objectref readFile(objectref object)
+static vref readFile(vref object)
 {
     const char *path;
     size_t pathLength;
     File file;
-    objectref string;
+    vref string;
     char *data;
     size_t size;
 
@@ -174,8 +174,8 @@ typedef struct
 {
     Work work;
 
-    objectref src;
-    objectref dst;
+    vref src;
+    vref dst;
 } CpEnv;
 
 static void nativePreCp(CpEnv *env)
@@ -207,8 +207,8 @@ typedef struct
 {
     Work work;
 
-    objectref message;
-    objectref prefix;
+    vref message;
+    vref prefix;
 } EchoEnv;
 
 static boolean nativeEcho(EchoEnv *env)
@@ -243,21 +243,21 @@ typedef struct
 {
     Work work;
 
-    objectref command;
-    objectref env;
-    objectref echoOut;
-    objectref echoErr;
-    objectref access;
-    objectref modify;
+    vref command;
+    vref env;
+    vref echoOut;
+    vref echoErr;
+    vref access;
+    vref modify;
 
-    objectref output;
-    objectref exitcode;
-    objectref internalError;
+    vref output;
+    vref exitcode;
+    vref internalError;
 } ExecEnv;
 
 static void nativePreExec(ExecEnv *env)
 {
-    objectref output[2];
+    vref output[2];
 
     env->work.accessedFiles = env->access;
     env->work.modifiedFiles = env->modify;
@@ -273,7 +273,7 @@ static void nativePreExec(ExecEnv *env)
 static boolean nativeExec(ExecEnv *env)
 {
     char *executable;
-    objectref value;
+    vref value;
     char **argv;
     const char *const*envp;
     size_t index;
@@ -431,7 +431,7 @@ typedef struct
 {
     Work work;
 
-    objectref message;
+    vref message;
 } FailEnv;
 
 static boolean nativeFail(FailEnv *env)
@@ -452,11 +452,11 @@ typedef struct
 {
     Work work;
 
-    objectref path;
-    objectref name;
-    objectref extension;
+    vref path;
+    vref name;
+    vref extension;
 
-    objectref result;
+    vref result;
 } FileEnv;
 
 static boolean nativeFile(FileEnv *env)
@@ -475,9 +475,9 @@ typedef struct
 {
     Work work;
 
-    objectref path;
+    vref path;
 
-    objectref result;
+    vref result;
 } FilenameEnv;
 
 static boolean nativeFilename(FilenameEnv *env)
@@ -500,9 +500,9 @@ typedef struct
 {
     Work work;
 
-    objectref value;
+    vref value;
 
-    objectref result;
+    vref result;
 } FilesetEnv;
 
 /* TODO: Remove duplicate files. */
@@ -522,11 +522,11 @@ typedef struct
 {
     Work work;
 
-    objectref key;
-    objectref echoCachedOutput;
+    vref key;
+    vref echoCachedOutput;
 
-    objectref cacheFile;
-    objectref uptodate;
+    vref cacheFile;
+    vref uptodate;
 } GetCacheEnv;
 
 static boolean nativeGetCache(GetCacheEnv *env)
@@ -572,9 +572,9 @@ typedef struct
 {
     Work work;
 
-    objectref name;
+    vref name;
 
-    objectref result;
+    vref result;
 } GetEnvEnv;
 
 static boolean nativeGetEnv(GetEnvEnv *env)
@@ -602,10 +602,10 @@ typedef struct
 {
     Work work;
 
-    objectref data;
-    objectref element;
+    vref data;
+    vref element;
 
-    objectref result;
+    vref result;
 } IndexOfEnv;
 
 static boolean nativeIndexOf(IndexOfEnv *env)
@@ -626,10 +626,10 @@ typedef struct
 {
     Work work;
 
-    objectref value;
-    objectref trimLastIfEmpty;
+    vref value;
+    vref trimLastIfEmpty;
 
-    objectref result;
+    vref result;
 } LinesEnv;
 
 static void nativePreLines(LinesEnv *env)
@@ -642,7 +642,7 @@ static void nativePreLines(LinesEnv *env)
 
 static boolean nativeLines(LinesEnv *env)
 {
-    objectref content;
+    vref content;
 
     if (HeapIsFutureValue(env->value) ||
         HeapIsFutureValue(env->trimLastIfEmpty))
@@ -661,13 +661,13 @@ typedef struct
 {
     Work work;
 
-    objectref src;
-    objectref dst;
+    vref src;
+    vref dst;
 } MvEnv;
 
 static void nativePreMv(MvEnv *env)
 {
-    objectref files[2];
+    vref files[2];
     files[0] = env->src;
     files[1] = env->dst;
     /* TODO: Don't reallocate array if it exists. */
@@ -697,9 +697,9 @@ typedef struct
 {
     Work work;
 
-    objectref file;
+    vref file;
 
-    objectref result;
+    vref result;
 } ReadFileEnv;
 
 static void nativePreReadFile(ReadFileEnv *env)
@@ -721,12 +721,12 @@ typedef struct
 {
     Work work;
 
-    objectref data;
-    objectref original;
-    objectref replacement;
+    vref data;
+    vref original;
+    vref replacement;
 
-    objectref result;
-    objectref count;
+    vref result;
+    vref count;
 } ReplaceEnv;
 
 static boolean nativeReplace(ReplaceEnv *env)
@@ -736,7 +736,7 @@ static boolean nativeReplace(ReplaceEnv *env)
     size_t replacementLength;
     size_t offset;
     size_t newOffset;
-    objectref offsetRef;
+    vref offsetRef;
     char *p;
     uint replacements = 0;
 
@@ -788,7 +788,7 @@ typedef struct
 {
     Work work;
 
-    objectref file;
+    vref file;
 } RmEnv;
 
 static void nativePreRm(RmEnv *env)
@@ -815,10 +815,10 @@ typedef struct
 {
     Work work;
 
-    objectref cacheFile;
-    objectref out;
-    objectref err;
-    objectref accessedFiles;
+    vref cacheFile;
+    vref out;
+    vref err;
+    vref accessedFiles;
 } SetUptodateEnv;
 
 static void nativePreSetUptodate(SetUptodateEnv *env)
@@ -831,7 +831,7 @@ static void nativePreSetUptodate(SetUptodateEnv *env)
 static boolean nativeSetUptodate(SetUptodateEnv *env)
 {
     cacheref ref;
-    objectref value;
+    vref value;
     size_t index;
     const char *path;
     size_t length;
@@ -875,9 +875,9 @@ typedef struct
 {
     Work work;
 
-    objectref value;
+    vref value;
 
-    objectref result;
+    vref result;
 } SizeEnv;
 
 static boolean nativeSize(SizeEnv *env)
@@ -904,11 +904,11 @@ typedef struct
 {
     Work work;
 
-    objectref value;
-    objectref delimiter;
-    objectref removeEmpty;
+    vref value;
+    vref delimiter;
+    vref removeEmpty;
 
-    objectref result;
+    vref result;
 } SplitEnv;
 
 static void nativePreSplit(SplitEnv *env)
@@ -918,7 +918,7 @@ static void nativePreSplit(SplitEnv *env)
 
 static boolean nativeSplit(SplitEnv *env)
 {
-    objectref data;
+    vref data;
 
     if (HeapIsFutureValue(env->value) ||
         HeapIsFutureValue(env->delimiter) ||
@@ -974,12 +974,12 @@ void NativeInit(void)
 void NativeInvoke(VM *vm, nativefunctionref function)
 {
     const FunctionInfo *info = getFunctionInfo(function);
-    objectref *p;
+    vref *p;
     uint i;
     struct
     {
         Work work;
-        objectref values[NATIVE_MAX_VALUES];
+        vref values[NATIVE_MAX_VALUES];
     } env;
 
     assert(info->parameterCount + info->returnValueCount <= NATIVE_MAX_VALUES);
@@ -1022,7 +1022,7 @@ void NativeWork(Work *work)
     assert(finished);
 }
 
-nativefunctionref NativeFindFunction(objectref name)
+nativefunctionref NativeFindFunction(vref name)
 {
     uint i;
     for (i = 1; i < NATIVE_FUNCTION_COUNT; i++)
@@ -1035,7 +1035,7 @@ nativefunctionref NativeFindFunction(objectref name)
     return 0;
 }
 
-objectref NativeGetName(nativefunctionref function)
+vref NativeGetName(nativefunctionref function)
 {
     return getFunctionInfo(function)->name;
 }

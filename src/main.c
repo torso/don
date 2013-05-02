@@ -73,13 +73,13 @@ int main(int argc, const char **argv)
     const char *env;
     size_t envLength;
     char *string;
-    objectref filename;
+    vref filename;
     File inputFile;
     char *cacheDirectory;
     size_t cacheDirectoryLength;
     File donNamespaceFile;
     namespaceref defaultNamespace;
-    objectref name;
+    vref name;
     fieldref field;
     functionref function;
     boolean parseOptions = true;

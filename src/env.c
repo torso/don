@@ -67,10 +67,10 @@ const char *const*EnvGetEnv(void)
     return env;
 }
 
-const char *const*EnvCreateCopy(objectref overrides)
+const char *const*EnvCreateCopy(vref overrides)
 {
-    objectref name;
-    objectref value;
+    vref name;
+    vref value;
     size_t nameLength;
     const char **result;
     const char **p;

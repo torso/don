@@ -66,7 +66,7 @@ static uint16 getFreeLocalIndex(ParseState *state)
     return (uint16)count;
 }
 
-static uint16 getLocalIndex(ParseState *state, objectref name)
+static uint16 getLocalIndex(ParseState *state, vref name)
 {
     uint local;
     ParseStateCheck(state);
@@ -86,7 +86,7 @@ static uint16 getLocalIndex(ParseState *state, objectref name)
 
 void ParseStateInit(ParseState *state, bytevector *bytecode,
                     namespaceref ns, functionref function,
-                    objectref filename, uint line, uint offset)
+                    vref filename, uint line, uint offset)
 {
     const ParameterInfo *parameterInfo;
     uint parameterCount;
@@ -292,7 +292,7 @@ uint ParseStateBlockIndent(ParseState *state)
 }
 
 
-boolean ParseStateIsParameter(ParseState *state, objectref name)
+boolean ParseStateIsParameter(ParseState *state, vref name)
 {
     uint local = IntHashMapGet(&state->locals, uintFromRef(name));
     if (!local)
@@ -302,7 +302,7 @@ boolean ParseStateIsParameter(ParseState *state, objectref name)
     return local <= FunctionIndexGetParameterCount(state->function);
 }
 
-int ParseStateGetVariableIndex(ParseState *state, objectref name)
+int ParseStateGetVariableIndex(ParseState *state, vref name)
 {
     uint16 local = getLocalIndex(state, name);
     if (local == UINT16_MAX)
@@ -312,7 +312,7 @@ int ParseStateGetVariableIndex(ParseState *state, objectref name)
     return local;
 }
 
-boolean ParseStateGetVariable(ParseState *state, objectref name)
+boolean ParseStateGetVariable(ParseState *state, vref name)
 {
     uint16 local = getLocalIndex(state, name);
     if (local == UINT16_MAX)
@@ -323,7 +323,7 @@ boolean ParseStateGetVariable(ParseState *state, objectref name)
     return true;
 }
 
-boolean ParseStateSetVariable(ParseState *state, objectref name)
+boolean ParseStateSetVariable(ParseState *state, vref name)
 {
     uint16 local = getLocalIndex(state, name);
     if (local == UINT16_MAX)
@@ -382,7 +382,7 @@ void ParseStateWriteInstruction(ParseState *state, Instruction instruction)
     BVAdd(state->bytecode, instruction);
 }
 
-void ParseStateWritePush(ParseState *state, objectref value)
+void ParseStateWritePush(ParseState *state, vref value)
 {
     ParseStateCheck(state);
     if (!value)
@@ -433,7 +433,7 @@ void ParseStateWriteList(ParseState *state, uint size)
     BVAddUint(state->bytecode, size);
 }
 
-void ParseStateWriteFileset(ParseState *state, objectref pattern)
+void ParseStateWriteFileset(ParseState *state, vref pattern)
 {
     ParseStateCheck(state);
     ParseStateWriteInstruction(state, OP_FILESET);

@@ -45,7 +45,7 @@ static uint getSlotHash(const uint *t, uint slot)
     return t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_HASH];
 }
 
-static objectref getSlotValue(const uint *t, uint slot)
+static vref getSlotValue(const uint *t, uint slot)
 {
     checkSlot(t, slot);
     return refFromUint(t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE]);
@@ -78,17 +78,17 @@ void StringPoolDispose(void)
     free(table);
 }
 
-objectref StringPoolAdd(const char *token)
+vref StringPoolAdd(const char *token)
 {
     assert(token != null);
     return StringPoolAdd2(token, strlen(token));
 }
 
-objectref StringPoolAdd2(const char *token, size_t length)
+vref StringPoolAdd2(const char *token, size_t length)
 {
     uint hash;
     uint slot;
-    objectref ref;
+    vref ref;
     uint *cachedTable = table;
 
     assert(token);
