@@ -18,12 +18,7 @@ void Fail(const char *format, ...)
 
 void FailErrno(boolean forked)
 {
-    switch (errno)
-    {
-    default:
-        fprintf(stderr, "Error %d\n", errno);
-        break;
-    }
+    fprintf(stderr, "don: %s\n", strerror(errno));
     if (forked)
     {
         _exit(1);
@@ -33,7 +28,7 @@ void FailErrno(boolean forked)
 
 void FailOOM(void)
 {
-    fprintf(stderr, "Out of memory\n");
+    fprintf(stderr, "don: Out of memory\n");
     exit(1);
 }
 
@@ -44,7 +39,7 @@ void FailIO(const char *message, const char *filename)
 
 void FailIOErrno(const char *message, const char *filename, int error)
 {
-    fprintf(stderr, "%s %s: %s\n", message, filename, strerror(error));
+    fprintf(stderr, "don: %s %s: %s\n", message, filename, strerror(error));
     exit(1);
 }
 
