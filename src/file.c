@@ -893,8 +893,9 @@ static void teDispose(TreeEntry *te)
     }
     teDisposeChildren(te);
     teDisposeContent(te);
-    if (!te->hasPinned && parent)
+    if (!te->hasPinned)
     {
+        assert(parent);
         teUnlinkChild(parent, te);
         free(te);
     }
@@ -929,7 +930,8 @@ void FileInit(void)
 void FileDisposeAll(void)
 {
     tePin(teGet(cwd, cwdLength), false, -1);
-    teDispose(&root);
+    teDisposeChildren(&root);
+    teDisposeContent(&root);
     free(cwd);
 }
 

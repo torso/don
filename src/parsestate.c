@@ -410,13 +410,12 @@ void ParseStateWritePush(ParseState *state, vref value)
 void ParseStateReorderStack(ParseState *state, const uint16 *reorder,
                             uint16 count)
 {
-    const uint16 *stop;
     ParseStateCheck(state);
     BVAdd(state->bytecode, OP_REORDER_STACK);
     BVAddUint16(state->bytecode, count);
-    for (stop = reorder + count; reorder != stop; reorder++)
+    while (count--)
     {
-        BVAddUint16(state->bytecode, *reorder);
+        BVAddUint16(state->bytecode, *reorder++);
     }
 }
 

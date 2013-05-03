@@ -172,9 +172,9 @@ static boolean readIndex(const char *path, size_t pathLength)
 
 void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
 {
-    Entry *entry;
     char *tempIndex;
     size_t tempIndexLength;
+    size_t i;
 
     cacheDir = cacheDirectory;
     cacheDirLength = cacheDirectoryLength;
@@ -191,10 +191,9 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
     if (readIndex(cacheIndexOutPath, cacheIndexOutLength))
     {
         FileOpenAppend(&cacheIndexOut, tempIndex, tempIndexLength);
-        for (entry = entries + 1;
-             entry < entries + sizeof(entries) / sizeof(Entry);
-             entry++)
+        for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
         {
+            Entry *entry = entries + i;
             if (entry->path)
             {
                 writeEntry(entry);
@@ -213,17 +212,16 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
 
 void CacheDispose(void)
 {
-    Entry *entry;
+    size_t i;
 
     if (!initialised)
     {
         return;
     }
 
-    for (entry = entries + 1;
-         entry < entries + sizeof(entries) / sizeof(Entry);
-         entry++)
+    for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
     {
+        Entry *entry = entries + i;
         if (entry->path)
         {
             if (!entry->written && !entry->newEntry)
@@ -248,14 +246,13 @@ void CacheDispose(void)
 
 cacheref CacheGet(const byte *hash)
 {
-    Entry *entry;
     Entry *freeEntry = null;
     char filename[FILENAME_DIGEST_SIZE / 5 * 8 + 1];
+    size_t i;
 
-    for (entry = entries + 1;
-         entry < entries + sizeof(entries) / sizeof(Entry);
-         entry++)
+    for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
     {
+        Entry *entry = entries + i;
         if (!entry->path)
         {
             freeEntry = entry;
@@ -288,14 +285,13 @@ cacheref CacheGet(const byte *hash)
 
 cacheref CacheGetFromFile(const char *path, size_t pathLength)
 {
-    Entry *entry;
+    size_t i;
 
     assert(path);
     assert(pathLength);
-    for (entry = entries + 1;
-         entry < entries + sizeof(entries) / sizeof(Entry);
-         entry++)
+    for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
     {
+        Entry *entry = entries + i;
         if (entry->pathLength == pathLength &&
             !memcmp(entry->path, path, pathLength))
         {
