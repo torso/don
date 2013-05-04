@@ -24,7 +24,7 @@ typedef struct
 } Entry;
 
 static boolean initialised;
-static Entry entries[256];
+static Entry entries[32768];
 
 static char *cacheDir;
 static size_t cacheDirLength;
