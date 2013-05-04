@@ -110,6 +110,7 @@ cc(files... flags:{})
             depend = depend[indexOf(depend ": ") + 2 .. size(depend) - 2]
             depend = replace(depend "\\\n" "")
             depend = split(depend removeEmpty:true)
+            rm(dependFile)
             setUptodate(cache out accessedFiles:fileset(depend))
       result = result::{ofile}
    fail(condition:failed)
