@@ -28,8 +28,8 @@ typedef struct
 struct _TreeEntry
 {
     TreeEntry *parent;
-    TreeEntry **children;
-    size_t childCount;
+    TreeEntry *firstChild;
+    TreeEntry *sibling;
 
     char *component;
     size_t componentLength;
@@ -429,7 +429,7 @@ static void teDeleteDirectory(TreeEntry *te)
             assert(!tempChild.fd);
             assert(!tempChild.data);
             assert(!tempChild.refCount);
-            assert(!tempChild.children);
+            assert(!tempChild.firstChild);
         }
     }
     if (closedir(dir))
@@ -461,7 +461,7 @@ static void teDeleteDirectory(TreeEntry *te)
 
 static void teDelete(TreeEntry *te)
 {
-    TreeEntry **child;
+    TreeEntry *child;
 #ifndef HAVE_OPENAT
     char *path;
 #endif
@@ -483,13 +483,14 @@ static void teDelete(TreeEntry *te)
         teClose(te);
     }
 
-    for (child = te->children; te->childCount; te->childCount--, child++)
+    for (child = te->firstChild; child;)
     {
-        teDelete(*child);
-        free(*child);
+        TreeEntry *next = child->sibling;
+        teDelete(child);
+        free(child);
+        child = next;
     }
-    free(te->children);
-    te->children = null;
+    te->firstChild = null;
 
 #ifdef HAVE_OPENAT
     if (!te->hasStat || !teIsDirectory(te))
@@ -692,66 +693,9 @@ static void tePin(TreeEntry *te, boolean blockModify, int delta)
     }
 }
 
-static uint teChildIndex(const TreeEntry *parent, const TreeEntry *child)
-{
-    uint i;
-    assert(parent);
-    assert(child);
-    for (i = 0;; i++)
-    {
-        assert(i < parent->childCount);
-        if (parent->children[i] == child)
-        {
-            return i;
-        }
-    }
-}
-
-static void teUnlinkChild(TreeEntry *parent, const TreeEntry *child)
-{
-    TreeEntry **newChildren;
-    uint i;
-
-    assert(parent);
-    assert(child);
-    assert(parent->childCount);
-    if (parent->childCount == 1)
-    {
-        free(parent->children);
-        parent->childCount = 0;
-        parent->children = null;
-        return;
-    }
-    newChildren = (TreeEntry**)malloc(
-        sizeof(TreeEntry*) * (parent->childCount - 1));
-    i = teChildIndex(parent, child);
-    memcpy(newChildren, parent->children, i * sizeof(TreeEntry*));
-    memcpy(newChildren + i, parent->children + i + 1,
-           (parent->childCount - i - 1) * sizeof(TreeEntry*));
-    free(parent->children);
-    parent->children = newChildren;
-    parent->childCount--;
-}
-
-static void teSetParent(TreeEntry *parent, TreeEntry *child)
-{
-    TreeEntry **newChildren;
-
-    child->parent = parent;
-
-    newChildren = (TreeEntry**)malloc(sizeof(TreeEntry*) * (parent->childCount + 1));
-    memcpy(newChildren, parent->children, sizeof(TreeEntry*) * parent->childCount);
-    newChildren[parent->childCount] = child;
-    free(parent->children);
-    parent->children = newChildren;
-    parent->childCount++;
-}
-
 static TreeEntry *teChild(TreeEntry *te, const char *name, size_t length)
 {
     TreeEntry *child;
-    TreeEntry **childEntry;
-    TreeEntry **stop;
 
     assert(te);
     assert(name);
@@ -759,11 +703,8 @@ static TreeEntry *teChild(TreeEntry *te, const char *name, size_t length)
     assert(length > 1 || *name != '.');
     assert(length > 2 || *name != '.' || name[1] != '.');
 
-    for (childEntry = te->children, stop = childEntry + te->childCount;
-         childEntry < stop;
-         childEntry++)
+    for (child = te->firstChild; child; child = child->sibling)
     {
-        child = *childEntry;
         if (child->componentLength == length &&
             !memcmp(child->component, name, length))
         {
@@ -775,7 +716,10 @@ static TreeEntry *teChild(TreeEntry *te, const char *name, size_t length)
     child->component = (char*)child + sizeof(*child);
     child->componentLength = length;
     memcpy(child->component, name, length);
-    teSetParent(te, child);
+
+    child->parent = te;
+    child->sibling = te->firstChild;
+    te->firstChild = child;
     return child;
 }
 
@@ -820,12 +764,6 @@ static void teDisposeContent(TreeEntry *te)
 {
     assert(!te->pinned);
     assert(!te->refCount);
-    if (!te->childCount)
-    {
-        assert(!te->childCount);
-        free(te->children);
-        te->children = 0;
-    }
     if (te->fd)
     {
         teClose(te);
@@ -836,57 +774,59 @@ static void teDisposeContent(TreeEntry *te)
 static void teDisposeChildren(TreeEntry *te)
 {
     TreeEntry *start = te;
-    TreeEntry *parent;
-    uint i;
+    TreeEntry **prev;
+
+    /* This does a post-order traversal. */
     for (;;)
     {
-        if (te->childCount && !te->children[te->childCount-1]->blockModify)
+        if (!te->blockModify && te->firstChild)
         {
-            te = te->children[te->childCount-1];
+            te = te->firstChild;
+        }
+        else if (te == start)
+        {
+            return;
+        }
+        else if (te->sibling)
+        {
+            te = te->sibling;
         }
         else
         {
-            for (;;)
+            /* All children have been visited. Dispose on the way up. */
+            do
             {
+                te = te->parent;
+                for (prev = &te->firstChild; *prev;)
+                {
+                    TreeEntry *child = *prev;
+                    if (!child->pinned)
+                    {
+                        teDisposeContent(child);
+                    }
+                    if (child->pinned || child->hasPinned)
+                    {
+                        prev = &child->sibling;
+                    }
+                    else
+                    {
+                        *prev = child->sibling;
+                        free(child);
+                    }
+                }
                 if (te == start)
                 {
                     return;
                 }
-                parent = te->parent;
-                i = teChildIndex(parent, te);
-                if (te->pinned || te->hasPinned)
-                {
-                    if (!te->pinned)
-                    {
-                        teDisposeContent(te);
-                    }
-                }
-                else
-                {
-                    assert(!te->blockModify);
-                    teDisposeContent(te);
-                    free(te);
-                    parent->childCount--;
-                    parent->children[i] = parent->children[parent->childCount];
-                }
-                if (i)
-                {
-                    te = parent->children[i-1];
-                    break;
-                }
-                else
-                {
-                    te = parent;
-                }
             }
+            while (!te->sibling);
+            te = te->sibling;
         }
     }
 }
 
 static void teDispose(TreeEntry *te)
 {
-    TreeEntry *parent = te->parent;
-
     if (te->pinned)
     {
         return;
@@ -895,8 +835,11 @@ static void teDispose(TreeEntry *te)
     teDisposeContent(te);
     if (!te->hasPinned)
     {
-        assert(parent);
-        teUnlinkChild(parent, te);
+        TreeEntry **prev;
+        assert(te->parent);
+        for (prev = &te->parent->firstChild; *prev != te;
+             prev = &(*prev)->sibling);
+        *prev = te->sibling;
         free(te);
     }
 }
