@@ -51,6 +51,9 @@ struct _TreeEntry
     StatusBlob blob;
 };
 
+static const char *rootPath = "/";
+static const char *cwdRelative = ".";
+
 static TreeEntry root;
 static TreeEntry *teCwd;
 static char *cwd;
@@ -62,36 +65,120 @@ static boolean pathIsDirectory(const char *path, size_t length)
     return path[length] == '/';
 }
 
-static char *concatFilename(const TreeEntry *te) /* TODO: Experiment with cwd-relative paths. */
+static void writePathSegment(const TreeEntry *te, const TreeEntry *teStop,
+                             char *buffer, size_t length)
 {
+    assert(te != teStop);
+    buffer += length;
+    *buffer = 0;
+    buffer -= te->componentLength;
+    memcpy(buffer, te->component, te->componentLength);
+    for (te = te->parent; te != teStop; te = te->parent)
+    {
+        *--buffer = '/';
+        buffer -= te->componentLength;
+        memcpy(buffer, te->component, te->componentLength);
+    }
+}
+
+/*
+  Returns an absolute path, or a path relative to CWD.
+  The returned path must be freed with freePath.
+*/
+static const char *cwdRelativePath(const TreeEntry *te)
+{
+    const TreeEntry *parent;
     size_t length = 0;
-    const TreeEntry *parent = te;
     char *buffer;
 
     if (te == &root)
     {
-        buffer = (char*)malloc(2);
-        buffer[0] = '/';
-        buffer[1] = 0;
-        return buffer;
+        return rootPath;
+    }
+    if (te == teCwd)
+    {
+        return cwdRelative;
+    }
+    if (te->parent == teCwd)
+    {
+        return te->component;
     }
     assert(te);
-    for (parent = te; parent != &root; parent = parent->parent)
+    for (parent = te; parent != &root && parent != teCwd; parent = parent->parent)
     {
         assert(parent);
         length += parent->componentLength + 1;
     }
-    buffer = (char*)malloc(length + 1);
-    *buffer = '/';
-    buffer += length;
-    *buffer = 0;
-    for (parent = te; parent != &root; parent = parent->parent)
+    if (parent == &root)
     {
-        buffer -= parent->componentLength;
-        memcpy(buffer, parent->component, parent->componentLength);
-        *--buffer = '/';
+        buffer = (char*)malloc(length + 1);
+        *buffer = '/';
+        writePathSegment(te, &root, buffer + 1, length - 1);
+    }
+    else
+    {
+        buffer = (char*)malloc(length);
+        writePathSegment(te, parent, buffer, length - 1);
     }
     return buffer;
+}
+
+/*
+  The returned path must be freed with freePath.
+*/
+static const char *relativePath(const TreeEntry *te, int *fd)
+{
+    const TreeEntry *parent;
+    size_t length = 0;
+    char *buffer;
+
+    *fd = AT_FDCWD;
+    if (te == &root)
+    {
+        return rootPath;
+    }
+    if (te == teCwd)
+    {
+        return cwdRelative;
+    }
+    if (te->parent == teCwd)
+    {
+        return te->component;
+    }
+    assert(te);
+    assert(!te->fd);
+    for (parent = te; parent != &root && parent != teCwd; parent = parent->parent)
+    {
+        assert(parent);
+#ifdef HAVE_OPENAT
+        if (parent->fd)
+        {
+            *fd = parent->fd;
+            break;
+        }
+#endif
+        length += parent->componentLength + 1;
+    }
+    if (parent == &root)
+    {
+        buffer = (char*)malloc(length + 1);
+        *buffer = '/';
+        writePathSegment(te, &root, buffer + 1, length - 1);
+    }
+    else
+    {
+        buffer = (char*)malloc(length);
+        writePathSegment(te, parent, buffer, length - 1);
+    }
+    return buffer;
+}
+
+static void freePath(const TreeEntry *te, const char *path)
+{
+    if (path != te->component && path != rootPath && path != cwdRelative)
+    {
+        free((char*)path);
+    }
 }
 
 
@@ -106,30 +193,21 @@ static void teClose(TreeEntry *te)
     te->fd = 0;
 }
 
-static void teDoOpen(TreeEntry *te, int fdParent unused, int flags)
+static void teDoOpen(TreeEntry *te, int flags)
 {
-    char *path;
+    int fd;
+    const char *path;
     assert(!te->refCount);
     assert(!te->fd);
-    if (te == teCwd)
-    {
-        te->fd = open(".", flags,
-                      S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-    }
+    path = relativePath(te, &fd);
 #ifdef HAVE_OPENAT
-    else if (fdParent)
-    {
-        te->fd = openat(fdParent, te->component, flags,
-                        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-    }
+    te->fd = openat(fd, path, flags,
+                    S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+#else
+    te->fd = open(path, flags,
+                  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 #endif
-    else
-    {
-        path = concatFilename(te);
-        te->fd = open(path, flags,
-                      S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-        free(path);
-    }
+    freePath(te, path);
     if (te->fd == -1)
     {
         te->fd = 0;
@@ -144,47 +222,6 @@ static void teDoOpen(TreeEntry *te, int fdParent unused, int flags)
     assert(!te->hasStat || te->blob.exists || (flags & O_CREAT));
 }
 
-#ifdef HAVE_OPENAT
-static int teQuickParentFD(TreeEntry *restrict te)
-{
-    TreeEntry *restrict parent = te->parent;
-    if (!parent)
-    {
-        return 0;
-    }
-    if (parent == teCwd)
-    {
-        return AT_FDCWD;
-    }
-    return te->parent->fd;
-}
-
-static void teOpenParent(TreeEntry *restrict te)
-{
-    TreeEntry *restrict parent = te->parent;
-    if (!parent || parent->fd || parent == teCwd)
-    {
-        return;
-    }
-    teDoOpen(parent, teQuickParentFD(parent), O_CLOEXEC | O_RDONLY);
-}
-
-static int teParentFD(TreeEntry *restrict te)
-{
-    TreeEntry *restrict parent = te->parent;
-    if (!parent)
-    {
-        return 0;
-    }
-    if (parent == teCwd)
-    {
-        return AT_FDCWD;
-    }
-    teOpenParent(te);
-    return te->parent->fd;
-}
-#endif
-
 static void teOpen(TreeEntry *te)
 {
     assert(te);
@@ -193,11 +230,7 @@ static void teOpen(TreeEntry *te)
         return;
     }
 
-#ifdef HAVE_OPENAT
-    teDoOpen(te, te == teCwd ? 0 : teParentFD(te), O_CLOEXEC | O_RDONLY);
-#else
-    teDoOpen(te, 0, O_CLOEXEC | O_RDONLY);
-#endif
+    teDoOpen(te, O_CLOEXEC | O_RDONLY);
 }
 
 static void teOpenWrite(TreeEntry *te, int flags)
@@ -209,11 +242,7 @@ static void teOpenWrite(TreeEntry *te, int flags)
         teClose(te);
     }
 
-#ifdef HAVE_OPENAT
-    teDoOpen(te, teParentFD(te), O_CLOEXEC | O_CREAT | O_WRONLY | flags);
-#else
-    teDoOpen(te, 0, O_CLOEXEC | O_CREAT | O_WRONLY | flags);
-#endif
+    teDoOpen(te, O_CLOEXEC | O_CREAT | O_WRONLY | flags);
 }
 
 static DIR *teOpenDir(TreeEntry *te)
@@ -223,21 +252,16 @@ static DIR *teOpenDir(TreeEntry *te)
     assert(te);
     if (!te->fd)
     {
-#ifdef HAVE_OPENAT
-        teDoOpen(te, te == teCwd ? 0 : teParentFD(te),
-                 O_CLOEXEC | O_RDONLY | O_DIRECTORY);
-#else
-        teDoOpen(te, 0, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
-#endif
+        teDoOpen(te, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
         if (!te->fd)
         {
-            FailIO("Error opening directory", concatFilename(te));
+            FailIO("Error opening directory", cwdRelativePath(te));
         }
     }
     dir = fdopendir(te->fd);
     if (!dir)
     {
-        FailIO("Error opening directory", concatFilename(te));
+        FailIO("Error opening directory", cwdRelativePath(te));
     }
     return dir;
 }
@@ -252,7 +276,7 @@ static void teCloseDir(TreeEntry *te, DIR *dir)
     if (closedir(dir))
     {
         assert(false);
-        FailIO("Error closing directory", concatFilename(te));
+        FailIO("Error closing directory", cwdRelativePath(te));
     }
 }
 
@@ -260,7 +284,6 @@ static void teStat(TreeEntry *te)
 {
     struct stat s;
     struct stat s2;
-    char *path;
 
     if (!te->hasStat)
     {
@@ -268,65 +291,53 @@ static void teStat(TreeEntry *te)
         {
             if (fstat(te->fd, &s))
             {
-                FailIO("Error accessing file", concatFilename(te));
+                FailIO("Error accessing file", cwdRelativePath(te));
             }
         }
         else
         {
+            int fd;
+            const char *path = relativePath(te, &fd);
+            if (
 #ifdef HAVE_OPENAT
-            int fd = teParentFD(te);
-            if (fd)
-            {
-                if (fstatat(fd, te->component, &s, 0))
-                {
-                    if (errno != ENOENT)
-                    {
-                        FailIO("Error accessing file", concatFilename(te));
-                    }
-                    if (fstatat(fd, te->component, &s, AT_SYMLINK_NOFOLLOW))
-                    {
-                        if (errno != ENOENT)
-                        {
-                            FailIO("Error accessing file", concatFilename(te));
-                        }
-                        te->hasStat = true;
-                        te->blob.exists = false;
-                        return;
-                    }
-                }
-            }
-            else
+                fstatat(fd, path, &s, AT_SYMLINK_NOFOLLOW)
+#else
+                lstat(path, &s)
 #endif
+                )
             {
-                path = concatFilename(te);
-                if (lstat(path, &s))
+                if (errno != ENOENT)
+                {
+                    FailIO("Error accessing file", cwdRelativePath(te));
+                }
+                freePath(te, path);
+                te->hasStat = true;
+                te->blob.exists = false;
+                return;
+            }
+            if (S_ISLNK(s.st_mode))
+            {
+                /* TODO: Maybe do something more clever with symlinks. */
+                fflush(stdout);
+                if (
+#ifdef HAVE_OPENAT
+                    fstatat(fd, path, &s2, 0)
+#else
+                    stat(path, &s2)
+#endif
+                    )
                 {
                     if (errno != ENOENT)
                     {
-                        FailIO("Error accessing file", concatFilename(te));
+                        FailIO("Error accessing file", cwdRelativePath(te));
                     }
-                    free(path);
-                    te->hasStat = true;
-                    te->blob.exists = false;
-                    return;
                 }
-                if (S_ISLNK(s.st_mode))
+                else
                 {
-                    /* TODO: Maybe do something more clever with symlinks. */
-                    if (stat(path, &s2))
-                    {
-                        if (errno != ENOENT)
-                        {
-                            FailIO("Error accessing file", path);
-                        }
-                    }
-                    else
-                    {
-                        s = s2;
-                    }
+                    s = s2;
                 }
-                free(path);
             }
+            freePath(te, path);
         }
         te->hasStat = true;
         te->blob.exists = true;
@@ -369,7 +380,6 @@ static size_t teSize(TreeEntry *te)
 static void teDeleteDirectory(TreeEntry *te)
 {
     TreeEntry tempChild;
-    char *path;
     DIR *dir;
     int fd;
     union
@@ -378,11 +388,12 @@ static void teDeleteDirectory(TreeEntry *te)
         char b[offsetof(struct dirent, d_name) + NAME_MAX + 1];
     } u;
     struct dirent *res;
+    const char *path;
 
     teOpen(te);
     if (!te->fd)
     {
-        FailIO("Error opening directory", concatFilename(te));
+        FailIO("Error opening directory", cwdRelativePath(te));
     }
 #ifndef HAVE_POSIX_SPAWN
 #error TODO: dup clears O_CLOEXEC
@@ -390,19 +401,19 @@ static void teDeleteDirectory(TreeEntry *te)
     fd = dup(te->fd);
     if (fd == -1)
     {
-        FailIO("Error duplicating file handle", concatFilename(te));
+        FailIO("Error duplicating file handle", cwdRelativePath(te));
     }
     dir = fdopendir(fd);
     if (!dir)
     {
-        FailIO("Error opening directory", concatFilename(te));
+        FailIO("Error opening directory", cwdRelativePath(te));
     }
     u.d.d_name[NAME_MAX] = 0;
     for (;;)
     {
         if (readdir_r(dir, &u.d, &res))
         {
-            FailIO("Error reading directory", concatFilename(te));
+            FailIO("Error reading directory", cwdRelativePath(te));
         }
         if (!res)
         {
@@ -423,7 +434,7 @@ static void teDeleteDirectory(TreeEntry *te)
             tempChild.componentLength = strlen(u.d.d_name);
             if (errno != EISDIR)
             {
-                FailIO("Error deleting file", concatFilename(&tempChild));
+                FailIO("Error deleting file", cwdRelativePath(&tempChild));
             }
             teDeleteDirectory(&tempChild); /* TODO: Iterate instead of recurse */
             assert(!tempChild.fd);
@@ -435,36 +446,28 @@ static void teDeleteDirectory(TreeEntry *te)
     if (closedir(dir))
     {
         assert(false);
-        FailIO("Error closing directory", concatFilename(te));
+        FailIO("Error closing directory", cwdRelativePath(te));
     }
     teClose(te);
+    path = relativePath(te, &fd);
+    if (
 #ifdef HAVE_OPENAT
-    fd = teQuickParentFD(te);
-    if (fd)
-    {
-        if (unlinkat(fd, te->component, AT_REMOVEDIR))
-        {
-            FailIO("Error deleting directory", concatFilename(te));
-        }
-    }
-    else
+        unlinkat(fd, path, AT_REMOVEDIR)
+#else
+        rmdir(path)
 #endif
+        )
     {
-        path = concatFilename(te);
-        if (rmdir(path))
-        {
-            FailIO("Error deleting directory", path);
-        }
-        free(path);
+        FailIO("Error deleting directory", cwdRelativePath(te));
     }
+    freePath(te, path);
 }
 
 static void teDelete(TreeEntry *te)
 {
     TreeEntry *child;
-#ifndef HAVE_OPENAT
-    char *path;
-#endif
+    const char *path;
+    int fd;
 
     assert(te);
     assert(!te->refCount);
@@ -475,9 +478,6 @@ static void teDelete(TreeEntry *te)
         return;
     }
 
-#ifdef HAVE_OPENAT
-    teOpenParent(te);
-#endif
     if (te->fd)
     {
         teClose(te);
@@ -492,65 +492,36 @@ static void teDelete(TreeEntry *te)
     }
     te->firstChild = null;
 
+    path = relativePath(te, &fd);
+    if (!te->hasStat || !teIsDirectory(te))
+    {
+        if (!(
 #ifdef HAVE_OPENAT
-    if (!te->hasStat || !teIsDirectory(te))
-    {
-        if (!unlinkat(teParentFD(te), te->component, 0) ||
-            errno == ENOENT)
-        {
-            te->hasStat = true;
-            te->blob.exists = false;
-            return;
-        }
-        if (errno != EISDIR)
-        {
-            FailIO("Error deleting file", concatFilename(te));
-        }
-    }
-    if (!unlinkat(teParentFD(te), te->component, AT_REMOVEDIR) ||
-        errno == ENOENT)
-    {
-        te->hasStat = true;
-        te->blob.exists = false;
-        return;
-    }
-    /* This might happen when deleting a symlink to a directory. */
-    if (errno == ENOTDIR)
-    {
-        if (unlinkat(teParentFD(te), te->component, 0))
-        {
-            FailIO("Error deleting file", concatFilename(te));
-        }
-        te->hasStat = true;
-        te->blob.exists = false;
-        return;
-    }
-    if (errno != ENOTEMPTY)
-    {
-        FailIO("Error deleting directory", concatFilename(te));
-    }
-    teDeleteDirectory(te);
-    te->hasStat = true;
-    te->blob.exists = false;
+                unlinkat(fd, path, 0)
 #else
-    path = concatFilename(te);
-    if (!te->hasStat || !teIsDirectory(te))
-    {
-        if (!unlink(path) || errno == ENOENT)
+                unlink(path)
+#endif
+                ) || errno == ENOENT)
         {
-            free(path);
+            freePath(te, path);
             te->hasStat = true;
             te->blob.exists = false;
             return;
         }
         if (errno != EISDIR)
         {
-            FailIO("Error deleting file", concatFilename(te));
+            FailIO("Error deleting file", cwdRelativePath(te));
         }
     }
-    if (!rmdir(path) || errno == ENOENT)
+    if (!(
+#ifdef HAVE_OPENAT
+            unlinkat(fd, path, AT_REMOVEDIR)
+#else
+            rmdir(path)
+#endif
+            ) || errno == ENOENT)
     {
-        free(path);
+        freePath(te, path);
         te->hasStat = true;
         te->blob.exists = false;
         return;
@@ -558,29 +529,35 @@ static void teDelete(TreeEntry *te)
     /* This might happen when deleting a symlink to a directory. */
     if (errno == ENOTDIR)
     {
-        if (unlink(path))
+        if (
+#ifdef HAVE_OPENAT
+            unlinkat(fd, path, 0)
+#else
+            unlink(path)
+#endif
+            )
         {
-            FailIO("Error deleting file", concatFilename(te));
+            FailIO("Error deleting file", cwdRelativePath(te));
         }
+        freePath(te, path);
         te->hasStat = true;
         te->blob.exists = false;
-        free(path);
         return;
     }
     if (errno != ENOTEMPTY)
     {
-        FailIO("Error deleting directory", concatFilename(te));
+        FailIO("Error deleting directory", cwdRelativePath(te));
     }
-    free(path);
+    freePath(te, path);
     teDeleteDirectory(te);
     te->hasStat = true;
     te->blob.exists = false;
-#endif
 }
 
 static void teMkdir(TreeEntry *te)
 {
-    char *name;
+    const char *path;
+    int fd;
 
     if (((te->hasStat && te->blob.exists) || te->fd))
     {
@@ -588,34 +565,46 @@ static void teMkdir(TreeEntry *te)
         {
             return;
         }
-        FailIOErrno("Cannot create directory", concatFilename(te), EEXIST);
+        FailIOErrno("Cannot create directory", cwdRelativePath(te), EEXIST);
     }
     te->hasStat = false;
-    name = concatFilename(te);
-    if (!mkdir(name, S_IRWXU | S_IRWXG | S_IRWXO)) /* TODO: Use mkdirat if available. */
+    path = relativePath(te, &fd);
+    if (!(
+#ifdef HAVE_OPENAT
+            mkdirat(fd, path, S_IRWXU | S_IRWXG | S_IRWXO)
+#else
+            mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO)
+#endif
+            ))
     {
-        free(name);
+        freePath(te, path);
         return;
     }
     if (errno == ENOENT)
     {
         teMkdir(te->parent);
-        if (!mkdir(name, S_IRWXU | S_IRWXG | S_IRWXO)) /* TODO: Use mkdirat if available. */
+        if (!(
+#ifdef HAVE_OPENAT
+                mkdirat(fd, path, S_IRWXU | S_IRWXG | S_IRWXO)
+#else
+                mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO)
+#endif
+                ))
         {
-            free(name);
+            freePath(te, path);
             return;
         }
     }
     if (errno != EEXIST)
     {
-        FailIO("Error creating directory", name);
+        FailIO("Error creating directory", cwdRelativePath(te));
     }
+    freePath(te, path);
     if (teIsDirectory(te))
     {
-        free(name);
         return;
     }
-    FailIOErrno("Cannot create directory", name, EEXIST);
+    FailIOErrno("Cannot create directory", cwdRelativePath(te), EEXIST);
 }
 
 static void teWrite(TreeEntry *te, const byte *data, size_t size)
@@ -628,7 +617,7 @@ static void teWrite(TreeEntry *te, const byte *data, size_t size)
         written = write(te->fd, data, size);
         if (written < 0)
         {
-            FailIO("Error writing to file", concatFilename(te));
+            FailIO("Error writing to file", cwdRelativePath(te));
         }
         assert((size_t)written <= size);
         size -= (size_t)written;
@@ -645,14 +634,14 @@ static void teMMap(TreeEntry *te)
         assert(!te->data);
         if (teIsDirectory(te))
         {
-            FailIOErrno("Cannot read file", concatFilename(te), EISDIR);
+            FailIOErrno("Cannot read file", cwdRelativePath(te), EISDIR);
         }
         te->data = (byte*)mmap(null, teSize(te), PROT_READ, MAP_PRIVATE,
                                te->fd, 0);
         if (te->data == (byte*)-1)
         {
             te->data = null;
-            FailIO("Error reading file", concatFilename(te));
+            FailIO("Error reading file", cwdRelativePath(te));
         }
     }
     assert(te->data);
@@ -1083,9 +1072,6 @@ const char *FileStripPath(const char *path, size_t *length)
 void FilePinDirectory(const char *path, size_t length)
 {
     TreeEntry *te;
-#ifdef HAVE_OPENAT
-    int fd;
-#endif
 
     assert(path);
     assert(length);
@@ -1100,8 +1086,7 @@ void FilePinDirectory(const char *path, size_t length)
 
 #ifdef HAVE_OPENAT
     assert(te->parent);
-    fd = teQuickParentFD(te);
-    teDoOpen(te, fd, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
+    teDoOpen(te, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
     if (!te->fd)
     {
         if (errno != ENOENT)
@@ -1109,7 +1094,7 @@ void FilePinDirectory(const char *path, size_t length)
             FailIO("Error opening directory", path);
         }
         teMkdir(te);
-        teDoOpen(te, fd, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
+        teDoOpen(te, O_CLOEXEC | O_RDONLY | O_DIRECTORY);
         if (!te->fd)
         {
             FailIO("Error opening directory", path);
@@ -1307,7 +1292,7 @@ void FileCopy(const char *srcPath, size_t srcLength,
     teOpen(teSrc);
     if (!teSrc->fd)
     {
-        FailIO("Error opening file", concatFilename(teSrc));
+        FailIO("Error opening file", cwdRelativePath(teSrc));
     }
     assert(!teIsDirectory(teSrc)); /* TODO: Copy directory */
     teStat(teDst);
@@ -1320,7 +1305,7 @@ void FileCopy(const char *srcPath, size_t srcLength,
     teOpenWrite(teDst, O_TRUNC);
     if (!teDst->fd)
     {
-        FailIO("Error opening file", concatFilename(teDst));
+        FailIO("Error opening file", cwdRelativePath(teDst));
     }
     teWrite(teDst, teSrc->data, teSize(teSrc));
     teClose(teDst);
@@ -1332,8 +1317,10 @@ void FileRename(const char *oldPath, size_t oldLength,
 {
     TreeEntry *teOld;
     TreeEntry *teNew;
-    char *oldPathSZ;
-    char *newPathSZ;
+    const char *oldPathSZ;
+    const char *newPathSZ;
+    int fdOld;
+    int fdNew;
 
     assert(oldPath);
     assert(oldLength);
@@ -1351,19 +1338,24 @@ void FileRename(const char *oldPath, size_t oldLength,
     assert(!teNew->pinned);
     assert(!teNew->hasPinned);
 
-    /* TODO: Avoid malloc if strings are null terminated. */
-    oldPathSZ = concatFilename(teOld);
-    newPathSZ = concatFilename(teNew);
-    if (!rename(oldPathSZ, newPathSZ)) /* TODO: Use renameat if available. */
+    oldPathSZ = relativePath(teOld, &fdOld);
+    newPathSZ = relativePath(teNew, &fdNew);
+    if (
+#ifdef HAVE_OPENAT
+        renameat(fdOld, oldPathSZ, fdNew, newPathSZ)
+#else
+        rename(oldPathSZ, newPathSZ)
+#endif
+        )
     {
-        free(oldPathSZ);
-        free(newPathSZ);
-        teDispose(teOld); /* TODO: Reparent */
-        teDispose(teNew);
-        return;
+        /* TODO: Rename directories and across file systems */
+        Fail("Error renaming file from %s to %s: %s",
+             cwdRelativePath(teOld), cwdRelativePath(teNew), strerror(errno));
     }
-    /* TODO: Rename directories and across file systems */
-    Fail("Error renaming file from %s to %s: %s", oldPathSZ, newPathSZ, strerror(errno));
+    freePath(teOld, oldPathSZ);
+    freePath(teNew, newPathSZ);
+    teDispose(teOld); /* TODO: Reparent */
+    teDispose(teNew);
 }
 
 void FileMMap(File *file, const byte **p, size_t *size)
@@ -1493,7 +1485,7 @@ static void teTraverseGlob(TreeEntry *base, bytevector *path,
         {
             if (readdir_r(dir, &u.d, &res))
             {
-                FailIO("Error reading directory", concatFilename(base));
+                FailIO("Error reading directory", cwdRelativePath(base));
             }
             if (!res)
             {
@@ -1537,7 +1529,6 @@ void FileTraverseGlob(const char *pattern, size_t length,
 {
     bytevector path;
     TreeEntry *base;
-    char *temp;
 
     if (!length)
     {
@@ -1546,19 +1537,17 @@ void FileTraverseGlob(const char *pattern, size_t length,
 
     assert(pattern);
 
+    BVInit(&path, NAME_MAX);
     if (*pattern == '/')
     {
         base = &root;
+        BVAdd(&path, (byte)'/');
     }
     else
     {
         base = teGet(cwd, cwdLength);
+        BVAddData(&path, (const byte*)cwd, cwdLength - 1);
     }
-
-    BVInit(&path, NAME_MAX);
-    temp = concatFilename(base); /* TODO: Avoid malloc */
-    BVAddData(&path, (const byte*)temp, strlen(temp));
-    free(temp);
     teTraverseGlob(base, &path, pattern, length, callback, userdata);
     BVDispose(&path);
 }
