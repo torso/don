@@ -395,14 +395,12 @@ static void teDeleteDirectory(TreeEntry *te)
     {
         FailIO("Error opening directory", cwdRelativePath(te));
     }
-#ifndef HAVE_POSIX_SPAWN
-#error TODO: dup clears O_CLOEXEC
-#endif
     fd = dup(te->fd);
     if (fd == -1)
     {
         FailIO("Error duplicating file handle", cwdRelativePath(te));
     }
+    fcntl(fd, F_SETFD, FD_CLOEXEC);
     dir = fdopendir(fd);
     if (!dir)
     {
