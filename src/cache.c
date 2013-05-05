@@ -8,13 +8,17 @@
 #include "log.h"
 #include "util.h"
 
-#define FILENAME_DIGEST_SIZE (DIGEST_SIZE - (DIGEST_SIZE % 5))
+/*
+  Waste a few bits of the hash to get a length evenly divisible by 5 for simple
+  base32 encoding.
+*/
+#define CACHE_DIGEST_SIZE (DIGEST_SIZE - (DIGEST_SIZE % 5))
+#define CACHE_FILENAME_LENGTH (CACHE_DIGEST_SIZE / 5 * 8)
 
 typedef struct
 {
-    byte hash[FILENAME_DIGEST_SIZE];
-    char *path;
-    size_t pathLength;
+    byte hash[CACHE_DIGEST_SIZE];
+    boolean valid;
     boolean newEntry;
     boolean written;
     bytevector dependencies;
@@ -39,17 +43,16 @@ static bytevector outBuffer;
 
 static Entry *getEntry(cacheref ref)
 {
-    assert(entries[sizeFromRef(ref)].path);
+    assert(entries[sizeFromRef(ref)].valid);
     return &entries[sizeFromRef(ref)];
 }
 
 static void clearEntry(Entry *entry)
 {
-    assert(entry->path);
+    assert(entry->valid);
     BVDispose(&entry->dependencies);
-    free(entry->path);
     free(entry->output);
-    entry->path = null;
+    entry->valid = false;
 }
 
 static void addDependency(Entry *entry, const char *path, size_t length,
@@ -112,7 +115,7 @@ static boolean readIndex(const char *path, size_t pathLength)
             break;
         }
         entrySize = *(size_t*)data;
-        if (entrySize < 3 * sizeof(size_t) + FILENAME_DIGEST_SIZE ||
+        if (entrySize < 3 * sizeof(size_t) + CACHE_DIGEST_SIZE ||
             entrySize > size)
         {
             break;
@@ -128,7 +131,7 @@ static boolean readIndex(const char *path, size_t pathLength)
             ref = CacheGet(data);
             entry = getEntry(ref);
         }
-        data += FILENAME_DIGEST_SIZE;
+        data += CACHE_DIGEST_SIZE;
         entry->outLength = ((size_t*)data)[0];
         entry->errLength = ((size_t*)data)[1];
         data += 2 * sizeof(size_t);
@@ -194,7 +197,7 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
         for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
         {
             Entry *entry = entries + i;
-            if (entry->path)
+            if (entry->valid)
             {
                 writeEntry(entry);
                 entry->written = false;
@@ -222,7 +225,7 @@ void CacheDispose(void)
     for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
     {
         Entry *entry = entries + i;
-        if (entry->path)
+        if (entry->valid)
         {
             if (!entry->written && !entry->newEntry)
             {
@@ -247,19 +250,18 @@ void CacheDispose(void)
 cacheref CacheGet(const byte *hash)
 {
     Entry *freeEntry = null;
-    char filename[FILENAME_DIGEST_SIZE / 5 * 8 + 1];
     size_t i;
 
     for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
     {
         Entry *entry = entries + i;
-        if (!entry->path)
+        if (!entry->valid)
         {
             freeEntry = entry;
         }
         else
         {
-            if (!memcmp(hash, entry->hash, FILENAME_DIGEST_SIZE))
+            if (!memcmp(hash, entry->hash, CACHE_DIGEST_SIZE))
             {
                 return refFromSize((size_t)(entry - entries));
             }
@@ -268,16 +270,9 @@ cacheref CacheGet(const byte *hash)
 
     assert(freeEntry); /* TODO: Grow index. */
 
-    UtilBase32(hash, FILENAME_DIGEST_SIZE, filename + 1);
-    filename[0] = filename[1];
-    filename[1] = filename[2];
-    filename[2] = '/';
-    freeEntry->path = FileCreatePath(cacheDir, cacheDirLength,
-                                     filename, FILENAME_DIGEST_SIZE / 5 * 8,
-                                     null, 0,
-                                     &freeEntry->pathLength);
     BVInit(&freeEntry->dependencies, 0);
-    memcpy(freeEntry->hash, hash, FILENAME_DIGEST_SIZE);
+    memcpy(freeEntry->hash, hash, CACHE_DIGEST_SIZE);
+    freeEntry->valid = true;
     freeEntry->newEntry = true;
     freeEntry->written = false;
     return refFromSize((size_t)(freeEntry - entries));
@@ -286,19 +281,24 @@ cacheref CacheGet(const byte *hash)
 cacheref CacheGetFromFile(const char *path, size_t pathLength)
 {
     size_t i;
+    char filename[CACHE_FILENAME_LENGTH];
 
     assert(path);
-    assert(pathLength);
+    assert(pathLength > CACHE_FILENAME_LENGTH);
+    filename[0] = path[pathLength - CACHE_FILENAME_LENGTH - 1];
+    filename[1] = path[pathLength - CACHE_FILENAME_LENGTH];
+    assert(path[pathLength - CACHE_FILENAME_LENGTH + 1] == '/');
+    memcpy(filename + 2, path + pathLength - CACHE_FILENAME_LENGTH + 2,
+           CACHE_FILENAME_LENGTH - 2);
+    UtilDecodeBase32(filename, CACHE_FILENAME_LENGTH, (byte*)filename);
     for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
     {
         Entry *entry = entries + i;
-        if (entry->pathLength == pathLength &&
-            !memcmp(entry->path, path, pathLength))
+        if (!memcmp(entry->hash, filename, CACHE_DIGEST_SIZE))
         {
             return refFromSize((size_t)(entry - entries));
         }
     }
-    assert(false); /* TODO: Error handling. */
     return 0;
 }
 
@@ -381,9 +381,20 @@ boolean CacheIsNewEntry(cacheref ref)
     return getEntry(ref)->newEntry;
 }
 
-const char *CacheGetFile(cacheref ref, size_t *length)
+char *CacheGetFile(cacheref ref, size_t *length)
 {
     Entry *entry = getEntry(ref);
-    *length = entry->pathLength;
-    return entry->path;
+    char filename[CACHE_FILENAME_LENGTH + 1];
+    char filename2[CACHE_FILENAME_LENGTH];
+    UtilBase32(entry->hash, CACHE_DIGEST_SIZE, filename + 1);
+    memcpy(filename2, filename + 1, CACHE_FILENAME_LENGTH);
+    UtilDecodeBase32(filename2, CACHE_FILENAME_LENGTH, (byte*)filename2);
+    assert(!memcmp(filename2, entry->hash, CACHE_DIGEST_SIZE));
+    filename[0] = filename[1];
+    filename[1] = filename[2];
+    filename[2] = '/';
+    return FileCreatePath(cacheDir, cacheDirLength,
+                          filename, CACHE_FILENAME_LENGTH + 1,
+                          null, 0,
+                          length);
 }

@@ -8,4 +8,4 @@ extern void CacheSetUptodate(cacheref ref, size_t outLength, size_t errLength,
 extern void CacheEchoCachedOutput(cacheref ref);
 extern boolean CacheCheckUptodate(cacheref ref);
 extern boolean CacheIsNewEntry(cacheref ref);
-extern const char *CacheGetFile(cacheref ref, size_t *length);
+extern char *CacheGetFile(cacheref ref, size_t *length);

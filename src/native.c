@@ -532,7 +532,7 @@ typedef struct
 static boolean nativeGetCache(GetCacheEnv *env)
 {
     cacheref ref;
-    const char *cachePath;
+    char *cachePath;
     size_t cachePathLength;
     HashState hashState;
     byte hash[DIGEST_SIZE];
@@ -565,6 +565,7 @@ static boolean nativeGetCache(GetCacheEnv *env)
         env->uptodate = HeapFalse;
         FileMkdir(cachePath, cachePathLength);
     }
+    free(cachePath);
     return true;
 }
 
@@ -848,6 +849,7 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
 
     path = HeapGetPath(env->cacheFile, &length);
     ref = CacheGetFromFile(path, length);
+    assert(ref); /* TODO: Error handling. */
     outLength = HeapStringLength(env->out);
     errLength = HeapStringLength(env->err);
     if (env->accessedFiles)
