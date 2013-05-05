@@ -299,8 +299,9 @@ int main(int argc, const char **argv)
     {
         return 1;
     }
-    CacheInit(cacheDirectory, cacheDirectoryLength);
+    StringPoolDispose();
 
+    CacheInit(cacheDirectory, cacheDirectoryLength);
     WorkInit();
     for (j = 0; j < IVSize(&targets); j++)
     {

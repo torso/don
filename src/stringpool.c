@@ -75,11 +75,12 @@ void StringPoolInit(void)
 void StringPoolDispose(void)
 {
     free(table);
+    table = null;
 }
 
 vref StringPoolAdd(const char *token)
 {
-    assert(token != null);
+    assert(token);
     return StringPoolAdd2(token, strlen(token));
 }
 
