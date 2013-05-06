@@ -1,4 +1,6 @@
+#define _GNU_SOURCE
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/select.h>
 #include <unistd.h>
 #include "common.h"
@@ -9,11 +11,26 @@
 #define MIN_READ_BUFFER 1024
 
 
-void PipeInitFD(Pipe *p, int fd)
+int PipeInit(Pipe *p)
 {
+    int fd[2];
+#if HAVE_PIPE2
+    int status = pipe2(fd, O_CLOEXEC);
+#else
+    int status = pipe(fd);
+#endif
+    if (status)
+    {
+        FailErrno(false);
+    }
+#if !HAVE_PIPE2
+    fcntl(fd[0], FD_CLOEXEC);
+    fcntl(fd[1], FD_CLOEXEC);
+#endif
     BVInit(&p->buffer, 256);
     p->listener = null;
-    p->fd = fd;
+    p->fd = fd[0];
+    return fd[1];
 }
 
 void PipeDispose(Pipe *p)

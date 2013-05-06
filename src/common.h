@@ -15,8 +15,10 @@
 #ifndef LITTLE_ENDIAN
 #define LITTLE_ENDIAN
 #endif
-#define HAVE_POSIX_SPAWN 1
+#define HAVE_POSIX_SPAWN 0
 #define HAVE_OPENAT 1
+#define HAVE_PIPE2 1
+#define VFORK vfork
 
 typedef int8_t int8;
 typedef int16_t int16;

@@ -15,7 +15,7 @@ typedef struct
     int fd;
 } Pipe;
 
-extern nonnull void PipeInitFD(Pipe *p, int fd);
+extern nonnull int PipeInit(Pipe *p);
 extern nonnull void PipeDispose(Pipe *p);
 
 extern nonnull void PipeAddListener(Pipe *p, PipeListener *listener);

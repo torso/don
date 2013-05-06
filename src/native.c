@@ -169,6 +169,43 @@ static vref readFile(vref object)
     return string;
 }
 
+static int startProcess(const char *executable, char *const argv[],
+                        const char *const envp[], int fdOut, int fdErr)
+{
+    pid_t pid;
+    int status;
+#if HAVE_POSIX_SPAWN
+    posix_spawn_file_actions_init(&psfa);
+    posix_spawn_file_actions_adddup2(&psfa, fdOut, STDOUT_FILENO);
+    posix_spawn_file_actions_adddup2(&psfa, fdErr, STDERR_FILENO);
+    status = posix_spawn(&pid, executable, &psfa, null, argv, (char*const*)envp);
+    posix_spawn_file_actions_destroy(&psfa);
+    if (status)
+    {
+        FailErrno(false);
+    }
+#else
+    pid = VFORK();
+    if (!pid)
+    {
+        status = dup2(fdOut, STDOUT_FILENO);
+        if (status == -1)
+        {
+            FailErrno(true);
+        }
+        status = dup2(fdErr, STDERR_FILENO);
+        if (status == -1)
+        {
+            FailErrno(true);
+        }
+
+        execve(executable, argv, (char*const*)envp);
+        _exit(EXIT_FAILURE);
+    }
+#endif
+    return pid;
+}
+
 
 typedef struct
 {
@@ -280,12 +317,12 @@ static boolean nativeExec(ExecEnv *env)
     const char *path;
     pid_t pid;
     int status;
-    int fdOut[2];
-    int fdErr[2];
+    int fdOut;
+    int fdErr;
     Pipe out;
     Pipe err;
     size_t length;
-#ifdef HAVE_POSIX_SPAWN
+#if HAVE_POSIX_SPAWN
     posix_spawn_file_actions_t psfa;
 #endif
 
@@ -321,16 +358,8 @@ static boolean nativeExec(ExecEnv *env)
         return true;
     }
 
-    status = pipe(fdOut);
-    if (status == -1)
-    {
-        FailErrno(false);
-    }
-    status = pipe(fdErr);
-    if (status == -1)
-    {
-        FailErrno(false);
-    }
+    fdOut = PipeInit(&out);
+    fdErr = PipeInit(&err);
 
     envp = HeapCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
 
@@ -343,59 +372,20 @@ static boolean nativeExec(ExecEnv *env)
         FileMarkModified(path, length);
     }
 
-#ifdef HAVE_POSIX_SPAWN
-    posix_spawn_file_actions_init(&psfa);
-    posix_spawn_file_actions_addclose(&psfa, fdOut[0]);
-    posix_spawn_file_actions_addclose(&psfa, fdErr[0]);
-    posix_spawn_file_actions_adddup2(&psfa, fdOut[1], STDOUT_FILENO);
-    posix_spawn_file_actions_adddup2(&psfa, fdErr[1], STDERR_FILENO);
-    posix_spawn_file_actions_addclose(&psfa, fdOut[1]);
-    posix_spawn_file_actions_addclose(&psfa, fdErr[1]);
-    status = posix_spawn(&pid, executable, &psfa, null, argv, (char**)envp);
-    posix_spawn_file_actions_destroy(&psfa);
-    if (status)
-    {
-        FailErrno(false);
-    }
-#else
-    pid = fork();
-    if (!pid)
-    {
-        close(fdOut[0]);
-        close(fdErr[0]);
-
-        status = dup2(fdOut[1], STDOUT_FILENO);
-        if (status == -1)
-        {
-            FailErrno(true);
-        }
-        close(fdOut[1]);
-        status = dup2(fdErr[1], STDERR_FILENO);
-        if (status == -1)
-        {
-            FailErrno(true);
-        }
-        close(fdErr[1]);
-
-        execve(executable, argv, (char**)envp);
-        _exit(EXIT_FAILURE);
-    }
-#endif
+    pid = startProcess(executable, argv, envp, fdOut, fdErr);
     free(executable);
     free(argv);
     if (HeapCollectionSize(env->env))
     {
         free((void*)envp);
     }
-    close(fdOut[1]);
-    close(fdErr[1]);
+    close(fdOut);
+    close(fdErr);
     if (pid < 0)
     {
         FailOOM();
     }
 
-    PipeInitFD(&out, fdOut[0]);
-    PipeInitFD(&err, fdErr[0]);
     if (VIsTruthy(env->echoOut))
     {
         PipeAddListener(&out, &LogPipeOutListener);
