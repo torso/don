@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include "common.h"
 #include "vm.h"
+#include "fail.h"
 #include "file.h"
 #include "hash.h"
 #include "math.h"
@@ -149,6 +150,34 @@ static byte *heapAlloc(VType type, uint32 size)
     *objectData++ = type;
     return (byte*)objectData;
 }
+
+static vref heapFinishAlloc(byte *objectData)
+{
+    return refFromSize((size_t)(HeapPageOffset + objectData - OBJECT_OVERHEAD - HeapPageBase));
+}
+
+static vref heapFinishRealloc(byte *objectData, size_t size)
+{
+    assert(size);
+    assert(size <= UINT32_MAX - 1);
+    assert(HeapPageFree == objectData);
+    *(uint32*)(objectData - OBJECT_OVERHEAD) = (uint32)size;
+    HeapPageFree += size;
+    return heapFinishAlloc(objectData);
+}
+
+static void heapAllocAbort(byte *objectData)
+{
+    assert(HeapPageFree == objectData);
+    HeapPageFree -= OBJECT_OVERHEAD;
+}
+
+static void heapFree(vref value)
+{
+    assert(HeapGetObjectData(value) + HeapGetObjectSize(value) == HeapPageFree);
+    HeapPageFree -= OBJECT_OVERHEAD + HeapGetObjectSize(value);
+}
+
 
 static vref heapTop(void)
 {
@@ -408,20 +437,13 @@ int HeapCompare(vref object1, vref object2)
 
 byte *HeapAlloc(VType type, size_t size)
 {
-    assert(size);
     assert(size <= UINT32_MAX - 1);
     return heapAlloc(type, (uint32)size);
 }
 
-static vref heapFinishAlloc(byte *objectData)
-{
-    return refFromSize((size_t)(HeapPageOffset + objectData - OBJECT_OVERHEAD - HeapPageBase));
-}
-
 vref HeapFinishAlloc(byte *objectData)
 {
-    vref object = heapFinishAlloc(objectData);
-    return object;
+    return heapFinishAlloc(objectData);
 }
 
 
@@ -878,6 +900,123 @@ vref HeapPathFromParts(vref path, vref name, vref extension)
     return result;
 }
 
+
+/* TODO: Size limit. */
+static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
+                            boolean *flattened)
+{
+    size_t i;
+    size_t size2;
+    const vref *restrict src;
+    switch (HeapGetObjectType(list))
+    {
+    case TYPE_ARRAY:
+        src = (const vref*)HeapGetObjectData(list);
+        size2 = HeapGetObjectSize(list) / sizeof(vref);
+        for (i = 0; i < size2; i++)
+        {
+            vref v = *src++;
+            assert(!HeapIsFutureValue(v)); /* TODO */
+            if (HeapIsCollection(v))
+            {
+                size_t s = 0;
+                *flattened = true;
+                getAllFlattened(v, dst, &s, flattened);
+                *size += s;
+                dst += s;
+            }
+            else
+            {
+                *dst++ = v;
+                (*size)++;
+            }
+        }
+        return;
+
+    case TYPE_INTEGER_RANGE:
+        Fail("TODO: getAllFlattened: TYPE_INTEGER_RANGE\n");
+
+    case TYPE_CONCAT_LIST:
+        src = (const vref*)HeapGetObjectData(list);
+        size2 = HeapGetObjectSize(list) / sizeof(vref);
+        for (i = 0; i < size2; i++)
+        {
+            size_t s = 0;
+            getAllFlattened(*src++, dst, &s, flattened);
+            *size += s;
+            dst += s;
+        }
+        return;
+
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_STRING:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
+    case TYPE_FILE:
+    case TYPE_FUTURE:
+    default:
+        assert(false);
+        return;
+    }
+}
+
+/* TODO: Strip null */
+vref HeapCreateFileset(vref value)
+{
+    size_t size;
+    size_t i;
+    vref newValue;
+    vref *data;
+    boolean converted = false;
+    assert(!HeapIsFutureValue(value)); /* TODO */
+    for (;;)
+    {
+        VType type = HeapGetObjectType(value);
+        if (!isCollectionType(type))
+        {
+            value = HeapCreatePath(value);
+            return HeapCreateArray(&value, 1);
+        }
+        size = HeapCollectionSize(value);
+        if (!size)
+        {
+            return HeapEmptyList;
+        }
+        if (size != 1)
+        {
+            break;
+        }
+        HeapCollectionGet(value, HeapBoxInteger(0), &value);
+    }
+
+    data = (vref*)HeapAlloc(TYPE_ARRAY, 0);
+    size = 0;
+    getAllFlattened(value, data, &size, &converted);
+    if (!size)
+    {
+        heapAllocAbort((byte*)data);
+        return HeapEmptyList;
+    }
+    newValue = heapFinishRealloc((byte*)data, size * sizeof(vref));
+    for (i = 0; i < size; i++)
+    {
+        if (!HeapIsFile(data[i]))
+        {
+            converted = true;
+            data[i] = HeapCreatePath(data[i]);
+        }
+    }
+    /* When measured, it was faster to create a new array than to keep a
+       non-array type. */
+    if (!converted && HeapGetObjectType(value) == TYPE_ARRAY)
+    {
+        heapFree(newValue);
+        return value;
+    }
+    return newValue;
+}
 
 static void createPath(const char *path, size_t length, void *userdata)
 {

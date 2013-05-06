@@ -118,34 +118,6 @@ static char **createStringArray(vref collection)
     return strings;
 }
 
-static boolean appendFiles(vref value, intvector *result)
-{
-    vref o;
-    size_t index;
-
-    if (HeapIsFutureValue(value))
-    {
-        return false;
-    }
-
-    if (HeapIsCollection(value))
-    {
-        for (index = 0;
-             HeapCollectionGet(value, HeapBoxSize(index++), &o);)
-        {
-            if (!appendFiles(o, result))
-            {
-                return false;
-            }
-        }
-    }
-    else
-    {
-        IVAddRef(result, HeapCreatePath(value));
-    }
-    return true;
-}
-
 static vref readFile(vref object)
 {
     const char *path;
@@ -498,14 +470,8 @@ typedef struct
 /* TODO: Remove duplicate files. */
 static boolean nativeFileset(FilesetEnv *env)
 {
-    boolean status;
-    intvector files;
-
-    IVInit(&files, 16);
-    status = appendFiles(env->value, &files);
-    env->result = HeapCreateArrayFromVector(&files);
-    IVDispose(&files);
-    return status;
+    env->result = HeapCreateFileset(env->value);
+    return true;
 }
 
 typedef struct

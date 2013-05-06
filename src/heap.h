@@ -84,6 +84,7 @@ extern nonnull boolean HeapIsFile(vref object);
 extern nonnull vref HeapPathFromParts(vref path, vref name,
                                       vref extension);
 
+extern nonnull vref HeapCreateFileset(vref value);
 extern nonnull vref HeapCreateFilesetGlob(const char *pattern,
                                           size_t length);
 
