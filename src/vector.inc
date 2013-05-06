@@ -192,6 +192,12 @@ void VECTOR_FUNC(Add)(VECTOR_NAME *v, VECTOR_TYPE value)
     *p = value;
 }
 
+void VECTOR_FUNC(AddData)(VECTOR_NAME *v, const VECTOR_TYPE *data, size_t size)
+{
+    VECTOR_TYPE *p = vectorGrow(v, size);
+    memcpy(p, data, size * sizeof(VECTOR_TYPE));
+}
+
 VECTOR_TYPE VECTOR_FUNC(Get)(const VECTOR_NAME *v, size_t index)
 {
     vectorCheckIndex(v, index);

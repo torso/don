@@ -51,12 +51,6 @@ void BVAddAll(bytevector *v, const bytevector *src)
     BVAddData(v, BVGetPointer(src, 0), BVSize(src));
 }
 
-void BVAddData(bytevector *v, const byte *data, size_t size)
-{
-    byte *p = vectorGrow(v, size);
-    memcpy(p, data, size);
-}
-
 void BVAddString(bytevector *v, const char *string)
 {
     if (BVSize(v) && !BVPeek(v))

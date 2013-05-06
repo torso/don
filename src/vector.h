@@ -45,6 +45,9 @@ extern nonnull void VECTOR_FUNC(RemoveRange)(VECTOR_NAME *v,
                                              size_t offset, size_t size);
 
 extern nonnull void VECTOR_FUNC(Add)(VECTOR_NAME *v, VECTOR_TYPE value);
+extern nonnull void VECTOR_FUNC(AddData)(VECTOR_NAME *v,
+                                         const VECTOR_TYPE *values,
+                                         size_t size);
 
 extern nonnull VECTOR_TYPE VECTOR_FUNC(Get)(const VECTOR_NAME *v, size_t index);
 extern nonnull void VECTOR_FUNC(Set)(VECTOR_NAME *v,
