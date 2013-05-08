@@ -36,7 +36,7 @@ void UtilHexString(const byte *data, size_t size, char *output)
     while (size--)
     {
         *output++ = hex(*data >> 4);
-        *output++ = hex(*data++ & 4);
+        *output++ = hex(*data++ & 0xf);
     }
 }
 
