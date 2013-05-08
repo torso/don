@@ -18,13 +18,6 @@
 #define FILE_FREE_STRUCT 1
 #define FILE_FREE_FILENAME 2
 
-typedef struct
-{
-    boolean exists;
-    size_t size;
-    filetime_t mtime;
-} StatusBlob;
-
 struct _TreeEntry
 {
     TreeEntry *parent;
@@ -48,7 +41,7 @@ struct _TreeEntry
     byte *data;
     uint dataRefCount;
 
-    StatusBlob blob;
+    FileStatus blob;
 };
 
 static const char *rootPath = "/";
@@ -243,6 +236,7 @@ static void teOpenWrite(TreeEntry *te, int flags)
     }
 
     teDoOpen(te, O_CLOEXEC | O_CREAT | O_WRONLY | flags);
+    te->hasStat = false;
 }
 
 static DIR *teOpenDir(TreeEntry *te)
@@ -552,7 +546,7 @@ static void teDelete(TreeEntry *te)
     te->blob.exists = false;
 }
 
-static void teMkdir(TreeEntry *te)
+static boolean teMkdir(TreeEntry *te)
 {
     const char *path;
     int fd;
@@ -561,7 +555,7 @@ static void teMkdir(TreeEntry *te)
     {
         if (teIsDirectory(te))
         {
-            return;
+            return false;
         }
         FailIOErrno("Cannot create directory", cwdRelativePath(te), EEXIST);
     }
@@ -576,7 +570,7 @@ static void teMkdir(TreeEntry *te)
             ))
     {
         freePath(te, path);
-        return;
+        return true;
     }
     if (errno == ENOENT)
     {
@@ -590,7 +584,7 @@ static void teMkdir(TreeEntry *te)
                 ))
         {
             freePath(te, path);
-            return;
+            return true;
         }
     }
     if (errno != EEXIST)
@@ -600,7 +594,7 @@ static void teMkdir(TreeEntry *te)
     freePath(te, path);
     if (teIsDirectory(te))
     {
-        return;
+        return false;
     }
     FailIOErrno("Cannot create directory", cwdRelativePath(te), EEXIST);
 }
@@ -1125,22 +1119,17 @@ void FileMarkModified(const char *path, size_t length)
     teDispose(teGet(path, length));
 }
 
-const byte *FileStatusBlob(const char *path, size_t length)
+const FileStatus *FileGetStatus(const char *path, size_t length)
 {
     TreeEntry *te = teGet(path, length);
     teStat(te);
-    return (const byte*)&te->blob;
+    return &te->blob;
 }
 
-size_t FileStatusBlobSize(void)
+boolean FileHasChanged(const char *path, size_t length,
+                       const FileStatus *status)
 {
-    return sizeof(StatusBlob);
-}
-
-boolean FileHasChanged(const char *path, size_t length, const byte *blob)
-{
-    return memcmp(FileStatusBlob(path, length), blob,
-                  FileStatusBlobSize()) != 0;
+    return memcmp(FileGetStatus(path, length), status, sizeof(FileStatus)) != 0;
 }
 
 boolean FileIsOpen(File *file)
@@ -1264,12 +1253,12 @@ void FileDelete(const char *path, size_t length)
     teDelete(teGet(path, length));
 }
 
-void FileMkdir(const char *path, size_t length)
+boolean FileMkdir(const char *path, size_t length)
 {
     assert(path);
     assert(length);
     assert(*path == '/');
-    teMkdir(teGet(path, length));
+    return teMkdir(teGet(path, length));
 }
 
 void FileCopy(const char *srcPath, size_t srcLength,

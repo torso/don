@@ -15,6 +15,13 @@ typedef struct
     int mmapRefCount;
 } File;
 
+typedef struct
+{
+    boolean exists;
+    size_t size;
+    filetime_t mtime;
+} FileStatus;
+
 typedef void (*TraverseCallback)(const char *path, size_t length,
                                  void *userdata);
 
@@ -35,10 +42,9 @@ extern nonnull void FileTraverseGlob(const char *pattern, size_t length,
 extern nonnull void FilePinDirectory(const char *path, size_t length);
 extern nonnull void FileUnpinDirectory(const char *path, size_t length);
 extern nonnull void FileMarkModified(const char *path, size_t length);
-extern nonnull const byte *FileStatusBlob(const char *path, size_t length);
-extern pureconst size_t FileStatusBlobSize(void);
+extern nonnull const FileStatus *FileGetStatus(const char *path, size_t length);
 extern nonnull boolean FileHasChanged(const char *path, size_t length,
-                                      const byte *blob);
+                                      const FileStatus *status);
 
 /*
   Returns true if the specified File struct is referencing an opened file. This
@@ -63,7 +69,7 @@ extern nonnull void FileWrite(File *file, const byte *buffer, size_t size);
 
 extern nonnull boolean FileIsExecutable(const char *path, size_t length);
 extern nonnull void FileDelete(const char *path, size_t length);
-extern nonnull void FileMkdir(const char *path, size_t length);
+extern nonnull boolean FileMkdir(const char *path, size_t length);
 extern nonnull void FileCopy(const char *srcPath, size_t srcLength,
                              const char *dstPath, size_t dstLength);
 extern nonnull void FileRename(const char *oldPath, size_t oldLength,

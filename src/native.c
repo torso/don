@@ -487,7 +487,6 @@ typedef struct
 
 static boolean nativeGetCache(GetCacheEnv *env)
 {
-    cacheref ref;
     char *cachePath;
     size_t cachePathLength;
     HashState hashState;
@@ -503,23 +502,17 @@ static boolean nativeGetCache(GetCacheEnv *env)
     HashInit(&hashState);
     HeapHash(env->key, &hashState);
     HashFinal(&hashState, hash);
-    ref = CacheGet(hash);
-    uptodate = CacheCheckUptodate(ref);
-    cachePath = CacheGetFile(ref, &cachePathLength);
+    CacheGet(hash, VIsTruthy(env->echoCachedOutput),
+             &uptodate, &cachePath, &cachePathLength);
     env->cacheFile = HeapCreatePath(HeapCreateString(cachePath,
                                                      cachePathLength));
     if (uptodate)
     {
         env->uptodate = HeapTrue;
-        if (VIsTruthy(env->echoCachedOutput))
-        {
-            CacheEchoCachedOutput(ref);
-        }
     }
     else
     {
         env->uptodate = HeapFalse;
-        FileMkdir(cachePath, cachePathLength);
     }
     free(cachePath);
     return true;
@@ -799,14 +792,8 @@ static void nativePreSetUptodate(SetUptodateEnv *env)
 
 static boolean nativeSetUptodate(SetUptodateEnv *env)
 {
-    cacheref ref;
-    vref value;
-    size_t index;
     const char *path;
     size_t length;
-    size_t outLength;
-    size_t errLength;
-    char *output = null;
 
     if (!VIsTruthy(env->work.condition) ||
         HeapIsFutureValue(env->cacheFile) || HeapIsFutureValue(env->out) ||
@@ -816,28 +803,7 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
     }
 
     path = HeapGetPath(env->cacheFile, &length);
-    ref = CacheGetFromFile(path, length);
-    assert(ref); /* TODO: Error handling. */
-    outLength = HeapStringLength(env->out);
-    errLength = HeapStringLength(env->err);
-    if (env->accessedFiles)
-    {
-        for (index = 0; HeapCollectionGet(env->accessedFiles,
-                                          HeapBoxSize(index++), &value);)
-        {
-            assert(!HeapIsFutureValue(value)); /* TODO: Don't assume fileset is always finished. */
-            path = HeapGetPath(value, &length);
-            CacheAddDependency(ref, path, length);
-        }
-    }
-    if (outLength || errLength)
-    {
-        output = (char*)malloc(outLength + errLength);
-        HeapWriteString(env->out, output);
-        HeapWriteString(env->err, output + outLength);
-    }
-    /* TODO: Sync files in cache directory. */
-    CacheSetUptodate(ref, outLength, errLength, output);
+    CacheSetUptodate(path, length, env->accessedFiles, env->out, env->err);
     return true;
 }
 

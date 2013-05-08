@@ -1,0 +1,38 @@
+;target: test1 test2 test3
+
+uncached(key)
+   cache uptodate = getCache("test" key)
+   fail(condition:uptodate)
+
+cached(key value)
+   cache uptodate = getCache("test" key)
+   fail(condition:!uptodate)
+   fail(condition:(read(file(cache "value")) != value))
+
+update(key value)
+   cache uptodate = getCache("test" key)
+   write(file(cache "value") value)
+   setUptodate(cache {"" ""})
+
+die()
+   exec('kill '-s 'KILL pid())
+
+test1:
+   uncached(0)
+   update(0 "v1")
+   uncached(1)
+   cached(0 "v1")
+   echo("PASS")
+   die()
+
+test2:
+   cached(0 "v1")
+   uncached(1)
+   update(1 "v2")
+   echo("PASS")
+   die()
+
+test3:
+   cached(0 "v1")
+   cached(1 "v2")
+   echo("PASS")

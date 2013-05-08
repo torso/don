@@ -1,399 +1,525 @@
 #include <stdarg.h>
+#include <stddef.h>
+#include <stdio.h>
+#ifdef VALGRIND
+#include <valgrind/memcheck.h>
+#endif
 #include "memory.h"
 #include "common.h"
 #include "bytevector.h"
 #include "cache.h"
+#include "fail.h"
 #include "file.h"
 #include "hash.h"
+#include "heap.h"
 #include "log.h"
 #include "util.h"
 
 /*
-  Waste a few bits of the hash to get a length evenly divisible by 5 for simple
-  base32 encoding.
+  Must be evenly divisible by 5 for simple base32 encoding.
 */
-#define CACHE_DIGEST_SIZE (DIGEST_SIZE - (DIGEST_SIZE % 5))
+#define CACHE_DIGEST_SIZE 40
 #define CACHE_FILENAME_LENGTH (CACHE_DIGEST_SIZE / 5 * 8)
+
+#define TAG 0x646f6e00
+
+/*
+  The layout of this struct results in simple verification of compatibility.
+*/
+typedef struct
+{
+    size_t entryCount;
+    uint sequenceNumber;
+    uint tag;
+} FileHeader;
+
+typedef struct
+{
+    char *path;
+    size_t pathLength;
+    File file;
+    FileHeader header;
+    const byte *data;
+    size_t size;
+} IndexInfo;
+
+typedef struct
+{
+    uint pathLength;
+    FileStatus status;
+} Dependency;
+
+typedef struct
+{
+    size_t size;
+    byte hash[CACHE_DIGEST_SIZE];
+    uint dependencyCount;
+    uint outLength;
+    uint errLength;
+    Dependency dependencies[1]; /* dependencyCount number of entries */
+    /* paths for dependencies */
+    /* out[outLength] */
+    /* err[errLength] */
+} Entry;
 
 typedef struct
 {
     byte hash[CACHE_DIGEST_SIZE];
-    boolean valid;
-    boolean newEntry;
-    boolean written;
-    bytevector dependencies;
-    size_t outLength;
-    size_t errLength;
-    char *output;
-} Entry;
+    size_t entry;
+} TableEntry;
 
 static boolean initialised;
-static Entry entries[32768];
+static const byte *oldEntries;
+static size_t oldEntriesSize;
+static bytevector newEntries;
+static size_t entryCount;
+static TableEntry *table;
+static size_t tableMask;
 
 static char *cacheDir;
 static size_t cacheDirLength;
-static char *cacheIndexPath;
-static size_t cacheIndexLength;
-static char *cacheIndexOutPath;
-static size_t cacheIndexOutLength;
-
-static File cacheIndexOut;
-static bytevector outBuffer;
+static IndexInfo infoRead;
+static IndexInfo infoWrite;
+static IndexInfo infoRewrite;
 
 
-static Entry *getEntry(cacheref ref)
+static size_t tableIndex(const byte *hash)
 {
-    assert(entries[sizeFromRef(ref)].valid);
-    return &entries[sizeFromRef(ref)];
+    return *(const size_t*)hash & tableMask;
 }
 
-static void clearEntry(Entry *entry)
+static const Entry *getEntry(size_t entry)
 {
-    assert(entry->valid);
-    BVDispose(&entry->dependencies);
-    free(entry->output);
-    entry->valid = false;
-}
-
-static void addDependency(Entry *entry, const char *path, size_t length,
-                          const byte *blob)
-{
-    assert(entry->newEntry);
-    BVReserveAppendSize(&entry->dependencies,
-                        sizeof(size_t) + length + FileStatusBlobSize());
-    BVAddSize(&entry->dependencies, length);
-    BVAddData(&entry->dependencies, (const byte*)path, length);
-    BVAddData(&entry->dependencies, blob, FileStatusBlobSize());
-}
-
-static void writeEntry(Entry *restrict entry)
-{
-    size_t size;
-
-    assert(!BVSize(&outBuffer));
-
-    BVAddSize(&outBuffer, 0);
-    BVAddData(&outBuffer, entry->hash, sizeof(entry->hash));
-    BVAddSize(&outBuffer, entry->outLength);
-    BVAddSize(&outBuffer, entry->errLength);
-    BVAddData(&outBuffer, (const byte*)entry->output, entry->outLength + entry->errLength);
-    BVAddAll(&outBuffer, &entry->dependencies);
-
-    size = BVSize(&outBuffer);
-    BVSetSizeAt(&outBuffer, 0, size);
-
-    if (!FileIsOpen(&cacheIndexOut))
+    if (entry < oldEntriesSize)
     {
-        FileOpenAppend(&cacheIndexOut, cacheIndexOutPath, cacheIndexOutLength, true);
+        return (const Entry*)(oldEntries + entry);
     }
-    FileWrite(&cacheIndexOut, BVGetPointer(&outBuffer, 0), size);
-    BVSetSize(&outBuffer, 0);
-    entry->written = true;
+    return (const Entry*)BVGetPointer(&newEntries, entry - oldEntriesSize);
 }
 
-static boolean readIndex(const char *path, size_t pathLength)
+static void initTable(size_t initialEntryCount)
 {
-    File file;
-    cacheref ref;
-    Entry *entry;
-    const byte *data;
-    const byte *limit;
-    size_t size;
-    size_t entrySize;
-    size_t filenameLength;
+    size_t i;
+    for (i = 0x8000; i < initialEntryCount; i <<= 1);
+    i <<= 1;
+    tableMask = i - 1;
+    table = (TableEntry*)calloc(i, sizeof(*table));
+}
 
-    if (!FileTryOpen(&file, path, pathLength))
+static void deleteIndex(IndexInfo *info)
+{
+    FileClose(&info->file);
+    FileDelete(info->path, info->pathLength);
+    info->header.sequenceNumber = 0;
+    info->data = null;
+}
+
+static void createIndex(IndexInfo *info, uint sequenceNumber,
+                        size_t tableEntryCount)
+{
+    memset(&info->header, 0, sizeof(info->header));
+    info->header.sequenceNumber = sequenceNumber;
+    info->header.tag = TAG;
+    info->header.entryCount = tableEntryCount;
+    assert(!FileIsOpen(&info->file));
+    FileOpenAppend(&info->file, info->path, info->pathLength, true);
+    FileWrite(&info->file, (const byte*)&info->header, sizeof(info->header));
+}
+
+static void writeIndex(IndexInfo *info, uint sequenceNumber,
+                       const byte *entryData1, size_t entryData1Size,
+                       const byte *entryData2, size_t entryData2Size)
+{
+    size_t i;
+    createIndex(info, sequenceNumber, entryCount);
+    for (i = 0; i <= tableMask; i++)
+    {
+        if (table[i].entry)
+        {
+            size_t offset = table[i].entry - 1;
+            const byte *e;
+            assert(offset < entryData1Size + entryData2Size);
+            if (offset < entryData1Size)
+            {
+                e = entryData1 + offset;
+            }
+            else
+            {
+                e = entryData2 + offset - entryData1Size;
+            }
+            FileWrite(&info->file, e, ((const Entry*)e)->size);
+        }
+    }
+    FileClose(&info->file);
+}
+
+static void initIndex(uint slot, IndexInfo *info)
+{
+    char filename[6];
+    memset(info, 0, sizeof(*info));
+    memcpy(filename, "index", 5);
+    filename[5] = (char)('0' + slot);
+    info->path = FileCreatePath(cacheDir, cacheDirLength, filename,
+                                sizeof(filename), null, 0, &info->pathLength);
+}
+
+static boolean openIndex(IndexInfo *info)
+{
+    FileHeader *header;
+    if (!FileTryOpen(&info->file, info->path, info->pathLength))
     {
         return false;
     }
-    FileMMap(&file, &data, &size);
-    assert(data);
-    while (size)
+    FileMMap(&info->file, &info->data, &info->size);
+    header = (FileHeader*)info->data;
+    if (info->size <= sizeof(FileHeader) || header->tag != TAG ||
+        !header->sequenceNumber)
     {
-        if (size < sizeof(size_t))
-        {
-            break;
-        }
-        entrySize = *(size_t*)data;
-        if (entrySize < 3 * sizeof(size_t) + CACHE_DIGEST_SIZE ||
-            entrySize > size)
-        {
-            break;
-        }
-        limit = data + entrySize;
-        size -= entrySize;
-        data += sizeof(size_t);
-        ref = CacheGet(data);
-        entry = getEntry(ref);
-        if (!entry->newEntry)
-        {
-            clearEntry(entry);
-            ref = CacheGet(data);
-            entry = getEntry(ref);
-        }
-        data += CACHE_DIGEST_SIZE;
-        entry->outLength = ((size_t*)data)[0];
-        entry->errLength = ((size_t*)data)[1];
-        data += 2 * sizeof(size_t);
-        entry->output = null;
-        if (entry->outLength || entry->errLength)
-        {
-            if (data + entry->outLength + entry->errLength > limit)
-            {
-                clearEntry(entry);
-                break;
-            }
-            entry->output = (char*)malloc(entry->outLength + entry->errLength);
-            memcpy(entry->output, data, entry->outLength + entry->errLength);
-            data += entry->outLength + entry->errLength;
-        }
-        while (data < limit)
-        {
-            if ((size_t)(limit - data) < sizeof(size_t))
-            {
-                clearEntry(entry);
-                break;
-            }
-            filenameLength = *(size_t*)data;
-            data += sizeof(size_t);
-            if ((size_t)(limit - data) < filenameLength + FileStatusBlobSize())
-            {
-                clearEntry(entry);
-                break;
-            }
-            path = (const char*)data;
-            data += filenameLength;
-            addDependency(entry, path, filenameLength, data);
-            data += FileStatusBlobSize();
-        }
-        entry->newEntry = false;
+        deleteIndex(info);
+        return false;
     }
-    FileClose(&file);
+    info->header = *header;
+    info->data += sizeof(FileHeader);
+    info->size -= sizeof(FileHeader);
     return true;
+}
+
+static void buildTable(const byte *data, size_t size, size_t offset)
+{
+    size_t i;
+    size_t j;
+    for (i = 0; i < size;)
+    {
+        const Entry *e = (const Entry*)(data + i);
+        for (j = tableIndex(e->hash);; j = (j + 1) & tableMask)
+        {
+            if (!table[j].entry)
+            {
+                assert(entryCount < tableMask); /* TODO: Grow table */
+                entryCount++;
+                break;
+            }
+            if (!memcmp(table[j].hash, e->hash, CACHE_DIGEST_SIZE))
+            {
+                break;
+            }
+        }
+        memcpy(table[j].hash, e->hash, CACHE_DIGEST_SIZE);
+        table[j].entry = offset + i + 1;
+        i += e->size;
+    }
+}
+
+static void loadIndex(IndexInfo *info)
+{
+    assert(info->data);
+    assert(!entryCount);
+    oldEntries = info->data;
+    oldEntriesSize = info->size;
+
+    initTable(info->header.entryCount);
+
+    buildTable(oldEntries, oldEntriesSize, 0);
+}
+
+static void rebuildIndex(IndexInfo *src1, IndexInfo *src2, IndexInfo *dst)
+{
+    if (src1->header.sequenceNumber > src2->header.sequenceNumber)
+    {
+        IndexInfo *tmp = src1;
+        src1 = src2;
+        src2 = tmp;
+    }
+
+    /* The older index might have entryCount. The newer index definitely
+       doesn't, as it wasn't finished. */
+    initTable(src1->header.entryCount);
+
+    buildTable(src1->data, src1->size, 0);
+    buildTable(src2->data, src2->size, src1->size);
+    writeIndex(dst, src2->header.sequenceNumber + 1,
+               src1->data, src1->size, src2->data, src2->size);
+    if (!openIndex(dst))
+    {
+        Fail("Error reopening rebuilt cache index.\n");
+    }
+    deleteIndex(src1);
+    deleteIndex(src2);
+    oldEntries = dst->data;
+    oldEntriesSize = dst->size;
+    infoRead = *dst;
+    infoWrite = *src1;
+    infoRewrite = *src2;
+    createIndex(&infoWrite, dst->header.sequenceNumber + 1, 0);
 }
 
 void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
 {
-    char *tempIndex;
-    size_t tempIndexLength;
-    size_t i;
+    IndexInfo info1;
+    IndexInfo info2;
+    IndexInfo info3;
+
+    BVInit(&newEntries, 1024);
 
     cacheDir = cacheDirectory;
     cacheDirLength = cacheDirectoryLength;
     FilePinDirectory(cacheDirectory, cacheDirectoryLength);
-    cacheIndexPath = FileCreatePath(cacheDirectory, cacheDirectoryLength,
-                                    "index", 5, null, 0, &cacheIndexLength);
-    cacheIndexOutPath = FileCreatePath(cacheDirectory, cacheDirectoryLength,
-                                       "index.1", 7, null, 0, &cacheIndexOutLength);
-    BVInit(&outBuffer, 1024);
-    tempIndex = FileCreatePath(cacheDirectory, cacheDirectoryLength,
-                               "index.2", 7, null, 0, &tempIndexLength);
-    FileDelete(tempIndex, tempIndexLength);
-    readIndex(cacheIndexPath, cacheIndexLength);
-    if (readIndex(cacheIndexOutPath, cacheIndexOutLength))
+
+    initIndex(1, &info1);
+    initIndex(2, &info2);
+    initIndex(3, &info3);
+    openIndex(&info1);
+    openIndex(&info2);
+    openIndex(&info3);
+    if (info1.header.sequenceNumber && info2.header.sequenceNumber &&
+        info3.header.sequenceNumber)
     {
-        FileOpenAppend(&cacheIndexOut, tempIndex, tempIndexLength, true);
-        for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
+        /* An index rebuild was terminated prematurely. Delete the newest file
+           and do a new attempt to rebuild it. */
+        if (info1.header.sequenceNumber > info2.header.sequenceNumber &&
+            info1.header.sequenceNumber > info3.header.sequenceNumber)
         {
-            Entry *entry = entries + i;
-            if (entry->valid)
-            {
-                writeEntry(entry);
-                entry->written = false;
-            }
+            deleteIndex(&info1);
         }
-        FileClose(&cacheIndexOut);
-        FileRename(tempIndex, tempIndexLength,
-                   cacheIndexOutPath, cacheIndexOutLength);
-        FileRename(cacheIndexOutPath, cacheIndexOutLength,
-                   cacheIndexPath, cacheIndexLength);
+        if (info2.header.sequenceNumber > info1.header.sequenceNumber &&
+            info2.header.sequenceNumber > info3.header.sequenceNumber)
+        {
+            deleteIndex(&info2);
+        }
+        if (info3.header.sequenceNumber > info1.header.sequenceNumber &&
+            info3.header.sequenceNumber > info2.header.sequenceNumber)
+        {
+            deleteIndex(&info3);
+        }
     }
-    free(tempIndex);
+    /* If there are two index files, rebuild them into a single one and delete
+       the existing ones. */
+    if (info1.header.sequenceNumber && info2.header.sequenceNumber)
+    {
+        rebuildIndex(&info1, &info2, &info3);
+    }
+    else if (info1.header.sequenceNumber && info3.header.sequenceNumber)
+    {
+        rebuildIndex(&info1, &info3, &info2);
+    }
+    else if (info2.header.sequenceNumber && info3.header.sequenceNumber)
+    {
+        rebuildIndex(&info2, &info3, &info1);
+    }
+    else if (info1.header.sequenceNumber)
+    {
+        loadIndex(&info1);
+        createIndex(&info2, info1.header.sequenceNumber + 1, 0);
+        infoRead = info1;
+        infoWrite = info2;
+        infoRewrite = info3;
+    }
+    else if (info2.header.sequenceNumber)
+    {
+        loadIndex(&info2);
+        createIndex(&info1, info2.header.sequenceNumber + 1, 0);
+        infoRead = info2;
+        infoWrite = info1;
+        infoRewrite = info3;
+    }
+    else if (info3.header.sequenceNumber)
+    {
+        loadIndex(&info3);
+        createIndex(&info1, info3.header.sequenceNumber + 1, 0);
+        infoRead = info3;
+        infoWrite = info1;
+        infoRewrite = info2;
+    }
+    else
+    {
+        free(info3.path);
+        createIndex(&info1, 1, 0);
+        infoWrite = info1;
+        infoRewrite = info2;
+
+        initTable(0);
+    }
+
     initialised = true;
 }
 
 void CacheDispose(void)
 {
-    size_t i;
-
     if (!initialised)
     {
         return;
     }
 
-    for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
+    assert(FileIsOpen(&infoWrite.file));
+    FileClose(&infoWrite.file);
+
+    writeIndex(&infoRewrite, infoWrite.header.sequenceNumber + 1,
+               oldEntries, oldEntriesSize,
+               BVGetPointer(&newEntries, 0), BVSize(&newEntries));
+
+    if (infoRead.header.sequenceNumber)
     {
-        Entry *entry = entries + i;
-        if (entry->valid)
-        {
-            if (!entry->written && !entry->newEntry)
-            {
-                writeEntry(entry);
-            }
-            clearEntry(entry);
-        }
+        FileClose(&infoRead.file);
+        FileDelete(infoRead.path, infoRead.pathLength);
+        free(infoRead.path);
     }
-    if (FileIsOpen(&cacheIndexOut))
-    {
-        FileClose(&cacheIndexOut);
-        FileRename(cacheIndexOutPath, cacheIndexOutLength,
-                   cacheIndexPath, cacheIndexLength);
-    }
-    BVDispose(&outBuffer);
+    FileDelete(infoWrite.path, infoWrite.pathLength);
+    free(infoWrite.path);
+    free(infoRewrite.path);
+
+    free(table);
+    BVDispose(&newEntries);
     FileUnpinDirectory(cacheDir, cacheDirLength);
     free(cacheDir);
-    free(cacheIndexPath);
-    free(cacheIndexOutPath);
 }
 
-cacheref CacheGet(const byte *hash)
+void CacheGet(const byte *hash, boolean echoCachedOutput,
+              boolean *uptodate, char **path, size_t *pathLength)
 {
-    Entry *freeEntry = null;
-    size_t i;
-
-    for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
-    {
-        Entry *entry = entries + i;
-        if (!entry->valid)
-        {
-            freeEntry = entry;
-        }
-        else
-        {
-            if (!memcmp(hash, entry->hash, CACHE_DIGEST_SIZE))
-            {
-                return refFromSize((size_t)(entry - entries));
-            }
-        }
-    }
-
-    assert(freeEntry); /* TODO: Grow index. */
-
-    BVInit(&freeEntry->dependencies, 0);
-    memcpy(freeEntry->hash, hash, CACHE_DIGEST_SIZE);
-    freeEntry->valid = true;
-    freeEntry->newEntry = true;
-    freeEntry->written = false;
-    return refFromSize((size_t)(freeEntry - entries));
-}
-
-cacheref CacheGetFromFile(const char *path, size_t pathLength)
-{
-    size_t i;
-    char filename[CACHE_FILENAME_LENGTH];
-
-    assert(path);
-    assert(pathLength > CACHE_FILENAME_LENGTH);
-    filename[0] = path[pathLength - CACHE_FILENAME_LENGTH - 1];
-    filename[1] = path[pathLength - CACHE_FILENAME_LENGTH];
-    assert(path[pathLength - CACHE_FILENAME_LENGTH + 1] == '/');
-    memcpy(filename + 2, path + pathLength - CACHE_FILENAME_LENGTH + 2,
-           CACHE_FILENAME_LENGTH - 2);
-    UtilDecodeBase32(filename, CACHE_FILENAME_LENGTH, (byte*)filename);
-    for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
-    {
-        Entry *entry = entries + i;
-        if (!memcmp(entry->hash, filename, CACHE_DIGEST_SIZE))
-        {
-            return refFromSize((size_t)(entry - entries));
-        }
-    }
-    return 0;
-}
-
-void CacheAddDependency(cacheref ref, const char *path, size_t length)
-{
-    addDependency(getEntry(ref), path, length, FileStatusBlob(path, length));
-}
-
-void CacheSetUptodate(cacheref ref, size_t outLength, size_t errLength,
-                      char *output)
-{
-    Entry *entry = getEntry(ref);
-
-    assert(entry->newEntry);
-    assert(!entry->written);
-
-    entry->outLength = outLength;
-    entry->errLength = errLength;
-    entry->output = output;
-    entry->newEntry = false;
-    writeEntry(entry);
-}
-
-void CacheEchoCachedOutput(cacheref ref)
-{
-    Entry *entry = getEntry(ref);
-
-    assert(!entry->newEntry);
-
-    if (entry->outLength)
-    {
-        LogPrintAutoNewline(entry->output, entry->outLength);
-    }
-    if (entry->errLength)
-    {
-        LogPrintErrAutoNewline(entry->output + entry->outLength,
-                               entry->errLength);
-    }
-}
-
-boolean CacheCheckUptodate(cacheref ref)
-{
-    Entry *entry = getEntry(ref);
-    const char *path;
-    size_t length;
-    const byte *restrict depend;
-    const byte *restrict dependLimit;
-
-    if (entry->newEntry)
-    {
-        return false;
-    }
-
-    depend = BVGetPointer(&entry->dependencies, 0);
-    dependLimit = depend + BVSize(&entry->dependencies);
-    while (depend < dependLimit)
-    {
-        length = *(size_t*)depend;
-        depend += sizeof(size_t);
-        path = (const char*)depend;
-        depend += length;
-        if (FileHasChanged(path, length, depend))
-        {
-            entry->newEntry = true;
-            entry->written = false;
-            BVSetSize(&entry->dependencies, 0);
-            entry->outLength = 0;
-            entry->errLength = 0;
-            free(entry->output);
-            entry->output = null;
-            return false;
-        }
-        depend += FileStatusBlobSize();
-    }
-    return true;
-}
-
-boolean CacheIsNewEntry(cacheref ref)
-{
-    return getEntry(ref)->newEntry;
-}
-
-char *CacheGetFile(cacheref ref, size_t *length)
-{
-    Entry *entry = getEntry(ref);
+    const char *p;
     char filename[CACHE_FILENAME_LENGTH + 1];
-    char filename2[CACHE_FILENAME_LENGTH];
-    UtilBase32(entry->hash, CACHE_DIGEST_SIZE, filename + 1);
-    memcpy(filename2, filename + 1, CACHE_FILENAME_LENGTH);
-    UtilDecodeBase32(filename2, CACHE_FILENAME_LENGTH, (byte*)filename2);
-    assert(!memcmp(filename2, entry->hash, CACHE_DIGEST_SIZE));
+    const Entry *entry;
+    size_t i;
+
+    UtilBase32(hash, CACHE_DIGEST_SIZE, filename + 1);
     filename[0] = filename[1];
     filename[1] = filename[2];
     filename[2] = '/';
-    return FileCreatePath(cacheDir, cacheDirLength,
-                          filename, CACHE_FILENAME_LENGTH + 1,
-                          null, 0,
-                          length);
+    *path = FileCreatePath(cacheDir, cacheDirLength,
+                           filename, CACHE_FILENAME_LENGTH + 1,
+                           null, 0,
+                           pathLength);
+
+    for (i = tableIndex(hash);; i = (i + 1) & tableMask)
+    {
+        if (!table[i].entry)
+        {
+            FileMkdir(*path, *pathLength);
+            *uptodate = false;
+            return;
+        }
+        if (!memcmp(table[i].hash, hash, CACHE_DIGEST_SIZE))
+        {
+            entry = getEntry(table[i].entry - 1);
+            break;
+        }
+    }
+
+    p = (const char*)entry + offsetof(Entry, dependencies) +
+        entry->dependencyCount * sizeof(*entry->dependencies);
+    for (i = 0; i < entry->dependencyCount; i++)
+    {
+        uint length = entry->dependencies[i].pathLength;
+        if (FileHasChanged(p, length, &entry->dependencies[i].status))
+        {
+            /* TODO: Mark entry as outdated, in case this process is killed. */
+            *uptodate = false;
+            return;
+        }
+        p += length;
+    }
+
+    *uptodate = true;
+    if (echoCachedOutput)
+    {
+        if (entry->outLength)
+        {
+            LogPrintAutoNewline(p, entry->outLength);
+            p += entry->outLength;
+        }
+        if (entry->errLength)
+        {
+            LogPrintErrAutoNewline(p, entry->errLength);
+        }
+    }
+}
+
+static void appendString(vref value)
+{
+    uint length = (uint)HeapStringLength(value);
+    BVAddUint(&newEntries, length);
+    if (length)
+    {
+        BVReserveAppendSize(&newEntries, length);
+        HeapWriteString(value, (char*)BVGetAppendPointer(&newEntries));
+        BVGrow(&newEntries, length);
+    }
+}
+
+void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
+                      vref out, vref err)
+{
+    Entry *entry;
+    uint dependencyCount = (uint)HeapCollectionSize(dependencies);
+    size_t entryStart;
+    size_t i;
+    byte hash[CACHE_FILENAME_LENGTH];
+
+    assert(path);
+    assert(pathLength > CACHE_FILENAME_LENGTH);
+    hash[0] = (byte)path[pathLength - CACHE_FILENAME_LENGTH - 1];
+    hash[1] = (byte)path[pathLength - CACHE_FILENAME_LENGTH];
+    assert(path[pathLength - CACHE_FILENAME_LENGTH + 1] == '/');
+    memcpy(hash + 2, path + pathLength - CACHE_FILENAME_LENGTH + 2,
+           CACHE_FILENAME_LENGTH - 2);
+    UtilDecodeBase32((const char*)hash, CACHE_FILENAME_LENGTH, hash);
+
+    assert(entryCount < tableMask); /* TODO: Grow table */
+    for (i = tableIndex(hash);; i = (i + 1) & tableMask)
+    {
+        if (!table[i].entry)
+        {
+            entryCount++;
+            memcpy(table[i].hash, hash, CACHE_DIGEST_SIZE);
+            break;
+        }
+        if (!memcmp(table[i].hash, hash, CACHE_DIGEST_SIZE))
+        {
+            break;
+        }
+    }
+    table[i].entry = oldEntriesSize + BVSize(&newEntries) + 1;
+
+    entryStart = BVSize(&newEntries);
+    BVGrow(&newEntries, offsetof(Entry, dependencies) +
+           dependencyCount * sizeof(entry->dependencies));
+    entry = (Entry*)BVGetPointer(&newEntries, entryStart);
+    memcpy(entry->hash, hash, CACHE_DIGEST_SIZE);
+    entry->dependencyCount = dependencyCount;
+    entry->outLength = (uint)HeapStringLength(out);
+    entry->errLength = (uint)HeapStringLength(err);
+    for (i = 0; i < dependencyCount; i++)
+    {
+        vref value;
+        uint length;
+        size_t pathStart;
+        if (!HeapCollectionGet(dependencies, HeapBoxSize(i), &value))
+        {
+            assert(false); /* TODO: Error handling. */
+        }
+        assert(HeapIsFile(value));
+        length = (uint)HeapStringLength(value);
+
+        pathStart = BVSize(&newEntries);
+        BVReserveAppendSize(&newEntries, length);
+        HeapWriteString(value, (char*)BVGetAppendPointer(&newEntries));
+        BVGrow(&newEntries, length);
+
+        entry = (Entry*)BVGetPointer(&newEntries, entryStart);
+        entry->dependencies[i].pathLength = length;
+        memcpy(&entry->dependencies[i].status,
+               FileGetStatus((const char*)BVGetPointer(&newEntries, pathStart),
+                             length),
+               sizeof(FileStatus));
+    }
+    appendString(out);
+    appendString(err);
+    /* TODO: Add padding for alignment */
+    entry = (Entry*)BVGetPointer(&newEntries, entryStart);
+    entry->size = BVSize(&newEntries) - entryStart;
+#ifdef VALGRIND
+    /* Ignore undefined padding */
+    VALGRIND_MAKE_MEM_DEFINED(entry, offsetof(Entry, dependencies));
+#endif
+    FileWrite(&infoWrite.file, (const byte*)entry, entry->size);
 }

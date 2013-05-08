@@ -68,7 +68,6 @@ typedef struct HashState HashState;
 typedef struct VM VM;
 
 typedef uint ref_t;
-typedef ref_t cacheref;
 typedef ref_t fieldref;
 typedef ref_t functionref;
 typedef ref_t namespaceref;
