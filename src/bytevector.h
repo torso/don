@@ -37,6 +37,7 @@ extern nonnull byte BVRead(const bytevector *v, size_t *index);
 #define BVReadInt(v, index) ((int)BVReadUint(v, index))
 extern nonnull uint BVReadUint(const bytevector *v, size_t *index);
 extern nonnull uint16 BVReadUint16(const bytevector *v, size_t *index);
+extern nonnull size_t BVReadSize(const bytevector *v, size_t *index);
 
 extern nonnull void BVWrite(bytevector *v, size_t *index, byte value);
 extern nonnull void BVWriteInt(bytevector *v, size_t *index, int value);

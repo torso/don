@@ -111,18 +111,27 @@ byte BVRead(const bytevector *v, size_t *index)
 uint BVReadUint(const bytevector *v, size_t *index)
 {
     uint value;
-    vectorCheckRange(v, *index, sizeof(int));
+    vectorCheckRange(v, *index, sizeof(value));
     value = *(uint*)&v->data[*index];
-    *index += sizeof(int);
+    *index += sizeof(value);
     return value;
 }
 
 uint16 BVReadUint16(const bytevector *v, size_t *index)
 {
     uint16 value;
-    vectorCheckRange(v, *index, sizeof(uint16));
+    vectorCheckRange(v, *index, sizeof(value));
     value = (uint16)((v->data[*index] << 8) + v->data[*index + 1]);
-    *index += sizeof(uint16);
+    *index += sizeof(value);
+    return value;
+}
+
+size_t BVReadSize(const bytevector *v, size_t *index)
+{
+    size_t value;
+    vectorCheckRange(v, *index, sizeof(value));
+    value = *(size_t*)&v->data[*index];
+    *index += sizeof(value);
     return value;
 }
 
