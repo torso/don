@@ -63,22 +63,48 @@ dotest(debug:false)
    fail = 0
    hasOutput = false
    for f in @test/*
-      out exitcode = run(program '-i f output:false)
-      if exitcode || out[0] != "PASS\n" || out[1] != ""
-         fail += 1
-         if hasOutput
-            echo("")
-         echo("FAIL: "filename(f))
-         hasOutput = out[0] != "" || out[1] != ""
-         if hasOutput
-            if out[0]
-               echo(out[0] prefix:"> ")
-            if out[1]
-               echo(out[1] prefix:"> ")
-         if debug
-            exec(gdb program '-i f fail:false env:'{XDG_CACHE_HOME tempcache})
-      else
+      test = read(f)
+      targets = {'default}
+      if test[0] == ';
+         test = split(test "\n")[0]
+         test = split(test " ")
+         if test[0] == ';target:
+            targets = {}
+            i = 1
+            while i < size(test)
+               targets = targets::{test[i]}
+               i += 1
+
+      result = true
+      i = 0
+      rm(@tempcache)
+      while result && i < size(targets)
+         out exitcode = run(program '-i f targets[i] output:false)
+         if exitcode == 0 && out[0] == "PASS\n" && out[1] == ""
+            i += 1
+         else
+            result = false
+            if hasOutput
+               echo("")
+            echo("FAIL: "filename(f)""(size(targets) > 1 || targets[i] != 'default ? ":"targets[i] : ""))
+            hasOutput = out[0] != "" || out[1] != ""
+            if hasOutput
+               if out[0]
+                  echo(out[0] prefix:"> ")
+               if out[1]
+                  echo(out[1] prefix:"> ")
+            if debug
+               rm(@tempcache)
+               j = 0
+               while j < i
+                  exec(program '-i f targets[j] fail:false echo:false echoStderr:false
+                       env:'{XDG_CACHE_HOME tempcache})
+                  j += 1
+               exec(gdb program '-i f targets[j] fail:false env:'{XDG_CACHE_HOME tempcache})
+      if result
          pass += 1
+      else
+         fail += 1
    if fail
       echo("")
    echo("pass:  "pass)
