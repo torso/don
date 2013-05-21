@@ -21,7 +21,7 @@
 #include "stringpool.h"
 #include "work.h"
 
-#define NATIVE_FUNCTION_COUNT 19
+#define NATIVE_FUNCTION_COUNT 20
 
 typedef boolean (*preInvoke)(void*);
 typedef boolean (*invoke)(void*);
@@ -653,6 +653,18 @@ static boolean nativeMv(MvEnv *env)
 typedef struct
 {
     Work work;
+    vref result;
+} PidEnv;
+
+static boolean nativePid(PidEnv *env)
+{
+    env->result = HeapBoxInteger(getpid());
+    return true;
+}
+
+typedef struct
+{
+    Work work;
 
     vref file;
 
@@ -921,6 +933,7 @@ void NativeInit(void)
     addFunctionInfo("indexOf",     null,                            (invoke)nativeIndexOf,     2, 1);
     addFunctionInfo("lines",       (preInvoke)nativePreLines,       (invoke)nativeLines,       2, 1);
     addFunctionInfo("mv",          (preInvoke)nativePreMv,          (invoke)nativeMv,          2, 0);
+    addFunctionInfo("pid",         null,                            (invoke)nativePid,         0, 1);
     addFunctionInfo("readFile",    (preInvoke)nativePreReadFile,    (invoke)nativeReadFile,    1, 1);
     addFunctionInfo("replace",     null,                            (invoke)nativeReplace,     3, 2);
     addFunctionInfo("rm",          (preInvoke)nativePreRm,          (invoke)nativeRm,          1, 0);

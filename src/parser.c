@@ -889,7 +889,6 @@ static boolean parseNativeInvocationRest(ParseState *state,
     estate->valueType = VALUE_UNKNOWN;
     estate->nativeFunction = function;
 
-    assert(parameterCount);
     while (parameterCount--)
     {
         if (!parseRValue(state, false))
