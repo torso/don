@@ -417,7 +417,6 @@ void CacheGet(const byte *hash, boolean echoCachedOutput,
 static void appendString(vref value)
 {
     uint length = (uint)HeapStringLength(value);
-    BVAddUint(&newEntries, length);
     if (length)
     {
         BVReserveAppendSize(&newEntries, length);
