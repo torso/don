@@ -79,7 +79,7 @@ dotest(debug:false)
       i = 0
       rm(@tempcache)
       while result && i < size(targets)
-         out exitcode = run(program '-i f targets[i] output:false)
+         out exitcode = run(program '-f f targets[i] output:false)
          if exitcode == 0 && out[0] == "PASS\n" && out[1] == ""
             i += 1
          else
@@ -97,10 +97,10 @@ dotest(debug:false)
                rm(@tempcache)
                j = 0
                while j < i
-                  exec(program '-i f targets[j] fail:false echo:false echoStderr:false
+                  exec(program '-f f targets[j] fail:false echo:false echoStderr:false
                        env:'{XDG_CACHE_HOME tempcache})
                   j += 1
-               exec(gdb program '-i f targets[j] fail:false env:'{XDG_CACHE_HOME tempcache})
+               exec(gdb program '-f f targets[j] fail:false env:'{XDG_CACHE_HOME tempcache})
       if result
          pass += 1
       else
@@ -123,23 +123,23 @@ dbgtest:
 
 default:
    valgrind = true
-   out exitcode = run(compile() '-i 'input)
+   out exitcode = run(compile() '-f 'input)
    fail(condition:exitcode)
 
 prof:
    p = compile()
-   out exitcode = run(compile(extraflags:'{-pg} linkflags:'{-pg}) '-i 'input)
+   out exitcode = run(compile(extraflags:'{-pg} linkflags:'{-pg}) '-f 'input)
    fail(condition:exitcode)
    exec('gprof p)
 
 strace:
    valgrind = false
-   out exitcode = run('strace '-qvC compile() '-i 'input)
+   out exitcode = run('strace '-qvC compile() '-f 'input)
    fail(condition:exitcode)
 
 debug:
    program = compile()
-   exec(gdb program '-i 'input env:'{XDG_CACHE_HOME tempcache})
+   exec(gdb program '-f 'input env:'{XDG_CACHE_HOME tempcache})
 
 install:
    program = compile(extraflags:'{-DDATADIR="/usr/local/share/don/"})

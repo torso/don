@@ -129,7 +129,7 @@ int main(int argc, const char **argv)
                     break;
 #endif
 
-                case 'i':
+                case 'f':
                     if (inputFilename)
                     {
                         fprintf(stderr, "More than one input file specified.\n");
@@ -137,7 +137,7 @@ int main(int argc, const char **argv)
                     }
                     if (++i >= argc)
                     {
-                        fprintf(stderr, "Option \"-i\" requires an argument.\n");
+                        fprintf(stderr, "Option \"-f\" requires an argument.\n");
                         return 1;
                     }
                     inputFilename = argv[i];
