@@ -46,8 +46,8 @@ fileset(value)
    return native.fileset(value)
 
 getCache(label version key... echoCachedOutput:true)
-   cacheFile uptodate = native.getCache({label version key} echoCachedOutput)
-   return cacheFile uptodate
+   cacheFile uptodate data = native.getCache({label version key} echoCachedOutput)
+   return cacheFile uptodate data
 
 indexOf(data element)
    return native.indexOf(data element)
@@ -74,8 +74,8 @@ replace(data original replacement)
 rm(file)
    native.rm(file)
 
-setUptodate(cacheFile output accessedFiles:{})
-   native.setUptodate(cacheFile output[0] output[1] fileset(accessedFiles))
+setUptodate(cacheFile output:{"" ""} data:"" accessedFiles:{})
+   native.setUptodate(cacheFile output[0] output[1] data fileset(accessedFiles))
 
 sign(n)
    return n > 0 ? 1 : n ? -1 : 0

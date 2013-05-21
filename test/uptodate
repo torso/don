@@ -3,7 +3,7 @@
 uncached:
    cache uptodate = getCache("test" 0)
    if !uptodate
-      setUptodate(cache {"" ""})
+      setUptodate(cache)
       cached()
 
 cached:

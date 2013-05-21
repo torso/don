@@ -57,8 +57,10 @@ typedef struct
     uint dependencyCount;
     uint outLength;
     uint errLength;
+    uint dataLength;
     Dependency dependencies[1]; /* dependencyCount number of entries */
     /* paths for dependencies */
+    /* data[dataLength] */
     /* out[outLength] */
     /* err[errLength] */
 } Entry;
@@ -354,7 +356,7 @@ void CacheDispose(void)
 }
 
 void CacheGet(const byte *hash, boolean echoCachedOutput,
-              boolean *uptodate, char **path, size_t *pathLength)
+              boolean *uptodate, char **path, size_t *pathLength, vref *out)
 {
     const char *p;
     char filename[CACHE_FILENAME_LENGTH + 1];
@@ -369,6 +371,7 @@ void CacheGet(const byte *hash, boolean echoCachedOutput,
                            filename, CACHE_FILENAME_LENGTH + 1,
                            null, 0,
                            pathLength);
+    *out = 0;
 
     for (i = tableIndex(hash);; i = (i + 1) & tableMask)
     {
@@ -400,6 +403,8 @@ void CacheGet(const byte *hash, boolean echoCachedOutput,
     }
 
     *uptodate = true;
+    *out = HeapCreateString(p, entry->dataLength);
+    p += entry->dataLength;
     if (echoCachedOutput)
     {
         if (entry->outLength)
@@ -426,7 +431,7 @@ static void appendString(vref value)
 }
 
 void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
-                      vref out, vref err)
+                      vref out, vref err, vref data)
 {
     Entry *entry;
     uint dependencyCount = (uint)HeapCollectionSize(dependencies);
@@ -465,6 +470,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
     entry = (Entry*)BVGetPointer(&newEntries, entryStart);
     memcpy(entry->hash, hash, CACHE_DIGEST_SIZE);
     entry->dependencyCount = dependencyCount;
+    entry->dataLength = (uint)HeapStringLength(data);
     entry->outLength = (uint)HeapStringLength(out);
     entry->errLength = (uint)HeapStringLength(err);
     for (i = 0; i < dependencyCount; i++)
@@ -491,6 +497,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
                              length),
                sizeof(FileStatus));
     }
+    appendString(data);
     appendString(out);
     appendString(err);
     /* TODO: Add padding for alignment */

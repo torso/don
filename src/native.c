@@ -483,6 +483,7 @@ typedef struct
 
     vref cacheFile;
     vref uptodate;
+    vref data;
 } GetCacheEnv;
 
 static boolean nativeGetCache(GetCacheEnv *env)
@@ -503,17 +504,10 @@ static boolean nativeGetCache(GetCacheEnv *env)
     HeapHash(env->key, &hashState);
     HashFinal(&hashState, hash);
     CacheGet(hash, VIsTruthy(env->echoCachedOutput),
-             &uptodate, &cachePath, &cachePathLength);
+             &uptodate, &cachePath, &cachePathLength, &env->data);
     env->cacheFile = HeapCreatePath(HeapCreateString(cachePath,
                                                      cachePathLength));
-    if (uptodate)
-    {
-        env->uptodate = HeapTrue;
-    }
-    else
-    {
-        env->uptodate = HeapFalse;
-    }
+    env->uptodate = uptodate ? HeapTrue : HeapFalse;
     free(cachePath);
     return true;
 }
@@ -780,6 +774,7 @@ typedef struct
     vref cacheFile;
     vref out;
     vref err;
+    vref data;
     vref accessedFiles;
 } SetUptodateEnv;
 
@@ -797,13 +792,14 @@ static boolean nativeSetUptodate(SetUptodateEnv *env)
 
     if (!VIsTruthy(env->work.condition) ||
         HeapIsFutureValue(env->cacheFile) || HeapIsFutureValue(env->out) ||
-        HeapIsFutureValue(env->err) || HeapIsFutureValue(env->accessedFiles))
+        HeapIsFutureValue(env->err) || HeapIsFutureValue(env->data) ||
+        HeapIsFutureValue(env->accessedFiles))
     {
         return false;
     }
 
     path = HeapGetPath(env->cacheFile, &length);
-    CacheSetUptodate(path, length, env->accessedFiles, env->out, env->err);
+    CacheSetUptodate(path, length, env->accessedFiles, env->out, env->err, env->data);
     return true;
 }
 
@@ -937,7 +933,7 @@ void NativeInit(void)
     addFunctionInfo("file",        null,                            (invoke)nativeFile,        3, 1);
     addFunctionInfo("filename",    null,                            (invoke)nativeFilename,    1, 1);
     addFunctionInfo("fileset",     null,                            (invoke)nativeFileset,     1, 1);
-    addFunctionInfo("getCache",    null,                            (invoke)nativeGetCache,    2, 2);
+    addFunctionInfo("getCache",    null,                            (invoke)nativeGetCache,    2, 3);
     addFunctionInfo("getEnv",      null,                            (invoke)nativeGetEnv,      1, 1);
     addFunctionInfo("indexOf",     null,                            (invoke)nativeIndexOf,     2, 1);
     addFunctionInfo("lines",       (preInvoke)nativePreLines,       (invoke)nativeLines,       2, 1);
@@ -946,7 +942,7 @@ void NativeInit(void)
     addFunctionInfo("readFile",    (preInvoke)nativePreReadFile,    (invoke)nativeReadFile,    1, 1);
     addFunctionInfo("replace",     null,                            (invoke)nativeReplace,     3, 2);
     addFunctionInfo("rm",          (preInvoke)nativePreRm,          (invoke)nativeRm,          1, 0);
-    addFunctionInfo("setUptodate", (preInvoke)nativePreSetUptodate, (invoke)nativeSetUptodate, 4, 0);
+    addFunctionInfo("setUptodate", (preInvoke)nativePreSetUptodate, (invoke)nativeSetUptodate, 5, 0);
     addFunctionInfo("size",        null,                            (invoke)nativeSize,        1, 1);
     addFunctionInfo("split",       (preInvoke)nativePreSplit,       (invoke)nativeSplit,       3, 1);
     addFunctionInfo("writeFile",   (preInvoke)nativePreWriteFile,   (invoke)nativeWriteFile,   2, 0);
