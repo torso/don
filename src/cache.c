@@ -76,6 +76,7 @@ static const byte *oldEntries;
 static size_t oldEntriesSize;
 static bytevector newEntries;
 static size_t entryCount;
+static bytevector removedEntries; /* TODO: Use size_t vector? */
 static TableEntry table[0x10000];
 static size_t tableMask = 0xffff;
 
@@ -83,7 +84,6 @@ static char *cacheDir;
 static size_t cacheDirLength;
 static IndexInfo infoRead;
 static IndexInfo infoWrite;
-static IndexInfo infoRewrite;
 
 
 static size_t tableIndex(const byte *hash)
@@ -98,6 +98,11 @@ static const Entry *getEntry(size_t entry)
         return (const Entry*)(oldEntries + entry);
     }
     return (const Entry*)BVGetPointer(&newEntries, entry - oldEntriesSize);
+}
+
+static void disposeIndex(IndexInfo *info)
+{
+    free(info->path);
 }
 
 static void deleteIndex(IndexInfo *info)
@@ -118,31 +123,55 @@ static void createIndex(IndexInfo *info, uint sequenceNumber)
     FileWrite(&info->file, (const byte*)&info->header, sizeof(info->header));
 }
 
-static void writeIndex(IndexInfo *info, uint sequenceNumber,
-                       const byte *entryData1, size_t entryData1Size,
-                       const byte *entryData2, size_t entryData2Size)
+static int compareSize(const void *e1, const void *e2)
 {
-    size_t i;
-    createIndex(info, sequenceNumber);
-    for (i = 0; i <= tableMask; i++)
+    size_t s1 = *(const size_t*)e1;
+    size_t s2 = *(const size_t*)e2;
+    return s1 < s2 ? -1 : s1 == s2 ? 0 : 1;
+}
+
+static void sortRemovedEntries(void)
+{
+    /* TODO: Remove need for cast to remove const. */
+    qsort((void*)BVGetPointer(&removedEntries, 0), BVSize(&removedEntries) / sizeof(size_t),
+          sizeof(size_t), compareSize);
+}
+
+static void writeIndex(IndexInfo *info, const byte *entries, size_t entriesSize)
+{
+    size_t i = 0;
+    size_t writeStart = 0;
+    const size_t *removed;
+    const size_t *removedStop;
+    if (!BVSize(&removedEntries))
     {
-        if (table[i].entry)
-        {
-            size_t offset = table[i].entry - 1;
-            const byte *e;
-            assert(offset < entryData1Size + entryData2Size);
-            if (offset < entryData1Size)
-            {
-                e = entryData1 + offset;
-            }
-            else
-            {
-                e = entryData2 + offset - entryData1Size;
-            }
-            FileWrite(&info->file, e, ((const Entry*)e)->size);
-        }
+        FileWrite(&info->file, entries, entriesSize);
+        return;
     }
-    FileClose(&info->file);
+    removed = (const size_t*)BVGetPointer(&removedEntries, 0);
+    removedStop = (const size_t*)BVGetPointer(&removedEntries, BVSize(&removedEntries) - sizeof(size_t));
+    while (i < entriesSize)
+    {
+        size_t size = ((const Entry*)(entries + i))->size;
+        if (i == *removed)
+        {
+            if (i != writeStart)
+            {
+                FileWrite(&info->file, entries + writeStart, i - writeStart);
+            }
+            if (removed != removedStop)
+            {
+                assert(*removed < removed[1]);
+                removed++;
+            }
+            writeStart = i + size;
+        }
+        i += size;
+    }
+    if (i != writeStart)
+    {
+        FileWrite(&info->file, entries + writeStart, i - writeStart);
+    }
 }
 
 static void initIndex(uint slot, IndexInfo *info)
@@ -193,6 +222,7 @@ static void buildTable(const byte *data, size_t size, size_t offset)
             }
             if (!memcmp(table[j].hash, e->hash, CACHE_DIGEST_SIZE))
             {
+                BVAddSize(&removedEntries, table[j].entry - 1);
                 break;
             }
         }
@@ -222,8 +252,11 @@ static void rebuildIndex(IndexInfo *src1, IndexInfo *src2, IndexInfo *dst)
 
     buildTable(src1->data, src1->size, 0);
     buildTable(src2->data, src2->size, src1->size);
-    writeIndex(dst, src2->header.sequenceNumber + 1,
-               src1->data, src1->size, src2->data, src2->size);
+    sortRemovedEntries();
+    createIndex(dst, src2->header.sequenceNumber + 1);
+    writeIndex(dst, src1->data, src1->size);
+    writeIndex(dst, src2->data, src2->size);
+    FileClose(&dst->file);
     if (!openIndex(dst))
     {
         Fail("Error reopening rebuilt cache index.\n");
@@ -234,7 +267,7 @@ static void rebuildIndex(IndexInfo *src1, IndexInfo *src2, IndexInfo *dst)
     oldEntriesSize = dst->size;
     infoRead = *dst;
     infoWrite = *src1;
-    infoRewrite = *src2;
+    disposeIndex(src2);
     createIndex(&infoWrite, dst->header.sequenceNumber + 1);
 }
 
@@ -245,6 +278,7 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
     IndexInfo info3;
 
     BVInit(&newEntries, 1024);
+    BVInit(&removedEntries, 1024);
 
     cacheDir = cacheDirectory;
     cacheDirLength = cacheDirectoryLength;
@@ -293,34 +327,34 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
     }
     else if (info1.header.sequenceNumber)
     {
+        disposeIndex(&info3);
         loadIndex(&info1);
         createIndex(&info2, info1.header.sequenceNumber + 1);
         infoRead = info1;
         infoWrite = info2;
-        infoRewrite = info3;
     }
     else if (info2.header.sequenceNumber)
     {
+        disposeIndex(&info3);
         loadIndex(&info2);
         createIndex(&info1, info2.header.sequenceNumber + 1);
         infoRead = info2;
         infoWrite = info1;
-        infoRewrite = info3;
     }
     else if (info3.header.sequenceNumber)
     {
+        disposeIndex(&info2);
         loadIndex(&info3);
         createIndex(&info1, info3.header.sequenceNumber + 1);
         infoRead = info3;
         infoWrite = info1;
-        infoRewrite = info2;
     }
     else
     {
-        free(info3.path);
+        disposeIndex(&info2);
+        disposeIndex(&info3);
         createIndex(&info1, 1);
         infoWrite = info1;
-        infoRewrite = info2;
     }
 
     initialised = true;
@@ -334,23 +368,20 @@ void CacheDispose(void)
     }
 
     assert(FileIsOpen(&infoWrite.file));
+    sortRemovedEntries();
+    writeIndex(&infoWrite, oldEntries, oldEntriesSize);
     FileClose(&infoWrite.file);
-
-    writeIndex(&infoRewrite, infoWrite.header.sequenceNumber + 1,
-               oldEntries, oldEntriesSize,
-               BVGetPointer(&newEntries, 0), BVSize(&newEntries));
+    disposeIndex(&infoWrite);
 
     if (infoRead.header.sequenceNumber)
     {
         FileClose(&infoRead.file);
         FileDelete(infoRead.path, infoRead.pathLength);
-        free(infoRead.path);
+        disposeIndex(&infoRead);
     }
-    FileDelete(infoWrite.path, infoWrite.pathLength);
-    free(infoWrite.path);
-    free(infoRewrite.path);
 
     BVDispose(&newEntries);
+    BVDispose(&removedEntries);
     FileUnpinDirectory(cacheDir, cacheDirLength);
     free(cacheDir);
 }
@@ -459,6 +490,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
         }
         if (!memcmp(table[i].hash, hash, CACHE_DIGEST_SIZE))
         {
+            BVAddSize(&removedEntries, table[i].entry - 1);
             break;
         }
     }
