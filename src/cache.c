@@ -28,7 +28,8 @@
 */
 typedef struct
 {
-    size_t entryCount;
+    byte ignoredByte;
+    size_t ignoredSize;
     uint sequenceNumber;
     uint tag;
 } FileHeader;
@@ -73,8 +74,8 @@ static const byte *oldEntries;
 static size_t oldEntriesSize;
 static bytevector newEntries;
 static size_t entryCount;
-static TableEntry *table;
-static size_t tableMask;
+static TableEntry table[0x10000];
+static size_t tableMask = 0xffff;
 
 static char *cacheDir;
 static size_t cacheDirLength;
@@ -97,15 +98,6 @@ static const Entry *getEntry(size_t entry)
     return (const Entry*)BVGetPointer(&newEntries, entry - oldEntriesSize);
 }
 
-static void initTable(size_t initialEntryCount)
-{
-    size_t i;
-    for (i = 0x8000; i < initialEntryCount; i <<= 1);
-    i <<= 1;
-    tableMask = i - 1;
-    table = (TableEntry*)calloc(i, sizeof(*table));
-}
-
 static void deleteIndex(IndexInfo *info)
 {
     FileClose(&info->file);
@@ -114,13 +106,11 @@ static void deleteIndex(IndexInfo *info)
     info->data = null;
 }
 
-static void createIndex(IndexInfo *info, uint sequenceNumber,
-                        size_t tableEntryCount)
+static void createIndex(IndexInfo *info, uint sequenceNumber)
 {
     memset(&info->header, 0, sizeof(info->header));
     info->header.sequenceNumber = sequenceNumber;
     info->header.tag = TAG;
-    info->header.entryCount = tableEntryCount;
     assert(!FileIsOpen(&info->file));
     FileOpenAppend(&info->file, info->path, info->pathLength, true);
     FileWrite(&info->file, (const byte*)&info->header, sizeof(info->header));
@@ -131,7 +121,7 @@ static void writeIndex(IndexInfo *info, uint sequenceNumber,
                        const byte *entryData2, size_t entryData2Size)
 {
     size_t i;
-    createIndex(info, sequenceNumber, entryCount);
+    createIndex(info, sequenceNumber);
     for (i = 0; i <= tableMask; i++)
     {
         if (table[i].entry)
@@ -216,9 +206,6 @@ static void loadIndex(IndexInfo *info)
     assert(!entryCount);
     oldEntries = info->data;
     oldEntriesSize = info->size;
-
-    initTable(info->header.entryCount);
-
     buildTable(oldEntries, oldEntriesSize, 0);
 }
 
@@ -230,10 +217,6 @@ static void rebuildIndex(IndexInfo *src1, IndexInfo *src2, IndexInfo *dst)
         src1 = src2;
         src2 = tmp;
     }
-
-    /* The older index might have entryCount. The newer index definitely
-       doesn't, as it wasn't finished. */
-    initTable(src1->header.entryCount);
 
     buildTable(src1->data, src1->size, 0);
     buildTable(src2->data, src2->size, src1->size);
@@ -250,7 +233,7 @@ static void rebuildIndex(IndexInfo *src1, IndexInfo *src2, IndexInfo *dst)
     infoRead = *dst;
     infoWrite = *src1;
     infoRewrite = *src2;
-    createIndex(&infoWrite, dst->header.sequenceNumber + 1, 0);
+    createIndex(&infoWrite, dst->header.sequenceNumber + 1);
 }
 
 void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
@@ -309,7 +292,7 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
     else if (info1.header.sequenceNumber)
     {
         loadIndex(&info1);
-        createIndex(&info2, info1.header.sequenceNumber + 1, 0);
+        createIndex(&info2, info1.header.sequenceNumber + 1);
         infoRead = info1;
         infoWrite = info2;
         infoRewrite = info3;
@@ -317,7 +300,7 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
     else if (info2.header.sequenceNumber)
     {
         loadIndex(&info2);
-        createIndex(&info1, info2.header.sequenceNumber + 1, 0);
+        createIndex(&info1, info2.header.sequenceNumber + 1);
         infoRead = info2;
         infoWrite = info1;
         infoRewrite = info3;
@@ -325,7 +308,7 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
     else if (info3.header.sequenceNumber)
     {
         loadIndex(&info3);
-        createIndex(&info1, info3.header.sequenceNumber + 1, 0);
+        createIndex(&info1, info3.header.sequenceNumber + 1);
         infoRead = info3;
         infoWrite = info1;
         infoRewrite = info2;
@@ -333,11 +316,9 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
     else
     {
         free(info3.path);
-        createIndex(&info1, 1, 0);
+        createIndex(&info1, 1);
         infoWrite = info1;
         infoRewrite = info2;
-
-        initTable(0);
     }
 
     initialised = true;
@@ -367,7 +348,6 @@ void CacheDispose(void)
     free(infoWrite.path);
     free(infoRewrite.path);
 
-    free(table);
     BVDispose(&newEntries);
     FileUnpinDirectory(cacheDir, cacheDirLength);
     free(cacheDir);
