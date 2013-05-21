@@ -1188,7 +1188,7 @@ boolean FileTryOpen(File *file, const char *path, size_t length)
     return true;
 }
 
-void FileOpenAppend(File *file, const char *path, size_t length)
+void FileOpenAppend(File *file, const char *path, size_t length, boolean truncate)
 {
     TreeEntry *te;
 
@@ -1199,7 +1199,7 @@ void FileOpenAppend(File *file, const char *path, size_t length)
 
     te = teGet(path, length);
     assert(!te->fd); /* TODO: Reopen file for appending. */
-    teOpenWrite(te, O_APPEND);
+    teOpenWrite(te, truncate ? O_APPEND | O_TRUNC : O_APPEND);
     if (!te->fd)
     {
         FailIO("Error opening file", path);

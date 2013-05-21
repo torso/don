@@ -95,6 +95,8 @@ sum(n...)
 startsWith(data element)
    return indexOf(data element) == 0
 
+write(file data)
+   native.writeFile(file data)
 
 cc(files... flags:{})
    result = {}

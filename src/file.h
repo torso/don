@@ -54,7 +54,7 @@ extern nonnull void FileOpen(File *file, const char *path, size_t length);
   Opens the file for reading. Returns false if the file does not exist.
 */
 extern nonnull boolean FileTryOpen(File *file, const char *path, size_t length);
-extern nonnull void FileOpenAppend(File *file, const char *path, size_t length);
+extern nonnull void FileOpenAppend(File *file, const char *path, size_t length, boolean truncate);
 extern nonnull void FileClose(File *file);
 
 extern nonnull size_t FileSize(File *file);

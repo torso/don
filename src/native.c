@@ -21,7 +21,7 @@
 #include "stringpool.h"
 #include "work.h"
 
-#define NATIVE_FUNCTION_COUNT 20
+#define NATIVE_FUNCTION_COUNT 21
 
 typedef boolean (*preInvoke)(void*);
 typedef boolean (*invoke)(void*);
@@ -905,6 +905,49 @@ static boolean nativeSplit(SplitEnv *env)
     return true;
 }
 
+typedef struct
+{
+    Work work;
+
+    vref file;
+    vref data;
+} WriteFileEnv;
+
+static void nativePreWriteFile(WriteFileEnv *env)
+{
+    env->work.modifiedFiles = env->file;
+}
+
+static boolean nativeWriteFile(WriteFileEnv *env)
+{
+    const char *path;
+    size_t pathLength;
+    File file;
+    byte buffer[1024];
+    size_t offset = 0;
+    size_t size;
+
+    if (!VIsTruthy(env->work.condition) || HeapIsFutureValue(env->file) ||
+        HeapIsFutureValue(env->data))
+    {
+        return false;
+    }
+
+    size = HeapStringLength(env->data);
+    path = HeapGetPath(env->file, &pathLength);
+    FileOpenAppend(&file, path, pathLength, true);
+    while (size)
+    {
+        size_t chunkSize = min(size, sizeof(buffer));
+        HeapWriteSubstring(env->data, offset, chunkSize, (char*)buffer);
+        FileWrite(&file, buffer, chunkSize);
+        offset += chunkSize;
+        size -= chunkSize;
+    }
+    FileClose(&file);
+    return true;
+}
+
 
 static void addFunctionInfo(const char *name,
                             preInvoke preFunction, invoke function,
@@ -940,6 +983,7 @@ void NativeInit(void)
     addFunctionInfo("setUptodate", (preInvoke)nativePreSetUptodate, (invoke)nativeSetUptodate, 4, 0);
     addFunctionInfo("size",        null,                            (invoke)nativeSize,        1, 1);
     addFunctionInfo("split",       (preInvoke)nativePreSplit,       (invoke)nativeSplit,       3, 1);
+    addFunctionInfo("writeFile",   (preInvoke)nativePreWriteFile,   (invoke)nativeWriteFile,   2, 0);
 }
 
 void NativeInvoke(VM *vm, nativefunctionref function)

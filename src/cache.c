@@ -84,7 +84,7 @@ static void writeEntry(Entry *restrict entry)
 
     if (!FileIsOpen(&cacheIndexOut))
     {
-        FileOpenAppend(&cacheIndexOut, cacheIndexOutPath, cacheIndexOutLength);
+        FileOpenAppend(&cacheIndexOut, cacheIndexOutPath, cacheIndexOutLength, true);
     }
     FileWrite(&cacheIndexOut, BVGetPointer(&outBuffer, 0), size);
     BVSetSize(&outBuffer, 0);
@@ -172,7 +172,6 @@ static boolean readIndex(const char *path, size_t pathLength)
     return true;
 }
 
-
 void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
 {
     char *tempIndex;
@@ -193,7 +192,7 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
     readIndex(cacheIndexPath, cacheIndexLength);
     if (readIndex(cacheIndexOutPath, cacheIndexOutLength))
     {
-        FileOpenAppend(&cacheIndexOut, tempIndex, tempIndexLength);
+        FileOpenAppend(&cacheIndexOut, tempIndex, tempIndexLength, true);
         for (i = 1; i < sizeof(entries) / sizeof(Entry); i++)
         {
             Entry *entry = entries + i;
