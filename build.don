@@ -142,7 +142,7 @@ debug:
    exec(gdb program '-f 'input env:'{XDG_CACHE_HOME tempcache})
 
 install:
-   program = compile(extraflags:'{-DDATADIR="/usr/local/share/don/"})
+   program = compile(extraflags:'{-DDATADIR="/usr/local/share/don/"} optimize:true)
    exec('rm '-f @/usr/local/bin/don)
    exec('rm '-rf @/usr/local/share/don)
    exec('mkdir @/usr/local/share/don/)
