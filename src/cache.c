@@ -18,7 +18,7 @@
 /*
   Must be evenly divisible by 5 for simple base32 encoding.
 */
-#define CACHE_DIGEST_SIZE 40
+#define CACHE_DIGEST_SIZE 30
 #define CACHE_FILENAME_LENGTH (CACHE_DIGEST_SIZE / 5 * 8)
 
 #define TAG 0x646f6e00
