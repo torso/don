@@ -411,8 +411,8 @@ boolean HeapEquals(vref object1, vref object2)
         {
             return false;
         }
-        size1 = HeapCollectionSize(object1);
-        size2 = HeapCollectionSize(object2);
+        size1 = VCollectionSize(object1);
+        size2 = VCollectionSize(object2);
         if (size1 != size2)
         {
             return false;
@@ -920,7 +920,7 @@ vref HeapCreateFileset(vref value)
             value = HeapCreatePath(value);
             return HeapCreateArray(&value, 1);
         }
-        size = HeapCollectionSize(value);
+        size = VCollectionSize(value);
         if (!size)
         {
             return HeapEmptyList;
@@ -1104,11 +1104,11 @@ vref HeapConcatList(vref list1, vref list2)
 
     assert(HeapIsCollection(list1));
     assert(HeapIsCollection(list2));
-    if (!HeapCollectionSize(list1))
+    if (!VCollectionSize(list1))
     {
         return list2;
     }
-    if (!HeapCollectionSize(list2))
+    if (!VCollectionSize(list2))
     {
         return list1;
     }
@@ -1122,50 +1122,6 @@ vref HeapConcatList(vref list1, vref list2)
 boolean HeapIsCollection(vref object)
 {
     return isCollectionType(HeapGetObjectType(object));
-}
-
-size_t HeapCollectionSize(vref object)
-{
-    const byte *data;
-    const int *intData;
-    const vref *objects;
-    const vref *limit;
-    size_t size;
-
-    assert(!HeapIsFutureValue(object));
-    switch (HeapGetObjectType(object))
-    {
-    case TYPE_ARRAY:
-        return HeapGetObjectSize(object) / sizeof(vref);
-
-    case TYPE_INTEGER_RANGE:
-        intData = (const int *)HeapGetObjectData(object);
-        assert(!subOverflow(intData[1], intData[0]));
-        return (size_t)(intData[1] - intData[0]) + 1;
-
-    case TYPE_CONCAT_LIST:
-        data = HeapGetObjectData(object);
-        objects = (const vref*)data;
-        limit = (const vref*)(data + HeapGetObjectSize(object));
-        size = 0;
-        while (objects < limit)
-        {
-            size += HeapCollectionSize(*objects++);
-        }
-        return size;
-
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
-    case TYPE_SUBSTRING:
-    case TYPE_FILE:
-    case TYPE_FUTURE:
-    default:
-        assert(false);
-        return 0;
-    }
 }
 
 boolean HeapCollectionGet(vref object, vref indexObject,
@@ -1187,7 +1143,7 @@ boolean HeapCollectionGet(vref object, vref indexObject,
         return false;
     }
     index = (size_t)i;
-    if (index >= HeapCollectionSize(object))
+    if (index >= VCollectionSize(object))
     {
         return false;
     }
@@ -1210,7 +1166,7 @@ boolean HeapCollectionGet(vref object, vref indexObject,
         limit = data + HeapGetObjectSize(object);
         while (data < limit)
         {
-            size = HeapCollectionSize(*data);
+            size = VCollectionSize(*data);
             if (index < size)
             {
                 assert(index <= INT_MAX);
@@ -1471,7 +1427,7 @@ static vref executeBinary(Instruction op,
         else
         {
             assert(HeapUnboxInteger(value1) >= 0);
-            assert((size_t)HeapUnboxInteger(value1) < HeapCollectionSize(value2));
+            assert((size_t)HeapUnboxInteger(value1) < VCollectionSize(value2));
             if (!HeapCollectionGet(value2, value1, &value1))
             {
                 assert(false);

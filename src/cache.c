@@ -466,7 +466,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
                       vref out, vref err, vref data)
 {
     Entry *entry;
-    uint dependencyCount = (uint)HeapCollectionSize(dependencies);
+    uint dependencyCount = (uint)VCollectionSize(dependencies);
     size_t entryStart;
     size_t i;
     byte hash[CACHE_FILENAME_LENGTH];

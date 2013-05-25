@@ -1,5 +1,49 @@
 #include "common.h"
 #include "heap.h"
+#include "math.h"
+
+static size_t collectionSize(const HeapObject *ho)
+{
+    const byte *data;
+    const int *intData;
+    const vref *values;
+    const vref *limit;
+    size_t size;
+
+    switch (ho->type)
+    {
+    case TYPE_ARRAY:
+        return ho->size / sizeof(vref);
+
+    case TYPE_INTEGER_RANGE:
+        intData = (const int*)ho->data;
+        assert(!subOverflow(intData[1], intData[0]));
+        return (size_t)(intData[1] - intData[0]) + 1;
+
+    case TYPE_CONCAT_LIST:
+        data = ho->data;
+        values = (const vref*)data;
+        limit = (const vref*)(data + ho->size);
+        size = 0;
+        while (values < limit)
+        {
+            size += VCollectionSize(*values++);
+        }
+        return size;
+
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_STRING:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
+    case TYPE_FILE:
+    case TYPE_FUTURE:
+    default:
+        assert(false);
+        return 0;
+    }
+}
 
 VBool VGetBool(vref value)
 {
@@ -26,7 +70,7 @@ VBool VGetBool(vref value)
     }
     if (HeapIsCollection(value))
     {
-        return HeapCollectionSize(value) ? TRUTHY : FALSY;
+        return VCollectionSize(value) ? TRUTHY : FALSY;
     }
     return TRUTHY;
 }
@@ -94,7 +138,7 @@ size_t VStringLength(vref value)
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
-        size = HeapCollectionSize(value);
+        size = collectionSize(&ho);
         if (size)
         {
             size--;
@@ -111,4 +155,13 @@ size_t VStringLength(vref value)
     }
     assert(false);
     return 0;
+}
+
+size_t VCollectionSize(vref value)
+{
+    HeapObject ho;
+
+    assert(!HeapIsFutureValue(value));
+    HeapGet(value, &ho);
+    return collectionSize(&ho);
 }

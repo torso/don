@@ -39,3 +39,5 @@ extern boolean VIsFalsy(vref value);
   length of the value converted to a string (of the default form) is returned.
 */
 extern size_t VStringLength(vref value);
+
+extern size_t VCollectionSize(vref value);

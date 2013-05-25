@@ -102,7 +102,7 @@ static char **createStringArray(vref collection)
     char *stringData;
 
     assert(HeapIsCollection(collection));
-    assert(HeapCollectionSize(collection));
+    assert(VCollectionSize(collection));
 
     if (!addStringsLength(collection, &count, &size))
     {
@@ -298,7 +298,7 @@ static boolean nativeExec(ExecEnv *env)
     posix_spawn_file_actions_t psfa;
 #endif
 
-    assert(HeapCollectionSize(env->env) % 2 == 0);
+    assert(VCollectionSize(env->env) % 2 == 0);
 
     argv = createStringArray(env->command);
     if (!argv)
@@ -333,7 +333,7 @@ static boolean nativeExec(ExecEnv *env)
     fdOut = PipeInit(&out);
     fdErr = PipeInit(&err);
 
-    envp = HeapCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
+    envp = VCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
 
     assert(!HeapIsFutureValue(env->work.modifiedFiles));
     for (index = 0; HeapCollectionGet(env->work.modifiedFiles,
@@ -347,7 +347,7 @@ static boolean nativeExec(ExecEnv *env)
     pid = startProcess(executable, argv, envp, fdOut, fdErr);
     free(executable);
     free(argv);
-    if (HeapCollectionSize(env->env))
+    if (VCollectionSize(env->env))
     {
         free((void*)envp);
     }
@@ -821,8 +821,8 @@ static boolean nativeSize(SizeEnv *env)
 
     if (HeapIsCollection(env->value))
     {
-        assert(HeapCollectionSize(env->value) <= INT_MAX);
-        env->result = HeapBoxSize(HeapCollectionSize(env->value));
+        assert(VCollectionSize(env->value) <= INT_MAX);
+        env->result = HeapBoxSize(VCollectionSize(env->value));
     }
     else
     {

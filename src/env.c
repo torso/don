@@ -76,7 +76,7 @@ const char *const*EnvCreateCopy(vref overrides)
     const char **p;
     char *data;
     char *pname;
-    size_t count = envCount + (HeapCollectionSize(overrides) / 2);
+    size_t count = envCount + (VCollectionSize(overrides) / 2);
     size_t indexSize;
     size_t dataSize = 0;
     size_t tempSize = 0;

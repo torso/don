@@ -116,7 +116,6 @@ extern nonnull vref HeapCreateArray(const vref *values, size_t size);
 extern nonnull vref HeapCreateArrayFromVector(const intvector *values);
 extern nonnull vref HeapConcatList(vref list1, vref list2);
 extern nonnull boolean HeapIsCollection(vref object);
-extern nonnull size_t HeapCollectionSize(vref object);
 
 /*
   Reads one value from the collection and returns it. The key is stored in
