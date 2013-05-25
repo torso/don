@@ -147,6 +147,7 @@ static int startProcess(const char *executable, char *const argv[],
     pid_t pid;
     int status;
 #if HAVE_POSIX_SPAWN
+    posix_spawn_file_actions_t psfa;
     posix_spawn_file_actions_init(&psfa);
     posix_spawn_file_actions_adddup2(&psfa, fdOut, STDOUT_FILENO);
     posix_spawn_file_actions_adddup2(&psfa, fdErr, STDERR_FILENO);
@@ -294,9 +295,6 @@ static boolean nativeExec(ExecEnv *env)
     Pipe out;
     Pipe err;
     size_t length;
-#if HAVE_POSIX_SPAWN
-    posix_spawn_file_actions_t psfa;
-#endif
 
     assert(VCollectionSize(env->env) % 2 == 0);
 
