@@ -85,7 +85,23 @@ typedef struct
     vref value;
 } ParameterInfo;
 
-extern pureconst ref_t refFromSize(size_t i);
-extern pureconst ref_t refFromUint(uint i);
-extern pureconst size_t sizeFromRef(ref_t r);
-extern pureconst uint uintFromRef(ref_t r);
+unused static ref_t refFromUint(uint i)
+{
+    return (ref_t)i;
+}
+
+unused static ref_t refFromSize(size_t i)
+{
+    assert(i <= UINT_MAX - 1);
+    return (ref_t)i;
+}
+
+unused static size_t sizeFromRef(ref_t r)
+{
+    return (size_t)r;
+}
+
+unused static uint uintFromRef(ref_t r)
+{
+    return (uint)r;
+}

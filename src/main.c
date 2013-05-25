@@ -26,28 +26,6 @@ static intvector targets;
 static bytevector parsed;
 
 
-ref_t refFromUint(uint i)
-{
-    return (ref_t)i;
-}
-
-ref_t refFromSize(size_t i)
-{
-    assert(i <= UINT_MAX - 1);
-    return refFromUint((uint)i);
-}
-
-size_t sizeFromRef(ref_t r)
-{
-    return uintFromRef(r);
-}
-
-uint uintFromRef(ref_t r)
-{
-    return (uint)r;
-}
-
-
 static void cleanup(void)
 {
     IVDispose(&targets);
