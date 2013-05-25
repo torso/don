@@ -46,7 +46,7 @@ static void printWork(const char *prefix, const Work *work)
         }
         else
         {
-            b = HeapWriteString(*p, b);
+            b = VWriteString(*p, b);
         }
         *b++ = ',';
         *b++ = ' ';

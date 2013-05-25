@@ -266,7 +266,7 @@ char *HeapDebug(vref object, boolean address)
             *p++ = '@';
             *p++ = '\"';
         }
-        p = HeapWriteString(object, p);
+        p = VWriteString(object, p);
         if (HeapIsString(object) || HeapIsFile(object))
         {
             *p++ = '\"';
@@ -622,94 +622,6 @@ const char *HeapGetString(vref object)
 {
     assert(HeapGetObjectType(object) == TYPE_STRING);
     return (const char*)HeapGetObjectData(object);
-}
-
-char *HeapWriteString(vref object, char *dst)
-{
-    size_t size;
-    uint i;
-    size_t index;
-    vref item;
-
-    assert(!HeapIsFutureValue(object));
-    if (!object)
-    {
-        *dst++ = 'n';
-        *dst++ = 'u';
-        *dst++ = 'l';
-        *dst++ = 'l';
-        return dst;
-    }
-    switch (HeapGetObjectType(object))
-    {
-    case TYPE_BOOLEAN_TRUE:
-        *dst++ = 't';
-        *dst++ = 'r';
-        *dst++ = 'u';
-        *dst++ = 'e';
-        return dst;
-
-    case TYPE_BOOLEAN_FALSE:
-        *dst++ = 'f';
-        *dst++ = 'a';
-        *dst++ = 'l';
-        *dst++ = 's';
-        *dst++ = 'e';
-        return dst;
-
-    case TYPE_INTEGER:
-        i = (uint)HeapUnboxInteger(object);
-        if (!i)
-        {
-            *dst++ = '0';
-            return dst;
-        }
-        size = VStringLength(object);
-        if ((int)i < 0)
-        {
-            *dst++ = '-';
-            size--;
-            i = -i;
-        }
-        dst += size - 1;
-        while (i)
-        {
-            *dst-- = (char)('0' + i % 10);
-            i /= 10;
-        }
-        return dst + size + 1;
-
-    case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
-    case TYPE_SUBSTRING:
-        size = VStringLength(object);
-        memcpy(dst, getString(object), size);
-        return dst + size;
-
-    case TYPE_FILE:
-        return HeapWriteString(unboxReference(TYPE_FILE, object), dst);
-
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-    case TYPE_CONCAT_LIST:
-        *dst++ = '{';
-        for (index = 0; HeapCollectionGet(object, HeapBoxSize(index), &item);
-             index++)
-        {
-            if (index)
-            {
-                *dst++ = ' ';
-            }
-            dst = HeapWriteString(item, dst);
-        }
-        *dst++ = '}';
-        return dst;
-
-    case TYPE_FUTURE:
-        break;
-    }
-    assert(false);
-    return null;
 }
 
 char *HeapWriteSubstring(vref object, size_t offset, size_t length,
@@ -1404,8 +1316,8 @@ static vref executeBinary(Instruction op,
             return HeapEmptyString;
         }
         data = HeapAlloc(TYPE_STRING, size1 + size2 + 1);
-        HeapWriteString(value2, (char*)data);
-        HeapWriteString(value1, (char*)data + size1);
+        VWriteString(value2, (char*)data);
+        VWriteString(value1, (char*)data + size1);
         data[size1 + size2] = 0;
         return HeapFinishAlloc(data);
 

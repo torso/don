@@ -223,7 +223,7 @@ static void logPrintObjectAutoNewline(LogPipe *p, vref object)
     }
     BVReserveAppendSize(&p->buffer, length + 1);
     data = BVGetAppendPointer(&p->buffer);
-    HeapWriteString(object, (char*)data);
+    VWriteString(object, (char*)data);
     if (data[length - 1] != '\n')
     {
         data[length] = '\n';

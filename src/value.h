@@ -34,10 +34,19 @@ extern boolean VIsTruthy(vref value);
 */
 extern boolean VIsFalsy(vref value);
 
+
 /*
   Returns the size of the string in bytes. If the value isn't a string, the
   length of the value converted to a string (of the default form) is returned.
 */
 extern size_t VStringLength(vref value);
+
+/*
+  Converts the object to a string and writes it to dst. The written string will
+  be exactly as long as HeapStringLength returned. The string will not be zero
+  terminated. A pointer just past the end of the written string is returned.
+*/
+extern nonnull char *VWriteString(vref value, char *dst);
+
 
 extern size_t VCollectionSize(vref value);

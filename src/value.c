@@ -1,3 +1,4 @@
+#include <string.h>
 #include "common.h"
 #include "heap.h"
 #include "math.h"
@@ -156,6 +157,104 @@ size_t VStringLength(vref value)
     assert(false);
     return 0;
 }
+
+char *VWriteString(vref value, char *dst)
+{
+    size_t size;
+    uint i;
+    size_t index;
+    vref item;
+    HeapObject ho;
+    const SubString *subString;
+
+    if (!value)
+    {
+        *dst++ = 'n';
+        *dst++ = 'u';
+        *dst++ = 'l';
+        *dst++ = 'l';
+        return dst;
+    }
+    assert(!HeapIsFutureValue(value));
+    HeapGet(value, &ho);
+    switch (ho.type)
+    {
+    case TYPE_BOOLEAN_TRUE:
+        *dst++ = 't';
+        *dst++ = 'r';
+        *dst++ = 'u';
+        *dst++ = 'e';
+        return dst;
+
+    case TYPE_BOOLEAN_FALSE:
+        *dst++ = 'f';
+        *dst++ = 'a';
+        *dst++ = 'l';
+        *dst++ = 's';
+        *dst++ = 'e';
+        return dst;
+
+    case TYPE_INTEGER:
+        i = (uint)HeapUnboxInteger(value);
+        if (!i)
+        {
+            *dst++ = '0';
+            return dst;
+        }
+        size = VStringLength(value);
+        if ((int)i < 0)
+        {
+            *dst++ = '-';
+            size--;
+            i = -i;
+        }
+        dst += size - 1;
+        while (i)
+        {
+            *dst-- = (char)('0' + i % 10);
+            i /= 10;
+        }
+        return dst + size + 1;
+
+    case TYPE_STRING:
+        memcpy(dst, ho.data, ho.size - 1);
+        return dst + ho.size - 1;
+
+    case TYPE_STRING_WRAPPED:
+        size = *(size_t*)&ho.data[sizeof(const char**)];
+        memcpy(dst, *(const char**)ho.data, size);
+        return dst + size;
+
+    case TYPE_SUBSTRING:
+        subString = (const SubString*)ho.data;
+        return HeapWriteSubstring(subString->string, subString->offset, subString->length, dst);
+
+    case TYPE_FILE:
+        return VWriteString(*(vref*)ho.data, dst);
+
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
+        *dst++ = '{';
+        for (index = 0; HeapCollectionGet(value, HeapBoxSize(index), &item);
+             index++)
+        {
+            if (index)
+            {
+                *dst++ = ' ';
+            }
+            dst = VWriteString(item, dst);
+        }
+        *dst++ = '}';
+        return dst;
+
+    case TYPE_FUTURE:
+        break;
+    }
+    assert(false);
+    return null;
+}
+
 
 size_t VCollectionSize(vref value)
 {

@@ -85,7 +85,7 @@ static void writeStrings(vref collection, char ***table, char **stringData)
         else
         {
             **table = *stringData;
-            *stringData = HeapWriteString(value, *stringData);
+            *stringData = VWriteString(value, *stringData);
             **stringData = 0;
             (*table)++;
             (*stringData)++;
@@ -235,7 +235,7 @@ static boolean nativeEcho(EchoEnv *env)
         /* TODO: Avoid malloc */
         length = VStringLength(env->prefix);
         buffer = (char*)malloc(length);
-        HeapWriteString(env->prefix, buffer);
+        VWriteString(env->prefix, buffer);
         LogSetPrefix(buffer, length);
         LogPrintObjectAutoNewline(env->message);
         LogSetPrefix(null, 0);
@@ -535,7 +535,7 @@ static boolean nativeGetEnv(GetEnvEnv *env)
 
     nameLength = VStringLength(env->name);
     buffer = (char*)malloc(nameLength + 1);
-    *HeapWriteString(env->name, buffer) = 0;
+    *VWriteString(env->name, buffer) = 0;
     EnvGet(buffer, nameLength, &value, &valueLength);
     free(buffer);
     env->result = value ? HeapCreateString(value, valueLength) : 0;
@@ -733,7 +733,7 @@ static boolean nativeReplace(ReplaceEnv *env)
     {
         newOffset = HeapUnboxSize(HeapStringIndexOf(env->data, offset, env->original));
         p = HeapWriteSubstring(env->data, offset, newOffset - offset, p);
-        p = HeapWriteString(env->replacement, p);
+        p = VWriteString(env->replacement, p);
         offset = newOffset + originalLength;
     }
     HeapWriteSubstring(env->data, offset, dataLength - offset, p);

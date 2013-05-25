@@ -107,14 +107,14 @@ const char *const*EnvCreateCopy(vref overrides)
     {
         HeapCollectionGet(overrides, HeapBoxSize(index++), &value);
         nameLength = VStringLength(name);
-        HeapWriteString(name, data);
+        VWriteString(name, data);
         p = getEnvEntry(result, data, nameLength);
         if (value)
         {
             pname = data;
             data += nameLength;
             *data++ = '=';
-            data = HeapWriteString(value, data);
+            data = VWriteString(value, data);
             *data++ = 0;
             if (!*p)
             {

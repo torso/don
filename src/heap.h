@@ -70,13 +70,6 @@ extern nonnull boolean HeapIsString(vref object);
 */
 extern nonnull const char *HeapGetString(vref object);
 
-/*
-  Converts the object to a string and writes it to dst. The written string will
-  be exactly as long as HeapStringLength returned. The string will not be zero
-  terminated. A pointer just past the end of the written string is returned.
-*/
-extern nonnull char *HeapWriteString(vref object, char *restrict dst);
-
 extern nonnull char *HeapWriteSubstring(vref object, size_t offset,
                                         size_t length, char *restrict dst);
 
