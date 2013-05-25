@@ -33,3 +33,9 @@ extern boolean VIsTruthy(vref value);
   Returns false if true value if truthy or not yet known.
 */
 extern boolean VIsFalsy(vref value);
+
+/*
+  Returns the size of the string in bytes. If the value isn't a string, the
+  length of the value converted to a string (of the default form) is returned.
+*/
+extern size_t VStringLength(vref value);

@@ -1,6 +1,21 @@
 #include "instruction.h"
 #include "value.h"
 
+typedef struct
+{
+    VType type;
+    size_t size;
+    byte *data;
+} HeapObject;
+
+/* TODO: Move to value.c */
+typedef struct
+{
+    vref string;
+    size_t offset;
+    size_t length;
+} SubString;
+
 /*
   These values may be reused freely, so that new objects doesn't have to be
   allocated. Never compare to these values. Use the functions in value.h, as
@@ -16,6 +31,7 @@ extern vref HeapNewline;
 extern void HeapInit(void);
 extern void HeapDispose(void);
 
+extern nonnull void HeapGet(vref v, HeapObject *ho);
 extern nonnull char *HeapDebug(vref object, boolean address);
 extern nonnull VType HeapGetObjectType(vref object);
 extern nonnull size_t HeapGetObjectSize(vref object);
@@ -53,12 +69,6 @@ extern nonnull boolean HeapIsString(vref object);
   running before the VM starts.)
 */
 extern nonnull const char *HeapGetString(vref object);
-
-/*
-  Returns the size of the string in bytes. If the value isn't a string, the
-  length of the value converted to a string (of the default form) is returned.
-*/
-extern nonnull size_t HeapStringLength(vref object);
 
 /*
   Converts the object to a string and writes it to dst. The written string will

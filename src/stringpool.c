@@ -61,7 +61,7 @@ static boolean slotContainsString(const uint *t, uint slot, uint hash,
 {
     checkTable(t);
     return getSlotHash(t, slot) == hash &&
-        HeapStringLength(getSlotValue(t, slot)) == length &&
+        VStringLength(getSlotValue(t, slot)) == length &&
         memcmp(HeapGetString(getSlotValue(t, slot)), string, length) == 0;
 }
 

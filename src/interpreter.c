@@ -149,8 +149,7 @@ static void execute(VM *vm)
 
         case OP_FILESET:
             string = BytecodeReadRef(&ip);
-            VMPush(vm, HeapCreateFilesetGlob(HeapGetString(string),
-                                             HeapStringLength(string)));
+            VMPush(vm, HeapCreateFilesetGlob(HeapGetString(string), VStringLength(string)));
             break;
 
         case OP_POP:

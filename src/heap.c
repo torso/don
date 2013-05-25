@@ -24,13 +24,6 @@
 #define HEADER_SIZE 0
 #define HEADER_TYPE 4
 
-typedef struct
-{
-    vref string;
-    size_t offset;
-    size_t length;
-} SubString;
-
 static uint HeapPageIndexSize;
 static byte **HeapPageIndex;
 static byte *HeapPageBase;
@@ -141,6 +134,23 @@ static boolean isCollectionType(VType type)
     return false;
 }
 
+void HeapGet(vref v, HeapObject *ho)
+{
+    checkObject(v);
+    if (isInteger(v))
+    {
+        ho->type = TYPE_INTEGER;
+        ho->size = 0;
+    }
+    else
+    {
+        byte *p = HeapPageBase + sizeFromRef(v);
+        ho->type = (VType)*(uint32*)(p + HEADER_TYPE);
+        ho->size = (VType)*(uint32*)(p + HEADER_SIZE);
+        ho->data = p + OBJECT_OVERHEAD;
+    }
+}
+
 static byte *heapAlloc(VType type, uint32 size)
 {
     uint32 *objectData = (uint32*)HeapPageFree;
@@ -226,7 +236,7 @@ void HeapDispose(void)
 
 char *HeapDebug(vref object, boolean address)
 {
-    size_t length = HeapStringLength(object);
+    size_t length = VStringLength(object);
     char *buffer = (char*)malloc(length + 16); /* 16 ought to be enough */
     char *p;
     if (address)
@@ -326,7 +336,7 @@ void HeapHash(vref object, HashState *hash)
         value = TYPE_STRING;
         HashUpdate(hash, &value, 1);
         HashUpdate(hash, (const byte*)getString(object),
-                   HeapStringLength(object));
+                   VStringLength(object));
         break;
 
     case TYPE_FILE:
@@ -389,8 +399,8 @@ boolean HeapEquals(vref object1, vref object2)
         {
             return false;
         }
-        size1 = HeapStringLength(object1);
-        size2 = HeapStringLength(object2);
+        size1 = VStringLength(object1);
+        size2 = VStringLength(object2);
         return size1 == size2 &&
             !memcmp(getString(object1), getString(object2), size1);
 
@@ -540,12 +550,12 @@ vref HeapCreateSubstring(vref string, size_t offset, size_t length)
 
     assert(!HeapIsFutureValue(string));
     assert(HeapIsString(string));
-    assert(HeapStringLength(string) >= offset + length);
+    assert(VStringLength(string) >= offset + length);
     if (!length)
     {
         return HeapEmptyString;
     }
-    if (length == HeapStringLength(string))
+    if (length == VStringLength(string))
     {
         return string;
     }
@@ -614,75 +624,6 @@ const char *HeapGetString(vref object)
     return (const char*)HeapGetObjectData(object);
 }
 
-size_t HeapStringLength(vref object)
-{
-    uint i;
-    size_t size;
-    size_t index;
-    vref item;
-
-    assert(!HeapIsFutureValue(object));
-    if (!object)
-    {
-        return 4;
-    }
-    switch (HeapGetObjectType(object))
-    {
-    case TYPE_BOOLEAN_TRUE:
-        return 4;
-
-    case TYPE_BOOLEAN_FALSE:
-        return 5;
-
-    case TYPE_INTEGER:
-        i = (uint)HeapUnboxInteger(object);
-        size = 1;
-        if ((int)i < 0)
-        {
-            size = 2;
-            i = -i;
-        }
-        while (i > 9)
-        {
-            i /= 10;
-            size++;
-        }
-        return size;
-
-    case TYPE_STRING:
-        return HeapGetObjectSize(object) - 1;
-
-    case TYPE_STRING_WRAPPED:
-        return *(size_t*)&HeapGetObjectData(object)[sizeof(const char**)];
-
-    case TYPE_SUBSTRING:
-        return ((const SubString*)HeapGetObjectData(object))->length;
-
-    case TYPE_FILE:
-        return HeapStringLength(unboxReference(TYPE_FILE, object));
-
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-    case TYPE_CONCAT_LIST:
-        size = HeapCollectionSize(object);
-        if (size)
-        {
-            size--;
-        }
-        size = size + 2;
-        for (index = 0; HeapCollectionGet(object, HeapBoxSize(index++), &item);)
-        {
-            size += HeapStringLength(item);
-        }
-        return size;
-
-    case TYPE_FUTURE:
-        break;
-    }
-    assert(false);
-    return 0;
-}
-
 char *HeapWriteString(vref object, char *dst)
 {
     size_t size;
@@ -723,7 +664,7 @@ char *HeapWriteString(vref object, char *dst)
             *dst++ = '0';
             return dst;
         }
-        size = HeapStringLength(object);
+        size = VStringLength(object);
         if ((int)i < 0)
         {
             *dst++ = '-';
@@ -741,7 +682,7 @@ char *HeapWriteString(vref object, char *dst)
     case TYPE_STRING:
     case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
-        size = HeapStringLength(object);
+        size = VStringLength(object);
         memcpy(dst, getString(object), size);
         return dst + size;
 
@@ -774,7 +715,7 @@ char *HeapWriteString(vref object, char *dst)
 char *HeapWriteSubstring(vref object, size_t offset, size_t length,
                          char *dst)
 {
-    assert(HeapStringLength(object) >= offset + length);
+    assert(VStringLength(object) >= offset + length);
     memcpy(dst, getString(object) + offset, length);
     return dst + length;
 }
@@ -782,8 +723,8 @@ char *HeapWriteSubstring(vref object, size_t offset, size_t length,
 vref HeapStringIndexOf(vref text, size_t startOffset,
                        vref substring)
 {
-    size_t textLength = HeapStringLength(text);
-    size_t subLength = HeapStringLength(substring);
+    size_t textLength = VStringLength(text);
+    size_t subLength = VStringLength(substring);
     const char *pstart = getString(text);
     const char *p = pstart + startOffset;
     const char *plimit = pstart + textLength - subLength + 1;
@@ -822,7 +763,7 @@ vref HeapCreatePath(vref path)
         return path;
     }
     src = getString(path);
-    srcLength = HeapStringLength(path);
+    srcLength = VStringLength(path);
     /* TODO: Avoid malloc */
     temp = FileCreatePath(null, 0, src, srcLength, null, 0, &tempLength);
     if (tempLength != srcLength && memcmp(src, temp, srcLength))
@@ -836,7 +777,7 @@ vref HeapCreatePath(vref path)
 const char *HeapGetPath(vref path, size_t *length)
 {
     vref s = unboxReference(TYPE_FILE, path);
-    *length = HeapStringLength(s);
+    *length = VStringLength(s);
     return getString(s);
 }
 
@@ -870,14 +811,14 @@ vref HeapPathFromParts(vref path, vref name, vref extension)
     if (path)
     {
         pathString = toString(path, &freePath);
-        pathLength = HeapStringLength(path);
+        pathLength = VStringLength(path);
     }
     nameString = toString(name, &freeName);
-    nameLength = HeapStringLength(name);
+    nameLength = VStringLength(name);
     if (extension)
     {
         extensionString = toString(extension, &freeExtension);
-        extensionLength = HeapStringLength(extension);
+        extensionLength = VStringLength(extension);
     }
     resultPath = FileCreatePath(pathString, pathLength,
                                 nameString, nameLength,
@@ -1095,12 +1036,12 @@ vref HeapSplit(vref string, vref delimiter, boolean removeEmpty,
     intvector substrings;
 
     assert(HeapIsString(string));
-    length = HeapStringLength(string);
+    length = VStringLength(string);
     if (!length)
     {
         return HeapEmptyList;
     }
-    delimiterLength = HeapStringLength(delimiter);
+    delimiterLength = VStringLength(delimiter);
     if (!delimiterLength || length < delimiterLength)
     {
         return string;
@@ -1500,8 +1441,8 @@ static vref executeBinary(Instruction op,
         return HeapConcatList(value2, value1);
 
     case OP_CONCAT_STRING:
-        size1 = HeapStringLength(value2);
-        size2 = HeapStringLength(value1);
+        size1 = VStringLength(value2);
+        size2 = VStringLength(value1);
         if (!size1 && !size2)
         {
             return HeapEmptyString;

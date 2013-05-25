@@ -213,7 +213,7 @@ void LogPrintErrAutoNewline(const char *text, size_t length)
 
 static void logPrintObjectAutoNewline(LogPipe *p, vref object)
 {
-    size_t length = HeapStringLength(object);
+    size_t length = VStringLength(object);
     byte *data;
 
     if (!length)

@@ -65,7 +65,7 @@ static boolean addStringsLength(vref collection, uint *count, size_t *size)
         }
         else
         {
-            *size += HeapStringLength(value) + 1 + sizeof(char*);
+            *size += VStringLength(value) + 1 + sizeof(char*);
             (*count)++;
         }
     }
@@ -233,7 +233,7 @@ static boolean nativeEcho(EchoEnv *env)
     if (env->prefix)
     {
         /* TODO: Avoid malloc */
-        length = HeapStringLength(env->prefix);
+        length = VStringLength(env->prefix);
         buffer = (char*)malloc(length);
         HeapWriteString(env->prefix, buffer);
         LogSetPrefix(buffer, length);
@@ -533,7 +533,7 @@ static boolean nativeGetEnv(GetEnvEnv *env)
         return false;
     }
 
-    nameLength = HeapStringLength(env->name);
+    nameLength = VStringLength(env->name);
     buffer = (char*)malloc(nameLength + 1);
     *HeapWriteString(env->name, buffer) = 0;
     EnvGet(buffer, nameLength, &value, &valueLength);
@@ -702,9 +702,9 @@ static boolean nativeReplace(ReplaceEnv *env)
         return false;
     }
 
-    dataLength = HeapStringLength(env->data);
-    originalLength = HeapStringLength(env->original);
-    replacementLength = HeapStringLength(env->replacement);
+    dataLength = VStringLength(env->data);
+    originalLength = VStringLength(env->original);
+    replacementLength = VStringLength(env->replacement);
     if (originalLength)
     {
         for (offset = 0;; offset++)
@@ -827,7 +827,7 @@ static boolean nativeSize(SizeEnv *env)
     else
     {
         assert(HeapIsString(env->value));
-        env->result = HeapBoxSize(HeapStringLength(env->value));
+        env->result = HeapBoxSize(VStringLength(env->value));
     }
     return true;
 }
@@ -895,7 +895,7 @@ static boolean nativeWriteFile(WriteFileEnv *env)
         return false;
     }
 
-    size = HeapStringLength(env->data);
+    size = VStringLength(env->data);
     path = HeapGetPath(env->file, &pathLength);
     FileOpenAppend(&file, path, pathLength, true);
     while (size)

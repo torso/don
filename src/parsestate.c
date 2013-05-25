@@ -94,7 +94,7 @@ void ParseStateInit(ParseState *state, bytevector *bytecode,
 
     assert(filename);
     assert(line == 1 || line <= offset);
-    FileOpen(&state->fh, HeapGetString(filename), HeapStringLength(filename));
+    FileOpen(&state->fh, HeapGetString(filename), VStringLength(filename));
     FileMMap(&state->fh, &state->start, &size);
     state->current = state->start + offset;
     state->limit = state->start + size;

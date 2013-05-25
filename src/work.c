@@ -30,7 +30,7 @@ static void printWork(const char *prefix, const Work *work)
         }
         else
         {
-            length += HeapStringLength(*p) + 2;
+            length += VStringLength(*p) + 2;
         }
     }
     buffer = (char*)malloc(length);

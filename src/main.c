@@ -183,8 +183,7 @@ int main(int argc, const char **argv)
                             &size);
     filename = StringPoolAdd2(string, size);
     free(string);
-    FileOpen(&donNamespaceFile, HeapGetString(filename),
-             HeapStringLength(filename));
+    FileOpen(&donNamespaceFile, HeapGetString(filename), VStringLength(filename));
     FileMMap(&donNamespaceFile, &p, &size);
     ParseFile(filename, NamespaceCreate(StringPoolAdd("don")));
 
@@ -194,7 +193,7 @@ int main(int argc, const char **argv)
                             &size);
     filename = StringPoolAdd2(string, size);
     free(string);
-    FileOpen(&inputFile, HeapGetString(filename), HeapStringLength(filename));
+    FileOpen(&inputFile, HeapGetString(filename), VStringLength(filename));
     FileMMap(&inputFile, &p, &size);
     defaultNamespace = NamespaceCreate(0);
     ParseFile(filename, defaultNamespace);

@@ -452,7 +452,8 @@ void CacheGet(const byte *hash, boolean echoCachedOutput,
 
 static void appendString(vref value)
 {
-    uint length = (uint)HeapStringLength(value);
+    /* TODO: Support long strings, or give error. */
+    uint length = (uint)VStringLength(value);
     if (length)
     {
         BVReserveAppendSize(&newEntries, length);
@@ -502,9 +503,9 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
     entry = (Entry*)BVGetPointer(&newEntries, entryStart);
     memcpy(entry->hash, hash, CACHE_DIGEST_SIZE);
     entry->dependencyCount = dependencyCount;
-    entry->dataLength = (uint)HeapStringLength(data);
-    entry->outLength = (uint)HeapStringLength(out);
-    entry->errLength = (uint)HeapStringLength(err);
+    entry->dataLength = (uint)VStringLength(data);
+    entry->outLength = (uint)VStringLength(out);
+    entry->errLength = (uint)VStringLength(err);
     for (i = 0; i < dependencyCount; i++)
     {
         vref value;
@@ -515,7 +516,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
             assert(false); /* TODO: Error handling. */
         }
         assert(HeapIsFile(value));
-        length = (uint)HeapStringLength(value);
+        length = (uint)VStringLength(value);
 
         pathStart = BVSize(&newEntries);
         BVReserveAppendSize(&newEntries, length);

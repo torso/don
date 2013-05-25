@@ -85,10 +85,10 @@ const char *const*EnvCreateCopy(vref overrides)
     for (index = 0; HeapCollectionGet(overrides, HeapBoxSize(index++), &name);)
     {
         HeapCollectionGet(overrides, HeapBoxSize(index++), &value);
-        nameLength = HeapStringLength(name);
+        nameLength = VStringLength(name);
         if (value)
         {
-            dataSize += nameLength + HeapStringLength(value) + 2;
+            dataSize += nameLength + VStringLength(value) + 2;
         }
         else
         {
@@ -106,7 +106,7 @@ const char *const*EnvCreateCopy(vref overrides)
     for (index = 0; HeapCollectionGet(overrides, HeapBoxSize(index++), &name);)
     {
         HeapCollectionGet(overrides, HeapBoxSize(index++), &value);
-        nameLength = HeapStringLength(name);
+        nameLength = VStringLength(name);
         HeapWriteString(name, data);
         p = getEnvEntry(result, data, nameLength);
         if (value)
