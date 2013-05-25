@@ -35,6 +35,10 @@ int PipeInit(Pipe *p)
 
 void PipeDispose(Pipe *p)
 {
+    if (p->fd)
+    {
+        close(p->fd);
+    }
     BVDispose(&p->buffer);
 }
 
