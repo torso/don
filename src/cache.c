@@ -205,7 +205,7 @@ static boolean openIndex(IndexInfo *info)
     return true;
 }
 
-static void buildTable(const byte *data, size_t size, size_t offset)
+static void buildTable(const byte *data, size_t size)
 {
     size_t i;
     size_t j;
@@ -227,7 +227,7 @@ static void buildTable(const byte *data, size_t size, size_t offset)
             }
         }
         memcpy(table[j].hash, e->hash, CACHE_DIGEST_SIZE);
-        table[j].entry = offset + i + 1;
+        table[j].entry = i + 1;
         i += e->size;
     }
 }
@@ -238,7 +238,7 @@ static void loadIndex(IndexInfo *info)
     assert(!entryCount);
     oldEntries = info->data;
     oldEntriesSize = info->size;
-    buildTable(oldEntries, oldEntriesSize, 0);
+    buildTable(oldEntries, oldEntriesSize);
 }
 
 static void rebuildIndex(IndexInfo *src1, IndexInfo *src2, IndexInfo *dst)
@@ -250,12 +250,10 @@ static void rebuildIndex(IndexInfo *src1, IndexInfo *src2, IndexInfo *dst)
         src2 = tmp;
     }
 
-    buildTable(src1->data, src1->size, 0);
-    buildTable(src2->data, src2->size, src1->size);
-    sortRemovedEntries();
     createIndex(dst, src2->header.sequenceNumber + 1);
-    writeIndex(dst, src1->data, src1->size);
-    writeIndex(dst, src2->data, src2->size);
+    /* TODO: Use splice if possible */
+    FileWrite(&dst->file, src1->data, src1->size);
+    FileWrite(&dst->file, src2->data, src2->size);
     FileClose(&dst->file);
     if (!openIndex(dst))
     {
@@ -263,11 +261,10 @@ static void rebuildIndex(IndexInfo *src1, IndexInfo *src2, IndexInfo *dst)
     }
     deleteIndex(src1);
     deleteIndex(src2);
-    oldEntries = dst->data;
-    oldEntriesSize = dst->size;
     infoRead = *dst;
     infoWrite = *src1;
     disposeIndex(src2);
+    loadIndex(dst);
     createIndex(&infoWrite, dst->header.sequenceNumber + 1);
 }
 
