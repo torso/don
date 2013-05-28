@@ -118,7 +118,6 @@ static void createIndex(IndexInfo *info, uint sequenceNumber)
     memset(&info->header, 0, sizeof(info->header));
     info->header.sequenceNumber = sequenceNumber;
     info->header.tag = TAG;
-    assert(!FileIsOpen(&info->file));
     FileOpenAppend(&info->file, info->path, info->pathLength, true);
     FileWrite(&info->file, (const byte*)&info->header, sizeof(info->header));
 }
@@ -279,7 +278,7 @@ void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
 
     cacheDir = cacheDirectory;
     cacheDirLength = cacheDirectoryLength;
-    FilePinDirectory(cacheDirectory, cacheDirectoryLength);
+    FileMkdir(cacheDirectory, cacheDirectoryLength);
 
     initIndex(1, &info1);
     initIndex(2, &info2);
@@ -364,7 +363,6 @@ void CacheDispose(void)
         return;
     }
 
-    assert(FileIsOpen(&infoWrite.file));
     sortRemovedEntries();
     writeIndex(&infoWrite, oldEntries, oldEntriesSize);
     FileClose(&infoWrite.file);
@@ -379,7 +377,6 @@ void CacheDispose(void)
 
     BVDispose(&newEntries);
     BVDispose(&removedEntries);
-    FileUnpinDirectory(cacheDir, cacheDirLength);
     free(cacheDir);
 }
 

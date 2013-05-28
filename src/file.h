@@ -1,7 +1,7 @@
 #include <time.h>
 
-struct _TreeEntry;
-typedef struct _TreeEntry TreeEntry;
+struct _FileEntry;
+typedef struct _FileEntry FileEntry;
 
 typedef struct
 {
@@ -11,8 +11,9 @@ typedef struct
 
 typedef struct
 {
-    TreeEntry *te;
-    int mmapRefCount;
+    FileEntry *fe;
+    const byte *data;
+    size_t dataSize;
 } File;
 
 typedef struct
@@ -39,20 +40,10 @@ extern nonnull const char *FileStripPath(const char *path, size_t *length);
 extern nonnull void FileTraverseGlob(const char *pattern, size_t length,
                                      TraverseCallback callback, void *userdata);
 
-extern nonnull void FilePinDirectory(const char *path, size_t length);
-extern nonnull void FileUnpinDirectory(const char *path, size_t length);
 extern nonnull void FileMarkModified(const char *path, size_t length);
 extern nonnull const FileStatus *FileGetStatus(const char *path, size_t length);
 extern nonnull boolean FileHasChanged(const char *path, size_t length,
                                       const FileStatus *status);
-
-/*
-  Returns true if the specified File struct is referencing an opened file. This
-  only queries the state of the struct, not whether any actual file is open. The
-  struct must either have been used to open a file in the past, or it must be
-  completely zero.
-*/
-extern nonnull pureconst boolean FileIsOpen(File *file);
 
 extern nonnull void FileOpen(File *file, const char *path, size_t length);
 
