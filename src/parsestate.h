@@ -63,8 +63,7 @@ extern nonnull void ParseStateWritePush(ParseState *state, vref value);
 extern nonnull void ParseStateReorderStack(ParseState *state,
                                            const uint16 *reorder, uint16 count);
 extern nonnull void ParseStateWriteList(ParseState *state, uint size);
-extern nonnull void ParseStateWriteFileset(ParseState *state,
-                                           vref pattern);
+extern nonnull void ParseStateWriteFilelist(ParseState *state, vref pattern);
 extern nonnull void ParseStateWriteBeginCondition(ParseState *state);
 extern nonnull boolean ParseStateWriteSecondConsequent(ParseState *state);
 extern nonnull boolean ParseStateWriteFinishCondition(ParseState *state);

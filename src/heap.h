@@ -84,12 +84,10 @@ extern nonnull vref HeapStringIndexOf(vref text, size_t startOffset,
 extern nonnull vref HeapCreatePath(vref path);
 extern nonnull const char *HeapGetPath(vref path, size_t *length);
 extern nonnull boolean HeapIsFile(vref object);
-extern nonnull vref HeapPathFromParts(vref path, vref name,
-                                      vref extension);
+extern nonnull vref HeapPathFromParts(vref path, vref name, vref extension);
 
-extern nonnull vref HeapCreateFileset(vref value);
-extern nonnull vref HeapCreateFilesetGlob(const char *pattern,
-                                          size_t length);
+extern nonnull vref HeapCreateFilelist(vref value);
+extern nonnull vref HeapCreateFilelistGlob(const char *pattern, size_t length);
 
 
 

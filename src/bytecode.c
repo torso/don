@@ -73,9 +73,8 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf(" %u: new list %u\n", ip, BytecodeReadUint(&bytecode));
         break;
 
-    case OP_FILESET:
-        printf(" %u: fileset %s\n", ip,
-               HeapGetString(BytecodeReadRef(&bytecode)));
+    case OP_FILELIST:
+        printf(" %u: filelist %s\n", ip, HeapGetString(BytecodeReadRef(&bytecode)));
         break;
 
     case OP_POP:

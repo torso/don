@@ -14,7 +14,7 @@ env(name)
    return native.getEnv(name)
 
 exec(command... env:{} fail:true echo:true echoStderr:true access:@/ modify:@/)
-   output exitcode internalError = native.exec(command env echo echoStderr fileset(access) fileset(modify))
+   output exitcode internalError = native.exec(command env echo echoStderr filelist(access) filelist(modify))
    if fail && exitcode != 0
       if internalError == 1
          don.fail("Command not found: "command[0])
@@ -42,8 +42,8 @@ file(path name:null extension:null)
 filename(path)
    return native.filename(path)
 
-fileset(value)
-   return native.fileset(value)
+filelist(value)
+   return native.filelist(value)
 
 getCache(label version key... echoCachedOutput:true)
    cacheFile uptodate data = native.getCache({label version key} echoCachedOutput)
@@ -75,7 +75,7 @@ rm(file)
    native.rm(file)
 
 setUptodate(cacheFile output:{"" ""} data:"" accessedFiles:{})
-   native.setUptodate(cacheFile output[0] output[1] data fileset(accessedFiles))
+   native.setUptodate(cacheFile output[0] output[1] data filelist(accessedFiles))
 
 sign(n)
    return n > 0 ? 1 : n ? -1 : 0
@@ -102,7 +102,7 @@ cc(files... flags:{})
    result = {}
    failed = false
    env = {env("LANG") env("LC_CTYPE") env("LC_MESSAGES") env("LC_ALL") env("GCC_EXEC_PREFIX") env("COMPILER_PATH") env("LIBRARY_PATH") env("CPATH") env("C_INCLUDE_PATH") env("CPLUS_INCLUDE_PATH") env("OBJC_INCLUDE_PATH")}
-   for f in fileset(files)
+   for f in filelist(files)
       cache uptodate = getCache("cc" 0 f flags env)
       ofile = file(cache filename(f) "o")
       if !uptodate
@@ -116,13 +116,13 @@ cc(files... flags:{})
             depend = replace(depend "\\\n" "")
             depend = split(depend removeEmpty:true)
             rm(dependFile)
-            setUptodate(cache out accessedFiles:fileset(depend))
+            setUptodate(cache out accessedFiles:filelist(depend))
       result = result::{ofile}
    fail(condition:failed)
    return result
 
 link(files... flags:{} libs:{} name:"a.out")
-   files = fileset(files)
+   files = filelist(files)
    env = {env("LANG") env("LC_CTYPE") env("LC_MESSAGES") env("LC_ALL") env("GCC_EXEC_PREFIX") env("COMPILER_PATH") env("LIBRARY_PATH") env("CPATH") env("C_INCLUDE_PATH") env("CPLUS_INCLUDE_PATH") env("OBJC_INCLUDE_PATH")}
    libargs = {}
    for l in libs

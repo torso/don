@@ -816,7 +816,7 @@ static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
 }
 
 /* TODO: Strip null */
-vref HeapCreateFileset(vref value)
+vref HeapCreateFilelist(vref value)
 {
     size_t size;
     size_t i;
@@ -877,7 +877,7 @@ static void createPath(const char *path, size_t length, void *userdata)
     (*(size_t*)userdata)++;
 }
 
-vref HeapCreateFilesetGlob(const char *pattern, size_t length)
+vref HeapCreateFilelistGlob(const char *pattern, size_t length)
 {
     vref object = heapTop();
     size_t count = 0;
@@ -889,7 +889,7 @@ vref HeapCreateFilesetGlob(const char *pattern, size_t length)
     {
         return HeapEmptyList;
     }
-    objectData = HeapAlloc(TYPE_ARRAY, count * sizeof(vref)); /* TODO: Fileset type */
+    objectData = HeapAlloc(TYPE_ARRAY, count * sizeof(vref)); /* TODO: Filelist type */
     files = (vref*)objectData;
     while (count--)
     {
@@ -899,7 +899,7 @@ vref HeapCreateFilesetGlob(const char *pattern, size_t length)
         *files++ = object;
         object = heapNext(object);
     }
-    /* TODO: Sort fileset */
+    /* TODO: Sort filelist */
     return HeapFinishAlloc(objectData);
 }
 
@@ -1146,7 +1146,7 @@ static vref executeUnary(Instruction op, vref value)
     case OP_FALSE:
     case OP_EMPTY_LIST:
     case OP_LIST:
-    case OP_FILESET:
+    case OP_FILELIST:
     case OP_POP:
     case OP_REORDER_STACK:
     case OP_LOAD:
@@ -1232,7 +1232,7 @@ static vref executeBinaryPartial(Instruction op, vref object,
     case OP_FALSE:
     case OP_EMPTY_LIST:
     case OP_LIST:
-    case OP_FILESET:
+    case OP_FILELIST:
     case OP_POP:
     case OP_REORDER_STACK:
     case OP_LOAD:
@@ -1357,7 +1357,7 @@ static vref executeBinary(Instruction op,
     case OP_FALSE:
     case OP_EMPTY_LIST:
     case OP_LIST:
-    case OP_FILESET:
+    case OP_FILELIST:
     case OP_POP:
     case OP_REORDER_STACK:
     case OP_LOAD:

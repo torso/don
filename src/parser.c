@@ -1233,7 +1233,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             return true;
         }
         /* TODO: @{} syntax */
-        ParseStateWriteFileset(state, string);
+        ParseStateWriteFilelist(state, string);
         return true;
     }
     statementError(state, "Invalid expression.");

@@ -431,10 +431,10 @@ void ParseStateWriteList(ParseState *state, uint size)
     BVAddUint(state->bytecode, size);
 }
 
-void ParseStateWriteFileset(ParseState *state, vref pattern)
+void ParseStateWriteFilelist(ParseState *state, vref pattern)
 {
     ParseStateCheck(state);
-    ParseStateWriteInstruction(state, OP_FILESET);
+    ParseStateWriteInstruction(state, OP_FILELIST);
     BVAddRef(state->bytecode, pattern);
 }
 

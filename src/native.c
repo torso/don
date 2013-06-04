@@ -463,12 +463,12 @@ typedef struct
     vref value;
 
     vref result;
-} FilesetEnv;
+} FilelistEnv;
 
 /* TODO: Remove duplicate files. */
-static boolean nativeFileset(FilesetEnv *env)
+static boolean nativeFilelist(FilelistEnv *env)
 {
-    env->result = HeapCreateFileset(env->value);
+    env->result = HeapCreateFilelist(env->value);
     return true;
 }
 
@@ -930,7 +930,7 @@ void NativeInit(void)
     addFunctionInfo("fail",        null,                            (invoke)nativeFail,        1, 0);
     addFunctionInfo("file",        null,                            (invoke)nativeFile,        3, 1);
     addFunctionInfo("filename",    null,                            (invoke)nativeFilename,    1, 1);
-    addFunctionInfo("fileset",     null,                            (invoke)nativeFileset,     1, 1);
+    addFunctionInfo("filelist",    null,                            (invoke)nativeFilelist,    1, 1);
     addFunctionInfo("getCache",    null,                            (invoke)nativeGetCache,    2, 3);
     addFunctionInfo("getEnv",      null,                            (invoke)nativeGetEnv,      1, 1);
     addFunctionInfo("indexOf",     null,                            (invoke)nativeIndexOf,     2, 1);

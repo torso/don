@@ -7,7 +7,7 @@ typedef enum
     OP_FALSE,
     OP_EMPTY_LIST,
     OP_LIST,
-    OP_FILESET,
+    OP_FILELIST,
 
     OP_PUSH,
     OP_POP,
