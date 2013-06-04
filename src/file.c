@@ -34,7 +34,7 @@ struct _FileEntry
     char path[1];
 };
 
-static FileEntry *table[0x1000];
+static FileEntry *table[0x400];
 static const uint tableMask = sizeof(table) / sizeof(*table) - 1;
 static char *cwd;
 static size_t cwdLength;
