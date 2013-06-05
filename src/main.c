@@ -26,22 +26,6 @@ static intvector targets;
 static bytevector parsed;
 
 
-static void cleanup(void)
-{
-    IVDispose(&targets);
-    BVDispose(&parsed);
-    WorkDispose();
-    HeapDispose();
-    NamespaceDispose();
-    FieldIndexDispose();
-    FunctionIndexDispose();
-    CacheDispose();
-    FileDisposeAll();
-    EnvDispose();
-    StringPoolDispose();
-    LogDispose();
-}
-
 int main(int argc, const char **argv)
 {
     int i;
@@ -67,8 +51,6 @@ int main(int argc, const char **argv)
     const byte *p;
     size_t size;
     boolean fail;
-
-    atexit(cleanup);
 
     IVInit(&targets, 4);
     LogInit();
@@ -288,7 +270,32 @@ int main(int argc, const char **argv)
     }
 
     free(bytecode);
-    return 0;
+    cleanShutdown(0);
+}
+
+void cleanShutdown(int exitcode)
+{
+    static boolean shuttingDown;
+    if (shuttingDown)
+    {
+        exit(1);
+    }
+    shuttingDown = true;
+    CacheDispose();
+#ifdef VALGRIND
+    IVDispose(&targets);
+    BVDispose(&parsed);
+    WorkDispose();
+    HeapDispose();
+    NamespaceDispose();
+    FieldIndexDispose();
+    FunctionIndexDispose();
+    FileDisposeAll();
+    EnvDispose();
+    StringPoolDispose();
+    LogDispose();
+#endif
+    exit(exitcode);
 }
 
 

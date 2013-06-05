@@ -13,7 +13,7 @@ void Fail(const char *format, ...)
     va_start(args, format);
     vfprintf(stderr, format, args);
     va_end(args);
-    exit(1);
+    cleanShutdown(1);
 }
 
 void FailErrno(boolean forked)
@@ -23,7 +23,7 @@ void FailErrno(boolean forked)
     {
         _exit(1);
     }
-    exit(1);
+    cleanShutdown(1);
 }
 
 void FailOOM(void)
@@ -40,11 +40,11 @@ void FailIO(const char *message, const char *filename)
 void FailIOErrno(const char *message, const char *filename, int error)
 {
     fprintf(stderr, "don: %s %s: %s\n", message, filename, strerror(error));
-    exit(1);
+    cleanShutdown(1);
 }
 
 void FailVM(VM *vm unused)
 {
     /* TODO: Print stack trace. */
-    exit(1);
+    cleanShutdown(1);
 }
