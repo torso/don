@@ -205,7 +205,7 @@ static vref heapNext(vref object)
 
 void HeapInit(void)
 {
-    HeapPageIndex = (byte**)calloc(INITIAL_HEAP_INDEX_SIZE, sizeof(*HeapPageIndex));
+    HeapPageIndex = (byte**)malloc(INITIAL_HEAP_INDEX_SIZE * sizeof(*HeapPageIndex));
     HeapPageIndexSize = INITIAL_HEAP_INDEX_SIZE;
     HeapPageIndex[0] = (byte*)malloc(PAGE_SIZE);
     HeapPageBase = HeapPageIndex[0];
