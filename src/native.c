@@ -333,15 +333,6 @@ static boolean nativeExec(ExecEnv *env)
 
     envp = VCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
 
-    assert(!HeapIsFutureValue(env->work.modifiedFiles));
-    for (index = 0; HeapCollectionGet(env->work.modifiedFiles,
-                                      HeapBoxSize(index++), &value);)
-    {
-        assert(!HeapIsFutureValue(value));
-        path = HeapGetPath(value, &length);
-        FileMarkModified(path, length);
-    }
-
     pid = startProcess(executable, argv, envp, fdOut, fdErr);
     free(executable);
     free(argv);
@@ -354,6 +345,15 @@ static boolean nativeExec(ExecEnv *env)
     if (pid < 0)
     {
         FailOOM();
+    }
+
+    assert(!HeapIsFutureValue(env->work.modifiedFiles));
+    for (index = 0; HeapCollectionGet(env->work.modifiedFiles,
+                                      HeapBoxSize(index++), &value);)
+    {
+        assert(!HeapIsFutureValue(value));
+        path = HeapGetPath(value, &length);
+        FileMarkModified(path, length);
     }
 
     if (VIsTruthy(env->echoOut))
