@@ -1,9 +1,10 @@
 valgrind = false
 gdb = '{gdb -q --args}
 
-compile(extraflags:{} linkflags:{} optimize:false)
+compile(datadir:@data/ extraflags:{} linkflags:{} optimize:false)
    ofiles = cc(@src/*.c
-               flags:'{$(valgrind ? '-DVALGRIND : '-DNVALGRIND)
+               flags:'{$("-DDATADIR=\""datadir"\"")
+                       $(valgrind ? '-DVALGRIND : '-DNVALGRIND)
                        -ggdb3 -rdynamic -std=c89 -pedantic
                        -Wno-error=unused-parameter -Wno-error=unused-variable
                        -Wno-error=unused-function -Wall -Wextra -Wformat=2
@@ -28,7 +29,7 @@ run(args... output:true)
       logfile = @valgrind-log
       out exitcode = exec('valgrind '-q '--leak-check=full '--show-reachable=yes
                           "--log-file="logfile args
-                          env:'{XDG_CACHE_HOME tempcache}
+                          env:{'XDG_CACHE_HOME @tempcache}
                           fail:false echo:output echoStderr:output)
       log = read(logfile)
       rm(logfile)
@@ -53,7 +54,7 @@ run(args... output:true)
       if output && log != ""
          echo(log)
    else
-      out exitcode = exec(args env:'{XDG_CACHE_HOME tempcache}
+      out exitcode = exec(args env:{'XDG_CACHE_HOME @tempcache}
                           fail:false echo:output echoStderr:output)
    return out exitcode
 
@@ -98,9 +99,9 @@ dotest(debug:false)
                j = 0
                while j < i
                   exec(program '-f f targets[j] fail:false echo:false echoStderr:false
-                       env:'{XDG_CACHE_HOME tempcache})
+                       env:{'XDG_CACHE_HOME @tempcache})
                   j += 1
-               exec(gdb program '-f f targets[j] fail:false env:'{XDG_CACHE_HOME tempcache})
+               exec(gdb program '-f f targets[j] fail:false env:{'XDG_CACHE_HOME @tempcache})
       if result
          pass += 1
       else
@@ -139,10 +140,10 @@ strace:
 
 debug:
    program = compile()
-   exec(gdb program '-f 'input env:'{XDG_CACHE_HOME tempcache})
+   exec(gdb program '-f 'input env:{'XDG_CACHE_HOME @tempcache})
 
 install:
-   program = compile(extraflags:'{-DDATADIR="/usr/local/share/don/"} optimize:true)
+   program = compile("/usr/local/share/don/" optimize:true)
    exec('rm '-f @/usr/local/bin/don)
    exec('rm '-rf @/usr/local/share/don)
    exec('mkdir @/usr/local/share/don/)

@@ -55,7 +55,6 @@ int main(int argc, const char **argv)
     IVInit(&targets, 4);
     LogInit();
     HeapInit();
-    FileInit();
 
     for (i = 1; i < argc; i++)
     {
@@ -115,11 +114,25 @@ int main(int argc, const char **argv)
             IVAddRef(&targets, name);
         }
     }
-    if (!inputFilename)
+    if (inputFilename)
+    {
+        char *slash = strrchr(inputFilename, '/');
+        if (slash)
+        {
+            *slash = 0;
+            if (chdir(inputFilename))
+            {
+                FailIO("Error changing directory", inputFilename);
+            }
+            inputFilename = slash + 1;
+        }
+    }
+    else
     {
         inputFilename = "build.don";
     }
 
+    FileInit();
     EnvInit(environ);
 
     EnvGet("XDG_CACHE_HOME", 14, &env, &envLength);
