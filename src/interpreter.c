@@ -56,16 +56,23 @@ static void storeLocal(VM *vm, uint bp, uint16 local, vref value)
 
 
 static void pushStackFrame(VM *vm, const byte **ip, uint *bp,
-                           functionref function, uint returnValues)
+                           uint functionOffset, uint returnValues)
 {
+    vref function;
+    uint parameterCount;
     uint localsCount;
     IVAdd(&vm->callStack, (uint)(*ip - vmBytecode));
     IVAdd(&vm->callStack, *bp);
     IVAdd(&vm->callStack, returnValues);
-    *ip = vmBytecode + FunctionIndexGetBytecodeOffset(function);
-    *bp = (uint)IVSize(&vm->stack) -
-        FunctionIndexGetParameterCount(function);
-    localsCount = FunctionIndexGetLocalsCount(function);
+    *ip = vmBytecode + functionOffset;
+    assert(**ip == OP_FUNCTION);
+    (*ip)++;
+    function = BytecodeReadRef(ip);
+    parameterCount = BytecodeReadUint(ip);
+    localsCount = BytecodeReadUint(ip);
+    assert(parameterCount == FunctionIndexGetParameterCount(function));
+    assert(localsCount == FunctionIndexGetLocalsCount(function));
+    *bp = (uint)IVSize(&vm->stack) - parameterCount;
     IVSetSize(&vm->stack, *bp + localsCount);
 }
 
@@ -114,8 +121,8 @@ static void execute(VM *vm)
         op = (Instruction)*ip++;
         switch (op)
         {
-        case OP_PUSH:
-            VMPush(vm, BytecodeReadUint(&ip));
+        case OP_FUNCTION:
+            assert(false);
             break;
 
         case OP_NULL:
@@ -150,6 +157,10 @@ static void execute(VM *vm)
         case OP_FILELIST:
             string = BytecodeReadRef(&ip);
             VMPush(vm, HeapCreateFilelistGlob(HeapGetString(string), VStringLength(string)));
+            break;
+
+        case OP_PUSH:
+            VMPush(vm, BytecodeReadUint(&ip));
             break;
 
         case OP_POP:
@@ -272,7 +283,7 @@ static void execute(VM *vm)
                 if (vm->target)
                 {
                     ip--;
-                    pushStackFrame(vm, &ip, &vm->bp, vm->target, 0);
+                    pushStackFrame(vm, &ip, &vm->bp, FunctionIndexGetBytecodeOffset(vm->target), 0);
                     vm->target = 0;
                     break;
                 }
@@ -285,7 +296,7 @@ static void execute(VM *vm)
         case OP_INVOKE:
             function = BytecodeReadRef(&ip);
             returnValueCount = *ip++;
-            pushStackFrame(vm, &ip, &vm->bp, function, returnValueCount);
+            pushStackFrame(vm, &ip, &vm->bp, FunctionIndexGetBytecodeOffset(function), returnValueCount);
             vm->ip = ip;
             break;
 

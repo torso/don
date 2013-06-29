@@ -2293,6 +2293,8 @@ void ParseFunctionBody(functionref function, bytevector *bytecode)
 {
     ParseState state;
     size_t start = BVSize(bytecode);
+    size_t paramsOffset;
+    size_t localsOffset;
     uint line;
 
     assert(function);
@@ -2301,6 +2303,12 @@ void ParseFunctionBody(functionref function, bytevector *bytecode)
     {
         return;
     }
+    BVAdd(bytecode, OP_FUNCTION);
+    BVAddRef(bytecode, function);
+    paramsOffset = BVSize(bytecode);
+    BVAddUint(bytecode, 0);
+    localsOffset = BVSize(bytecode);
+    BVAddUint(bytecode, 0);
     ParseStateInit(&state, bytecode,
                    FunctionIndexGetNamespace(function),
                    function,
@@ -2315,5 +2323,7 @@ void ParseFunctionBody(functionref function, bytevector *bytecode)
         }
         FunctionIndexSetBytecodeOffset(function, start);
     }
+    BVSetUint(bytecode, paramsOffset, FunctionIndexGetParameterCount(function));
+    BVSetUint(bytecode, localsOffset, FunctionIndexGetLocalsCount(function));
     ParseStateDispose(&state);
 }

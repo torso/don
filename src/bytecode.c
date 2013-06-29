@@ -47,11 +47,16 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     switch ((Instruction)*bytecode++)
     {
-    case OP_PUSH:
-        string = HeapDebug(refFromUint(BytecodeReadUint(&bytecode)), false);
-        printf(" %u: push %s\n", ip, string);
-        free(string);
+    case OP_FUNCTION:
+    {
+        vref info = BytecodeReadRef(&bytecode);
+        uint parameterCount = BytecodeReadUint(&bytecode);
+        uint localsCount = BytecodeReadUint(&bytecode);
+
+        printf(" %u: function info:%d parameters:%d locals:%d\n",
+               ip, info, parameterCount, localsCount);
         break;
+    }
 
     case OP_NULL:
         printf(" %u: push_null\n", ip);
@@ -75,6 +80,12 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
 
     case OP_FILELIST:
         printf(" %u: filelist %s\n", ip, HeapGetString(BytecodeReadRef(&bytecode)));
+        break;
+
+    case OP_PUSH:
+        string = HeapDebug(refFromUint(BytecodeReadUint(&bytecode)), false);
+        printf(" %u: push %s\n", ip, string);
+        free(string);
         break;
 
     case OP_POP:

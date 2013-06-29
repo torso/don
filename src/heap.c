@@ -1139,7 +1139,7 @@ static vref executeUnary(Instruction op, vref value)
     case OP_INV:
         return HeapBoxInteger(~HeapUnboxInteger(value));
 
-    case OP_PUSH:
+    case OP_FUNCTION:
     case OP_ITER_GET:
     case OP_NULL:
     case OP_TRUE:
@@ -1147,6 +1147,7 @@ static vref executeUnary(Instruction op, vref value)
     case OP_EMPTY_LIST:
     case OP_LIST:
     case OP_FILELIST:
+    case OP_PUSH:
     case OP_POP:
     case OP_REORDER_STACK:
     case OP_LOAD:
@@ -1226,13 +1227,14 @@ static vref executeBinaryPartial(Instruction op, vref object,
     case OP_RANGE:
         return object;
 
-    case OP_PUSH:
+    case OP_FUNCTION:
     case OP_NULL:
     case OP_TRUE:
     case OP_FALSE:
     case OP_EMPTY_LIST:
     case OP_LIST:
     case OP_FILELIST:
+    case OP_PUSH:
     case OP_POP:
     case OP_REORDER_STACK:
     case OP_LOAD:
@@ -1351,6 +1353,7 @@ static vref executeBinary(Instruction op,
     case OP_RANGE:
         return HeapCreateRange(value2, value1);
 
+    case OP_FUNCTION:
     case OP_PUSH:
     case OP_NULL:
     case OP_TRUE:

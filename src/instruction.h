@@ -2,6 +2,8 @@
 
 typedef enum
 {
+    OP_FUNCTION,
+
     OP_NULL,
     OP_TRUE,
     OP_FALSE,
