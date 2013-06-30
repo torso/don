@@ -495,7 +495,7 @@ static boolean parseReturnRest(ParseState *state)
 
     if (peekNewline(state))
     {
-        ParseStateWriteReturnVoid(state);
+        ParseStateWriteInstruction(state, OP_RETURN_VOID);
         return true;
     }
     for (;;)
@@ -2319,7 +2319,7 @@ void ParseFunctionBody(functionref function, bytevector *bytecode)
     {
         if (BVSize(bytecode) == start)
         {
-            ParseStateWriteReturnVoid(&state);
+            ParseStateWriteInstruction(&state, OP_RETURN_VOID);
         }
         FunctionIndexSetBytecodeOffset(function, start);
     }

@@ -189,7 +189,7 @@ boolean ParseStateFinishBlock(ParseState *restrict state,
 
         FunctionIndexSetLocals(state->function, &state->locals,
                                getLocalsCount(state));
-        ParseStateWriteReturnVoid(state);
+        ParseStateWriteInstruction(state, OP_RETURN_VOID);
         return true;
     }
 
@@ -482,12 +482,6 @@ void ParseStateWriteReturn(ParseState *state, uint values)
     ParseStateCheck(state);
     BVAdd(state->bytecode, OP_RETURN);
     BVAdd(state->bytecode, (uint8)values);
-}
-
-void ParseStateWriteReturnVoid(ParseState *state)
-{
-    ParseStateCheck(state);
-    BVAdd(state->bytecode, OP_RETURN_VOID);
 }
 
 void ParseStateWriteInvocation(ParseState *state, functionref function,
