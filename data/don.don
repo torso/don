@@ -1,5 +1,5 @@
-cat(file)
-   echo(read(file))
+cat(filename)
+   echo(read(filename))
 
 contains(data element)
    return indexOf(data element) != null
@@ -64,15 +64,15 @@ mv(src dst)
 pid()
    return native.pid()
 
-read(file)
-   return native.readFile(file)
+read(filename)
+   return native.readFile(file(filename))
 
 replace(data original replacement)
    result count = native.replace(data original replacement)
    return result count
 
-rm(file)
-   native.rm(file)
+rm(filename)
+   native.rm(filename)
 
 setUptodate(cacheFile output:{"" ""} data:"" accessedFiles:{})
    native.setUptodate(cacheFile output[0] output[1] data filelist(accessedFiles))
@@ -95,8 +95,8 @@ sum(n...)
 startsWith(data element)
    return indexOf(data element) == 0
 
-write(file data)
-   native.writeFile(file data)
+write(filename data)
+   native.writeFile(file(filename) data)
 
 cc(files... flags:{})
    result = {}
