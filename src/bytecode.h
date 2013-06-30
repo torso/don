@@ -5,15 +5,7 @@ extern nonnull ref_t BytecodeReadRef(const byte **bytecode);
 #define BytecodeReadInt (int)BytecodeReadUint
 
 /*
-  Disassembles one instruction at bytecode. base should point to the beginning
-  of the current function.
-*/
-extern nonnull const byte *BytecodeDisassembleInstruction(const byte *bytecode,
-                                                          const byte *base);
+  Disassembles one instruction at bytecode. base should point to the beginning of the bytecode. */
+extern nonnull const byte *BytecodeDisassembleInstruction(const byte *bytecode, const byte *base);
 
-/*
-  Disassembles an entire function. The end of the function is automatically
-  detected through reachability.
-*/
-extern nonnull void BytecodeDisassembleFunction(const byte *bytecode,
-                                                const byte *bytecodeLimit);
+extern nonnull void BytecodeDisassemble(const byte *bytecode, const byte *bytecodeLimit);

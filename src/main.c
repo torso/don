@@ -230,26 +230,7 @@ int main(int argc, const char **argv)
 
     if (disassemble)
     {
-        for (function = FunctionIndexGetFirstFunction();
-             function;
-             function = FunctionIndexGetNextFunction(function))
-        {
-            if (function == FunctionIndexGetFirstFunction())
-            {
-                printf("Init:\n");
-                BytecodeDisassembleFunction(
-                    bytecode + FunctionIndexGetBytecodeOffset(function),
-                    bytecodeLimit);
-            }
-            else if (FunctionIndexGetBytecodeOffset(function))
-            {
-                printf("Function %s:\n",
-                       HeapGetString(FunctionIndexGetName(function)));
-                BytecodeDisassembleFunction(
-                    bytecode + FunctionIndexGetBytecodeOffset(function),
-                    bytecodeLimit);
-            }
-        }
+        BytecodeDisassemble(bytecode, bytecodeLimit);
         fflush(stdout);
     }
 

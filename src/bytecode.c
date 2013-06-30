@@ -34,27 +34,24 @@ ref_t BytecodeReadRef(const byte **bytecode)
     return refFromUint(BytecodeReadUint(bytecode));
 }
 
-static const byte *disassemble(const byte *bytecode, const byte *base,
-                               const byte **limit)
+static const byte *disassemble(const byte *bytecode, const byte *base)
 {
     uint ip = (uint)(bytecode - base);
-    functionref function;
     nativefunctionref nativeFunction;
     uint value;
     uint i;
-    uint controlFlowNextInstruction = true;
     char *string;
 
     switch ((Instruction)*bytecode++)
     {
     case OP_FUNCTION:
     {
-        vref info = BytecodeReadRef(&bytecode);
+        functionref function = BytecodeReadRef(&bytecode);
         uint parameterCount = BytecodeReadUint(&bytecode);
         uint localsCount = BytecodeReadUint(&bytecode);
 
-        printf(" %u: function info:%d parameters:%d locals:%d\n",
-               ip, info, parameterCount, localsCount);
+        printf("function %s parameters:%d locals:%d\n",
+               HeapGetString(FunctionIndexGetName(function)), parameterCount, localsCount);
         break;
     }
 
@@ -208,40 +205,34 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
     case OP_JUMP:
         value = BytecodeReadUint(&bytecode);
         printf(" %u: jump %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));
-        *limit = MAX(*limit, bytecode + (int)value);
-        controlFlowNextInstruction = false;
         break;
 
     case OP_BRANCH_TRUE:
         value = BytecodeReadUint(&bytecode);
         printf(" %u: branch_true %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));
-        *limit = MAX(*limit, bytecode + (int)value);
-        controlFlowNextInstruction = false;
         break;
 
     case OP_BRANCH_FALSE:
         value = BytecodeReadUint(&bytecode);
         printf(" %u: branch_false %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));
-        *limit = MAX(*limit, bytecode + (int)value);
-        controlFlowNextInstruction = false;
         break;
 
     case OP_RETURN:
         printf(" %u: return %u\n", ip, *bytecode++);
-        controlFlowNextInstruction = false;
         break;
 
     case OP_RETURN_VOID:
         printf(" %u: return\n", ip);
-        controlFlowNextInstruction = false;
         break;
 
     case OP_INVOKE:
-        function = BytecodeReadRef(&bytecode);
+    {
+        functionref function = BytecodeReadRef(&bytecode);
         value = *bytecode++;
         printf(" %u: invoke \"%s\" return: %u\n", ip,
                HeapGetString(FunctionIndexGetName(function)), value);
         break;
+    }
 
     case OP_INVOKE_NATIVE:
         nativeFunction = refFromUint(*bytecode++);
@@ -253,29 +244,21 @@ static const byte *disassemble(const byte *bytecode, const byte *base,
         printf("  %u: unknown_value\n", ip);
         break;
     }
-    if (controlFlowNextInstruction)
-    {
-        *limit = MAX(*limit, bytecode);
-    }
     return bytecode;
 }
 
 const byte *BytecodeDisassembleInstruction(const byte *bytecode,
                                            const byte *base)
 {
-    const byte *limit;
-    return disassemble(bytecode, base, &limit);
+    return disassemble(bytecode, base);
 }
 
-void BytecodeDisassembleFunction(const byte *bytecode,
-                                 const byte *bytecodeLimit)
+void BytecodeDisassemble(const byte *bytecode, const byte *bytecodeLimit)
 {
     const byte *start = bytecode;
-    const byte *limit = bytecode;
 
-    do
+    while (bytecode < bytecodeLimit)
     {
-        bytecode = disassemble(bytecode, start, &limit);
+        bytecode = disassemble(bytecode, start);
     }
-    while (bytecode <= limit && bytecode < bytecodeLimit);
 }
