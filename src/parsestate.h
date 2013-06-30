@@ -16,9 +16,8 @@ typedef struct
     vref filename;
     uint line;
     uint statementLine;
-    uint indent;
+    int indent;
 
-    intvector blockStack;
     inthashmap locals;
     uint unnamedVariables;
 
@@ -31,14 +30,10 @@ extern void ParseStateInit(ParseState *restrict state,
                            namespaceref ns, functionref function,
                            vref filename, uint line, uint offset);
 extern nonnull void ParseStateDispose(ParseState *state);
+extern nonnull uint ParseStateLocalsCount(ParseState *state);
 extern nonnull boolean ParseStateFinish(ParseState *restrict state);
 extern nonnull boolean ParseStateFinishBlock(ParseState *restrict state,
                                              uint indent, boolean trailingElse);
-extern nonnull size_t ParseStateGetJumpTarget(ParseState *state);
-extern nonnull void ParseStateBeginForwardJump(ParseState *state,
-                                               Instruction instruction,
-                                               size_t *branch);
-extern nonnull void ParseStateFinishJump(ParseState *state, size_t branch);
 
 extern nonnull void ParseStateSetIndent(ParseState *state, uint indent);
 extern nonnull uint ParseStateBlockIndent(ParseState *state);
@@ -57,8 +52,14 @@ extern nonnull void ParseStateSetUnnamedVariable(ParseState *state,
 extern nonnull void ParseStateGetField(ParseState *state, fieldref field);
 extern nonnull void ParseStateSetField(ParseState *state, fieldref field);
 
-extern nonnull void ParseStateWriteInstruction(ParseState *state,
-                                               Instruction instruction);
+extern nonnull void ParseStateWriteInstruction(ParseState *state, Instruction instruction);
+extern nonnull size_t ParseStateGetJumpTarget(ParseState *state);
+extern nonnull void ParseStateWriteBackwardJump(ParseState *state, Instruction instruction,
+                                                size_t target);
+extern nonnull size_t ParseStateWriteForwardJump(ParseState *state, Instruction instruction);
+extern nonnull void ParseStateFinishJump(ParseState *state, size_t branch);
+extern nonnull size_t ParseStateWriteJump(ParseState *state, Instruction instruction, int offset);
+extern nonnull int ParseStateSetJumpOffset(ParseState *state, size_t instructionOffset, int offset);
 extern nonnull void ParseStateWritePush(ParseState *state, vref value);
 extern nonnull void ParseStateReorderStack(ParseState *state,
                                            const uint16 *reorder, uint16 count);
@@ -67,8 +68,6 @@ extern nonnull void ParseStateWriteFilelist(ParseState *state, vref pattern);
 extern nonnull void ParseStateWriteBeginCondition(ParseState *state);
 extern nonnull boolean ParseStateWriteSecondConsequent(ParseState *state);
 extern nonnull boolean ParseStateWriteFinishCondition(ParseState *state);
-
-extern nonnull void ParseStateWriteIf(ParseState *state);
 extern nonnull void ParseStateWriteWhile(ParseState *state,
                                          size_t loopTarget);
 extern nonnull void ParseStateWriteReturn(ParseState *state, uint values);

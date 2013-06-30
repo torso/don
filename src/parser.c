@@ -71,6 +71,7 @@ static boolean parseUnquotedExpression(ParseState *state,
                                        ExpressionState *estate,
                                        boolean constant);
 static boolean parseRValue(ParseState *state, boolean constant);
+static int parseBlock(ParseState *state, int parentIndent);
 
 static boolean isInitialIdentifierCharacter(byte c)
 {
@@ -129,19 +130,6 @@ static uint getOffset(const ParseState *state, const byte *begin)
 }
 
 
-static boolean unwindBlocks(ParseState *restrict state,
-                            uint indent, boolean trailingElse)
-{
-    while (ParseStateBlockIndent(state) > indent)
-    {
-        if (!ParseStateFinishBlock(state, indent, trailingElse))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
 static boolean eof(const ParseState *state)
 {
     ParseStateCheck(state);
@@ -195,19 +183,30 @@ static boolean peekIndent(const ParseState *state)
     return state->current[0] == ' ';
 }
 
-static uint readIndent(ParseState *state)
+static int readIndent(ParseState *state)
 {
     const byte *begin = state->current;
 
     ParseStateCheck(state);
     skipWhitespace(state);
-    return getOffset(state, begin);
+    return (int)getOffset(state, begin);
 }
 
 static boolean peekComment(const ParseState *state)
 {
     ParseStateCheck(state);
     return state->current[0] == ';';
+}
+
+static boolean readComment(ParseState *state)
+{
+    ParseStateCheck(state);
+    if (state->current[0] == ';')
+    {
+        skipEndOfLine(state);
+        return true;
+    }
+    return false;
 }
 
 static boolean isKeyword(vref identifier)
@@ -493,7 +492,7 @@ static boolean parseReturnRest(ParseState *state)
 {
     uint values = 0;
 
-    if (peekNewline(state))
+    if (readNewline(state))
     {
         ParseStateWriteInstruction(state, OP_RETURN_VOID);
         return true;
@@ -505,7 +504,7 @@ static boolean parseReturnRest(ParseState *state)
             return false;
         }
         values++;
-        if (peekNewline(state))
+        if (readNewline(state))
         {
             ParseStateWriteReturn(state, values);
             return true;
@@ -1606,7 +1605,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
                 return false;
             }
             ParseStateWriteInstruction(state, OP_DUP);
-            ParseStateBeginForwardJump(state, OP_BRANCH_FALSE, &branch);
+            branch = ParseStateWriteForwardJump(state, OP_BRANCH_FALSE);
             ParseStateWriteInstruction(state, OP_POP);
             if (!parseExpression3(state, estate) ||
                 !finishBoolean(state, estate))
@@ -1627,7 +1626,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
                 return false;
             }
             ParseStateWriteInstruction(state, OP_DUP);
-            ParseStateBeginForwardJump(state, OP_BRANCH_TRUE, &branch);
+            branch = ParseStateWriteForwardJump(state, OP_BRANCH_TRUE);
             ParseStateWriteInstruction(state, OP_POP);
             if (!parseExpression3(state, estate) ||
                 !finishBoolean(state, estate))
@@ -1655,25 +1654,26 @@ static boolean parseExpressionRest(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '?'))
     {
+        size_t offset, offset2;
         skipExpressionWhitespace(state, estate);
-        /* TODO: Avoid recursion. */
         if (!finishBoolean(state, estate))
         {
             return false;
         }
-        ParseStateWriteBeginCondition(state);
+        offset = ParseStateWriteJump(state, OP_BRANCH_FALSE, 0);
         if (!parseRValue(state, parseConstant) ||
-            !readExpectedOperator(state, ':') ||
-            !ParseStateWriteSecondConsequent(state))
+            !readExpectedOperator(state, ':'))
         {
             return false;
         }
+        offset2 = ParseStateWriteJump(state, OP_JUMP, 0);
+        ParseStateSetJumpOffset(state, offset, (int)(BVSize(state->bytecode) - offset));
         skipExpressionWhitespace(state, estate);
-        if (!parseRValue(state, parseConstant) ||
-            !ParseStateWriteFinishCondition(state))
+        if (!parseRValue(state, parseConstant))
         {
             return false;
         }
+        ParseStateSetJumpOffset(state, offset2, (int)(BVSize(state->bytecode) - offset2));
         estate->expressionType = EXPRESSION_SIMPLE;
         estate->valueType = VALUE_UNKNOWN;
         return true;
@@ -1866,207 +1866,334 @@ static boolean parseExpressionStatement(ParseState *state,
     return false;
 }
 
-static boolean parseFunctionBody(ParseState *state)
+static int parseBlockRest(ParseState *state, int indent)
 {
-    uint indent;
-    uint currentIndent = 0;
-    uint prevIndent = 0;
+    int indent2;
     vref identifier;
-    size_t target;
-    uint16 iterCollection;
-    uint16 iterIndex;
 
+    identifier = peekReadIdentifier(state);
+    for (;;)
+    {
+        /* Must be reset every iteration, as recursive calls will modify indent. */
+        state->indent = indent;
+        state->statementLine = state->line;
+
+        if (identifier)
+        {
+            if (isKeyword(identifier))
+            {
+                if (identifier > maxStatementKeyword)
+                {
+                    statementError(state, "Not a statement.");
+                    return -1;
+                }
+                skipWhitespace(state);
+                if (identifier == keywordIf)
+                {
+                    int conditionOffset;
+                    int offset = 0;
+                    if (!parseBooleanValue(state))
+                    {
+                        return -1;
+                    }
+                    if (!readNewline(state) && !readComment(state))
+                    {
+                        error(state, "Garbage after if statement.");
+                        return -1;
+                    }
+                    conditionOffset = (int)ParseStateWriteJump(state, OP_BRANCH_FALSE, 0);
+
+                    indent2 = parseBlock(state, indent);
+                    assert(indent2 <= indent);
+                    if (indent2 != indent)
+                    {
+                        if (indent2 < 0)
+                        {
+                            return -1;
+                        }
+                        ParseStateSetJumpOffset(state, (size_t)conditionOffset,
+                                                (int)BVSize(state->bytecode) - conditionOffset);
+                        return indent2;
+                    }
+
+                    identifier = peekReadIdentifier(state);
+                    if (identifier != keywordElse)
+                    {
+                        ParseStateSetJumpOffset(state, (size_t)conditionOffset,
+                                                (int)BVSize(state->bytecode) - conditionOffset);
+                        continue;
+                    }
+
+                    for (;;)
+                    {
+                        offset = (int)ParseStateWriteJump(state, OP_JUMP, (int)offset);
+                        ParseStateSetJumpOffset(state, (size_t)conditionOffset,
+                                                offset - conditionOffset);
+                        skipWhitespace(state);
+                        identifier = peekReadIdentifier(state);
+                        if (identifier == keywordIf)
+                        {
+                            skipWhitespace(state);
+                            if (!parseBooleanValue(state))
+                            {
+                                return -1;
+                            }
+                            if (!readNewline(state) && !readComment(state))
+                            {
+                                error(state, "Garbage after if statement.");
+                                return -1;
+                            }
+                            conditionOffset = (int)ParseStateWriteJump(state, OP_BRANCH_FALSE, 0);
+                            indent2 = parseBlock(state, indent);
+                            assert(indent2 <= indent);
+                            if (indent2 != indent)
+                            {
+                                if (indent2 < 0)
+                                {
+                                    return -1;
+                                }
+                                ParseStateSetJumpOffset(
+                                    state, (size_t)conditionOffset,
+                                    (int)BVSize(state->bytecode) - conditionOffset);
+                                break;
+                            }
+                            identifier = peekReadIdentifier(state);
+                            if (identifier != keywordElse)
+                            {
+                                ParseStateSetJumpOffset(
+                                    state, (size_t)conditionOffset,
+                                    (int)BVSize(state->bytecode) - conditionOffset);
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            if (identifier || (!readNewline(state) && !readComment(state)))
+                            {
+                                error(state, "Garbage after else.");
+                                return -1;
+                            }
+                            indent2 = parseBlock(state, indent);
+                            assert(indent2 <= indent);
+                            if (indent2 != indent)
+                            {
+                                if (indent2 < 0)
+                                {
+                                    return -1;
+                                }
+                                break;
+                            }
+                            identifier = peekReadIdentifier(state);
+                            break;
+                        }
+                    }
+
+                    while (offset)
+                    {
+                        offset = (int)ParseStateSetJumpOffset(state, (size_t)offset, (int)BVSize(state->bytecode) - offset);
+                    }
+                    if (indent != indent2)
+                    {
+                        return indent2;
+                    }
+                    continue;
+                }
+                if (identifier == keywordElse)
+                {
+                    error(state, "else without matching if.");
+                    return -1;
+                }
+                else if (identifier == keywordFor)
+                {
+                    size_t loopTop, afterLoop;
+                    uint16 iterCollection;
+                    uint16 iterIndex;
+                    identifier = readVariableName(state);
+                    if (!identifier)
+                    {
+                        return -1;
+                    }
+                    skipWhitespace(state);
+                    if (!ParseStateCreateUnnamedVariable(state, &iterCollection) ||
+                        !ParseStateCreateUnnamedVariable(state, &iterIndex) ||
+                        !readExpectedKeyword(state, keywordIn))
+                    {
+                        return -1;
+                    }
+                    skipWhitespace(state);
+                    if (!parseRValue(state, false))
+                    {
+                        return -1;
+                    }
+                    ParseStateSetUnnamedVariable(state, iterCollection);
+                    ParseStateWritePush(state, HeapBoxInteger(-1));
+                    ParseStateSetUnnamedVariable(state, iterIndex);
+                    if (!peekNewline(state) && !readComment(state))
+                    {
+                        error(state, "Garbage after for statement.");
+                        return -1;
+                    }
+                    skipEndOfLine(state);
+                    loopTop = ParseStateGetJumpTarget(state);
+                    ParseStateGetUnnamedVariable(state, iterCollection);
+                    ParseStateGetUnnamedVariable(state, iterIndex);
+                    ParseStateWritePush(state, HeapBoxInteger(1));
+                    ParseStateWriteInstruction(state, OP_ADD);
+                    ParseStateWriteInstruction(state, OP_DUP);
+                    ParseStateSetUnnamedVariable(state, iterIndex);
+                    ParseStateWriteInstruction(state, OP_ITER_GET);
+                    if (!ParseStateSetVariable(state, identifier))
+                    {
+                        return -1;
+                    }
+                    afterLoop = ParseStateWriteForwardJump(state, OP_BRANCH_FALSE);
+                    indent2 = parseBlock(state, indent);
+                    assert(indent2 <= indent);
+                    if (indent2 < 0)
+                    {
+                        return -1;
+                    }
+                    ParseStateWriteBackwardJump(state, OP_JUMP, loopTop);
+                    ParseStateFinishJump(state, afterLoop);
+                    if (indent2 != indent)
+                    {
+                        return indent2;
+                    }
+                    identifier = peekReadIdentifier(state);
+                    continue;
+                }
+                if (identifier == keywordReturn)
+                {
+                    if (!parseReturnRest(state))
+                    {
+                        return -1;
+                    }
+                }
+                else if (identifier == keywordWhile)
+                {
+                    size_t afterLoop;
+                    size_t loopTop = ParseStateGetJumpTarget(state);
+                    if (!parseBooleanValue(state))
+                    {
+                        return -1;
+                    }
+                    if (!readNewline(state) && !readComment(state))
+                    {
+                        error(state, "Garbage after while statement.");
+                        return -1;
+                    }
+                    afterLoop = ParseStateWriteForwardJump(state, OP_BRANCH_FALSE);
+                    indent2 = parseBlock(state, indent);
+                    assert(indent2 <= indent);
+                    if (indent2 < 0)
+                    {
+                        return -1;
+                    }
+                    ParseStateWriteBackwardJump(state, OP_JUMP, loopTop);
+                    ParseStateFinishJump(state, afterLoop);
+                    if (indent2 != indent)
+                    {
+                        return indent2;
+                    }
+                    identifier = peekReadIdentifier(state);
+                    continue;
+                }
+                else
+                {
+                    assert(false);
+                    return -1;
+                }
+            }
+            else
+            {
+                if (!parseExpressionStatement(state, identifier))
+                {
+                    return -1;
+                }
+                assert(peekNewline(state));
+                skipEndOfLine(state);
+            }
+        }
+        else
+        {
+            error(state, "Not a statement.");
+            return -1;
+        }
+
+        for (;;)
+        {
+            if (eof(state))
+            {
+                return 0;
+            }
+
+            indent2 = readIndent(state);
+            if (readComment(state))
+            {
+                continue;
+            }
+            if (peekNewline(state))
+            {
+                if (indent2)
+                {
+                    error(state, "Trailing whitespace.");
+                }
+                skipEndOfLine(state);
+                continue;
+            }
+            break;
+        }
+        if (indent2 != indent)
+        {
+            if (indent2 < indent)
+            {
+                return indent2;
+            }
+            error(state, "Mismatched indentation level.");
+            return -1;
+        }
+        identifier = peekReadIdentifier(state);
+    }
+}
+
+static int parseBlock(ParseState *state, int parentIndent)
+{
+    int indent;
     for (;;)
     {
         if (eof(state))
         {
-            return unwindBlocks(state, 0, false);
+            error(state, "Expected code block.");
+            return -1;
         }
-
         indent = readIndent(state);
-        if (readNewline(state))
+        if (readComment(state))
         {
+            continue;
         }
-        else if (peekComment(state))
+        if (peekNewline(state))
         {
+            if (indent)
+            {
+                error(state, "Trailing whitespace.");
+            }
             skipEndOfLine(state);
+            continue;
         }
-        else
-        {
-            identifier = peekReadIdentifier(state);
-            if (indent != currentIndent)
-            {
-                if (!currentIndent)
-                {
-                    if (indent <= prevIndent)
-                    {
-                        error(state, "Expected increased indentation level.");
-                        return false;
-                    }
-                    ParseStateSetIndent(state, indent);
-                    currentIndent = indent;
-                }
-                else if (indent < currentIndent)
-                {
-                    if (!unwindBlocks(state, indent, identifier == keywordElse))
-                    {
-                        return false;
-                    }
-                    if (indent == 0)
-                    {
-                        return true;
-                    }
-                    currentIndent = indent;
-                    if (identifier == keywordElse)
-                    {
-                        prevIndent = indent;
-                        currentIndent = 0;
-                        if (!peekNewline(state))
-                        {
-                            error(state, "Garbage after else statement.");
-                            return false;
-                        }
-                        skipEndOfLine(state);
-                        continue;
-                    }
-                }
-                else
-                {
-                    error(state, "Mismatched indentation level.");
-                    return false;
-                }
-            }
-            else if (!indent)
-            {
-                return true;
-            }
-            state->statementLine = state->line;
-            if (identifier)
-            {
-                if (isKeyword(identifier))
-                {
-                    if (identifier > maxStatementKeyword)
-                    {
-                        statementError(state, "Not a statement.");
-                        return false;
-                    }
-                    skipWhitespace(state);
-                    if (identifier == keywordIf)
-                    {
-                        prevIndent = currentIndent;
-                        currentIndent = 0;
-                        if (!parseBooleanValue(state))
-                        {
-                            return false;
-                        }
-                        if (!peekNewline(state))
-                        {
-                            error(state, "Garbage after if statement.");
-                            return false;
-                        }
-                        skipEndOfLine(state);
-                        ParseStateWriteIf(state);
-                    }
-                    else if (identifier == keywordElse)
-                    {
-                        statementError(state, "else without matching if.");
-                        return false;
-                    }
-                    else if (identifier == keywordFor)
-                    {
-                        prevIndent = currentIndent;
-                        currentIndent = 0;
-                        identifier = readVariableName(state);
-                        if (!identifier)
-                        {
-                            return false;
-                        }
-                        skipWhitespace(state);
-                        if (!ParseStateCreateUnnamedVariable(state, &iterCollection) ||
-                            !ParseStateCreateUnnamedVariable(state, &iterIndex) ||
-                            !readExpectedKeyword(state, keywordIn))
-                        {
-                            return false;
-                        }
-                        skipWhitespace(state);
-                        if (!parseRValue(state, false))
-                        {
-                            return false;
-                        }
-                        ParseStateSetUnnamedVariable(state, iterCollection);
-                        ParseStateWritePush(state, HeapBoxInteger(-1));
-                        ParseStateSetUnnamedVariable(state, iterIndex);
-                        if (!peekNewline(state))
-                        {
-                            error(state, "Garbage after for statement.");
-                            return false;
-                        }
-                        skipEndOfLine(state);
-                        target = ParseStateGetJumpTarget(state);
-                        ParseStateGetUnnamedVariable(state, iterCollection);
-                        ParseStateGetUnnamedVariable(state, iterIndex);
-                        ParseStateWritePush(state, HeapBoxInteger(1));
-                        ParseStateWriteInstruction(state, OP_ADD);
-                        ParseStateWriteInstruction(state, OP_DUP);
-                        ParseStateSetUnnamedVariable(state, iterIndex);
-                        ParseStateWriteInstruction(state, OP_ITER_GET);
-                        if (!ParseStateSetVariable(state, identifier))
-                        {
-                            return false;
-                        }
-                        ParseStateWriteWhile(state, target);
-                    }
-                    else if (identifier == keywordReturn)
-                    {
-                        if (!parseReturnRest(state))
-                        {
-                            return false;
-                        }
-                    }
-                    else if (identifier == keywordWhile)
-                    {
-                        prevIndent = currentIndent;
-                        currentIndent = 0;
-                        target = ParseStateGetJumpTarget(state);
-                        if (!parseBooleanValue(state))
-                        {
-                            return false;
-                        }
-                        if (!peekNewline(state))
-                        {
-                            error(state, "Garbage after while statement.");
-                            return false;
-                        }
-                        skipEndOfLine(state);
-                        ParseStateWriteWhile(state, target);
-                    }
-                    else
-                    {
-                        assert(false);
-                        return false;
-                    }
-                }
-                else
-                {
-                    if (!parseExpressionStatement(state, identifier))
-                    {
-                        return false;
-                    }
-                    assert(peekNewline(state));
-                    skipEndOfLine(state);
-                }
-            }
-            else if (peekNewline(state) || peekComment(state))
-            {
-                skipEndOfLine(state);
-            }
-            else
-            {
-                statementError(state, "Not a statement.");
-                return false;
-            }
-        }
+        break;
     }
+    if (indent <= parentIndent)
+    {
+        error(state, "Expected increased indentation level.");
+        return -1;
+    }
+    indent = parseBlockRest(state, indent);
+    if (indent > parentIndent)
+    {
+        error(state, "Mismatched indentation level.");
+        return -1;
+    }
+    return indent;
 }
 
 static boolean parseFunctionDeclaration(ParseState *state, functionref function)
@@ -2315,12 +2442,10 @@ void ParseFunctionBody(functionref function, bytevector *bytecode)
                    FunctionIndexGetFilename(function),
                    line,
                    FunctionIndexGetFileOffset(function));
-    if (parseFunctionBody(&state))
+    if (parseBlock(&state, 0) >= 0)
     {
-        if (BVSize(bytecode) == start)
-        {
-            ParseStateWriteInstruction(&state, OP_RETURN_VOID);
-        }
+        FunctionIndexSetLocals(function, &state.locals, ParseStateLocalsCount(&state));
+        ParseStateWriteInstruction(&state, OP_RETURN_VOID);
         FunctionIndexSetBytecodeOffset(function, start);
     }
     BVSetUint(bytecode, paramsOffset, FunctionIndexGetParameterCount(function));
