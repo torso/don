@@ -13,7 +13,7 @@ void Fail(const char *format, ...)
     va_start(args, format);
     vfprintf(stderr, format, args);
     va_end(args);
-    cleanShutdown(1);
+    cleanShutdown(EXIT_FAILURE);
 }
 
 void FailErrno(boolean forked)
@@ -21,15 +21,15 @@ void FailErrno(boolean forked)
     fprintf(stderr, "don: %s\n", strerror(errno));
     if (forked)
     {
-        _exit(1);
+        _exit(EXIT_FAILURE);
     }
-    cleanShutdown(1);
+    cleanShutdown(EXIT_FAILURE);
 }
 
 void FailOOM(void)
 {
     fprintf(stderr, "don: Out of memory\n");
-    exit(1);
+    exit(EXIT_FAILURE);
 }
 
 void FailIO(const char *message, const char *filename)
@@ -40,11 +40,11 @@ void FailIO(const char *message, const char *filename)
 void FailIOErrno(const char *message, const char *filename, int error)
 {
     fprintf(stderr, "don: %s %s: %s\n", message, filename, strerror(error));
-    cleanShutdown(1);
+    cleanShutdown(EXIT_FAILURE);
 }
 
 void FailVM(VM *vm unused)
 {
     /* TODO: Print stack trace. */
-    cleanShutdown(1);
+    cleanShutdown(EXIT_FAILURE);
 }

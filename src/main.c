@@ -264,7 +264,7 @@ int main(int argc, const char **argv)
     }
 
     free(bytecode);
-    cleanShutdown(0);
+    cleanShutdown(EXIT_SUCCESS);
 }
 
 void cleanShutdown(int exitcode)
@@ -272,7 +272,7 @@ void cleanShutdown(int exitcode)
     static boolean shuttingDown;
     if (shuttingDown)
     {
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     shuttingDown = true;
     CacheDispose();
