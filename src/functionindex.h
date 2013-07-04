@@ -31,6 +31,5 @@ extern uint FunctionIndexGetVarargIndex(functionref function);
 extern uint FunctionIndexGetLocalsCount(functionref function);
 extern vref FunctionIndexGetLocalName(functionref function,
                                       uint16 local);
-extern nonnull void FunctionIndexSetLocals(functionref function,
-                                           const inthashmap *locals,
+extern nonnull void FunctionIndexSetLocals(functionref function, const inthashmap *locals,
                                            uint count);

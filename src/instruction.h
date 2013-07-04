@@ -12,15 +12,10 @@ typedef enum
     OP_FILELIST,
 
     OP_PUSH,
-    OP_POP,
-    OP_DUP,
-    OP_REORDER_STACK,
-    OP_LOAD,
-    OP_STORE,
+    OP_COPY,
     OP_LOAD_FIELD,
     OP_STORE_FIELD,
 
-    OP_CAST_BOOLEAN,
     OP_NOT,
     OP_NEG,
     OP_INV,

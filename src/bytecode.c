@@ -34,12 +34,23 @@ ref_t BytecodeReadRef(const byte **bytecode)
     return refFromUint(BytecodeReadUint(bytecode));
 }
 
+static void printValue(const byte **bytecode)
+{
+    printf("r%u", BytecodeReadUint(bytecode));
+}
+
+static void printBinaryOperation(const byte **bytecode, const char *op)
+{
+    int r1 = BytecodeReadInt(bytecode);
+    int r2 = BytecodeReadInt(bytecode);
+    int r3 = BytecodeReadInt(bytecode);
+    printf("r%d %s r%d -> r%d\n", r1, op, r2, r3);
+}
+
 static const byte *disassemble(const byte *bytecode, const byte *base)
 {
     uint ip = (uint)(bytecode - base);
-    nativefunctionref nativeFunction;
     uint value;
-    uint i;
     char *string;
 
     switch ((Instruction)*bytecode++)
@@ -51,197 +62,306 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
         uint localsCount = BytecodeReadUint(&bytecode);
 
         printf("function %s parameters:%d locals:%d\n",
-               HeapGetString(FunctionIndexGetName(function)), parameterCount, localsCount);
+               function ? HeapGetString(FunctionIndexGetName(function)) : "unknown",
+               parameterCount, localsCount);
         break;
     }
 
     case OP_NULL:
-        printf(" %u: push_null\n", ip);
+        fputs("store_null -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_TRUE:
-        printf(" %u: push_true\n", ip);
+        fputs("store_true -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_FALSE:
-        printf(" %u: push_false\n", ip);
+        fputs("store_false -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_EMPTY_LIST:
-        printf(" %u: push_{}\n", ip);
+        fputs("store_{} -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_LIST:
-        printf(" %u: new list %u\n", ip, BytecodeReadUint(&bytecode));
+    {
+        uint count = BytecodeReadUint(&bytecode);
+        printf("new list %u {", count);
+        if (count)
+        {
+            printValue(&bytecode);
+            while (--count)
+            {
+                fputs(",", stdout);
+                printValue(&bytecode);
+            }
+        }
+        fputs("} -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
+    }
 
     case OP_FILELIST:
-        printf(" %u: filelist %s\n", ip, HeapGetString(BytecodeReadRef(&bytecode)));
+        printf("filelist %s -> ", HeapGetString(BytecodeReadRef(&bytecode)));
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_PUSH:
         string = HeapDebug(refFromUint(BytecodeReadUint(&bytecode)), false);
-        printf(" %u: push %s\n", ip, string);
+        printf("push %s -> ", string);
+        printValue(&bytecode);
+        puts("");
         free(string);
         break;
 
-    case OP_POP:
-        printf(" %u: pop\n", ip);
+    case OP_COPY:
+    {
+        uint src = BytecodeReadUint(&bytecode);
+        uint dst = BytecodeReadUint(&bytecode);
+        printf("copy r%u -> r%u\n", src, dst);
         break;
-
-    case OP_DUP:
-        printf(" %u: dup\n", ip);
-        break;
-
-    case OP_REORDER_STACK:
-        value = BytecodeReadUint16(&bytecode);
-        printf(" %u: reorder_stack %u\n", ip, value);
-        for (i = 0; i < value; i++)
-        {
-            printf("    %u -> %u\n", i, BytecodeReadUint16(&bytecode));
-        }
-        break;
-
-    case OP_LOAD:
-        printf(" %u: load %u\n", ip, BytecodeReadUint16(&bytecode));
-        break;
-
-    case OP_STORE:
-        printf(" %u: store %u\n", ip, BytecodeReadUint16(&bytecode));
-        break;
+    }
 
     case OP_LOAD_FIELD:
-        printf(" %u: load_field %u\n", ip, BytecodeReadUint(&bytecode));
+        printf("load_field %u -> ", BytecodeReadUint(&bytecode));
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_STORE_FIELD:
-        printf(" %u: store_field %u\n", ip, BytecodeReadUint(&bytecode));
-        break;
-
-    case OP_CAST_BOOLEAN:
-        printf(" %u: cast_boolean\n", ip);
+        printf("store_field %u = ", BytecodeReadUint(&bytecode));
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_NOT:
-        printf(" %u: not\n", ip);
+        fputs("not ", stdout);
+        printValue(&bytecode);
+        fputs(" -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_NEG:
-        printf(" %u: neg\n", ip);
+        fputs("neg ", stdout);
+        printValue(&bytecode);
+        fputs(" -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_INV:
-        printf(" %u: inv\n", ip);
+        fputs("inv ", stdout);
+        printValue(&bytecode);
+        fputs(" -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_ITER_GET:
-        printf(" %u: iter_get\n", ip);
+        fputs("iter_get ", stdout);
+        printValue(&bytecode);
+        fputs("[", stdout);
+        printValue(&bytecode);
+        fputs("] -> ", stdout);
+        printValue(&bytecode);
+        fputs(",", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_EQUALS:
-        printf(" %u: equals\n", ip);
+        printBinaryOperation(&bytecode, "==");
         break;
 
     case OP_NOT_EQUALS:
-        printf(" %u: !equals\n", ip);
+        printBinaryOperation(&bytecode, "!=");
         break;
 
     case OP_LESS_EQUALS:
-        printf(" %u: lessequals\n", ip);
+        printBinaryOperation(&bytecode, "<=");
         break;
 
     case OP_GREATER_EQUALS:
-        printf(" %u: greaterequals\n", ip);
+        printBinaryOperation(&bytecode, ">=");
         break;
 
     case OP_LESS:
-        printf(" %u: less\n", ip);
+        printBinaryOperation(&bytecode, "<");
         break;
 
     case OP_GREATER:
-        printf(" %u: greater\n", ip);
+        printBinaryOperation(&bytecode, ">");
         break;
 
     case OP_AND:
-        printf(" %u: and\n", ip);
+        printBinaryOperation(&bytecode, "and");
         break;
 
     case OP_ADD:
-        printf(" %u: add\n", ip);
+        printBinaryOperation(&bytecode, "+");
         break;
 
     case OP_SUB:
-        printf(" %u: sub\n", ip);
+        printBinaryOperation(&bytecode, "-");
         break;
 
     case OP_MUL:
-        printf(" %u: mul\n", ip);
+        printBinaryOperation(&bytecode, "*");
         break;
 
     case OP_DIV:
-        printf(" %u: div\n", ip);
+        printBinaryOperation(&bytecode, "/");
         break;
 
     case OP_REM:
-        printf(" %u: rem\n", ip);
+        printBinaryOperation(&bytecode, "%");
         break;
 
     case OP_CONCAT_STRING:
-        printf(" %u: concat_string\n", ip);
+        printBinaryOperation(&bytecode, "\"\"");
         break;
 
     case OP_CONCAT_LIST:
-        printf(" %u: concat_list\n", ip);
+        fputs("concat_list ", stdout);
+        printValue(&bytecode);
+        fputs(",", stdout);
+        printValue(&bytecode);
+        fputs(" -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_INDEXED_ACCESS:
-        printf(" %u: indexed_access\n", ip);
+        fputs("indexed_access ", stdout);
+        printValue(&bytecode);
+        fputs("[", stdout);
+        printValue(&bytecode);
+        fputs("] -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_RANGE:
-        printf(" %u: range\n", ip);
+        printBinaryOperation(&bytecode, "..");
         break;
 
     case OP_JUMP:
         value = BytecodeReadUint(&bytecode);
-        printf(" %u: jump %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));
+        printf("jump %u\n", (uint)(ip + 1 + sizeof(uint) + value));
         break;
 
     case OP_BRANCH_TRUE:
+        fputs("branch_true ", stdout);
+        printValue(&bytecode);
         value = BytecodeReadUint(&bytecode);
-        printf(" %u: branch_true %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));
+        printf(", %u\n", (uint)(ip + 1 + 2 * sizeof(uint) + value));
         break;
 
     case OP_BRANCH_FALSE:
+        fputs("branch_false ", stdout);
+        printValue(&bytecode);
         value = BytecodeReadUint(&bytecode);
-        printf(" %u: branch_false %u\n", ip, (uint)(ip + 1 + sizeof(uint) + value));
+        printf(", %u\n", (uint)(ip + 1 + 2 * sizeof(uint) + value));
         break;
 
     case OP_RETURN:
-        printf(" %u: return %u\n", ip, *bytecode++);
+    {
+        uint count = BytecodeReadUint(&bytecode);
+        assert(count > 0);
+        fputs("return {", stdout);
+        printValue(&bytecode);
+        while (--count)
+        {
+            fputs(",", stdout);
+            printValue(&bytecode);
+        }
+        puts("}");
         break;
+    }
 
     case OP_RETURN_VOID:
-        printf(" %u: return\n", ip);
+        puts("return");
         break;
 
     case OP_INVOKE:
     {
         functionref function = BytecodeReadRef(&bytecode);
-        value = *bytecode++;
-        printf(" %u: invoke \"%s\" return: %u\n", ip,
-               HeapGetString(FunctionIndexGetName(function)), value);
+        uint count = BytecodeReadUint(&bytecode);
+        printf("invoke %s(", HeapGetString(FunctionIndexGetName(function)));
+        if (count)
+        {
+            printValue(&bytecode);
+            while (--count)
+            {
+                fputs(",", stdout);
+                printValue(&bytecode);
+            }
+        }
+        count = *bytecode++;
+        if (count)
+        {
+            fputs(") -> ", stdout);
+            printValue(&bytecode);
+            while (--count)
+            {
+                fputs(",", stdout);
+                printValue(&bytecode);
+            }
+            puts("");
+        }
+        else
+        {
+            puts(")");
+        }
         break;
     }
 
     case OP_INVOKE_NATIVE:
-        nativeFunction = refFromUint(*bytecode++);
-        printf(" %u: invoke native \"%s\"\n",
-               ip, HeapGetString(NativeGetName(nativeFunction)));
+    {
+        nativefunctionref nativeFunction = refFromUint(*bytecode++);
+        uint count = NativeGetParameterCount(nativeFunction);
+        printf("invoke native %s(", HeapGetString(NativeGetName(nativeFunction)));
+        if (count)
+        {
+            printValue(&bytecode);
+            while (--count)
+            {
+                fputs(",", stdout);
+                printValue(&bytecode);
+            }
+        }
+        count = NativeGetReturnValueCount(nativeFunction);
+        if (count)
+        {
+            fputs(") -> ", stdout);
+            printValue(&bytecode);
+            while (--count)
+            {
+                fputs(",", stdout);
+                printValue(&bytecode);
+            }
+            puts("");
+        }
+        else
+        {
+            puts(")");
+        }
         break;
+    }
 
     case OP_UNKNOWN_VALUE:
-        printf("  %u: unknown_value\n", ip);
+        puts("unknown_value");
         break;
     }
     return bytecode;
@@ -259,6 +379,7 @@ void BytecodeDisassemble(const byte *bytecode, const byte *bytecodeLimit)
 
     while (bytecode < bytecodeLimit)
     {
+        printf(" %u: ", (uint)(bytecode - start));
         bytecode = disassemble(bytecode, start);
     }
 }

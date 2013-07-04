@@ -2,6 +2,7 @@
 #include <memory.h>
 #include "common.h"
 #include "vm.h"
+#include "bytecode.h"
 #include "fieldindex.h"
 #include "functionindex.h"
 #include "work.h"
@@ -22,13 +23,10 @@ static VM *VMAlloc(void)
 VM *VMCreate(const byte *bytecode, functionref target)
 {
     VM *vm = VMAlloc();
-
     vm->parent = null;
     vm->condition = HeapTrue;
-
     vm->target = target;
-    vm->ip = bytecode +
-        FunctionIndexGetBytecodeOffset(FunctionIndexGetFirstFunction());
+    vm->ip = bytecode;
     vm->bp = 0;
     return vm;
 }
@@ -80,53 +78,7 @@ void VMDispose(VM *vm)
 }
 
 
-vref VMPeek(VM *vm)
+vref VMReadValue(VM *vm)
 {
-    return IVPeekRef(&vm->stack);
-}
-
-vref VMPop(VM *vm)
-{
-    char *buffer;
-    if (TRACE_STACK)
-    {
-        buffer = HeapDebug(IVPeek(&vm->stack), true);
-        printf("pop %s\n", buffer);
-        free(buffer);
-    }
-    return IVPopRef(&vm->stack);
-}
-
-void VMPopMany(VM *vm, vref *dst, uint count)
-{
-    dst += count - 1;
-    while (count--)
-    {
-        *dst-- = VMPop(vm);
-    }
-}
-
-void VMPush(VM *vm, vref value)
-{
-    char *buffer;
-    if (TRACE_STACK)
-    {
-        buffer = HeapDebug(value, true);
-        printf("push %s\n", buffer);
-        free(buffer);
-    }
-    IVAddRef(&vm->stack, value);
-}
-
-void VMPushBoolean(VM *vm, boolean value)
-{
-    VMPush(vm, value ? HeapTrue : HeapFalse);
-}
-
-void VMPushMany(VM *vm, const vref *values, uint count)
-{
-    while (count--)
-    {
-        VMPush(vm, *values++);
-    }
+    return IVGetRef(&vm->stack, vm->bp + BytecodeReadUint(&vm->ip));
 }

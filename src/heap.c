@@ -1121,11 +1121,8 @@ static vref executeUnary(Instruction op, vref value)
 {
     switch (op)
     {
-    case OP_DUP:
+    case OP_PUSH:
         return value;
-
-    case OP_CAST_BOOLEAN:
-        return VIsTruthy(value) ? HeapTrue : HeapFalse;
 
     case OP_NOT:
         assert(value == HeapTrue || value == HeapFalse);
@@ -1147,11 +1144,7 @@ static vref executeUnary(Instruction op, vref value)
     case OP_EMPTY_LIST:
     case OP_LIST:
     case OP_FILELIST:
-    case OP_PUSH:
-    case OP_POP:
-    case OP_REORDER_STACK:
-    case OP_LOAD:
-    case OP_STORE:
+    case OP_COPY:
     case OP_LOAD_FIELD:
     case OP_STORE_FIELD:
     case OP_EQUALS:
@@ -1189,9 +1182,6 @@ static vref executeBinaryPartial(Instruction op, vref object,
 {
     switch (op)
     {
-    case OP_DUP:
-        return value1;
-
     case OP_EQUALS:
     case OP_LESS_EQUALS:
     case OP_GREATER_EQUALS:
@@ -1235,13 +1225,9 @@ static vref executeBinaryPartial(Instruction op, vref object,
     case OP_LIST:
     case OP_FILELIST:
     case OP_PUSH:
-    case OP_POP:
-    case OP_REORDER_STACK:
-    case OP_LOAD:
-    case OP_STORE:
+    case OP_COPY:
     case OP_LOAD_FIELD:
     case OP_STORE_FIELD:
-    case OP_CAST_BOOLEAN:
     case OP_NOT:
     case OP_NEG:
     case OP_INV:
@@ -1269,9 +1255,6 @@ static vref executeBinary(Instruction op,
 
     switch (op)
     {
-    case OP_DUP:
-        return value1;
-
     case OP_EQUALS:
         return HeapEquals(value1, value2) ? HeapTrue : HeapFalse;
     case OP_NOT_EQUALS:
@@ -1361,13 +1344,9 @@ static vref executeBinary(Instruction op,
     case OP_EMPTY_LIST:
     case OP_LIST:
     case OP_FILELIST:
-    case OP_POP:
-    case OP_REORDER_STACK:
-    case OP_LOAD:
-    case OP_STORE:
+    case OP_COPY:
     case OP_LOAD_FIELD:
     case OP_STORE_FIELD:
-    case OP_CAST_BOOLEAN:
     case OP_NOT:
     case OP_NEG:
     case OP_INV:
@@ -1407,7 +1386,7 @@ void HeapSetFutureValue(vref object, vref value)
     assert(!future->value);
     assert(future->op == OP_UNKNOWN_VALUE);
     future->value = value;
-    future->op = OP_DUP;
+    future->op = OP_PUSH;
 }
 
 vref HeapTryWait(vref object)

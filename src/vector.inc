@@ -135,6 +135,19 @@ const VECTOR_TYPE *VECTOR_FUNC(GetPointer)(const VECTOR_NAME *v, size_t index)
     return &v->data[index];
 }
 
+VECTOR_TYPE *VECTOR_FUNC(GetWritePointer)(VECTOR_NAME *v, size_t index)
+{
+    if (index)
+    {
+        vectorCheckIndex(v, index - 1);
+    }
+    else
+    {
+        vectorCheck(v);
+    }
+    return &v->data[index];
+}
+
 VECTOR_TYPE *VECTOR_FUNC(GetAppendPointer)(VECTOR_NAME *v)
 {
     vectorCheck(v);

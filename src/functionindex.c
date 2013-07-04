@@ -244,8 +244,7 @@ vref FunctionIndexGetLocalName(functionref function, uint16 local)
                     getFunctionInfo(function)->localNamesOffset);
 }
 
-void FunctionIndexSetLocals(functionref function, const inthashmap *locals,
-                            uint count)
+void FunctionIndexSetLocals(functionref function, const inthashmap *locals, uint count)
 {
     uint offset = (uint)IVSize(&localNames);
     inthashmapiterator iter;

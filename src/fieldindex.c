@@ -53,8 +53,6 @@ void FieldIndexFinishBytecode(const byte *parsed, bytevector *bytecode)
         {
             BVAddData(bytecode, &parsed[info->bytecodeStart],
                       info->bytecodeStop - info->bytecodeStart);
-            BVAdd(bytecode, OP_STORE_FIELD);
-            BVAddUint(bytecode, FieldIndexGetIndex(field));
         }
     }
     BVAdd(bytecode, OP_RETURN_VOID);

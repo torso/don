@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include "common.h"
 #include "vm.h"
+#include "bytecode.h"
 #include "cache.h"
 #include "env.h"
 #include "fail.h"
@@ -962,12 +963,11 @@ void NativeInvoke(VM *vm, nativefunctionref function)
     env.work.condition = vm->condition;
     env.work.accessedFiles = 0;
     env.work.modifiedFiles = 0;
-    VMPopMany(vm, env.values, info->parameterCount);
     memset(env.values + info->parameterCount, 0,
            info->returnValueCount * sizeof(*env.values));
-    for (i = info->parameterCount, p = env.values; i; i--, p++)
+    for (i = 0; i < info->parameterCount; i++)
     {
-        *p = HeapTryWait(*p);
+        env.values[i] = HeapTryWait(VMReadValue(vm));
     }
     if (info->preFunction)
     {
@@ -988,7 +988,11 @@ void NativeInvoke(VM *vm, nativefunctionref function)
         env.work.function = function;
         WorkAdd(&env.work);
     }
-    VMPushMany(vm, env.values + info->parameterCount, info->returnValueCount);
+    for (i = 0; i < info->returnValueCount; i++)
+    {
+        uint local = BytecodeReadUint(&vm->ip);
+        IVSetRef(&vm->stack, vm->bp + local, env.values[info->parameterCount + i]);
+    }
 }
 
 void NativeWork(Work *work)

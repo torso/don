@@ -42,8 +42,6 @@ int main(int argc, const char **argv)
     File donNamespaceFile;
     namespaceref defaultNamespace;
     vref name;
-    fieldref field;
-    functionref function;
     boolean parseOptions = true;
     boolean disassemble = false;
     byte *bytecode;
@@ -193,34 +191,7 @@ int main(int argc, const char **argv)
     defaultNamespace = NamespaceCreate(0);
     ParseFile(filename, defaultNamespace);
 
-    for (field = FieldIndexGetFirstField();
-         field;
-         field = FieldIndexGetNextField(field))
-    {
-        ParseField(field, &parsed);
-    }
-
-    for (function = FunctionIndexGetNextFunction(
-             FunctionIndexGetFirstFunction());
-         function;
-         function = FunctionIndexGetNextFunction(function))
-    {
-        ParseFunctionDeclaration(function, &parsed);
-    }
-
-    bytecode = BVDisposeContainer(&parsed);
-    BVInit(&parsed, 65536);
-    FieldIndexFinishBytecode(bytecode, &parsed);
-    free(bytecode);
-    bytecode = null;
-
-    for (function = FunctionIndexGetNextFunction(
-             FunctionIndexGetFirstFunction());
-         function;
-         function = FunctionIndexGetNextFunction(function))
-    {
-        ParseFunctionBody(function, &parsed);
-    }
+    ParseFinish(&parsed);
 
     FileClose(&donNamespaceFile);
     FileClose(&inputFile);
