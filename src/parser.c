@@ -308,12 +308,12 @@ static int readIndent(ParseState *state)
 
 static boolean peekComment(const ParseState *state)
 {
-    return state->current[0] == ';';
+    return state->current[0] == '#';
 }
 
 static boolean readComment(ParseState *state)
 {
-    if (state->current[0] == ';')
+    if (state->current[0] == '#')
     {
         skipEndOfLine(state);
         return true;

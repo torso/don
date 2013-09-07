@@ -66,10 +66,10 @@ dotest(debug:false)
    for f in @test/*
       test = read(f)
       targets = {'default}
-      if test[0] == ';
+      if test[0] == '#
          test = split(test "\n")[0]
          test = split(test " ")
-         if test[0] == ';target:
+         if test[0] == '#target:
             targets = {}
             i = 1
             while i < size(test)

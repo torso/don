@@ -1,4 +1,4 @@
-;target: uncached cached cached
+#target: uncached cached cached
 
 uncached:
    cache uptodate = getCache("test" 0)

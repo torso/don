@@ -1,4 +1,4 @@
-;target: test1 test2 test3
+#target: test1 test2 test3
 
 cached(key value)
    cache uptodate data = getCache("test" key)
