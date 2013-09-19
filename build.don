@@ -66,22 +66,37 @@ dotest(debug:false)
    for f in @test/*
       test = read(f)
       targets = {'default}
+      expected = null
       if test[0] == '#
-         test = split(test "\n")[0]
-         test = split(test " ")
-         if test[0] == '#target:
+         lines = split(test "\n")
+         command = split(lines[0] " ")
+         if command[0] == '#fail:
+            expected = ""
+            maxFailLine = 1
+            while maxFailLine < size(lines) && size(lines[maxFailLine]) && lines[maxFailLine][0] == '#
+               maxFailLine += 1
+            for i in 1..maxFailLine-1
+               line = lines[i][1..size(lines[i])-1]
+               if line[0] == '+
+                  j = indexOf(line ':)
+                  line = f":"(maxFailLine+int(line[1..j-1]))""line[j..size(line)-1]
+               expected = expected""line"\n"
+               i += 1
+         else if command[0] == '#target:
             targets = {}
             i = 1
-            while i < size(test)
-               targets = targets::{test[i]}
+            while i < size(command)
+               targets = targets::{command[i]}
                i += 1
+         else
+            fail("Unknown command \""command[0]"\" while parsing "f)
 
       result = true
       i = 0
       rm(@tempcache)
       while result && i < size(targets)
          out exitcode = run(program '-f f targets[i] output:false)
-         if exitcode == 0 && out[0] == "PASS\n" && out[1] == ""
+         if expected ? exitcode && out[0] == "" && out[1] == expected : exitcode == 0 && out[0] == "PASS\n" && out[1] == ""
             i += 1
          else
             result = false
