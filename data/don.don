@@ -52,6 +52,12 @@ getCache(label version key... echoCachedOutput:true)
 indexOf(data element)
    return native.indexOf(data element)
 
+int(str)
+   n = 0
+   for i in 0..size(str)-1
+      n = n*10 + indexOf("0123456789" str[i])
+   return n
+
 lines(value trimLastIfEmpty:true)
    return native.lines(value trimLastIfEmpty)
 
