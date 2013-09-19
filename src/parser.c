@@ -283,7 +283,7 @@ static boolean peekNewline(ParseState *state)
     return state->current[0] == '\n';
 }
 
-static boolean readNewline(ParseState *state)
+static boolean peekReadNewline(ParseState *state)
 {
     if (state->current[0] == '\n')
     {
@@ -1924,7 +1924,7 @@ static boolean parseReturnRest(ParseState *state)
     size_t oldTempSize;
     int value;
 
-    if (readNewline(state))
+    if (peekReadNewline(state))
     {
         BVAdd(state->bytecode, OP_RETURN_VOID);
         return true;
@@ -1939,7 +1939,7 @@ static boolean parseReturnRest(ParseState *state)
             return false;
         }
         IVAdd(&temp, (uint)value);
-        if (readNewline(state))
+        if (peekReadNewline(state))
         {
             uint count = (uint)(IVSize(&temp) - oldTempSize);
             BVAdd(state->bytecode, OP_RETURN);
@@ -1984,7 +1984,7 @@ static int parseBlockRest(ParseState *state, int indent)
                     {
                         return -1;
                     }
-                    if (!readNewline(state) && !readComment(state))
+                    if (!peekReadNewline(state) && !readComment(state))
                     {
                         error(state, "Garbage after if statement.");
                         return -1;
@@ -2028,7 +2028,7 @@ static int parseBlockRest(ParseState *state, int indent)
                             {
                                 return -1;
                             }
-                            if (!readNewline(state) && !readComment(state))
+                            if (!peekReadNewline(state) && !readComment(state))
                             {
                                 error(state, "Garbage after if statement.");
                                 return -1;
@@ -2056,7 +2056,7 @@ static int parseBlockRest(ParseState *state, int indent)
                         }
                         else
                         {
-                            if (identifier || (!readNewline(state) && !readComment(state)))
+                            if (identifier || (!peekReadNewline(state) && !readComment(state)))
                             {
                                 error(state, "Garbage after else.");
                                 return -1;
@@ -2168,7 +2168,7 @@ static int parseBlockRest(ParseState *state, int indent)
                     {
                         return -1;
                     }
-                    if (!readNewline(state) && !readComment(state))
+                    if (!peekReadNewline(state) && !readComment(state))
                     {
                         error(state, "Garbage after while statement.");
                         return -1;
@@ -2419,7 +2419,7 @@ static void parseScript(ParseState *state)
         {
             skipEndOfLine(state);
         }
-        else if (!readNewline(state))
+        else if (!peekReadNewline(state))
         {
             error(state, "Unsupported character: '%c'", state->current[0]);
             skipEndOfLine(state);
