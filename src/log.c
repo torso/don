@@ -154,7 +154,15 @@ void LogParseError(vref filename, size_t line, const char *format, va_list ap)
     hasParseError = true;
     fprintf(stderr, "%s:%ld: ", HeapGetString(filename), line);
     vfprintf(stderr, format, ap);
-    fprintf(stderr, "\n");
+    fputs("\n", stderr);
+}
+
+void LogParseErrorWithColumn(vref filename, size_t line, size_t column, const char *format, va_list ap)
+{
+    hasParseError = true;
+    fprintf(stderr, "%s:%ld:%ld: ", HeapGetString(filename), line, column);
+    vfprintf(stderr, format, ap);
+    fputs("\n", stderr);
 }
 
 static void logPrint(LogPipe *p, const char *text, size_t length)

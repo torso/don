@@ -4,6 +4,8 @@ extern void LogDispose(void);
 extern boolean LogFlushParseErrors(void);
 extern attrprintf(3, 0) void LogParseError(vref filename, size_t line,
                                            const char *format, va_list ap);
+extern attrprintf(4, 0) void LogParseErrorWithColumn(vref filename, size_t line, size_t column,
+                                                     const char *format, va_list ap);
 
 /*
   Prints the specified text to standard output without any formatting. If the
