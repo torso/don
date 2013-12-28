@@ -311,14 +311,6 @@ static void skipWhitespace(ParseState *state)
     }
 }
 
-static void skipExpressionWhitespace(ParseState *state, ExpressionState *estate)
-{
-    if (estate->allowSpace)
-    {
-        skipWhitespace(state);
-    }
-}
-
 static void skipEndOfLine(ParseState *state)
 {
     while (!eof(state) && *state->current++ != '\n');
@@ -327,7 +319,7 @@ static void skipEndOfLine(ParseState *state)
 
 static boolean peekNewline(ParseState *state)
 {
-    return *state->current == '\n';
+    return *state->current == '\n' || *state->current == '#';
 }
 
 static boolean peekReadNewline(ParseState *state)
@@ -392,6 +384,34 @@ static uint readNewline(ParseState *state)
         {
             return (uint)getOffset(state, lineBegin);
         }
+    }
+}
+
+static boolean skipWhitespaceAndNewline(ParseState *state)
+{
+    skipWhitespace(state);
+    if (peekNewline(state) && readNewline(state) <= state->statementIndent)
+    {
+        error(state, "Expected increased indentation for continued line");
+        return false;
+    }
+    return true;
+}
+
+static void skipExpressionWhitespace(ParseState *state, ExpressionState *estate)
+{
+    if (estate->allowSpace)
+    {
+        skipWhitespace(state);
+    }
+}
+
+static void skipExpressionWhitespaceAndNewline(ParseState *state,
+                                               ExpressionState *estate)
+{
+    if (estate->allowSpace)
+    {
+        skipWhitespaceAndNewline(state);
     }
 }
 
@@ -503,22 +523,7 @@ static boolean peekNumber(const ParseState *state)
 
 static boolean peekString(const ParseState *state)
 {
-    return state->current[0] == '"';
-}
-
-static boolean skipWhitespaceAndNewline(ParseState *state)
-{
-    skipWhitespace(state);
-    while (peekNewline(state))
-    {
-        skipEndOfLine(state);
-        if (readIndent(state) <= state->statementIndent && !peekNewline(state))
-        {
-            error(state, "Continued line must have increased indentation.");
-            return false;
-        }
-    }
-    return true;
+    return *state->current == '"';
 }
 
 static vref readString(ParseState *state)
@@ -940,6 +945,10 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     for (;;)
     {
         int value;
+        if (!skipWhitespaceAndNewline(state))
+        {
+            goto error;
+        }
         if (readOperator(state, ')'))
         {
             finishUnnamedArguments(state, parameterCount, argumentCount, varargIndex);
@@ -1098,7 +1107,7 @@ static boolean parseBinaryOperationRest(
     {
         return false;
     }
-    skipWhitespace(state);
+    skipExpressionWhitespace(state, estate);
     if (!parseExpressionRest(state, estate))
     {
         return false;
@@ -1113,7 +1122,7 @@ static boolean parseBinaryOperationRest(
     BVAddInt(state->bytecode, value2);
     estate->expressionType = EXPRESSION_MISSING_STORE;
     estate->valueType = valueType;
-    skipWhitespace(state);
+    skipExpressionWhitespace(state, estate);
     return true;
 }
 
@@ -1813,7 +1822,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
         {
             int index = createVariable(state);
             finishAndStoreValueAt(state, estate, index);
-            skipExpressionWhitespace(state, estate);
+            skipExpressionWhitespaceAndNewline(state, estate);
             branch = writeForwardBranch(state, OP_BRANCH_FALSE, index);
             if (!parseExpression3(state, estate))
             {
@@ -1831,7 +1840,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
         {
             int index = createVariable(state);
             finishAndStoreValueAt(state, estate, index);
-            skipExpressionWhitespace(state, estate);
+            skipExpressionWhitespaceAndNewline(state, estate);
             branch = writeForwardBranch(state, OP_BRANCH_TRUE, index);
             if (!parseExpression3(state, estate))
             {
