@@ -494,7 +494,7 @@ static vref readVariableName(ParseState *state)
     vref identifier = peekReadIdentifier(state);
     if (!identifier || isKeyword(identifier))
     {
-        error(state, "Expected variable name.");
+        error(state, "Expected variable name");
         return 0;
     }
     return identifier;
@@ -507,7 +507,7 @@ static boolean readExpectedKeyword(ParseState *state, vref keyword)
     {
         return true;
     }
-    statementError(state, "Expected keyword %s.", HeapGetString(keyword));
+    statementError(state, "Expected keyword %s", HeapGetString(keyword));
     return false;
 }
 
@@ -577,7 +577,7 @@ static vref readString(ParseState *state)
             case 'v': BVAdd(&string, '\v'); break;
 
             default:
-                error(state, "Invalid escape sequence.");
+                error(state, "Invalid escape sequence");
                 break;
             }
             state->current++;
@@ -586,7 +586,7 @@ static vref readString(ParseState *state)
 
         case '\r':
         case '\n':
-            error(state, "Newline in string literal.");
+            error(state, "Newline in string literal");
             if (copied)
             {
                 BVDispose(&string);
@@ -615,7 +615,7 @@ static vref readFilename(ParseState *state)
     }
     if (begin == state->current)
     {
-        error(state, "Expected filename.");
+        error(state, "Expected filename");
         return 0;
     }
     return StringPoolAdd2((const char*)begin, getOffset(state, begin));
@@ -707,7 +707,7 @@ static boolean parseNumber(ParseState *state, ExpressionState *estate)
 
     if (isIdentifierCharacter(*state->current))
     {
-        error(state, "Invalid character in number literal.");
+        error(state, "Invalid character in number literal");
         return false;
     }
 
@@ -851,7 +851,7 @@ static boolean finishLValue(ParseState *state, const ExpressionState *lvalue,
     case EXPRESSION_STORED:
     case EXPRESSION_MISSING_STORE:
     case EXPRESSION_MANY:
-        statementError(state, "Invalid target for assignment.");
+        statementError(state, "Invalid target for assignment");
         return false;
 
     case EXPRESSION_VARIABLE:
@@ -878,7 +878,7 @@ static functionref lookupFunction(ParseState *state, namespaceref ns,
         function = NamespaceGetFunction(ns, name);
         if (!function)
         {
-            statementError(state, "Unknown function '%s.%s'.",
+            statementError(state, "Unknown function '%s.%s'",
                            HeapGetString(NamespaceGetName(ns)),
                            HeapGetString(name));
         }
@@ -888,7 +888,7 @@ static functionref lookupFunction(ParseState *state, namespaceref ns,
         function = NamespaceLookupFunction(state->ns, name);
         if (!function)
         {
-            statementError(state, "Unknown function '%s'.",
+            statementError(state, "Unknown function '%s'",
                            HeapGetString(name));
         }
     }
@@ -969,7 +969,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 {
                     if (index == parameterCount)
                     {
-                        errorOnLine(state, line, "No parameter named '%s'.",
+                        errorOnLine(state, line, "No parameter named '%s'",
                                     HeapGetString(estateArgument.identifier));
                         goto error;
                     }
@@ -980,7 +980,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 }
                 if ((int)IVGet(&temp, oldTempSize + index) != -1)
                 {
-                    errorOnLine(state, line, "Multiple values for parameter '%s'.",
+                    errorOnLine(state, line, "Multiple values for parameter '%s'",
                                 HeapGetString(estateArgument.identifier));
                     goto error;
                 }
@@ -1027,7 +1027,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         {
             if (i != varargIndex && i < requiredArgumentCount)
             {
-                errorOnLine(state, line, "No value for parameter '%s' given.",
+                errorOnLine(state, line, "No value for parameter '%s' given",
                             HeapGetString(parameterInfo[i].name));
                 goto error;
             }
@@ -1061,13 +1061,13 @@ static boolean parseNativeInvocationRest(ParseState *state,
 
     if (!function)
     {
-        statementError(state, "Unknown native function '%s'.",
+        statementError(state, "Unknown native function '%s'",
                        HeapGetString(name));
         return false;
     }
     if (estate->valueCount != NativeGetReturnValueCount(function))
     {
-        statementError(state, "Native function returns %d values, but %d are handled.",
+        statementError(state, "Native function returns %d values, but %d are handled",
                        NativeGetReturnValueCount(function), estate->valueCount);
         return false;
     }
@@ -1139,7 +1139,7 @@ static boolean parseQuotedValue(ParseState *state, ExpressionState *estate)
     }
     if (state->current == begin)
     {
-        error(state, "Invalid quoted value.");
+        error(state, "Invalid quoted value");
         return false;
     }
     parsedConstant(estate, VALUE_STRING,
@@ -1256,13 +1256,13 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
                 parsedConstant(estate, VALUE_BOOLEAN, 0);
                 return true;
             }
-            statementError(state, "Unexpected keyword '%s'.",
+            statementError(state, "Unexpected keyword '%s'",
                            HeapGetString(identifier));
             return false;
         }
         if (estate->parseConstant)
         {
-            statementError(state, "Expected constant.");
+            statementError(state, "Expected constant");
             return false;
         }
         if (!peekOperator2(state, '.', '.') &&
@@ -1281,7 +1281,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
                     }
                     return parseNativeInvocationRest(state, estate, identifier);
                 }
-                statementError(state, "Unknown namespace '%s'.",
+                statementError(state, "Unknown namespace '%s'",
                                HeapGetString(identifier));
                 return false;
             }
@@ -1298,7 +1298,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             estate->field = NamespaceGetField(ns, identifier);
             if (!estate->field)
             {
-                statementError(state, "Unknown field '%s.%s'.",
+                statementError(state, "Unknown field '%s.%s'",
                                HeapGetString(NamespaceGetName(ns)),
                                HeapGetString(identifier));
             }
@@ -1433,7 +1433,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         estate->valueType = VALUE_FILE;
         return true;
     }
-    statementError(state, "Invalid expression.");
+    statementError(state, "Invalid expression");
     return false;
 }
 
@@ -1514,7 +1514,7 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
         /* TODO: Parse concatenated string as constant if possible. */
         if (estate->parseConstant)
         {
-            statementError(state, "Expected constant.");
+            statementError(state, "Expected constant");
             return false;
         }
         index = finishRValue(state, estate);
@@ -2009,7 +2009,7 @@ static boolean parseExpressionStatement(ParseState *state, vref identifier)
         }
         if (rvalue.expressionType != EXPRESSION_MANY)
         {
-            statementError(state, "Expected function invocation.");
+            statementError(state, "Expected function invocation");
             goto error;
         }
         assert(rvalue.valueCount == returnValueCount);
@@ -2044,7 +2044,7 @@ error:
         BVSetSize(&btemp, oldBTempSize);
         return false;
     }
-    statementError(state, "Not a statement.");
+    statementError(state, "Not a statement");
     return false;
 }
 
@@ -2089,7 +2089,7 @@ static uint parseBlock(ParseState *state, uint indent)
 
     if (indent < state->statementIndent)
     {
-        error(state, "Expected increased indentation level.");
+        error(state, "Expected increased indentation level");
         return indent;
     }
 
@@ -2100,7 +2100,7 @@ static uint parseBlock(ParseState *state, uint indent)
         {
             if (indent > state->statementIndent || (indent && !oldStatementIndent))
             {
-                error(state, "Mismatched indentation level.");
+                error(state, "Mismatched indentation level");
             }
             else
             {
@@ -2117,7 +2117,7 @@ static uint parseBlock(ParseState *state, uint indent)
             {
                 if (identifier > maxStatementKeyword)
                 {
-                    statementError(state, "Not a statement.");
+                    statementError(state, "Not a statement");
                     goto statementError;
                 }
                 skipWhitespace(state);
@@ -2166,7 +2166,7 @@ static uint parseBlock(ParseState *state, uint indent)
                             }
                             if (!peekNewline(state))
                             {
-                                error(state, "Garbage after if statement.");
+                                error(state, "Garbage after if statement");
                                 goto statementError;
                             }
                             conditionOffset = (int)writeForwardBranch(state, OP_BRANCH_FALSE,
@@ -2177,7 +2177,7 @@ static uint parseBlock(ParseState *state, uint indent)
                         {
                             if (identifier || !peekNewline(state))
                             {
-                                error(state, "Garbage after else.");
+                                error(state, "Garbage after else");
                                 goto statementError;
                             }
                             indent = parseBlock(state, readNewline(state));
@@ -2195,7 +2195,7 @@ static uint parseBlock(ParseState *state, uint indent)
                 }
                 if (identifier == keywordElse)
                 {
-                    error(state, "else without matching if.");
+                    error(state, "else without matching if");
                     goto statementError;
                 }
                 else if (identifier == keywordFor)
@@ -2280,7 +2280,7 @@ static uint parseBlock(ParseState *state, uint indent)
         }
         else
         {
-            error(state, "Not a statement.");
+            error(state, "Not a statement");
             goto statementError;
         }
 
@@ -2307,7 +2307,7 @@ static boolean parseFunctionDeclarationRest(ParseState *state, functionref funct
     {
         if (!peekNewline(state))
         {
-            error(state, "Garbage after target declaration.");
+            error(state, "Garbage after target declaration");
             return false;
         }
     }
@@ -2323,7 +2323,7 @@ static boolean parseFunctionDeclarationRest(ParseState *state, functionref funct
                 parameterName = peekReadIdentifier(state);
                 if (!parameterName || isKeyword(parameterName))
                 {
-                    error(state, "Expected parameter name or ')'.");
+                    error(state, "Expected parameter name or ')'");
                     return false;
                 }
                 skipWhitespace(state);
@@ -2341,7 +2341,7 @@ static boolean parseFunctionDeclarationRest(ParseState *state, functionref funct
                 }
                 else if (requireDefaultValues)
                 {
-                    error(state, "Default value for parameter '%s' required.",
+                    error(state, "Default value for parameter '%s' required",
                           HeapGetString(parameterName));
                     return false;
                 }
@@ -2364,7 +2364,7 @@ static boolean parseFunctionDeclarationRest(ParseState *state, functionref funct
         }
         if (!peekNewline(state))
         {
-            error(state, "Garbage after function declaration.");
+            error(state, "Garbage after function declaration");
             return false;
         }
     }
@@ -2408,7 +2408,7 @@ static void parseScript(ParseState *state)
                 skipWhitespace(state);
                 if (!readOperator(state, '='))
                 {
-                    error(state, "Invalid declaration.");
+                    error(state, "Invalid declaration");
                     allowIndent = true;
                     skipEndOfLine(state);
                     continue;
@@ -2496,7 +2496,7 @@ void ParseFile(vref filename, namespaceref ns)
         errorOnLine(&state,
                     UtilCountNewlines((const char*)state.start,
                                       (size_t)(state.limit - state.start)) + 1,
-                    "File does not end with newline.");
+                    "File does not end with newline");
     }
     else
     {
@@ -2521,7 +2521,7 @@ static void parseField(ParseState *state, fieldref field, bytevector *bytecode)
     {
         if (!peekNewline(state))
         {
-            statementError(state, "Garbage after variable declaration.");
+            statementError(state, "Garbage after variable declaration");
         }
         else
         {
@@ -2591,7 +2591,7 @@ static void parseFunctionBody(functionref function, bytevector *bytecode)
             if (variableIndex(&state, parameterInfo->name) != i)
             {
                 disposeParseState(&state);
-                error(&state, "Multiple uses of parameter name '%s'.",
+                error(&state, "Multiple uses of parameter name '%s'",
                       HeapGetString(parameterInfo->name));
                 return;
             }
