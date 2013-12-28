@@ -2,8 +2,10 @@
 
 cached(key value)
    cache uptodate data = getCache("test" key)
-   fail(condition:!uptodate)
-   fail("value:"data" expected:"value condition:(data != value))
+   if !uptodate
+      fail()
+   if data != value
+      fail("value:"data" expected:"value)
 
 update(key value)
    cache uptodate = getCache("test" key)

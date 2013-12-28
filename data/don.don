@@ -23,20 +23,20 @@ exec(command... env:{} fail:true echo:true echoStderr:true access:@/ modify:@/)
       don.fail("Process exited with status "exitcode)
    return output exitcode
 
-fail(message:null condition:true silent:false)
-   if condition
-      if silent
-         native.fail(null)
-      message = message == null ? "" : ""message
-      if message != ""
-         native.fail("BUILD FAILED: "message)
-      native.fail("BUILD FAILED")
+fail(message:null silent:false)
+   if silent
+      native.fail(null)
+   message = message == null ? "" : ""message
+   if message != ""
+      native.fail("BUILD FAILED: "message)
+   native.fail("BUILD FAILED")
 
 file(path name:null extension:null)
    if name == null
+      if path == null
+         fail("Either path or name must be non-null")
       name = path
       path = null
-   fail("Either path or name must be non-null" condition:name == null)
    return native.file(path name extension)
 
 filename(path)
@@ -124,7 +124,8 @@ cc(files... flags:{})
             rm(dependFile)
             setUptodate(cache out accessedFiles:filelist(depend))
       result = result::{ofile}
-   fail(condition:failed)
+   if failed
+      fail()
    return result
 
 link(files... flags:{} libs:{} name:"a.out")

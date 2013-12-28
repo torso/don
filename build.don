@@ -125,7 +125,8 @@ dotest(debug:false)
       echo("")
    echo("pass:  "pass)
    echo("fail:  "fail)
-   fail(condition:fail silent:true)
+   if fail
+      fail(silent:true)
 
 test:
    dotest()
@@ -140,18 +141,21 @@ dbgtest:
 default:
    valgrind = true
    out exitcode = run(compile() '-f 'input)
-   fail(condition:exitcode)
+   if exitcode
+      fail()
 
 prof:
    p = compile()
    out exitcode = run(compile(extraflags:'{-pg} linkflags:'{-pg}) '-f 'input)
-   fail(condition:exitcode)
+   if exitcode
+      fail()
    exec('gprof p)
 
 strace:
    valgrind = false
    out exitcode = run('strace '-qvC compile() '-f 'input)
-   fail(condition:exitcode)
+   if exitcode
+      fail()
 
 debug:
    program = compile()
