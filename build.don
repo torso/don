@@ -60,8 +60,8 @@ run(args... output:true)
 
 dotest(debug:false)
    program = compile()
-   pass = 0
-   fail = 0
+   passcount = 0
+   failcount = 0
    hasOutput = false
    for f in @test/*
       test = read(f)
@@ -118,14 +118,14 @@ dotest(debug:false)
                   j += 1
                exec(gdb program '-f f targets[j] fail:false env:{'XDG_CACHE_HOME @tempcache})
       if result
-         pass += 1
+         passcount += 1
       else
-         fail += 1
-   if fail
+         failcount += 1
+   if failcount
       echo("")
-   echo("pass:  "pass)
-   echo("fail:  "fail)
-   if fail
+   echo("pass:  "passcount)
+   echo("fail:  "failcount)
+   if failcount
       fail(silent:true)
 
 test:
