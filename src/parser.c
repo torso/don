@@ -435,13 +435,6 @@ static boolean peekIndent(const ParseState *state)
     return *state->current == ' ';
 }
 
-static uint readIndent(ParseState *state)
-{
-    const byte *begin = state->current;
-    skipWhitespace(state);
-    return (uint)getOffset(state, begin);
-}
-
 static boolean peekComment(const ParseState *state)
 {
     return *state->current == '#';
@@ -2368,7 +2361,6 @@ static boolean parseFunctionDeclarationRest(ParseState *state, functionref funct
             return false;
         }
     }
-    skipEndOfLine(state);
     FunctionIndexFinishParameters(function, state->line,
                                   (uint)getOffset(state, state->start));
     return true;
@@ -2599,7 +2591,7 @@ static void parseFunctionBody(functionref function, bytevector *bytecode)
     }
 
     state.statementIndent = 0;
-    parseBlock(&state, readIndent(&state));
+    parseBlock(&state, readNewline(&state));
     if (!state.error)
     {
         FunctionIndexSetLocals(function, &state.locals, state.localsCount);

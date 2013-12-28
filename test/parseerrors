@@ -1,5 +1,6 @@
 #fail:
-#+3: Unknown function 'f'
+#+4: Unknown function 'f'
 
 default:
+
     f()
