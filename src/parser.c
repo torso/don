@@ -305,7 +305,7 @@ static boolean isFilenameCharacter(byte c)
 
 static void skipWhitespace(ParseState *state)
 {
-    while (state->current[0] == ' ')
+    while (*state->current == ' ')
     {
         state->current++;
     }
@@ -332,7 +332,7 @@ static boolean peekNewline(ParseState *state)
 
 static boolean peekReadNewline(ParseState *state)
 {
-    if (state->current[0] == '\n')
+    if (*state->current == '\n')
     {
         state->current++;
         state->line++;
@@ -412,7 +412,7 @@ static uint skipStatement(ParseState *state)
 
 static boolean peekIndent(const ParseState *state)
 {
-    return state->current[0] == ' ';
+    return *state->current == ' ';
 }
 
 static uint readIndent(ParseState *state)
@@ -424,7 +424,7 @@ static uint readIndent(ParseState *state)
 
 static boolean peekComment(const ParseState *state)
 {
-    return state->current[0] == '#';
+    return *state->current == '#';
 }
 
 static boolean isKeyword(vref identifier)
@@ -434,7 +434,7 @@ static boolean isKeyword(vref identifier)
 
 static boolean peekIdentifier(const ParseState *state)
 {
-    return isInitialIdentifierCharacter(state->current[0]);
+    return isInitialIdentifierCharacter(*state->current);
 }
 
 static vref readIdentifier(ParseState *state)
@@ -498,7 +498,7 @@ static boolean isDigit(byte b)
 
 static boolean peekNumber(const ParseState *state)
 {
-    return isDigit(state->current[0]);
+    return isDigit(*state->current);
 }
 
 static boolean peekString(const ParseState *state)
@@ -533,7 +533,7 @@ static vref readString(ParseState *state)
     for (;;)
     {
         assert(!eof(state)); /* TODO: error handling */
-        switch (state->current[0])
+        switch (*state->current)
         {
         case '\"':
             if (copied)
@@ -559,7 +559,7 @@ static vref readString(ParseState *state)
             }
             BVAddData(&string, begin, getOffset(state, begin));
             state->current++;
-            switch (state->current[0])
+            switch (*state->current)
             {
             case '\\': BVAdd(&string, '\\'); break;
             case '\'': BVAdd(&string, '\''); break;
@@ -602,7 +602,7 @@ static vref readFilename(ParseState *state)
     /* TODO: Quoted filenames. */
     /* TODO: Escape sequences in filenames. */
     begin = state->current;
-    while (isFilenameCharacter(state->current[0]))
+    while (isFilenameCharacter(*state->current))
     {
         assert(!eof(state)); /* TODO: error handling */
         assert(!peekNewline(state)); /* TODO: error handling */
@@ -618,7 +618,7 @@ static vref readFilename(ParseState *state)
 
 static boolean readOperator(ParseState *state, byte op)
 {
-    if (state->current[0] == op)
+    if (*state->current == op)
     {
         state->current++;
         return true;
@@ -628,7 +628,7 @@ static boolean readOperator(ParseState *state, byte op)
 
 static boolean peekOperator(ParseState *state, byte op)
 {
-    return state->current[0] == op;
+    return *state->current == op;
 }
 
 static boolean reverseIfOperator(ParseState *state, byte op)
@@ -676,7 +676,7 @@ static boolean readExpectedOperator(ParseState *state, byte op)
 {
     if (!readOperator(state, op))
     {
-        error(state, "Expected operator '%c'. Got '%c'", op, state->current[0]);
+        error(state, "Expected operator '%c'. Got '%c'", op, *state->current);
         return false;
     }
     return true;
@@ -694,13 +694,13 @@ static boolean parseNumber(ParseState *state, ExpressionState *estate)
 
     do
     {
-        value = value * 10 + state->current[0] - '0';
+        value = value * 10 + *state->current - '0';
         assert(value >= 0);
         state->current++;
     }
-    while (isDigit(state->current[0]));
+    while (isDigit(*state->current));
 
-    if (isIdentifierCharacter(state->current[0]))
+    if (isIdentifierCharacter(*state->current))
     {
         error(state, "Invalid character in number literal.");
         return false;
@@ -1655,7 +1655,7 @@ static boolean parseExpression7(ParseState *state, ExpressionState *estate)
             if (peekOperator(state, '=') ||
                 (estate->valueType != VALUE_UNKNOWN &&
                  estate->valueType != VALUE_NUMBER &&
-                 state->current[0] != ' '))
+                 *state->current != ' '))
             {
                 state->current--;
                 return true;
@@ -2420,7 +2420,7 @@ static void parseScript(ParseState *state)
         }
         else if (!peekReadNewline(state))
         {
-            error(state, "Unsupported character: '%c'", state->current[0]);
+            error(state, "Unsupported character: '%c'", *state->current);
             skipEndOfLine(state);
         }
     }
