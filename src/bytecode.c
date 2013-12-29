@@ -39,12 +39,11 @@ static void printValue(const byte **bytecode)
     printf("r%u", BytecodeReadUint(bytecode));
 }
 
-static void printBinaryOperation(const byte **bytecode, const char *op)
+static void printBinaryOperation(const byte **bytecode, const char *op, uint arg)
 {
     int r1 = BytecodeReadInt(bytecode);
     int r2 = BytecodeReadInt(bytecode);
-    int r3 = BytecodeReadInt(bytecode);
-    printf("r%d %s r%d -> r%d\n", r1, op, r2, r3);
+    printf("r%d %s r%d -> r%d\n", arg, op, r1, r2);
 }
 
 static const byte *disassemble(const byte *bytecode, const byte *base)
@@ -52,8 +51,10 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
     uint ip = (uint)(bytecode - base);
     uint value;
     char *string;
+    uint i = BytecodeReadUint(&bytecode);
+    uint arg = i >> 8;
 
-    switch ((Instruction)*bytecode++)
+    switch ((Instruction)(i & 0xff))
     {
     case OP_FUNCTION:
     {
@@ -68,37 +69,27 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
     }
 
     case OP_NULL:
-        fputs("store_null -> ", stdout);
-        printValue(&bytecode);
-        puts("");
+        printf("store_null -> r%u\n", arg);
         break;
 
     case OP_TRUE:
-        fputs("store_true -> ", stdout);
-        printValue(&bytecode);
-        puts("");
+        printf("store_true -> r%u\n", arg);
         break;
 
     case OP_FALSE:
-        fputs("store_false -> ", stdout);
-        printValue(&bytecode);
-        puts("");
+        printf("store_false -> r%u\n", arg);
         break;
 
     case OP_EMPTY_LIST:
-        fputs("store_{} -> ", stdout);
-        printValue(&bytecode);
-        puts("");
+        printf("store_{} -> r%u\n", arg);
         break;
 
     case OP_LIST:
-    {
-        uint count = BytecodeReadUint(&bytecode);
-        printf("new list %u {", count);
-        if (count)
+        printf("new list %u {", arg);
+        if (arg)
         {
             printValue(&bytecode);
-            while (--count)
+            while (--arg)
             {
                 fputs(",", stdout);
                 printValue(&bytecode);
@@ -108,70 +99,45 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
         printValue(&bytecode);
         puts("");
         break;
-    }
 
     case OP_FILELIST:
-        printf("filelist %s -> ", HeapGetString(BytecodeReadRef(&bytecode)));
+        printf("filelist %s -> ", HeapGetString(refFromUint(arg)));
         printValue(&bytecode);
         puts("");
         break;
 
     case OP_PUSH:
         string = HeapDebug(refFromUint(BytecodeReadUint(&bytecode)), false);
-        printf("push %s -> ", string);
-        printValue(&bytecode);
-        puts("");
+        printf("push %s -> r%u\n", string, arg);
         free(string);
         break;
 
     case OP_COPY:
-    {
-        uint src = BytecodeReadUint(&bytecode);
-        uint dst = BytecodeReadUint(&bytecode);
-        printf("copy r%u -> r%u\n", src, dst);
+        printf("copy r%u -> r%u\n", arg, BytecodeReadUint(&bytecode));
         break;
-    }
 
     case OP_LOAD_FIELD:
-        printf("load_field %u -> ", BytecodeReadUint(&bytecode));
-        printValue(&bytecode);
-        puts("");
+        printf("load_field %u -> r%u\n", BytecodeReadUint(&bytecode), arg);
         break;
 
     case OP_STORE_FIELD:
-        printf("store_field %u = ", BytecodeReadUint(&bytecode));
-        printValue(&bytecode);
-        puts("");
+        printf("store_field %u = r%u\n", BytecodeReadUint(&bytecode), arg);
         break;
 
     case OP_NOT:
-        fputs("not ", stdout);
-        printValue(&bytecode);
-        fputs(" -> ", stdout);
-        printValue(&bytecode);
-        puts("");
+        printf("not r%u -> r%u", arg, BytecodeReadUint(&bytecode));
         break;
 
     case OP_NEG:
-        fputs("neg ", stdout);
-        printValue(&bytecode);
-        fputs(" -> ", stdout);
-        printValue(&bytecode);
-        puts("");
+        printf("neg r%u -> r%u", arg, BytecodeReadUint(&bytecode));
         break;
 
     case OP_INV:
-        fputs("inv ", stdout);
-        printValue(&bytecode);
-        fputs(" -> ", stdout);
-        printValue(&bytecode);
-        puts("");
+        printf("inv r%u -> r%u", arg, BytecodeReadUint(&bytecode));
         break;
 
     case OP_ITER_GET:
-        fputs("iter_get ", stdout);
-        printValue(&bytecode);
-        fputs("[", stdout);
+        printf("iter_get r%u[", arg);
         printValue(&bytecode);
         fputs("] -> ", stdout);
         printValue(&bytecode);
@@ -181,55 +147,55 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
         break;
 
     case OP_EQUALS:
-        printBinaryOperation(&bytecode, "==");
+        printBinaryOperation(&bytecode, "==", arg);
         break;
 
     case OP_NOT_EQUALS:
-        printBinaryOperation(&bytecode, "!=");
+        printBinaryOperation(&bytecode, "!=", arg);
         break;
 
     case OP_LESS_EQUALS:
-        printBinaryOperation(&bytecode, "<=");
+        printBinaryOperation(&bytecode, "<=", arg);
         break;
 
     case OP_GREATER_EQUALS:
-        printBinaryOperation(&bytecode, ">=");
+        printBinaryOperation(&bytecode, ">=", arg);
         break;
 
     case OP_LESS:
-        printBinaryOperation(&bytecode, "<");
+        printBinaryOperation(&bytecode, "<", arg);
         break;
 
     case OP_GREATER:
-        printBinaryOperation(&bytecode, ">");
+        printBinaryOperation(&bytecode, ">", arg);
         break;
 
     case OP_AND:
-        printBinaryOperation(&bytecode, "and");
+        printBinaryOperation(&bytecode, "and", arg);
         break;
 
     case OP_ADD:
-        printBinaryOperation(&bytecode, "+");
+        printBinaryOperation(&bytecode, "+", arg);
         break;
 
     case OP_SUB:
-        printBinaryOperation(&bytecode, "-");
+        printBinaryOperation(&bytecode, "-", arg);
         break;
 
     case OP_MUL:
-        printBinaryOperation(&bytecode, "*");
+        printBinaryOperation(&bytecode, "*", arg);
         break;
 
     case OP_DIV:
-        printBinaryOperation(&bytecode, "/");
+        printBinaryOperation(&bytecode, "/", arg);
         break;
 
     case OP_REM:
-        printBinaryOperation(&bytecode, "%");
+        printBinaryOperation(&bytecode, "%", arg);
         break;
 
     case OP_CONCAT_STRING:
-        printBinaryOperation(&bytecode, "\"\"");
+        printBinaryOperation(&bytecode, "\"\"", arg);
         break;
 
     case OP_CONCAT_LIST:
@@ -253,42 +219,35 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
         break;
 
     case OP_RANGE:
-        printBinaryOperation(&bytecode, "..");
+        printBinaryOperation(&bytecode, "..", arg);
         break;
 
     case OP_JUMP:
         value = BytecodeReadUint(&bytecode);
-        printf("jump %u\n", (uint)(ip + 1 + sizeof(uint) + value));
+        printf("jump %u\n", (uint)(ip + 2 * sizeof(uint) + value));
         break;
 
     case OP_BRANCH_TRUE:
-        fputs("branch_true ", stdout);
-        printValue(&bytecode);
         value = BytecodeReadUint(&bytecode);
-        printf(", %u\n", (uint)(ip + 1 + 2 * sizeof(uint) + value));
+        printf("branch_true r%u, %u\n", arg, (uint)(ip + 2 * sizeof(uint) + value));
         break;
 
     case OP_BRANCH_FALSE:
-        fputs("branch_false ", stdout);
-        printValue(&bytecode);
         value = BytecodeReadUint(&bytecode);
-        printf(", %u\n", (uint)(ip + 1 + 2 * sizeof(uint) + value));
+        printf("branch_false r%u, %u\n", arg, (uint)(ip + 2 * sizeof(uint) + value));
         break;
 
     case OP_RETURN:
-    {
-        uint count = BytecodeReadUint(&bytecode);
-        assert(count > 0);
+        assert(arg > 0);
         fputs("return {", stdout);
         printValue(&bytecode);
-        while (--count)
+        while (--arg)
         {
             fputs(",", stdout);
             printValue(&bytecode);
         }
         puts("}");
         break;
-    }
 
     case OP_RETURN_VOID:
         puts("return");
@@ -296,24 +255,25 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
 
     case OP_INVOKE:
     {
-        functionref function = BytecodeReadRef(&bytecode);
-        uint count = BytecodeReadUint(&bytecode);
+        functionref function = refFromUint(arg);
+        uint argumentCount = BytecodeReadUint(&bytecode);
+        uint returnCount;
         printf("invoke %s(", HeapGetString(FunctionIndexGetName(function)));
-        if (count)
+        if (argumentCount)
         {
             printValue(&bytecode);
-            while (--count)
+            while (--argumentCount)
             {
                 fputs(",", stdout);
                 printValue(&bytecode);
             }
         }
-        count = *bytecode++;
-        if (count)
+        returnCount = BytecodeReadUint(&bytecode);
+        if (returnCount)
         {
             fputs(") -> ", stdout);
             printValue(&bytecode);
-            while (--count)
+            while (--returnCount)
             {
                 fputs(",", stdout);
                 printValue(&bytecode);
@@ -329,7 +289,7 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
 
     case OP_INVOKE_NATIVE:
     {
-        nativefunctionref nativeFunction = refFromUint(*bytecode++);
+        nativefunctionref nativeFunction = refFromUint(arg);
         uint count = NativeGetParameterCount(nativeFunction);
         printf("invoke native %s(", HeapGetString(NativeGetName(nativeFunction)));
         if (count)

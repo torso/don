@@ -60,12 +60,14 @@ static void initStackFrame(VM *vm, const byte **ip, uint *bp, uint functionOffse
     vref function;
     uint parameterCount;
     uint localsCount;
-    *ip = vmBytecode + functionOffset;
-    assert(**ip == OP_FUNCTION);
-    (*ip)++;
-    function = BytecodeReadRef(ip);
-    parameterCount = BytecodeReadUint(ip);
-    localsCount = BytecodeReadUint(ip);
+    const uint *bytecode = (const uint*)(vmBytecode + functionOffset);
+    uint i = *bytecode++;
+    /* uint arg = i >> 8; */
+    assert((i & 0xff) == OP_FUNCTION);
+    function = refFromUint(*bytecode++);
+    parameterCount = *bytecode++;
+    localsCount = *bytecode++;
+    *ip = (const byte*)bytecode;
     if (function)
     {
         assert(parameterCount == FunctionIndexGetParameterCount(function));
@@ -84,7 +86,8 @@ static void popStackFrame(VM *vm, const byte **ip, uint *bp, uint returnValues)
     *bp = IVPop(&vm->callStack);
     *ip = vmBytecode + IVPop(&vm->callStack);
 
-    expectedReturnValues = *(*ip)++;
+    expectedReturnValues = *(const uint*)*ip;
+    *ip += sizeof(uint);
     assert(returnValues >= expectedReturnValues); /* TODO: Fail nicely */
     while (expectedReturnValues--)
     {
@@ -97,14 +100,10 @@ static void popStackFrame(VM *vm, const byte **ip, uint *bp, uint returnValues)
 
 static void execute(VM *vm)
 {
-    Instruction op;
     const byte *ip = vm->ip;
     uint argumentCount;
-    uint i;
     int jumpOffset;
     vref value;
-    vref value2;
-    size_t size;
     vref string;
     byte *objectData;
     functionref function;
@@ -113,41 +112,42 @@ static void execute(VM *vm)
 
     for (;;)
     {
+        uint i = *(const uint*)ip;
+        uint arg = i >> 8;
         if (TRACE)
         {
             printf("[%p] %u: ", (void*)vm, (uint)(ip - vmBytecode));
             BytecodeDisassembleInstruction(ip, vmBytecode);
         }
-        op = (Instruction)*ip++;
-        switch (op)
+        ip += sizeof(uint);
+        switch ((Instruction)(i & 0xff))
         {
         case OP_FUNCTION:
             assert(false);
             break;
 
         case OP_NULL:
-            storeLocal(vm, vm->bp, BytecodeReadUint(&ip), 0);
+            storeLocal(vm, vm->bp, arg, 0);
             break;
 
         case OP_TRUE:
-            storeLocal(vm, vm->bp, BytecodeReadUint(&ip), HeapTrue);
+            storeLocal(vm, vm->bp, arg, HeapTrue);
             break;
 
         case OP_FALSE:
-            storeLocal(vm, vm->bp, BytecodeReadUint(&ip), HeapFalse);
+            storeLocal(vm, vm->bp, arg, HeapFalse);
             break;
 
         case OP_EMPTY_LIST:
-            storeLocal(vm, vm->bp, BytecodeReadUint(&ip), HeapEmptyList);
+            storeLocal(vm, vm->bp, arg, HeapEmptyList);
             break;
 
         case OP_LIST:
         {
             vref *values;
-            size = BytecodeReadUint(&ip);
-            assert(size);
-            objectData = HeapAlloc(TYPE_ARRAY, size * sizeof(vref));
-            for (values = (vref*)objectData; size--; values++)
+            assert(arg);
+            objectData = HeapAlloc(TYPE_ARRAY, arg * sizeof(vref));
+            for (values = (vref*)objectData; arg--; values++)
             {
                 *values = getLocal(vm, vm->bp, BytecodeReadUint(&ip));
             }
@@ -156,41 +156,39 @@ static void execute(VM *vm)
         }
 
         case OP_FILELIST:
-            string = BytecodeReadRef(&ip);
+            string = refFromUint(arg);
             storeLocal(vm, vm->bp, BytecodeReadUint(&ip),
                        HeapCreateFilelistGlob(HeapGetString(string), VStringLength(string)));
             break;
 
         case OP_PUSH:
             value = BytecodeReadRef(&ip);
-            storeLocal(vm, vm->bp, BytecodeReadUint(&ip), value);
+            storeLocal(vm, vm->bp, arg, value);
             break;
 
         case OP_COPY:
-            value = getLocal(vm, vm->bp, BytecodeReadUint(&ip));
-            storeLocal(vm, vm->bp, BytecodeReadUint(&ip), value);
+            storeLocal(vm, vm->bp, BytecodeReadUint(&ip), getLocal(vm, vm->bp, arg));
             break;
 
         case OP_LOAD_FIELD:
-            storeLocal(vm, vm->bp, BytecodeReadUint(&ip), vm->fields[BytecodeReadUint(&ip)]);
+            storeLocal(vm, vm->bp, arg, vm->fields[BytecodeReadUint(&ip)]);
             break;
 
         case OP_STORE_FIELD:
-            i = BytecodeReadUint(&ip);
-            vm->fields[i] = getLocal(vm, vm->bp, BytecodeReadUint(&ip));
+            vm->fields[BytecodeReadUint(&ip)] = getLocal(vm, vm->bp, arg);
             break;
 
         case OP_NOT:
         case OP_NEG:
         case OP_INV:
             storeLocal(vm, vm->bp, BytecodeReadUint(&ip),
-                       HeapApplyUnary(op, getLocal(vm, vm->bp, BytecodeReadUint(&ip))));
+                       HeapApplyUnary((Instruction)(i & 0xff),
+                                      getLocal(vm, vm->bp, arg)));
             break;
 
         case OP_ITER_GET:
-            value2 = getLocal(vm, vm->bp, BytecodeReadUint(&ip));
             value = getLocal(vm, vm->bp, BytecodeReadUint(&ip));
-            condition = HeapCollectionGet(value2, value, &value);
+            condition = HeapCollectionGet(getLocal(vm, vm->bp, arg), value, &value);
             storeLocal(vm, vm->bp, BytecodeReadUint(&ip), value);
             storeLocal(vm, vm->bp, BytecodeReadUint(&ip), condition ? HeapTrue : HeapFalse);
             break;
@@ -211,9 +209,10 @@ static void execute(VM *vm)
         case OP_CONCAT_STRING:
         case OP_INDEXED_ACCESS:
         case OP_RANGE:
-            value2 = getLocal(vm, vm->bp, BytecodeReadUint(&ip));
             value = getLocal(vm, vm->bp, BytecodeReadUint(&ip));
-            storeLocal(vm, vm->bp, BytecodeReadUint(&ip), HeapApplyBinary(op, value, value2));
+            storeLocal(vm, vm->bp, BytecodeReadUint(&ip),
+                       HeapApplyBinary((Instruction)(i & 0xff), value,
+                                       getLocal(vm, vm->bp, arg)));
             break;
 
         case OP_JUMP:
@@ -222,7 +221,7 @@ static void execute(VM *vm)
             return;
 
         case OP_BRANCH_TRUE:
-            value = getLocal(vm, vm->bp, BytecodeReadUint(&ip));
+            value = getLocal(vm, vm->bp, arg);
             jumpOffset = BytecodeReadInt(&ip);
             switch (VGetBool(value))
             {
@@ -239,7 +238,7 @@ static void execute(VM *vm)
             return;
 
         case OP_BRANCH_FALSE:
-            value = getLocal(vm, vm->bp, BytecodeReadUint(&ip));
+            value = getLocal(vm, vm->bp, arg);
             jumpOffset = BytecodeReadInt(&ip);
             switch (VGetBool(value))
             {
@@ -257,7 +256,7 @@ static void execute(VM *vm)
 
         case OP_RETURN:
             assert(IVSize(&vm->callStack));
-            popStackFrame(vm, &ip, &vm->bp, BytecodeReadUint(&ip));
+            popStackFrame(vm, &ip, &vm->bp, arg);
             break;
 
         case OP_RETURN_VOID:
@@ -280,7 +279,7 @@ static void execute(VM *vm)
         case OP_INVOKE:
         {
             uint *values;
-            function = BytecodeReadRef(&ip);
+            function = refFromUint(arg);
             argumentCount = BytecodeReadUint(&ip);
             IVReserveAppendSize(&vm->stack, argumentCount);
             values = IVGetAppendPointer(&vm->stack);
@@ -297,7 +296,7 @@ static void execute(VM *vm)
         }
 
         case OP_INVOKE_NATIVE:
-            nativeFunction = refFromUint(*ip++);
+            nativeFunction = refFromUint(arg);
             vm->ip = ip;
             NativeInvoke(vm, nativeFunction);
             return;
