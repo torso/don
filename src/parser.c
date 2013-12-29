@@ -63,7 +63,7 @@ typedef struct
     vref identifier;
     ExpressionType expressionType;
     ValueType valueType;
-    int index;
+    uint index;
     vref valueIdentifier;
     vref constant;
     fieldref field;
@@ -185,23 +185,23 @@ static attrprintf(2, 3) void statementError(ParseState *state,
 }
 
 
-static int variableIndex(ParseState *state, vref name)
+static uint variableIndex(ParseState *state, vref name)
 {
-    int local = (int)IntHashMapGet(&state->locals, uintFromRef(name));
+    uint local = IntHashMapGet(&state->locals, uintFromRef(name));
     if (local)
     {
         return local - 1;
     }
     assert(state->localsCount < INT_MAX); /* TODO */
-    local = (int)state->localsCount++;
+    local = state->localsCount++;
     IntHashMapAdd(&state->locals, uintFromRef(name), (uint)(local + 1));
     return local;
 }
 
-static int createVariable(ParseState *state)
+static uint createVariable(ParseState *state)
 {
     assert(state->localsCount < INT_MAX); /* TODO */
-    return (int)state->localsCount++;
+    return state->localsCount++;
 }
 
 
@@ -212,10 +212,11 @@ static size_t writeForwardJump(ParseState *state, Instruction instruction)
     return BVSize(state->bytecode);
 }
 
-static size_t writeForwardBranch(ParseState *state, Instruction instruction, int variable)
+static size_t writeForwardBranch(ParseState *state, Instruction instruction,
+                                 uint variable)
 {
     BVAdd(state->bytecode, instruction);
-    BVAddInt(state->bytecode, variable);
+    BVAddUint(state->bytecode, variable);
     BVAddInt(state->bytecode, 0);
     return BVSize(state->bytecode);
 }
@@ -239,7 +240,7 @@ static int setJumpOffset(ParseState *state, size_t instructionOffset, int offset
 }
 
 
-static void storeConstant(ParseState *state, vref value, int index)
+static void storeConstant(ParseState *state, vref value, uint index)
 {
     if (!value)
     {
@@ -262,12 +263,12 @@ static void storeConstant(ParseState *state, vref value, int index)
         BVAdd(state->bytecode, OP_PUSH);
         BVAddUint(state->bytecode, uintFromRef(value));
     }
-    BVAddInt(state->bytecode, index);
+    BVAddUint(state->bytecode, index);
 }
 
-static int variableFromConstant(ParseState *state, vref value)
+static uint variableFromConstant(ParseState *state, vref value)
 {
-    int index = createVariable(state);
+    uint index = createVariable(state);
     storeConstant(state, value, index);
     return index;
 }
@@ -709,9 +710,9 @@ static boolean parseNumber(ParseState *state, ExpressionState *estate)
 }
 
 
-static int createList(ParseState *state, const uint *values, uint length)
+static uint createList(ParseState *state, const uint *values, uint length)
 {
-    int index;
+    uint index;
     if (!length)
     {
         return variableFromConstant(state, HeapEmptyList);
@@ -720,22 +721,22 @@ static int createList(ParseState *state, const uint *values, uint length)
     BVAdd(state->bytecode, OP_LIST);
     BVAddUint(state->bytecode, length);
     BVAddData(state->bytecode, (const byte*)values, length * sizeof(*values));
-    BVAddInt(state->bytecode, index);
+    BVAddUint(state->bytecode, index);
     return index;
 }
 
-static void convertConstantsToValues(ParseState *state, int *values, size_t count)
+static void convertConstantsToValues(ParseState *state, uint *values, size_t count)
 {
     while (count--)
     {
-        int index = variableFromConstant(state, (vref)*values);
+        uint index = variableFromConstant(state, (vref)*values);
         *values++ = index;
     }
 }
 
-static void finishAndStoreValueAt(ParseState *state, const ExpressionState *estate, int index)
+static void finishAndStoreValueAt(ParseState *state, const ExpressionState *estate, uint index)
 {
-    int index2;
+    uint index2;
     switch (estate->expressionType)
     {
     case EXPRESSION_CONSTANT:
@@ -746,15 +747,15 @@ static void finishAndStoreValueAt(ParseState *state, const ExpressionState *esta
         if (estate->index != index)
         {
             BVAdd(state->bytecode, OP_COPY);
-            BVAddInt(state->bytecode, estate->index);
-            BVAddInt(state->bytecode, index);
+            BVAddUint(state->bytecode, estate->index);
+            BVAddUint(state->bytecode, index);
         }
         return;
 
     case EXPRESSION_MANY:
         assert(estate->valueCount == 1);
     case EXPRESSION_MISSING_STORE:
-        BVAddInt(state->bytecode, index);
+        BVAddUint(state->bytecode, index);
         return;
 
     case EXPRESSION_VARIABLE:
@@ -762,23 +763,23 @@ static void finishAndStoreValueAt(ParseState *state, const ExpressionState *esta
         if (index != index2)
         {
             BVAdd(state->bytecode, OP_COPY);
-            BVAddInt(state->bytecode, index2);
-            BVAddInt(state->bytecode, index);
+            BVAddUint(state->bytecode, index2);
+            BVAddUint(state->bytecode, index);
         }
         return;
 
     case EXPRESSION_FIELD:
         BVAdd(state->bytecode, OP_LOAD_FIELD);
         BVAddUint(state->bytecode, FieldIndexGetIndex(estate->field));
-        BVAddInt(state->bytecode, index);
+        BVAddUint(state->bytecode, index);
         return;
     }
     assert(false);
 }
 
-static int finishRValue(ParseState *state, const ExpressionState *estate)
+static uint finishRValue(ParseState *state, const ExpressionState *estate)
 {
-    int index;
+    uint index;
 
     switch (estate->expressionType)
     {
@@ -792,7 +793,7 @@ static int finishRValue(ParseState *state, const ExpressionState *estate)
         assert(estate->valueCount == 1);
     case EXPRESSION_MISSING_STORE:
         index = createVariable(state);
-        BVAddInt(state->bytecode, index);
+        BVAddUint(state->bytecode, index);
         return index;
 
     case EXPRESSION_VARIABLE:
@@ -802,11 +803,11 @@ static int finishRValue(ParseState *state, const ExpressionState *estate)
         BVAdd(state->bytecode, OP_LOAD_FIELD);
         BVAddUint(state->bytecode, FieldIndexGetIndex(estate->field));
         index = createVariable(state);
-        BVAddInt(state->bytecode, index);
+        BVAddUint(state->bytecode, index);
         return index;
     }
     assert(false);
-    return -1;
+    return 0;
 }
 
 static int parseRValue(ParseState *state, boolean constant)
@@ -818,10 +819,10 @@ static int parseRValue(ParseState *state, boolean constant)
     {
         return -1;
     }
-    return finishRValue(state, &estate);
+    return (int)finishRValue(state, &estate);
 }
 
-static boolean parseAndStoreValueAt(ParseState *state, int index)
+static boolean parseAndStoreValueAt(ParseState *state, uint index)
 {
     ExpressionState estate;
 
@@ -837,7 +838,7 @@ static boolean parseAndStoreValueAt(ParseState *state, int index)
 static boolean finishLValue(ParseState *state, const ExpressionState *lvalue,
                             const ExpressionState *rvalue)
 {
-    int index;
+    uint index;
     switch (lvalue->expressionType)
     {
     case EXPRESSION_CONSTANT:
@@ -855,7 +856,7 @@ static boolean finishLValue(ParseState *state, const ExpressionState *lvalue,
         index = finishRValue(state, rvalue);
         BVAdd(state->bytecode, OP_STORE_FIELD);
         BVAddUint(state->bytecode, FieldIndexGetIndex(lvalue->field));
-        BVAddInt(state->bytecode, index);
+        BVAddUint(state->bytecode, index);
         return true;
     }
     assert(false);
@@ -894,9 +895,9 @@ static void finishUnnamedArguments(ParseState *state, uint parameterCount,
     if (argumentCount > varargIndex)
     {
         uint length = argumentCount - varargIndex;
-        int list = createList(state, IVGetPointer(&temp, IVSize(&temp) - length), length);
+        uint list = createList(state, IVGetPointer(&temp, IVSize(&temp) - length), length);
         IVSetSize(&temp, IVSize(&temp) - length + 1);
-        IVSet(&temp, IVSize(&temp) - 1, (uint)list);
+        IVSet(&temp, IVSize(&temp) - 1, list);
         argumentCount = varargIndex + 1;
     }
     while (argumentCount++ < parameterCount)
@@ -1004,19 +1005,13 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         {
             goto error;
         }
-        value = finishRValue(state, &estateArgument);
-        if (value < 0)
-        {
-            goto error;
-        }
-        IVAdd(&temp, (uint)value);
+        IVAdd(&temp, finishRValue(state, &estateArgument));
         argumentCount++;
     }
 
     for (i = 0; i < parameterCount; i++)
     {
-        int value = (int)IVGet(&temp, oldTempSize + i);
-        if (value < 0)
+        if ((int)IVGet(&temp, oldTempSize + i) < 0)
         {
             if (i != varargIndex && i < requiredArgumentCount)
             {
@@ -1024,8 +1019,8 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                             HeapGetString(parameterInfo[i].name));
                 goto error;
             }
-            value = variableFromConstant(state, parameterInfo[i].value);
-            IVSet(&temp, oldTempSize + i, (uint)value);
+            IVSet(&temp, oldTempSize + i,
+                  variableFromConstant(state, parameterInfo[i].value));
         }
     }
 
@@ -1094,25 +1089,17 @@ static boolean parseBinaryOperationRest(
     boolean (*parseExpressionRest)(ParseState*, ExpressionState*),
     Instruction instruction, ValueType valueType)
 {
-    int value = finishRValue(state, estate);
-    int value2;
-    if (value < 0)
-    {
-        return false;
-    }
+    uint value = finishRValue(state, estate);
+    uint value2;
     skipExpressionWhitespace(state, estate);
     if (!parseExpressionRest(state, estate))
     {
         return false;
     }
     value2 = finishRValue(state, estate);
-    if (value2 < 0)
-    {
-        return false;
-    }
     BVAdd(state->bytecode, instruction);
-    BVAddInt(state->bytecode, value);
-    BVAddInt(state->bytecode, value2);
+    BVAddUint(state->bytecode, value);
+    BVAddUint(state->bytecode, value2);
     estate->expressionType = EXPRESSION_MISSING_STORE;
     estate->valueType = valueType;
     skipExpressionWhitespace(state, estate);
@@ -1174,20 +1161,14 @@ static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
             else
             {
                 constant = false;
-                convertConstantsToValues(
-                    state,
-                    (int*)IVGetWritePointer(&temp, oldTempSize), IVSize(&temp) - oldTempSize);
+                convertConstantsToValues(state,
+                                         IVGetWritePointer(&temp, oldTempSize),
+                                         IVSize(&temp) - oldTempSize);
             }
         }
         if (!constant)
         {
-            int value = finishRValue(state, &estate2);
-            if (value < 0)
-            {
-                IVSetSize(&temp, oldTempSize);
-                return false;
-            }
-            IVAdd(&temp, (uint)value);
+            IVAdd(&temp, finishRValue(state, &estate2));
         }
         if (!skipWhitespaceAndNewline(state))
         {
@@ -1373,18 +1354,13 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
                     constant = false;
                     convertConstantsToValues(
                         state,
-                        (int*)IVGetWritePointer(&temp, oldTempSize), IVSize(&temp) - oldTempSize);
+                        IVGetWritePointer(&temp, oldTempSize),
+                        IVSize(&temp) - oldTempSize);
                 }
             }
             if (!constant)
             {
-                int value = finishRValue(state, &estate2);
-                if (value < 0)
-                {
-                    IVSetSize(&temp, oldTempSize);
-                    return false;
-                }
-                IVAdd(&temp, (uint)value);
+                IVAdd(&temp, finishRValue(state, &estate2));
             }
             skipWhitespace(state);
         }
@@ -1440,12 +1416,8 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
     {
         if (readOperator(state, '['))
         {
-            int value = finishRValue(state, estate);
+            uint value = finishRValue(state, estate);
             int index;
-            if (value < 0)
-            {
-                return false;
-            }
             skipWhitespace(state);
             index = parseRValue(state, estate->parseConstant);
             if (index < 0)
@@ -1458,7 +1430,7 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
                 return false;
             }
             BVAdd(state->bytecode, OP_INDEXED_ACCESS);
-            BVAddInt(state->bytecode, value);
+            BVAddUint(state->bytecode, value);
             BVAddInt(state->bytecode, index);
             estate->expressionType = EXPRESSION_MISSING_STORE;
             estate->valueType = VALUE_UNKNOWN;
@@ -1478,7 +1450,7 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
 {
     boolean first = true;
     boolean acceptNonString;
-    int index;
+    uint index;
     for (;;)
     {
         if (!parseExpression11(state, estate))
@@ -1489,10 +1461,10 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
             estate->valueType == VALUE_STRING;
         if (!first)
         {
-            int index2 = finishRValue(state, estate);
+            uint index2 = finishRValue(state, estate);
             BVAdd(state->bytecode, OP_CONCAT_STRING);
-            BVAddInt(state->bytecode, index);
-            BVAddInt(state->bytecode, index2);
+            BVAddUint(state->bytecode, index);
+            BVAddUint(state->bytecode, index2);
             estate->expressionType = EXPRESSION_MISSING_STORE;
             estate->valueType = VALUE_STRING;
         }
@@ -1519,19 +1491,15 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
 {
     if (readOperator(state, '-'))
     {
-        int value;
+        uint value;
         assert(!readOperator(state, '-')); /* TODO: -- operator */
         if (!parseExpression10(state, estate))
         {
             return false;
         }
         value = finishRValue(state, estate);
-        if (value < 0)
-        {
-            return false;
-        }
         BVAdd(state->bytecode, OP_NEG);
-        BVAddInt(state->bytecode, value);
+        BVAddUint(state->bytecode, value);
         skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_MISSING_STORE;
         estate->valueType = VALUE_NUMBER;
@@ -1539,36 +1507,28 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '!'))
     {
-        int value;
+        uint value;
         if (!parseExpression10(state, estate))
         {
             return false;
         }
         value = finishRValue(state, estate);
-        if (value < 0)
-        {
-            return false;
-        }
         BVAdd(state->bytecode, OP_NOT);
-        BVAddInt(state->bytecode, value);
+        BVAddUint(state->bytecode, value);
         skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_MISSING_STORE;
         return true;
     }
     if (readOperator(state, '~'))
     {
-        int value;
+        uint value;
         if (!parseExpression10(state, estate))
         {
             return false;
         }
         value = finishRValue(state, estate);
-        if (value < 0)
-        {
-            return false;
-        }
         BVAdd(state->bytecode, OP_INV);
-        BVAddInt(state->bytecode, value);
+        BVAddUint(state->bytecode, value);
         skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_MISSING_STORE;
         estate->valueType = VALUE_NUMBER;
@@ -1813,7 +1773,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
     {
         if (readOperator2(state, '&', '&'))
         {
-            int index = createVariable(state);
+            uint index = createVariable(state);
             finishAndStoreValueAt(state, estate, index);
             skipExpressionWhitespaceAndNewline(state, estate);
             branch = writeForwardBranch(state, OP_BRANCH_FALSE, index);
@@ -1831,7 +1791,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
         }
         if (readOperator2(state, '|', '|'))
         {
-            int index = createVariable(state);
+            uint index = createVariable(state);
             finishAndStoreValueAt(state, estate, index);
             skipExpressionWhitespaceAndNewline(state, estate);
             branch = writeForwardBranch(state, OP_BRANCH_TRUE, index);
@@ -1863,7 +1823,7 @@ static boolean parseExpressionRest(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '?'))
     {
         size_t offset, offset2;
-        int index = createVariable(state);
+        uint index = createVariable(state);
         assert(!parseConstant); /* TODO */
         skipExpressionWhitespace(state, estate);
         offset = writeForwardBranch(state, OP_BRANCH_FALSE, finishRValue(state, estate));
@@ -1911,12 +1871,8 @@ static boolean parseAssignmentExpressionRest(ParseState *state,
                                              Instruction instruction)
 {
     ExpressionState estate2;
-    int value = finishRValue(state, estate);
+    uint value = finishRValue(state, estate);
     int value2;
-    if (value < 0)
-    {
-        return false;
-    }
     skipWhitespace(state);
     value2 = parseRValue(state, false);
     if (value2 < 0)
@@ -1924,7 +1880,7 @@ static boolean parseAssignmentExpressionRest(ParseState *state,
         return false;
     }
     BVAdd(state->bytecode, instruction);
-    BVAddInt(state->bytecode, value);
+    BVAddUint(state->bytecode, value);
     BVAddInt(state->bytecode, value2);
     estate2.expressionType = EXPRESSION_MISSING_STORE;
     return finishLValue(state, estate, &estate2);
@@ -1975,7 +1931,7 @@ static boolean parseExpressionStatement(ParseState *state, vref identifier)
         size_t oldTempSize = IVSize(&temp);
         size_t oldBTempSize = BVSize(&btemp);
         size_t p;
-        const int *pindex;
+        const uint *pindex;
         uint returnValueCount;
         BVAddData(&btemp, (byte*)&estate, sizeof(estate));
         do
@@ -2008,15 +1964,15 @@ static boolean parseExpressionStatement(ParseState *state, vref identifier)
         assert(rvalue.valueCount == returnValueCount);
         for (p = oldBTempSize; p < BVSize(&btemp); p += sizeof(estate))
         {
-            int index;
+            uint index;
             estate = *(const ExpressionState*)BVGetPointer(&btemp, p);
             index = estate.expressionType == EXPRESSION_VARIABLE ?
                 variableIndex(state, estate.valueIdentifier) :
                 createVariable(state);
-            BVAddInt(state->bytecode, index);
+            BVAddUint(state->bytecode, index);
             IVAdd(&temp, (uint)index);
         }
-        for (p = oldBTempSize, pindex = (const int*)IVGetPointer(&temp, oldTempSize);
+        for (p = oldBTempSize, pindex = IVGetPointer(&temp, oldTempSize);
              p < BVSize(&btemp);
              p += sizeof(estate), pindex++)
         {
@@ -2124,7 +2080,9 @@ static uint parseBlock(ParseState *state, uint indent)
                         /* TODO: Ignore else */
                         goto statementError;
                     }
-                    conditionOffset = (int)writeForwardBranch(state, OP_BRANCH_FALSE, condition);
+                    conditionOffset = (int)writeForwardBranch(state,
+                                                              OP_BRANCH_FALSE,
+                                                              (uint)condition);
 
                     indent = parseBlock(state, readNewline(state));
                     if (indent != state->statementIndent)
@@ -2163,7 +2121,7 @@ static uint parseBlock(ParseState *state, uint indent)
                                 goto statementError;
                             }
                             conditionOffset = (int)writeForwardBranch(state, OP_BRANCH_FALSE,
-                                                                      condition);
+                                                                      (uint)condition);
                             indent = parseBlock(state, readNewline(state));
                         }
                         else
@@ -2195,9 +2153,9 @@ static uint parseBlock(ParseState *state, uint indent)
                 {
                     size_t loopTop, afterLoop;
                     int iterCollection;
-                    int iterIndex;
-                    int iterStep;
-                    int iterCondition;
+                    uint iterIndex;
+                    uint iterStep;
+                    uint iterCondition;
                     identifier = readVariableName(state);
                     if (!identifier)
                     {
@@ -2220,15 +2178,15 @@ static uint parseBlock(ParseState *state, uint indent)
                     storeConstant(state, HeapBoxInteger(1), iterStep);
                     loopTop = BVSize(state->bytecode);
                     BVAdd(state->bytecode, OP_ADD);
-                    BVAddInt(state->bytecode, iterIndex);
-                    BVAddInt(state->bytecode, iterStep);
-                    BVAddInt(state->bytecode, iterIndex);
+                    BVAddUint(state->bytecode, iterIndex);
+                    BVAddUint(state->bytecode, iterStep);
+                    BVAddUint(state->bytecode, iterIndex);
                     BVAdd(state->bytecode, OP_ITER_GET);
                     BVAddInt(state->bytecode, iterCollection);
-                    BVAddInt(state->bytecode, iterIndex);
-                    BVAddInt(state->bytecode, variableIndex(state, identifier));
+                    BVAddUint(state->bytecode, iterIndex);
+                    BVAddUint(state->bytecode, variableIndex(state, identifier));
                     iterCondition = createVariable(state);
-                    BVAddInt(state->bytecode, iterCondition);
+                    BVAddUint(state->bytecode, iterCondition);
                     afterLoop = writeForwardBranch(state, OP_BRANCH_FALSE, iterCondition);
                     indent = parseBlock(state, readNewline(state));
                     writeBackwardJump(state, OP_JUMP, loopTop);
@@ -2251,7 +2209,7 @@ static uint parseBlock(ParseState *state, uint indent)
                     {
                         goto statementError;
                     }
-                    afterLoop = writeForwardBranch(state, OP_BRANCH_FALSE, condition);
+                    afterLoop = writeForwardBranch(state, OP_BRANCH_FALSE, (uint) condition);
                     indent = parseBlock(state, readNewline(state));
                     writeBackwardJump(state, OP_JUMP, loopTop);
                     finishJump(state, afterLoop);
@@ -2551,8 +2509,8 @@ static void parseFunctionBody(functionref function, bytevector *bytecode)
     size_t paramsOffset;
     size_t localsOffset;
     uint line;
-    int parameterCount;
-    int i;
+    uint parameterCount;
+    uint i;
 
     assert(function);
     line = FunctionIndexGetLine(function);
@@ -2574,7 +2532,7 @@ static void parseFunctionBody(functionref function, bytevector *bytecode)
     initParseStateLocals(&state);
 
     /* This doesn't just check for duplicates; it also allocates local variables. */
-    parameterCount = (int)FunctionIndexGetParameterCount(function);
+    parameterCount = FunctionIndexGetParameterCount(function);
     if (parameterCount)
     {
         parameterInfo = FunctionIndexGetParameterInfo(function);
