@@ -2492,6 +2492,7 @@ static void parseFunctionBody(functionref function, bytevector *bytecode)
     size_t paramsOffset;
     size_t localsOffset;
     uint line;
+    uint indent;
     uint parameterCount;
     uint i;
 
@@ -2532,7 +2533,11 @@ static void parseFunctionBody(functionref function, bytevector *bytecode)
     }
 
     state.statementIndent = 0;
-    parseBlock(&state, readNewline(&state));
+    indent = readNewline(&state);
+    if (!eof(&state))
+    {
+        parseBlock(&state, indent);
+    }
     if (!state.error)
     {
         FunctionIndexSetLocals(function, &state.locals, state.localsCount);

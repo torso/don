@@ -1,6 +1,10 @@
 #fail:
 #+4: Unknown function 'f'
+#+5: No value for parameter 'a' given
 
 default:
 
     f()
+    g()
+
+g(a)
