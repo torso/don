@@ -10,7 +10,8 @@ typedef enum
     TYPE_ARRAY,
     TYPE_INTEGER_RANGE,
     TYPE_CONCAT_LIST,
-    TYPE_FUTURE
+    TYPE_FUTURE,
+    TYPE_INVALID
 } VType;
 
 typedef enum

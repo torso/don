@@ -2262,6 +2262,7 @@ static boolean parseFunctionDeclarationRest(ParseState *state, functionref funct
                     return false;
                 }
                 skipWhitespace(state);
+                value = HeapInvalid;
                 if (readOperator(state, ':'))
                 {
                     requireDefaultValues = true;

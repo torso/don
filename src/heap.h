@@ -26,6 +26,7 @@ extern vref HeapFalse;
 extern vref HeapEmptyString;
 extern vref HeapEmptyList;
 extern vref HeapNewline;
+extern vref HeapInvalid;
 
 
 extern void HeapInit(void);

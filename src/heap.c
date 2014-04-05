@@ -36,6 +36,7 @@ vref HeapFalse;
 vref HeapEmptyString;
 vref HeapEmptyList;
 vref HeapNewline;
+vref HeapInvalid;
 
 
 static void checkObject(vref object)
@@ -87,6 +88,7 @@ static const char *getString(vref object)
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
     case TYPE_FUTURE:
+    case TYPE_INVALID:
         break;
     }
     assert(false);
@@ -128,6 +130,7 @@ static boolean isCollectionType(VType type)
         return true;
 
     case TYPE_FUTURE:
+    case TYPE_INVALID:
         break;
     }
     assert(false);
@@ -219,6 +222,7 @@ void HeapInit(void)
     HeapEmptyString = HeapFinishAlloc(heapAlloc(TYPE_STRING, 1));
     HeapEmptyList = HeapFinishAlloc(heapAlloc(TYPE_ARRAY, 0));
     HeapNewline = HeapCreateString("\n", 1);
+    HeapInvalid = HeapFinishAlloc(heapAlloc(TYPE_INVALID, 0));
 }
 
 void HeapDispose(void)
@@ -359,6 +363,7 @@ void HeapHash(vref object, HashState *hash)
         break;
 
     case TYPE_FUTURE:
+    case TYPE_INVALID:
         assert(false);
         break;
     }
@@ -431,6 +436,7 @@ boolean HeapEquals(vref object1, vref object2)
         return true;
 
     case TYPE_FUTURE:
+    case TYPE_INVALID:
         break;
     }
     assert(false);
@@ -581,6 +587,7 @@ vref HeapCreateSubstring(vref string, size_t offset, size_t length)
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
     case TYPE_FUTURE:
+    case TYPE_INVALID:
         assert(false);
         break;
     }
@@ -612,6 +619,7 @@ boolean HeapIsString(vref object)
         return false;
 
     case TYPE_FUTURE:
+    case TYPE_INVALID:
         break;
     }
     assert(false);
@@ -809,6 +817,7 @@ static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
     case TYPE_SUBSTRING:
     case TYPE_FILE:
     case TYPE_FUTURE:
+    case TYPE_INVALID:
     default:
         assert(false);
         return;
@@ -1097,6 +1106,7 @@ boolean HeapCollectionGet(vref object, vref indexObject,
     case TYPE_SUBSTRING:
     case TYPE_FILE:
     case TYPE_FUTURE:
+    case TYPE_INVALID:
     default:
         assert(false);
         return false;
