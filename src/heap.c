@@ -208,6 +208,8 @@ static vref heapNext(vref object)
 
 void HeapInit(void)
 {
+    byte *p;
+
     HeapPageIndex = (byte**)malloc(INITIAL_HEAP_INDEX_SIZE * sizeof(*HeapPageIndex));
     HeapPageIndexSize = INITIAL_HEAP_INDEX_SIZE;
     HeapPageIndex[0] = (byte*)malloc(PAGE_SIZE);
@@ -219,7 +221,9 @@ void HeapInit(void)
     ParserAddKeywords();
     HeapTrue = HeapFinishAlloc(heapAlloc(TYPE_BOOLEAN_TRUE, 0));
     HeapFalse = HeapFinishAlloc(heapAlloc(TYPE_BOOLEAN_FALSE, 0));
-    HeapEmptyString = HeapFinishAlloc(heapAlloc(TYPE_STRING, 1));
+    p = heapAlloc(TYPE_STRING, 1);
+    *p = 0;
+    HeapEmptyString = HeapFinishAlloc(p);
     HeapEmptyList = HeapFinishAlloc(heapAlloc(TYPE_ARRAY, 0));
     HeapNewline = HeapCreateString("\n", 1);
     HeapInvalid = HeapFinishAlloc(heapAlloc(TYPE_INVALID, 0));
