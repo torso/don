@@ -145,8 +145,12 @@ default:
       fail()
 
 prof:
-   p = compile()
-   out exitcode = run(compile(extraflags:'{-pg} linkflags:'{-pg}) '-f 'input)
+   exec('valgrind '-q '--tool=callgrind compile(optimize:true) '-f 'input
+        env:{'XDG_CACHE_HOME @tempcache})
+
+gprof:
+   p = compile(extraflags:'{-pg} linkflags:'{-pg} optimize:true)
+   out exitcode = run(p '-f 'input)
    if exitcode
       fail()
    exec('gprof p)
