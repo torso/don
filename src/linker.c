@@ -126,11 +126,11 @@ static int linkVariable(LinkState *state, int variable)
     return value;
 }
 
-static void linkVariables(LinkState *state, const int **read, uint count)
+static void linkVariables(LinkState *state, const int **read, int *write, uint count)
 {
     while (count--)
     {
-        IVAdd(&state->out, linkVariable(state, *(*read)++));
+        *write++ = linkVariable(state, *(*read)++);
     }
 }
 
@@ -144,6 +144,7 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
     const int *read = start;
     const int *limit = start + parsedSize;
     int *currentFunction;
+    int *write;
 
     linked->functions = (int*)malloc(IVSize(&parsed->functions) * sizeof(*linked->functions));
     currentFunction = linked->functions;
@@ -223,29 +224,34 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
             IVAdd(&state.out, (i & 0xff) | (linkVariable(&state, arg) << 8));
             break;
         case OP_LIST:
-            IVAdd(&state.out, i);
-            linkVariables(&state, &read, (uint)arg + 1);
+            write = IVGetAppendPointer(&state.out, (uint)arg + 2);
+            *write++ = i;
+            linkVariables(&state, &read, write, (uint)arg + 1);
             break;
         case OP_FILELIST:
-            IVAdd(&state.out, i);
-            IVAdd(&state.out, linkVariable(&state, *read++));
+            write = IVGetAppendPointer(&state.out, 2);
+            *write++ = i;
+            *write++ = linkVariable(&state, *read++);
             break;
         case OP_STORE_CONSTANT:
-            IVAdd(&state.out, (i & 0xff) | (linkVariable(&state, arg) << 8));
-            IVAdd(&state.out, *read++);
+            write = IVGetAppendPointer(&state.out, 2);
+            *write++ = (i & 0xff) | (linkVariable(&state, arg) << 8);
+            *write++ = *read++;
             break;
         case OP_COPY:
         case OP_NOT:
         case OP_NEG:
         case OP_INV:
-            IVAdd(&state.out, (i & 0xff) | (linkVariable(&state, arg) << 8));
-            IVAdd(&state.out, linkVariable(&state, *read++));
+            write = IVGetAppendPointer(&state.out, 2);
+            *write++ = (i & 0xff) | (linkVariable(&state, arg) << 8);
+            *write++ = linkVariable(&state, *read++);
             break;
         case OP_ITER_GET:
-            IVAdd(&state.out, (i & 0xff) | (linkVariable(&state, arg) << 8));
-            IVAdd(&state.out, linkVariable(&state, *read++));
-            IVAdd(&state.out, linkVariable(&state, *read++));
-            IVAdd(&state.out, linkVariable(&state, *read++));
+            write = IVGetAppendPointer(&state.out, 4);
+            *write++ = (i & 0xff) | (linkVariable(&state, arg) << 8);
+            *write++ = linkVariable(&state, *read++);
+            *write++ = linkVariable(&state, *read++);
+            *write++ = linkVariable(&state, *read++);
             break;
         case OP_EQUALS:
         case OP_NOT_EQUALS:
@@ -263,9 +269,10 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
         case OP_CONCAT_STRING:
         case OP_INDEXED_ACCESS:
         case OP_RANGE:
-            IVAdd(&state.out, (i & 0xff) | (linkVariable(&state, arg) << 8));
-            IVAdd(&state.out, linkVariable(&state, *read++));
-            IVAdd(&state.out, linkVariable(&state, *read++));
+            write = IVGetAppendPointer(&state.out, 3);
+            *write++ = (i & 0xff) | (linkVariable(&state, arg) << 8);
+            *write++ = linkVariable(&state, *read++);
+            *write++ = linkVariable(&state, *read++);
             break;
         case OP_JUMPTARGET:
             state.jumpTargetTable[arg] = (int)IVSize(&state.out);
@@ -277,12 +284,14 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
         case OP_BRANCH_TRUE_INDEXED:
         case OP_BRANCH_FALSE_INDEXED:
             state.jumps[state.jumpCount++] = (int)IVSize(&state.out);
-            IVAdd(&state.out, i - 1);
-            IVAdd(&state.out, linkVariable(&state, *read++));
+            write = IVGetAppendPointer(&state.out, 2);
+            *write++ = i - 1;
+            *write++ = linkVariable(&state, *read++);
             break;
         case OP_RETURN:
-            IVAdd(&state.out, OP_RETURN | (arg << 8));
-            linkVariables(&state, &read, (uint)arg);
+            write = IVGetAppendPointer(&state.out, (uint)arg + 1);
+            *write++ = OP_RETURN | (arg << 8);
+            linkVariables(&state, &read, write, (uint)arg);
             break;
         case OP_RETURN_VOID:
             IVAdd(&state.out, OP_RETURN_VOID);
@@ -296,20 +305,19 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
             int varargIndex;
             const int *parameters;
             int argumentCount = *read++;
-            int returnValueCount;
+            int returnValueCount = *read++;
             int varargValue = 0;
             int index;
             int stop;
             const int *argReadStop;
-            size_t argWriteStart;
+            int *argWriteStart;
 
             assert(argumentCount >= 0);
+            assert(returnValueCount >= 0);
 
             if (function < 0)
             {
-                read += argumentCount * 2;
-                returnValueCount = *read++;
-                read += returnValueCount;
+                read += argumentCount * 2 + returnValueCount;
                 break;
             }
 
@@ -331,28 +339,29 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
                     int length;
                     for (length = 1; length < argumentCount && !read[(varargIndex + length) * 2];
                          length++);
-                    IVAdd(&state.out, OP_LIST | (length << 8));
+                    write = IVGetAppendPointer(&state.out, (size_t)(2 + length));
+                    *write++ = OP_LIST | (length << 8);
                     for (index = 0; index < length; index++)
                     {
-                        IVAdd(&state.out,
-                              linkVariable(&state, read[(varargIndex + index) * 2 + 1]));
+                        *write++ = linkVariable(&state, read[(varargIndex + index) * 2 + 1]);
                     }
                     varargValue = state.variableCount++;
-                    IVAdd(&state.out, varargValue);
+                    *write++ = varargValue;
                 }
             }
 
-            IVAdd(&state.out,
-                  OP_INVOKE | (parameterCount << 8));
-            *currentUnlinkedFunction++ = (int)IVSize(&state.out);
-            IVAdd(&state.out, function);
-            argWriteStart = IVSize(&state.out);
+            *currentUnlinkedFunction++ = (int)IVSize(&state.out) + 1;
+            write = IVGetAppendPointer(&state.out, 3 + (size_t)parameterCount +
+                                       (size_t)returnValueCount);
+            *write++ = OP_INVOKE | (parameterCount << 8);
+            *write++ = function;
+            argWriteStart = write;
             argReadStop = read + argumentCount * 2;
             for (index = 0, stop = min(min(argumentCount, parameterCount), varargIndex);
                  index < stop && !*read; index++)
             {
                 read++;
-                IVAdd(&state.out, linkVariable(&state, *read++));
+                *write++ = linkVariable(&state, *read++);
             }
             if (argumentCount > index && varargIndex == INT_MAX && !*read)
             {
@@ -360,11 +369,11 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
             }
             for (; index < parameterCount; index++)
             {
-                IVAdd(&state.out, INT_MAX);
+                *write++ = INT_MAX;
             }
             if (varargIndex != INT_MAX)
             {
-                IVSet(&state.out, argWriteStart + (size_t)varargIndex, varargValue);
+                argWriteStart[varargIndex] = varargValue;
             }
             while (read < argReadStop && !*read)
             {
@@ -379,10 +388,9 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
                 {
                     if (parameters[index * 2] == name)
                     {
-                        if (IVGet(&state.out, argWriteStart + (size_t)index) == INT_MAX)
+                        if (argWriteStart[index] == INT_MAX)
                         {
-                            IVSet(&state.out, argWriteStart + (size_t)index,
-                                  linkVariable(&state, value));
+                            argWriteStart[index] = linkVariable(&state, value);
                         }
                         else
                         {
@@ -396,7 +404,7 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
             }
             for (index = 0; index < parameterCount; index++)
             {
-                if (IVGet(&state.out, argWriteStart + (size_t)index) == INT_MAX)
+                if (argWriteStart[index] == INT_MAX)
                 {
                     int value = parameters[index * 2 + 1];
                     if (refFromInt(value) == INT_MAX)
@@ -404,13 +412,11 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
                         errorf(&state, "No value for parameter '%s'",
                                HeapGetString(refFromInt(parameters[index * 2])));
                     }
-                    IVSet(&state.out, argWriteStart + (size_t)index, value);
+                    argWriteStart[index] = value;
                 }
             }
-            returnValueCount = *read++;
-            assert(returnValueCount >= 0);
-            IVAdd(&state.out, returnValueCount);
-            linkVariables(&state, &read, (uint)returnValueCount);
+            *write++ = returnValueCount;
+            linkVariables(&state, &read, write, (uint)returnValueCount);
             break;
         }
         case OP_INVOKE_NATIVE:
@@ -418,8 +424,9 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
             nativefunctionref nativeFunction = refFromInt(arg);
             uint argumentCount = NativeGetParameterCount(nativeFunction);
             uint returnValueCount = NativeGetReturnValueCount(nativeFunction);
-            IVAdd(&state.out, OP_INVOKE_NATIVE | (arg << 8));
-            linkVariables(&state, &read, argumentCount + returnValueCount);
+            write = IVGetAppendPointer(&state.out, argumentCount + returnValueCount + 1);
+            *write++ = OP_INVOKE_NATIVE | (arg << 8);
+            linkVariables(&state, &read, write, argumentCount + returnValueCount);
             break;
         }
 

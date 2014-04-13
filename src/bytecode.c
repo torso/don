@@ -323,7 +323,7 @@ static const int *disassemble(const int *bytecode, const int *base)
         vref functionName = refFromInt(arg);
         vref ns = refFromInt(*bytecode++);
         int argumentCount = *bytecode++;
-        int returnCount;
+        int returnCount = *bytecode++;
 
         fputs("invoke_unlinked ", stdout);
         if (ns)
@@ -332,6 +332,7 @@ static const int *disassemble(const int *bytecode, const int *base)
         }
         printf("%s(", HeapGetString(functionName));
         assert(argumentCount >= 0);
+        assert(returnCount >= 0);
         while (argumentCount--)
         {
             if (*bytecode)
@@ -345,8 +346,6 @@ static const int *disassemble(const int *bytecode, const int *base)
                 fputs(",", stdout);
             }
         }
-        returnCount = *bytecode++;
-        assert(returnCount >= 0);
         if (returnCount)
         {
             fputs(") -> ", stdout);
