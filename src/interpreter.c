@@ -126,10 +126,6 @@ static void execute(VM *vm)
         ip++;
         switch ((Instruction)(i & 0xff))
         {
-        case OP_FUNCTION:
-            assert(false);
-            break;
-
         case OP_NULL:
             storeValue(vm, vm->bp, arg, 0);
             break;
@@ -285,6 +281,7 @@ static void execute(VM *vm)
             NativeInvoke(vm, nativeFunction);
             return;
 
+        case OP_FUNCTION:
         case OP_FUNCTION_UNLINKED:
         case OP_JUMPTARGET:
         case OP_JUMP_INDEXED:
@@ -296,8 +293,7 @@ static void execute(VM *vm)
         case OP_LINE:
         case OP_ERROR:
         default:
-            assert(false);
-            break;
+            unreachable;
         }
     }
 }

@@ -429,7 +429,7 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
         case OP_INVOKE:
         case OP_UNKNOWN_VALUE:
         default:
-            assert(false);
+            unreachable;
         }
     }
     if (state.hasErrors)

@@ -664,7 +664,7 @@ static void finishAndStoreValueAt(ParseState *state, const ExpressionState *esta
     /*     IVAdd(state->bytecode, FieldIndexGetIndex(estate->field)); */
     /*     return; */
     }
-    assert(false);
+    unreachable;
 }
 
 static int finishRValue(ParseState *state, const ExpressionState *estate)
@@ -695,8 +695,7 @@ static int finishRValue(ParseState *state, const ExpressionState *estate)
     /*     IVAdd(state->bytecode, FieldIndexGetIndex(estate->field)); */
     /*     return variable; */
     }
-    assert(false);
-    return 0;
+    unreachable;
 }
 
 static int parseRValue(ParseState *state, boolean constant)
@@ -747,8 +746,7 @@ static boolean finishLValue(ParseState *state, const ExpressionState *lvalue,
     /*     IVAdd(state->bytecode, FieldIndexGetIndex(lvalue->field)); */
     /*     return true; */
     }
-    assert(false);
-    return false;
+    unreachable;
 }
 
 static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
@@ -1985,8 +1983,7 @@ static uint parseBlock(ParseState *state, uint indent)
                 }
                 else
                 {
-                    assert(false);
-                    goto statementError;
+                    unreachable;
                 }
             }
             else

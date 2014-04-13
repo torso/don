@@ -113,8 +113,7 @@ size_t VStringLength(vref value)
     case TYPE_INVALID:
         break;
     }
-    assert(false);
-    return 0;
+    unreachable;
 }
 
 char *VWriteString(vref value, char *dst)
@@ -211,8 +210,7 @@ char *VWriteString(vref value, char *dst)
     case TYPE_INVALID:
         break;
     }
-    assert(false);
-    return null;
+    unreachable;
 }
 
 
@@ -257,8 +255,7 @@ size_t VCollectionSize(vref value)
     case TYPE_FILE:
     case TYPE_FUTURE:
     case TYPE_INVALID:
-    default:
-        assert(false);
-        return 0;
+        break;
     }
+    unreachable;
 }

@@ -271,6 +271,7 @@ void _assert(const char *expression, const char *file, int line)
         backtrace_symbols_fd(&backtraceData[1], (int)frames - 1, 1);
     }
     raise(SIGABRT);
+    unreachable;
 }
 #endif
 

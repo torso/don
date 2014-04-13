@@ -43,6 +43,11 @@ typedef uint8 byte;
 #define pureconst __attribute((const))
 #define restrict __restrict
 #define unused __attribute((unused))
+#ifdef DEBUG
+#define unreachable _assert("unreachable", __FILE__, __LINE__)
+#else
+#define unreachable __builtin_unreachable()
+#endif
 
 #define min(a, b) ((a) > (b) ? (b) : (a))
 #define max(a, b) ((a) < (b) ? (b) : (a))
@@ -55,7 +60,7 @@ extern void *nonnull mymalloc(size_t size);
 extern void *nonnull myrealloc(void *ptr, size_t size);
 
 #ifdef DEBUG
-extern void _assert(const char *expression, const char *file, int line);
+extern noreturn void _assert(const char *expression, const char *file, int line);
 #define assert(e) do { if (!(e)) { _assert(#e, __FILE__, __LINE__); } } while (false)
 #else
 #define assert(e) do { (void)sizeof(e); } while (false)

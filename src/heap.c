@@ -146,8 +146,7 @@ static const char *getString(vref object)
     case TYPE_INVALID:
         break;
     }
-    assert(false);
-    return null;
+    unreachable;
 }
 
 static const char *toString(vref object, boolean *copy)
@@ -188,8 +187,7 @@ static boolean isCollectionType(VType type)
     case TYPE_INVALID:
         break;
     }
-    assert(false);
-    return false;
+    unreachable;
 }
 
 void HeapGet(vref v, HeapObject *ho)
@@ -327,19 +325,19 @@ void HeapHash(vref object, HashState *hash)
     case TYPE_BOOLEAN_TRUE:
         value = TYPE_BOOLEAN_TRUE;
         HashUpdate(hash, &value, 1);
-        break;
+        return;
 
     case TYPE_BOOLEAN_FALSE:
         value = TYPE_BOOLEAN_FALSE;
         HashUpdate(hash, &value, 1);
-        break;
+        return;
 
     case TYPE_INTEGER:
         value = TYPE_INTEGER;
         HashUpdate(hash, &value, 1);
         /* TODO: Make platform independent. */
         HashUpdate(hash, (const byte*)&object, sizeof(object));
-        break;
+        return;
 
     case TYPE_STRING:
     case TYPE_STRING_WRAPPED:
@@ -348,14 +346,14 @@ void HeapHash(vref object, HashState *hash)
         HashUpdate(hash, &value, 1);
         HashUpdate(hash, (const byte*)getString(object),
                    VStringLength(object));
-        break;
+        return;
 
     case TYPE_FILE:
         value = TYPE_FILE;
         HashUpdate(hash, &value, 1);
         path = HeapGetPath(object, &pathLength);
         HashUpdate(hash, (const byte*)path, pathLength);
-        break;
+        return;
 
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
@@ -367,13 +365,13 @@ void HeapHash(vref object, HashState *hash)
             /* TODO: Avoid recursion */
             HeapHash(item, hash);
         }
-        break;
+        return;
 
     case TYPE_FUTURE:
     case TYPE_INVALID:
-        assert(false);
         break;
     }
+    unreachable;
 }
 
 boolean HeapEquals(vref object1, vref object2)
@@ -446,8 +444,7 @@ boolean HeapEquals(vref object1, vref object2)
     case TYPE_INVALID:
         break;
     }
-    assert(false);
-    return false;
+    unreachable;
 }
 
 int HeapCompare(vref object1, vref object2)
@@ -583,8 +580,7 @@ vref HeapCreateSubstring(vref string, size_t offset, size_t length)
     case TYPE_CONCAT_LIST:
     case TYPE_FUTURE:
     case TYPE_INVALID:
-        assert(false);
-        break;
+        unreachable;
     }
     data = heapAlloc(TYPE_SUBSTRING, sizeof(SubString));
     ss = (SubString*)data;
@@ -698,8 +694,7 @@ boolean HeapIsString(vref object)
     case TYPE_INVALID:
         break;
     }
-    assert(false);
-    return false;
+    unreachable;
 }
 
 const char *HeapGetString(vref object)
@@ -894,10 +889,9 @@ static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
     case TYPE_FILE:
     case TYPE_FUTURE:
     case TYPE_INVALID:
-    default:
-        assert(false);
-        return;
+        break;
     }
+    unreachable;
 }
 
 /* TODO: Strip null */
@@ -1198,10 +1192,9 @@ boolean HeapCollectionGet(vref object, vref indexObject,
     case TYPE_FILE:
     case TYPE_FUTURE:
     case TYPE_INVALID:
-    default:
-        assert(false);
-        return false;
+        break;
     }
+    unreachable;
 }
 
 
@@ -1281,8 +1274,7 @@ static vref executeUnary(Instruction op, vref value)
     case OP_ERROR:
         break;
     }
-    assert(false);
-    return null;
+    unreachable;
 }
 
 static vref executeBinaryPartial(Instruction op, vref object,
@@ -1357,8 +1349,7 @@ static vref executeBinaryPartial(Instruction op, vref object,
     case OP_ERROR:
         break;
     }
-    assert(false);
-    return null;
+    unreachable;
 }
 
 static vref executeBinary(Instruction op,
@@ -1483,8 +1474,7 @@ static vref executeBinary(Instruction op,
     case OP_ERROR:
         break;
     }
-    assert(false);
-    return null;
+    unreachable;
 }
 
 boolean HeapIsFutureValue(vref object)
