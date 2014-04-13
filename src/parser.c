@@ -24,6 +24,7 @@ typedef struct
     uint line;
     uint statementLine;
     uint statementIndent;
+    uint jumpCount;
     int jumpTargetCount;
 
     /* Number of named+anonymous variables. */
@@ -128,11 +129,13 @@ static int createVariable(ParseState *state)
 
 static void writeJump(ParseState *state, int target)
 {
+    state->jumpCount++;
     writeOp(state->bytecode, OP_JUMP_INDEXED, target);
 }
 
 static void writeBranch(ParseState *state, int target, Instruction instruction, int variable)
 {
+    state->jumpCount++;
     writeOp(state->bytecode, instruction, target);
     IVAdd(state->bytecode, variable);
 }
@@ -2056,6 +2059,7 @@ static void parseFunctionBody(ParseState *state)
     uint indent;
 
     state->statementIndent = 0;
+    state->jumpCount = 0;
     state->jumpTargetCount = 0;
     state->unnamedVariableCount = 0;
     indent = readNewline(state);
@@ -2064,6 +2068,7 @@ static void parseFunctionBody(ParseState *state)
         parseBlock(state, indent);
     }
     writeOp(state->bytecode, OP_RETURN_VOID, 0);
+    state->program->maxJumpCount = max(state->program->maxJumpCount, state->jumpCount);
     state->program->maxJumpTargetCount = max(state->program->maxJumpTargetCount,
                                              (uint)state->jumpTargetCount);
 }
@@ -2163,6 +2168,7 @@ void ParseInit(ParsedProgram *program)
     IVInit(&program->constants, 1024);
     IVInit(&program->fields, 32);
     program->invocationCount = 0;
+    program->maxJumpCount = 0;
     program->maxJumpTargetCount = 0;
 
     IVInit(&temp, 1024);

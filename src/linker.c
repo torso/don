@@ -22,7 +22,8 @@ typedef struct
     int smallestConstant;
     int variableCount;
     inthashmap variables;
-    intvector jumps;
+    int *jumps;
+    int jumpCount;
     int *jumpTargetTable;
 
     vref filename;
@@ -76,8 +77,8 @@ static void finishFunction(LinkState *state)
 {
     if (IVSize(&state->out))
     {
-        const int *jump = IVGetPointer(&state->jumps, 0);
-        const int *limit = jump + IVSize(&state->jumps);
+        const int *jump = state->jumps;
+        const int *limit = jump + state->jumpCount;
         for (; jump < limit; jump++)
         {
             int offset = *jump;
@@ -150,8 +151,8 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
     currentUnlinkedFunction = unlinkedFunctions;
 
     IVInit(&state.out, parsedSize);
-    IVInit(&state.jumps, 128);
     IntHashMapInit(&state.variables, 16);
+    state.jumps = (int*)malloc(parsed->maxJumpCount * sizeof(*state.jumps));
     state.jumpTargetTable = (int*)malloc(parsed->maxJumpTargetCount *
                                          sizeof(*state.jumpTargetTable));
 
@@ -192,7 +193,7 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
 
             *currentFunction++ = (int)IVSize(&state.out);
             IntHashMapClear(&state.variables);
-            IVSetSize(&state.jumps, 0);
+            state.jumpCount = 0;
             state.functionStart = IVSize(&state.out);
             IVAdd(&state.out, OP_FUNCTION);
             state.variableCount = *read++;
@@ -270,12 +271,12 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
             state.jumpTargetTable[arg] = (int)IVSize(&state.out);
             break;
         case OP_JUMP_INDEXED:
-            IVAdd(&state.jumps, (int)IVSize(&state.out));
+            state.jumps[state.jumpCount++] = (int)IVSize(&state.out);
             IVAdd(&state.out, i - 1);
             break;
         case OP_BRANCH_TRUE_INDEXED:
         case OP_BRANCH_FALSE_INDEXED:
-            IVAdd(&state.jumps, (int)IVSize(&state.out));
+            state.jumps[state.jumpCount++] = (int)IVSize(&state.out);
             IVAdd(&state.out, i - 1);
             IVAdd(&state.out, linkVariable(&state, *read++));
             break;
@@ -441,7 +442,7 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
 
     IVDispose(&parsed->bytecode);
     IVDispose(&parsed->functions);
-    IVDispose(&state.jumps);
+    free(state.jumps);
     IntHashMapDispose(&state.variables);
     free(state.jumpTargetTable);
 

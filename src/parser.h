@@ -5,6 +5,7 @@ typedef struct _ParsedProgram
     intvector constants;
     intvector fields;
     uint invocationCount;
+    uint maxJumpCount;
     uint maxJumpTargetCount;
 } ParsedProgram;
 
