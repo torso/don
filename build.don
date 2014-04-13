@@ -145,7 +145,7 @@ default:
       fail()
 
 prof:
-   exec('valgrind '-q '--tool=callgrind compile(optimize:true) '-f 'input
+   exec('valgrind '-q '--tool=callgrind '--cache-sim=yes '--branch-sim=yes compile(optimize:true) '-f 'input
         env:{'XDG_CACHE_HOME @tempcache})
 
 gprof:
