@@ -72,12 +72,6 @@ VECTOR_TYPE *VECTOR_FUNC(DisposeContainer)(VECTOR_NAME *v)
 }
 
 
-size_t VECTOR_FUNC(Size)(const VECTOR_NAME *v)
-{
-    vectorCheck(v);
-    return v->size;
-}
-
 void VECTOR_FUNC(SetSize)(VECTOR_NAME *v, size_t size)
 {
     if (size < v->allocatedSize)

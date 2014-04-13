@@ -16,8 +16,11 @@ extern nonnull void VECTOR_FUNC(Dispose)(VECTOR_NAME *v);
  */
 extern nonnull VECTOR_TYPE *VECTOR_FUNC(DisposeContainer)(VECTOR_NAME *v);
 
+static nonnull pure unused size_t VECTOR_FUNC(Size)(const VECTOR_NAME *v)
+{
+    return v->size;
+}
 
-extern nonnull pure size_t VECTOR_FUNC(Size)(const VECTOR_NAME *v);
 extern nonnull void VECTOR_FUNC(SetSize)(VECTOR_NAME *v, size_t size);
 extern nonnull void VECTOR_FUNC(Grow)(VECTOR_NAME *v, size_t size);
 extern nonnull void VECTOR_FUNC(GrowZero)(VECTOR_NAME *v, size_t size);
