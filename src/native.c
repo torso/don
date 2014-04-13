@@ -12,7 +12,6 @@
 #include "cache.h"
 #include "env.h"
 #include "fail.h"
-#include "fieldindex.h"
 #include "file.h"
 #include "hash.h"
 #include "namespace.h"
@@ -277,7 +276,7 @@ static void nativePreExec(ExecEnv *env)
     {
         output[0] = HeapCreateFutureValue();
         output[1] = HeapCreateFutureValue();
-        env->output = HeapCreateArray(output, 2);
+        env->output = HeapCreateArrayFromData(output, 2);
     }
 }
 
@@ -614,7 +613,7 @@ static void nativePreMv(MvEnv *env)
     files[0] = env->src;
     files[1] = env->dst;
     /* TODO: Don't reallocate array if it exists. */
-    env->work.modifiedFiles = HeapCreateArray(files, 2);
+    env->work.modifiedFiles = HeapCreateArrayFromData(files, 2);
 }
 
 static boolean nativeMv(MvEnv *env)
@@ -990,8 +989,7 @@ void NativeInvoke(VM *vm, nativefunctionref function)
     }
     for (i = 0; i < info->returnValueCount; i++)
     {
-        uint local = BytecodeReadUint(&vm->ip);
-        IVSetRef(&vm->stack, vm->bp + local, env.values[info->parameterCount + i]);
+        VMStoreValue(vm, *vm->ip++, env.values[info->parameterCount + i]);
     }
 }
 

@@ -1,3 +1,4 @@
+#include <string.h>
 #include "common.h"
 #include "inthashmap.h"
 #include "math.h"
@@ -11,13 +12,13 @@ static void checkSlot(const inthashmap *map, size_t slot)
     assert(map->tableSize > slot);
 }
 
-static uint getSlotKey(const inthashmap *map, size_t slot)
+static int getSlotKey(const inthashmap *map, size_t slot)
 {
     checkSlot(map, slot);
     return map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_KEY];
 }
 
-static uint getSlotValue(const inthashmap *map, size_t slot)
+static int getSlotValue(const inthashmap *map, size_t slot)
 {
     checkSlot(map, slot);
     return map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE];
@@ -29,19 +30,19 @@ static boolean isSlotEmpty(const inthashmap *map, size_t slot)
     return !getSlotKey(map, slot);
 }
 
-static void setSlot(inthashmap *map, size_t slot, uint key, uint value)
+static void setSlot(inthashmap *map, size_t slot, int key, int value)
 {
     map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_KEY] = key;
     map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE] = value;
 }
 
-static size_t getSlotForKey(const inthashmap *map, uint key)
+static size_t getSlotForKey(const inthashmap *map, int key)
 {
     assert(key);
-    return key & (map->tableSize - 1);
+    return (uint)key & (map->tableSize - 1);
 }
 
-static size_t findSlot(const inthashmap *map, uint key)
+static size_t findSlot(const inthashmap *map, int key)
 {
     size_t slot = getSlotForKey(map, key);
     for (;;)
@@ -58,7 +59,7 @@ static size_t findSlot(const inthashmap *map, uint key)
     }
 }
 
-static void addEntry(inthashmap *map, uint key, uint value)
+static void addEntry(inthashmap *map, int key, int value)
 {
     size_t slot = getSlotForKey(map, key);
 
@@ -77,9 +78,9 @@ static void addEntry(inthashmap *map, uint key, uint value)
 
 static void grow(inthashmap *map)
 {
-    uint *oldTable;
-    uint *restrict p;
-    uint *restrict limit;
+    int *oldTable;
+    int *restrict p;
+    int *restrict limit;
 
     if (map->size > map->growLimit)
     {
@@ -87,7 +88,7 @@ static void grow(inthashmap *map)
         map->tableSize *= 2;
         map->size = 0;
         map->growLimit = map->tableSize * 3 / 4;
-        map->table = (uint*)calloc(map->tableSize * 2, sizeof(uint));
+        map->table = (int*)calloc(map->tableSize * 2, sizeof(int));
         limit = oldTable + map->tableSize;
         for (p = oldTable; p < limit; p += 2)
         {
@@ -106,7 +107,7 @@ void IntHashMapInit(inthashmap *map, size_t capacity)
     map->tableSize = max(roundSizeToPow2(capacity * 4 / 3), capacity + 1);
     map->growLimit = map->tableSize * 3 / 4;
     map->size = 0;
-    map->table = (uint*)calloc(map->tableSize * 2, sizeof(uint));
+    map->table = (int*)calloc(map->tableSize * 2, sizeof(int));
 }
 
 void IntHashMapDispose(inthashmap *map)
@@ -114,21 +115,30 @@ void IntHashMapDispose(inthashmap *map)
     free(map->table);
 }
 
-void IntHashMapAdd(inthashmap *map, uint key, uint value)
+void IntHashMapClear(inthashmap *map)
+{
+    if (map->size)
+    {
+        map->size = 0;
+        memset(map->table, 0, map->tableSize * 2 * sizeof(int));
+    }
+}
+
+void IntHashMapAdd(inthashmap *map, int key, int value)
 {
     assert(key);
     grow(map);
     addEntry(map, key, value);
 }
 
-uint IntHashMapGet(const inthashmap *map, uint key)
+int IntHashMapGet(const inthashmap *map, int key)
 {
     return getSlotValue(map, findSlot(map, key));
 }
 
-void IntHashMapRemove(inthashmap *map, uint key)
+void IntHashMapRemove(inthashmap *map, int key)
 {
-    uint value;
+    int value;
     size_t slot = findSlot(map, key);
     if (!isSlotEmpty(map, slot))
     {
@@ -154,7 +164,7 @@ void IntHashMapRemove(inthashmap *map, uint key)
     }
 }
 
-void IntHashMapSet(inthashmap *map, uint key, uint value)
+int IntHashMapSet(inthashmap *map, int key, int value)
 {
     size_t slot = findSlot(map, key);
     if (isSlotEmpty(map, slot))
@@ -162,10 +172,13 @@ void IntHashMapSet(inthashmap *map, uint key, uint value)
         map->size++;
         setSlot(map, slot, key, value);
         grow(map);
+        return 0;
     }
     else
     {
+        int old = getSlotValue(map, slot);
         setSlot(map, slot, key, value);
+        return old;
     }
 }
 
@@ -181,9 +194,9 @@ void IntHashMapIteratorInit(const inthashmap *map, inthashmapiterator *iterator)
 }
 
 boolean IntHashMapIteratorNext(inthashmapiterator *iterator,
-                               uint *key, uint *value)
+                               int *key, int *value)
 {
-    uint slotKey;
+    int slotKey;
 
     for (;; iterator->position++)
     {

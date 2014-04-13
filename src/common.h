@@ -70,8 +70,6 @@ typedef struct HashState HashState;
 typedef struct VM VM;
 
 typedef uint ref_t;
-typedef ref_t fieldref;
-typedef ref_t functionref;
 typedef ref_t namespaceref;
 typedef ref_t nativefunctionref;
 
@@ -87,6 +85,11 @@ typedef struct
     vref value;
 } ParameterInfo;
 
+unused static ref_t refFromInt(int i)
+{
+    return (ref_t)i;
+}
+
 unused static ref_t refFromUint(uint i)
 {
     return (ref_t)i;
@@ -101,6 +104,11 @@ unused static ref_t refFromSize(size_t i)
 unused static size_t sizeFromRef(ref_t r)
 {
     return (size_t)r;
+}
+
+unused static int intFromRef(ref_t r)
+{
+    return (int)r;
 }
 
 unused static uint uintFromRef(ref_t r)

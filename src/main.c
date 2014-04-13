@@ -10,10 +10,9 @@
 #include "cache.h"
 #include "env.h"
 #include "fail.h"
-#include "fieldindex.h"
 #include "file.h"
-#include "functionindex.h"
 #include "interpreter.h"
+#include "linker.h"
 #include "log.h"
 #include "namespace.h"
 #include "native.h"
@@ -23,7 +22,6 @@
 
 
 static intvector targets;
-static bytevector parsed;
 
 
 int main(int argc, const char **argv)
@@ -36,19 +34,16 @@ int main(int argc, const char **argv)
     size_t envLength;
     char *string;
     vref filename;
-    File inputFile;
     char *cacheDirectory;
     size_t cacheDirectoryLength;
-    File donNamespaceFile;
     namespaceref defaultNamespace;
     vref name;
     boolean parseOptions = true;
     boolean disassemble = false;
-    byte *bytecode;
-    const byte *bytecodeLimit;
-    const byte *p;
     size_t size;
     boolean fail;
+    ParsedProgram parsed;
+    LinkedProgram linked;
 
     IVInit(&targets, 4);
     LogInit();
@@ -162,13 +157,8 @@ int main(int argc, const char **argv)
         IVAddRef(&targets, name);
     }
 
-    FunctionIndexInit();
-    FunctionIndexAddFunction(0, StringPoolAdd(""), 0, 0, 0);
-    FieldIndexInit();
     NamespaceInit();
     NativeInit();
-
-    BVInit(&parsed, 65536);
 
     string = FileCreatePath(null, 0,
                             DATADIR "don.don", strlen(DATADIR "don.don"),
@@ -176,9 +166,8 @@ int main(int argc, const char **argv)
                             &size);
     filename = StringPoolAdd2(string, size);
     free(string);
-    FileOpen(&donNamespaceFile, HeapGetString(filename), VStringLength(filename));
-    FileMMap(&donNamespaceFile, &p, &size);
-    ParseFile(filename, NamespaceCreate(StringPoolAdd("don")));
+    ParseInit(&parsed);
+    ParseFile(&parsed, filename, NamespaceCreate(StringPoolAdd("don")));
 
     string = FileCreatePath(null, 0,
                             inputFilename, strlen(inputFilename),
@@ -186,34 +175,27 @@ int main(int argc, const char **argv)
                             &size);
     filename = StringPoolAdd2(string, size);
     free(string);
-    FileOpen(&inputFile, HeapGetString(filename), VStringLength(filename));
-    FileMMap(&inputFile, &p, &size);
     defaultNamespace = NamespaceCreate(0);
-    ParseFile(filename, defaultNamespace);
+    ParseFile(&parsed, filename, defaultNamespace);
 
-    ParseFinish(&parsed);
+    ParseDispose();
 
-    FileClose(&donNamespaceFile);
-    FileClose(&inputFile);
-    size = BVSize(&parsed);
-    bytecode = BVDisposeContainer(&parsed);
-    bytecodeLimit = bytecode + size;
-
-    if (disassemble)
-    {
-        BytecodeDisassemble(bytecode, bytecodeLimit);
-        fflush(stdout);
-    }
-
-    if (LogFlushParseErrors())
+    if (!Link(&parsed, &linked))
     {
         return 1;
     }
+
+    if (disassemble)
+    {
+        BytecodeDisassemble(linked.bytecode, linked.bytecode + linked.size);
+        fflush(stdout);
+    }
+
     fail = false;
     for (j = 0; j < IVSize(&targets); j++)
     {
         name = IVGetRef(&targets, j);
-        if (!NamespaceGetTarget(defaultNamespace, name))
+        if (NamespaceGetTarget(defaultNamespace, name) < 0)
         {
             fprintf(stderr, "'%s' is not a target.\n", HeapGetString(name));
             fail = true;
@@ -229,12 +211,15 @@ int main(int argc, const char **argv)
     WorkInit();
     for (j = 0; j < IVSize(&targets); j++)
     {
-        InterpreterExecute(bytecode,
-                           NamespaceGetTarget(defaultNamespace,
-                                              IVGetRef(&targets, j)));
+        InterpreterExecute(&linked, linked.functions[NamespaceGetTarget(defaultNamespace, IVGetRef(&targets, j))]);
     }
 
-    free(bytecode);
+#ifdef VALGRIND
+    free(linked.bytecode);
+    free(linked.functions);
+    free(linked.constants);
+    free(linked.fields);
+#endif
     cleanShutdown(EXIT_SUCCESS);
 }
 
@@ -249,12 +234,9 @@ void cleanShutdown(int exitcode)
     CacheDispose();
 #ifdef VALGRIND
     IVDispose(&targets);
-    BVDispose(&parsed);
     WorkDispose();
     HeapDispose();
     NamespaceDispose();
-    FieldIndexDispose();
-    FunctionIndexDispose();
     FileDisposeAll();
     EnvDispose();
     StringPoolDispose();

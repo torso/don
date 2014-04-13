@@ -2,7 +2,13 @@
 
 typedef enum
 {
+    OP_UNKNOWN_VALUE,
+    OP_FILE,
+    OP_LINE,
+    OP_ERROR,
+
     OP_FUNCTION,
+    OP_FUNCTION_UNLINKED,
 
     OP_NULL,
     OP_TRUE,
@@ -11,10 +17,8 @@ typedef enum
     OP_LIST,
     OP_FILELIST,
 
-    OP_PUSH,
+    OP_STORE_CONSTANT,
     OP_COPY,
-    OP_LOAD_FIELD,
-    OP_STORE_FIELD,
 
     OP_NOT,
     OP_NEG,
@@ -38,13 +42,16 @@ typedef enum
     OP_INDEXED_ACCESS,
     OP_RANGE,
 
-    OP_JUMP,
+    OP_JUMPTARGET,
+    OP_JUMP, /* Order is important for jump instructions (see linker.c). */
+    OP_JUMP_INDEXED,
     OP_BRANCH_TRUE,
+    OP_BRANCH_TRUE_INDEXED,
     OP_BRANCH_FALSE,
+    OP_BRANCH_FALSE_INDEXED,
     OP_RETURN,
     OP_RETURN_VOID,
     OP_INVOKE,
-    OP_INVOKE_NATIVE,
-
-    OP_UNKNOWN_VALUE
+    OP_INVOKE_UNLINKED,
+    OP_INVOKE_NATIVE
 } Instruction;

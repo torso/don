@@ -41,9 +41,6 @@ extern nonnull void HeapHash(vref object, HashState *hash);
 extern nonnull boolean HeapEquals(vref object1, vref object2);
 extern nonnull int HeapCompare(vref object1, vref object2);
 
-extern nonnull byte *HeapAlloc(VType type, size_t size);
-extern nonnull vref HeapFinishAlloc(byte *objectData);
-
 
 
 extern nonnull vref HeapBoxInteger(int value);
@@ -62,6 +59,7 @@ extern nonnull vref HeapCreateWrappedString(const char *string,
                                             size_t length);
 extern nonnull vref HeapCreateSubstring(vref string, size_t offset,
                                         size_t length);
+extern nonnull vref HeapCreateStringFormatted(const char *format, va_list ap);
 extern nonnull boolean HeapIsString(vref object);
 
 /*
@@ -104,8 +102,12 @@ extern nonnull vref HeapSplit(vref string, vref delimiter,
                               boolean removeEmpty,
                               boolean trimLastIfEmpty);
 
-extern nonnull vref HeapCreateArray(const vref *values, size_t size);
+extern nonnull vref *HeapCreateArray(size_t size);
+extern nonnull vref HeapFinishArray(vref *array);
+extern nonnull vref HeapCreateArrayFromData(const vref *values, size_t size);
 extern nonnull vref HeapCreateArrayFromVector(const intvector *values);
+extern nonnull vref HeapCreateArrayFromVectorSegment(const intvector *values,
+                                                     size_t start, size_t length);
 extern nonnull vref HeapConcatList(vref list1, vref list2);
 extern nonnull boolean HeapIsCollection(vref object);
 

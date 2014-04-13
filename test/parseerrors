@@ -1,10 +1,12 @@
 #fail:
 #+4: Unknown function 'f'
-#+5: No value for parameter 'a' given
+#+5: Parameter 'b' already has a value
+#+5: No parameter with name 'c'
+#+5: No value for parameter 'a'
 
 default:
 
     f()
-    g()
+    g(b:1 b:2 c:3)
 
-g(a)
+g(a b)

@@ -1,99 +1,111 @@
+#include <stdarg.h>
 #include <stdio.h>
 #include "common.h"
 #include "bytecode.h"
 #include "bytevector.h"
-#include "fieldindex.h"
-#include "functionindex.h"
 #include "heap.h"
+#include "namespace.h"
 #include "native.h"
 #include "stringpool.h"
 
 #define MAX(a, b) (a > b ? a : b)
 
-uint BytecodeReadUint(const byte **bytecode)
+static void printValue(const int **bytecode)
 {
-    uint value = *(uint*)*bytecode;
-    *bytecode += sizeof(uint);
-    return value;
+    printf("#%d", *(*bytecode)++);
 }
 
-int16 BytecodeReadInt16(const byte **bytecode)
+static void printBinaryOperation(const int **bytecode, const char *op, int arg)
 {
-    byte value = *(*bytecode)++;
-    return (int16)((value << 8) + *(*bytecode)++);
+    int r1 = *(*bytecode)++;
+    int r2 = *(*bytecode)++;
+    printf("#%d %s #%d -> #%d\n", arg, op, r1, r2);
 }
 
-uint16 BytecodeReadUint16(const byte **bytecode)
+static const int *disassemble(const int *bytecode, const int *base)
 {
-    byte value = *(*bytecode)++;
-    return (uint16)((value << 8) + *(*bytecode)++);
-}
-
-ref_t BytecodeReadRef(const byte **bytecode)
-{
-    return refFromUint(BytecodeReadUint(bytecode));
-}
-
-static void printValue(const byte **bytecode)
-{
-    printf("r%u", BytecodeReadUint(bytecode));
-}
-
-static void printBinaryOperation(const byte **bytecode, const char *op, uint arg)
-{
-    int r1 = BytecodeReadInt(bytecode);
-    int r2 = BytecodeReadInt(bytecode);
-    printf("r%d %s r%d -> r%d\n", arg, op, r1, r2);
-}
-
-static const byte *disassemble(const byte *bytecode, const byte *base)
-{
-    uint ip = (uint)(bytecode - base);
-    uint value;
-    char *string;
-    uint i = BytecodeReadUint(&bytecode);
-    uint arg = i >> 8;
+    int ip = (int)(bytecode - base);
+    int i = *bytecode++;
+    int arg = i >> 8;
 
     switch ((Instruction)(i & 0xff))
     {
-    case OP_FUNCTION:
+    case OP_FILE:
     {
-        functionref function = BytecodeReadRef(&bytecode);
-        uint parameterCount = BytecodeReadUint(&bytecode);
-        uint localsCount = BytecodeReadUint(&bytecode);
+        vref ns = NamespaceGetName(refFromInt(*bytecode++));
+        printf("file %s namespace:%s\n", HeapGetString(refFromInt(arg)),
+               ns ? HeapGetString(ns) : "<unnamed>");
+        break;
+    }
 
-        printf("function %s parameters:%d locals:%d\n",
-               function ? HeapGetString(FunctionIndexGetName(function)) : "unknown",
-               parameterCount, localsCount);
+    case OP_LINE:
+        printf("line %u\n", arg);
+        break;
+
+    case OP_ERROR:
+        printf("error: %s\n", HeapGetString(refFromInt(arg)));
+        bytecode += arg;
+        break;
+
+    case OP_FUNCTION:
+        printf("function locals:%d\n", arg);
+        break;
+
+    case OP_FUNCTION_UNLINKED:
+    {
+        int parameterCount = *bytecode++;
+        int vararg = *bytecode++;
+        int param;
+        printf("function %s parameters:%u(",
+               arg ? HeapGetString(refFromInt(arg)) : "unknown",
+               parameterCount);
+        assert(parameterCount >= 0);
+        for (param = 0; param < parameterCount; param++)
+        {
+            const char *name = HeapGetString(refFromInt(*bytecode++));
+            int value = *bytecode++;
+            printf("%s", name);
+            if (param == vararg)
+            {
+                fputs("...", stdout);
+            }
+            if (value != INT_MAX)
+            {
+                printf("=#%d", value);
+            }
+            if (param + 1 < parameterCount)
+            {
+                fputs(",", stdout);
+            }
+        }
+        fputs(")\n", stdout);
         break;
     }
 
     case OP_NULL:
-        printf("store_null -> r%u\n", arg);
+        printf("store_null -> #%d\n", arg);
         break;
 
     case OP_TRUE:
-        printf("store_true -> r%u\n", arg);
+        printf("store_true -> #%d\n", arg);
         break;
 
     case OP_FALSE:
-        printf("store_false -> r%u\n", arg);
+        printf("store_false -> #%d\n", arg);
         break;
 
     case OP_EMPTY_LIST:
-        printf("store_{} -> r%u\n", arg);
+        printf("store_{} -> #%d\n", arg);
         break;
 
     case OP_LIST:
         printf("new list %u {", arg);
-        if (arg)
+        assert(arg > 0);
+        printValue(&bytecode);
+        while (--arg)
         {
+            fputs(",", stdout);
             printValue(&bytecode);
-            while (--arg)
-            {
-                fputs(",", stdout);
-                printValue(&bytecode);
-            }
         }
         fputs("} -> ", stdout);
         printValue(&bytecode);
@@ -101,43 +113,37 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
         break;
 
     case OP_FILELIST:
-        printf("filelist %s -> ", HeapGetString(refFromUint(arg)));
+        printf("filelist %s -> ", HeapGetString(refFromInt(arg)));
         printValue(&bytecode);
         puts("");
         break;
 
-    case OP_PUSH:
-        string = HeapDebug(refFromUint(BytecodeReadUint(&bytecode)), false);
-        printf("push %s -> r%u\n", string, arg);
+    case OP_STORE_CONSTANT:
+    {
+        char *string = HeapDebug(refFromInt(*bytecode++), false);
+        printf("store_constant %s -> #%d\n", string, arg);
         free(string);
         break;
+    }
 
     case OP_COPY:
-        printf("copy r%u -> r%u\n", arg, BytecodeReadUint(&bytecode));
-        break;
-
-    case OP_LOAD_FIELD:
-        printf("load_field %u -> r%u\n", BytecodeReadUint(&bytecode), arg);
-        break;
-
-    case OP_STORE_FIELD:
-        printf("store_field %u = r%u\n", BytecodeReadUint(&bytecode), arg);
+        printf("copy #%d -> #%d\n", arg, *bytecode++);
         break;
 
     case OP_NOT:
-        printf("not r%u -> r%u", arg, BytecodeReadUint(&bytecode));
+        printf("not #%d -> #%d", arg, *bytecode++);
         break;
 
     case OP_NEG:
-        printf("neg r%u -> r%u", arg, BytecodeReadUint(&bytecode));
+        printf("neg #%d -> #%d", arg, *bytecode++);
         break;
 
     case OP_INV:
-        printf("inv r%u -> r%u", arg, BytecodeReadUint(&bytecode));
+        printf("inv #%d -> #%d", arg, *bytecode++);
         break;
 
     case OP_ITER_GET:
-        printf("iter_get r%u[", arg);
+        printf("iter_get #%d[", arg);
         printValue(&bytecode);
         fputs("] -> ", stdout);
         printValue(&bytecode);
@@ -209,9 +215,7 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
         break;
 
     case OP_INDEXED_ACCESS:
-        fputs("indexed_access ", stdout);
-        printValue(&bytecode);
-        fputs("[", stdout);
+        printf("indexed_access #%d[", arg);
         printValue(&bytecode);
         fputs("] -> ", stdout);
         printValue(&bytecode);
@@ -222,31 +226,58 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
         printBinaryOperation(&bytecode, "..", arg);
         break;
 
-    case OP_JUMP:
-        value = BytecodeReadUint(&bytecode);
-        printf("jump %u\n", (uint)(ip + 2 * sizeof(uint) + value));
+    case OP_JUMPTARGET:
+        printf("jump_target %u\n", arg);
         break;
+
+    case OP_JUMP:
+        printf("jump %d\n", ip + 2 + arg);
+        break;
+
+    case OP_JUMP_INDEXED:
+    {
+        printf("jump_indexed %u\n", arg);
+        break;
+    }
 
     case OP_BRANCH_TRUE:
-        value = BytecodeReadUint(&bytecode);
-        printf("branch_true r%u, %u\n", arg, (uint)(ip + 2 * sizeof(uint) + value));
+    {
+        int value = *bytecode++;
+        printf("branch_true #%d, %u\n", value, ip + 2 + arg);
         break;
+    }
+
+    case OP_BRANCH_TRUE_INDEXED:
+    {
+        int value = *bytecode++;
+        printf("branch_true_indexed #%d, %u\n", value, arg);
+        break;
+    }
 
     case OP_BRANCH_FALSE:
-        value = BytecodeReadUint(&bytecode);
-        printf("branch_false r%u, %u\n", arg, (uint)(ip + 2 * sizeof(uint) + value));
+    {
+        int value = *bytecode++;
+        printf("branch_false #%d, %u\n", value, ip + 2 + arg);
         break;
+    }
+
+    case OP_BRANCH_FALSE_INDEXED:
+    {
+        int value = *bytecode++;
+        printf("branch_false_indexed #%d, %u\n", value, arg);
+        break;
+    }
 
     case OP_RETURN:
+        fputs("return ", stdout);
         assert(arg > 0);
-        fputs("return {", stdout);
         printValue(&bytecode);
         while (--arg)
         {
             fputs(",", stdout);
             printValue(&bytecode);
         }
-        puts("}");
+        puts("");
         break;
 
     case OP_RETURN_VOID:
@@ -255,20 +286,67 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
 
     case OP_INVOKE:
     {
-        functionref function = refFromUint(arg);
-        uint argumentCount = BytecodeReadUint(&bytecode);
-        uint returnCount;
-        printf("invoke %s(", HeapGetString(FunctionIndexGetName(function)));
-        if (argumentCount)
+        int returnCount;
+        printf("invoke %u(", *bytecode++);
+        assert(arg >= 0);
+        if (arg)
         {
             printValue(&bytecode);
-            while (--argumentCount)
+            while (--arg)
             {
                 fputs(",", stdout);
                 printValue(&bytecode);
             }
         }
-        returnCount = BytecodeReadUint(&bytecode);
+        returnCount = *bytecode++;
+        assert(returnCount >= 0);
+        if (returnCount)
+        {
+            fputs(") -> ", stdout);
+            printValue(&bytecode);
+            while (--returnCount)
+            {
+                fputs(",", stdout);
+                printValue(&bytecode);
+            }
+            puts("");
+        }
+        else
+        {
+            puts(")");
+        }
+        break;
+    }
+
+    case OP_INVOKE_UNLINKED:
+    {
+        vref functionName = refFromInt(arg);
+        vref ns = refFromInt(*bytecode++);
+        int argumentCount = *bytecode++;
+        int returnCount;
+
+        fputs("invoke_unlinked ", stdout);
+        if (ns)
+        {
+            printf("%s.", HeapGetString(NamespaceGetName(ns)));
+        }
+        printf("%s(", HeapGetString(functionName));
+        assert(argumentCount >= 0);
+        while (argumentCount--)
+        {
+            if (*bytecode)
+            {
+                printf("%s:", HeapGetString(refFromInt(*bytecode)));
+            }
+            bytecode++;
+            printValue(&bytecode);
+            if (argumentCount)
+            {
+                fputs(",", stdout);
+            }
+        }
+        returnCount = *bytecode++;
+        assert(returnCount >= 0);
         if (returnCount)
         {
             fputs(") -> ", stdout);
@@ -289,7 +367,7 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
 
     case OP_INVOKE_NATIVE:
     {
-        nativefunctionref nativeFunction = refFromUint(arg);
+        nativefunctionref nativeFunction = refFromInt(arg);
         uint count = NativeGetParameterCount(nativeFunction);
         printf("invoke native %s(", HeapGetString(NativeGetName(nativeFunction)));
         if (count)
@@ -323,19 +401,22 @@ static const byte *disassemble(const byte *bytecode, const byte *base)
     case OP_UNKNOWN_VALUE:
         puts("unknown_value");
         break;
+
+    default:
+        puts("unknown opcode");
+        break;
     }
     return bytecode;
 }
 
-const byte *BytecodeDisassembleInstruction(const byte *bytecode,
-                                           const byte *base)
+const int *BytecodeDisassembleInstruction(const int *bytecode, const int *base)
 {
     return disassemble(bytecode, base);
 }
 
-void BytecodeDisassemble(const byte *bytecode, const byte *bytecodeLimit)
+void BytecodeDisassemble(const int *bytecode, const int *bytecodeLimit)
 {
-    const byte *start = bytecode;
+    const int *start = bytecode;
 
     while (bytecode < bytecodeLimit)
     {

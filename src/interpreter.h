@@ -1,2 +1,2 @@
-extern nonnull void InterpreterExecute(const byte *bytecode,
-                                       functionref target);
+struct _LinkedProgram;
+extern nonnull void InterpreterExecute(const struct _LinkedProgram *program, int target);

@@ -5,17 +5,15 @@ extern void NamespaceDispose(void);
 
 extern namespaceref NamespaceCreate(vref name);
 
-extern void NamespaceAddField(namespaceref ns, vref name, fieldref field);
-extern void NamespaceAddFunction(namespaceref ns, vref name,
-                                 functionref function);
-extern void NamespaceAddTarget(namespaceref ns, vref name,
-                               functionref target);
+extern int NamespaceAddField(namespaceref ns, vref name, int index);
+extern int NamespaceAddFunction(namespaceref ns, vref name, int index);
+extern int NamespaceAddTarget(namespaceref ns, vref name, int index);
 
 extern vref NamespaceGetName(namespaceref ns);
 extern namespaceref NamespaceGetNamespace(namespaceref ns, vref name);
-extern fieldref NamespaceGetField(namespaceref ns, vref name);
-extern functionref NamespaceGetFunction(namespaceref ns, vref name);
-extern functionref NamespaceGetTarget(namespaceref ns, vref name);
+extern int NamespaceGetField(namespaceref ns, vref name);
+extern int NamespaceGetFunction(namespaceref ns, vref name);
+extern int NamespaceGetTarget(namespaceref ns, vref name);
 
-extern fieldref NamespaceLookupField(namespaceref ns, vref name);
-extern functionref NamespaceLookupFunction(namespaceref ns, vref name);
+extern int NamespaceLookupField(namespaceref ns, vref name);
+extern int NamespaceLookupFunction(namespaceref ns, vref name);
