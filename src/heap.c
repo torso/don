@@ -20,9 +20,9 @@
 #define INTEGER_LITERAL_MASK (~INTEGER_LITERAL_MARK)
 #define INTEGER_LITERAL_SHIFT 1
 
-#define OBJECT_OVERHEAD 8
+#define OBJECT_OVERHEAD (sizeof(int) * 2)
 #define HEADER_SIZE 0
-#define HEADER_TYPE 4
+#define HEADER_TYPE sizeof(int)
 
 static uint HeapPageIndexSize;
 static byte **HeapPageIndex;
