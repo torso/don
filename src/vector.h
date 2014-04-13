@@ -25,14 +25,13 @@ extern nonnull void VECTOR_FUNC(SetSize)(VECTOR_NAME *v, size_t size);
 extern nonnull void VECTOR_FUNC(Grow)(VECTOR_NAME *v, size_t size);
 extern nonnull void VECTOR_FUNC(GrowZero)(VECTOR_NAME *v, size_t size);
 extern nonnull void VECTOR_FUNC(ReserveSize)(VECTOR_NAME *v, size_t size);
-extern nonnull void VECTOR_FUNC(ReserveAppendSize)(VECTOR_NAME *v, size_t size);
 extern nonnull size_t VECTOR_FUNC(GetReservedAppendSize)(const VECTOR_NAME *v);
 
 extern nonnull pure const VECTOR_TYPE *VECTOR_FUNC(GetPointer)(
     const VECTOR_NAME *v, size_t index);
 extern nonnull pure VECTOR_TYPE *VECTOR_FUNC(GetWritePointer)(
     VECTOR_NAME *v, size_t index);
-extern nonnull VECTOR_TYPE *VECTOR_FUNC(GetAppendPointer)(VECTOR_NAME *v);
+extern nonnull VECTOR_TYPE *VECTOR_FUNC(GetAppendPointer)(VECTOR_NAME *v, size_t size);
 
 extern nonnull void VECTOR_FUNC(Copy)(const VECTOR_NAME *src, size_t srcOffset,
                                       VECTOR_NAME *dst, size_t dstOffset,

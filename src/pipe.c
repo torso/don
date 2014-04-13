@@ -64,12 +64,11 @@ static void pipeConsume(Pipe *p1, Pipe *p2, fd_set *set)
 
     if (p1->fd && FD_ISSET(p1->fd, set))
     {
-        BVReserveAppendSize(&p1->buffer, MIN_READ_BUFFER);
-        data = BVGetAppendPointer(&p1->buffer);
-        ssize = read(p1->fd, data, BVGetReservedAppendSize(&p1->buffer));
+        data = BVGetAppendPointer(&p1->buffer, MIN_READ_BUFFER);
+        ssize = read(p1->fd, data, MIN_READ_BUFFER + BVGetReservedAppendSize(&p1->buffer));
         if (ssize > 0)
         {
-            BVGrow(&p1->buffer, (size_t)ssize);
+            BVSetSize(&p1->buffer, BVSize(&p1->buffer) - MIN_READ_BUFFER + (size_t)ssize);
             for (listener = p1->listener; listener; listener = listener->next)
             {
                 if (listener->output)
@@ -80,11 +79,13 @@ static void pipeConsume(Pipe *p1, Pipe *p2, fd_set *set)
         }
         else if (!ssize)
         {
+            BVSetSize(&p1->buffer, BVSize(&p1->buffer) - MIN_READ_BUFFER);
             close(p1->fd);
             p1->fd = 0;
         }
         else if (errno != EWOULDBLOCK)
         {
+            BVSetSize(&p1->buffer, BVSize(&p1->buffer) - MIN_READ_BUFFER);
             close(p1->fd);
             if (p2->fd)
             {

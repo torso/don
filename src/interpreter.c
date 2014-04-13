@@ -261,13 +261,11 @@ static void execute(VM *vm)
         {
             vref *values;
             function = *ip++;
-            IVReserveAppendSize(&vm->stack, (size_t)arg);
-            values = (vref*)IVGetAppendPointer(&vm->stack);
+            values = (vref*)IVGetAppendPointer(&vm->stack, (size_t)arg);
             for (i = 0; i < arg; i++)
             {
                 *values++ = loadValue(vm, vm->bp, *ip++);
             }
-            IVGrow(&vm->stack, (size_t)arg);
             IVAdd(&vm->callStack, (int)(ip - vmBytecode));
             IVAdd(&vm->callStack, vm->bp);
             initStackFrame(vm, &ip, &vm->bp, function, (uint)arg);

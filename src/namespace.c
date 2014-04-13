@@ -43,11 +43,11 @@ void NamespaceInit(void)
 void NamespaceDispose(void)
 {
     Namespace *ns;
-    Namespace *limit;
+    const Namespace *limit;
 
     if (initialised)
     {
-        limit = (Namespace*)BVGetAppendPointer(&namespaceData);
+        limit = (Namespace*)BVGetPointer(&namespaceData, BVSize(&namespaceData));
         for (ns = getNamespace(1); ns < limit; ns++)
         {
             disposeNamespace(ns);

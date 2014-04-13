@@ -207,17 +207,15 @@ static void logPrintObjectAutoNewline(LogPipe *p, vref object)
         logPrint(p, "\n", 1);
         return;
     }
-    BVReserveAppendSize(&p->buffer, length + 1);
-    data = BVGetAppendPointer(&p->buffer);
+    data = BVGetAppendPointer(&p->buffer, length + 1);
     VWriteString(object, (char*)data);
     if (data[length - 1] != '\n')
     {
         data[length] = '\n';
-        BVGrow(&p->buffer, length + 1);
     }
     else
     {
-        BVGrow(&p->buffer, length);
+        BVSetSize(&p->buffer, BVSize(&p->buffer) - 1);
     }
     processNewData(p, BVSize(&p->buffer));
 }

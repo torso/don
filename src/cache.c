@@ -450,9 +450,7 @@ static void appendString(vref value)
     uint length = (uint)VStringLength(value);
     if (length)
     {
-        BVReserveAppendSize(&newEntries, length);
-        VWriteString(value, (char*)BVGetAppendPointer(&newEntries));
-        BVGrow(&newEntries, length);
+        VWriteString(value, (char*)BVGetAppendPointer(&newEntries, length));
     }
 }
 
@@ -513,9 +511,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
         length = (uint)VStringLength(value);
 
         pathStart = BVSize(&newEntries);
-        BVReserveAppendSize(&newEntries, length);
-        VWriteString(value, (char*)BVGetAppendPointer(&newEntries));
-        BVGrow(&newEntries, length);
+        VWriteString(value, (char*)BVGetAppendPointer(&newEntries, length));
 
         entry = (Entry*)BVGetPointer(&newEntries, entryStart);
         entry->dependencies[i].pathLength = length;

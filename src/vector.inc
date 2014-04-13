@@ -94,19 +94,19 @@ void VECTOR_FUNC(GrowZero)(VECTOR_NAME *v, size_t size)
     memset(vectorGrow(v, size), 0, size * sizeof(VECTOR_TYPE));
 }
 
+static void VECTOR_FUNC(ReserveAppendSize)(VECTOR_NAME *v, size_t size)
+{
+    size_t oldSize = v->size;
+    vectorGrow(v, size);
+    v->size = oldSize;
+}
+
 void VECTOR_FUNC(ReserveSize)(VECTOR_NAME *v, size_t size)
 {
     if (size > v->allocatedSize)
     {
         VECTOR_FUNC(ReserveAppendSize)(v, size - v->size);
     }
-}
-
-void VECTOR_FUNC(ReserveAppendSize)(VECTOR_NAME *v, size_t size)
-{
-    size_t oldSize = v->size;
-    vectorGrow(v, size);
-    v->size = oldSize;
 }
 
 size_t VECTOR_FUNC(GetReservedAppendSize)(const VECTOR_NAME *v)
@@ -142,10 +142,11 @@ VECTOR_TYPE *VECTOR_FUNC(GetWritePointer)(VECTOR_NAME *v, size_t index)
     return &v->data[index];
 }
 
-VECTOR_TYPE *VECTOR_FUNC(GetAppendPointer)(VECTOR_NAME *v)
+VECTOR_TYPE *VECTOR_FUNC(GetAppendPointer)(VECTOR_NAME *v, size_t size)
 {
-    vectorCheck(v);
-    return &v->data[v->size];
+    size_t oldSize = v->size;
+    vectorGrow(v, size);
+    return &v->data[oldSize];
 }
 
 
