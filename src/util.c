@@ -10,18 +10,6 @@ static const char base32[] =
 };
 
 
-uint UtilHashString(const char *string, size_t length)
-{
-    const char *limit = string + length;
-    uint hash = 1;
-    while (string < limit)
-    {
-        assert(*string);
-        hash = (uint)31 * hash + (uint)*string++;
-    }
-    return hash;
-}
-
 static pureconst char hex(byte b)
 {
     if (b >= 10)

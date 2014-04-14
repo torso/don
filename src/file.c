@@ -59,7 +59,7 @@ static uint feIndex(const char *path, size_t length)
     assert(path);
     assert(length);
     assert(*path == '/');
-    return fnvHash((const byte*)path, length) & tableMask;
+    return HashString(path, length) & tableMask;
 }
 
 static void initEntry(FileEntry *fe, const char *path, size_t length)

@@ -14,12 +14,12 @@ extern nonnull void HashFinal(HashState *restrict state, byte *restrict hash);
 extern nonnull void Hash(const byte *restrict data, size_t size,
                          byte *restrict hash);
 
-static unused uint fnvHash(const byte *key, size_t length)
+static unused uint HashString(const char *key, size_t length)
 {
     uint h = 2166136261;
     while (length--)
     {
-        h = (h * 16777619) ^ *key++;
+        h = h * 16777619 + (byte)*key++;
     }
     return h;
 }

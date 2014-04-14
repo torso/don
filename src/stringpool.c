@@ -1,9 +1,9 @@
 #include <stdarg.h>
 #include <string.h>
 #include "common.h"
+#include "hash.h"
 #include "heap.h"
 #include "stringpool.h"
-#include "util.h"
 
 #define TABLE_SIZE 0
 #define TABLE_DATA_BEGIN 2
@@ -95,7 +95,7 @@ vref StringPoolAdd2(const char *token, size_t length)
     assert(cachedTable);
     assert(length <= 65535);
 
-    hash = UtilHashString(token, length);
+    hash = HashString(token, length);
     slot = getSlotForHash(cachedTable, hash);
     while (!isSlotEmpty(cachedTable, slot))
     {
