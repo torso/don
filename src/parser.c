@@ -93,10 +93,10 @@ static boolean parseUnquotedExpression(ParseState *state,
                                        boolean constant);
 
 
-static void writeOp(intvector *bytecode, Instruction op, int param)
+static void writeOp(ParseState *state, Instruction op, int param)
 {
     assert(((param << 8) >> 8) == param);
-    IVAdd(bytecode, (int)op | (param << 8));
+    IVAdd(state->bytecode, (int)op | (param << 8));
 }
 
 
@@ -115,7 +115,7 @@ static attrprintf(2, 3) void error(ParseState *state, const char *format, ...)
 {
     va_list args;
     va_start(args, format);
-    writeOp(state->bytecode, OP_ERROR, intFromRef(HeapCreateStringFormatted(format, args)));
+    writeOp(state, OP_ERROR, intFromRef(HeapCreateStringFormatted(format, args)));
     va_end(args);
 }
 
@@ -130,13 +130,13 @@ static int createVariable(ParseState *state)
 static void writeJump(ParseState *state, int target)
 {
     state->jumpCount++;
-    writeOp(state->bytecode, OP_JUMP_INDEXED, target);
+    writeOp(state, OP_JUMP_INDEXED, target);
 }
 
 static void writeBranch(ParseState *state, int target, Instruction instruction, int variable)
 {
     state->jumpCount++;
-    writeOp(state->bytecode, instruction, target);
+    writeOp(state, instruction, target);
     IVAdd(state->bytecode, variable);
 }
 
@@ -147,13 +147,13 @@ static int createJumpTarget(ParseState *state)
 
 static void placeJumpTargetHere(ParseState *state, int target)
 {
-    writeOp(state->bytecode, OP_JUMPTARGET, target);
+    writeOp(state, OP_JUMPTARGET, target);
 }
 
 static int createJumpTargetHere(ParseState *state)
 {
     int target = state->jumpTargetCount++;
-    writeOp(state->bytecode, OP_JUMPTARGET, target);
+    writeOp(state, OP_JUMPTARGET, target);
     return target;
 }
 
@@ -162,23 +162,23 @@ static void storeConstant(ParseState *state, vref value, int variable)
 {
     if (!value)
     {
-        writeOp(state->bytecode, OP_NULL, variable);
+        writeOp(state, OP_NULL, variable);
     }
     else if (value == HeapTrue)
     {
-        writeOp(state->bytecode, OP_TRUE, variable);
+        writeOp(state, OP_TRUE, variable);
     }
     else if (value == HeapFalse)
     {
-        writeOp(state->bytecode, OP_FALSE, variable);
+        writeOp(state, OP_FALSE, variable);
     }
     else if (value == HeapEmptyList)
     {
-        writeOp(state->bytecode, OP_EMPTY_LIST, variable);
+        writeOp(state, OP_EMPTY_LIST, variable);
     }
     else
     {
-        writeOp(state->bytecode, OP_STORE_CONSTANT, variable);
+        writeOp(state, OP_STORE_CONSTANT, variable);
         IVAdd(state->bytecode, intFromRef(value));
     }
 }
@@ -682,7 +682,7 @@ static void finishAndStoreValueAt(ParseState *state, const ExpressionState *esta
     case EXPRESSION_STORED:
         if (estate->variable != variable)
         {
-            writeOp(state->bytecode, OP_COPY, estate->variable);
+            writeOp(state, OP_COPY, estate->variable);
             IVAdd(state->bytecode, variable);
         }
         return;
@@ -697,13 +697,13 @@ static void finishAndStoreValueAt(ParseState *state, const ExpressionState *esta
         variable2 = intFromRef(estate->valueIdentifier);
         if (variable != variable2)
         {
-            writeOp(state->bytecode, OP_COPY, variable2);
+            writeOp(state, OP_COPY, variable2);
             IVAdd(state->bytecode, variable);
         }
         return;
 
     /* case EXPRESSION_FIELD: */
-    /*     writeOp(state->bytecode, OP_LOAD_FIELD, variable); */
+    /*     writeOp(state, OP_LOAD_FIELD, variable); */
     /*     IVAdd(state->bytecode, FieldIndexGetIndex(estate->field)); */
     /*     return; */
     }
@@ -734,7 +734,7 @@ static int finishRValue(ParseState *state, const ExpressionState *estate)
 
     /* case EXPRESSION_FIELD: */
     /*     variable = createVariable(state); */
-    /*     writeOp(state->bytecode, OP_LOAD_FIELD, variable); */
+    /*     writeOp(state, OP_LOAD_FIELD, variable); */
     /*     IVAdd(state->bytecode, FieldIndexGetIndex(estate->field)); */
     /*     return variable; */
     }
@@ -785,7 +785,7 @@ static boolean finishLValue(ParseState *state, const ExpressionState *lvalue,
 
     /* case EXPRESSION_FIELD: */
     /*     variable = finishRValue(state, rvalue); */
-    /*     writeOp(state->bytecode, OP_STORE_FIELD, variable); */
+    /*     writeOp(state, OP_STORE_FIELD, variable); */
     /*     IVAdd(state->bytecode, FieldIndexGetIndex(lvalue->field)); */
     /*     return true; */
     }
@@ -856,7 +856,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     }
 
     state->program->invocationCount++;
-    writeOp(state->bytecode, OP_INVOKE_UNLINKED, intFromRef(name));
+    writeOp(state, OP_INVOKE_UNLINKED, intFromRef(name));
     IVAddRef(state->bytecode, ns);
     size = (uint)(IVSize(&temp) - oldTempSize);
     IVAddUint(state->bytecode, size / 2);
@@ -908,7 +908,7 @@ static boolean parseNativeInvocationRest(ParseState *state,
         skipWhitespace(state);
     }
     argumentCount = (uint)(IVSize(&temp) - oldTempSize);
-    writeOp(state->bytecode, OP_INVOKE_NATIVE, intFromRef(function));
+    writeOp(state, OP_INVOKE_NATIVE, intFromRef(function));
     IVAppend(&temp, oldTempSize, state->bytecode, argumentCount);
     IVSetSize(&temp, oldTempSize);
     return readExpectedOperator(state, ')');
@@ -927,7 +927,7 @@ static boolean parseBinaryOperationRest(
         return false;
     }
     value2 = finishRValue(state, estate);
-    writeOp(state->bytecode, instruction, value);
+    writeOp(state, instruction, value);
     IVAdd(state->bytecode, value2);
     estate->expressionType = EXPRESSION_MISSING_STORE;
     estate->valueType = valueType;
@@ -1012,7 +1012,7 @@ static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
     else
     {
         uint length = (uint)(IVSize(&temp) - oldTempSize);
-        writeOp(state->bytecode, OP_LIST, (int)length);
+        writeOp(state, OP_LIST, (int)length);
         IVAppend(&temp, oldTempSize, state->bytecode, length);
         estate->expressionType = EXPRESSION_MISSING_STORE;
         estate->valueType = VALUE_LIST;
@@ -1204,7 +1204,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             uint length = (uint)(IVSize(&temp) - oldTempSize);
             estate->expressionType = EXPRESSION_MISSING_STORE;
             estate->valueType = VALUE_LIST;
-            writeOp(state->bytecode, OP_LIST, (int)length);
+            writeOp(state, OP_LIST, (int)length);
             IVAppend(&temp, oldTempSize, state->bytecode, length);
         }
         IVSetSize(&temp, oldTempSize);
@@ -1223,7 +1223,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             return true;
         }
         /* TODO: @{} syntax */
-        writeOp(state->bytecode, OP_FILELIST, intFromRef(string));
+        writeOp(state, OP_FILELIST, intFromRef(string));
         estate->expressionType = EXPRESSION_MISSING_STORE;
         estate->valueType = VALUE_FILE;
         return true;
@@ -1255,7 +1255,7 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
             {
                 return false;
             }
-            writeOp(state->bytecode, OP_INDEXED_ACCESS, value);
+            writeOp(state, OP_INDEXED_ACCESS, value);
             IVAdd(state->bytecode, index);
             estate->expressionType = EXPRESSION_MISSING_STORE;
             estate->valueType = VALUE_UNKNOWN;
@@ -1287,7 +1287,7 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
         if (!first)
         {
             int variable2 = finishRValue(state, estate);
-            writeOp(state->bytecode, OP_CONCAT_STRING, variable);
+            writeOp(state, OP_CONCAT_STRING, variable);
             IVAdd(state->bytecode, variable2);
             estate->expressionType = EXPRESSION_MISSING_STORE;
             estate->valueType = VALUE_STRING;
@@ -1322,7 +1322,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
             return false;
         }
         value = finishRValue(state, estate);
-        writeOp(state->bytecode, OP_NEG, value);
+        writeOp(state, OP_NEG, value);
         skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_MISSING_STORE;
         estate->valueType = VALUE_NUMBER;
@@ -1336,7 +1336,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
             return false;
         }
         value = finishRValue(state, estate);
-        writeOp(state->bytecode, OP_NOT, value);
+        writeOp(state, OP_NOT, value);
         skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_MISSING_STORE;
         return true;
@@ -1349,7 +1349,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
             return false;
         }
         value = finishRValue(state, estate);
-        writeOp(state->bytecode, OP_INV, value);
+        writeOp(state, OP_INV, value);
         skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_MISSING_STORE;
         estate->valueType = VALUE_NUMBER;
@@ -1703,7 +1703,7 @@ static boolean parseAssignmentExpressionRest(ParseState *state,
     {
         return false;
     }
-    writeOp(state->bytecode, instruction, value);
+    writeOp(state, instruction, value);
     IVAdd(state->bytecode, value2);
     estate2.expressionType = EXPRESSION_MISSING_STORE;
     return finishLValue(state, estate, &estate2);
@@ -1827,7 +1827,7 @@ static boolean parseReturnRest(ParseState *state)
 
     if (peekNewline(state))
     {
-        writeOp(state->bytecode, OP_RETURN_VOID, 0);
+        writeOp(state, OP_RETURN_VOID, 0);
         return true;
     }
     oldTempSize = IVSize(&temp);
@@ -1843,7 +1843,7 @@ static boolean parseReturnRest(ParseState *state)
         if (peekNewline(state))
         {
             uint count = (uint)(IVSize(&temp) - oldTempSize);
-            writeOp(state->bytecode, OP_RETURN, (int)count);
+            writeOp(state, OP_RETURN, (int)count);
             IVAppend(&temp, oldTempSize, state->bytecode, count);
             IVSetSize(&temp, oldTempSize);
             return true;
@@ -1859,7 +1859,7 @@ static uint parseBlock(ParseState *state, uint indent)
 
     if (indent < state->statementIndent)
     {
-        writeOp(state->bytecode, OP_LINE, (int)state->line);
+        writeOp(state, OP_LINE, (int)state->line);
         error(state, "Expected increased indentation level");
         return indent;
     }
@@ -1867,7 +1867,7 @@ static uint parseBlock(ParseState *state, uint indent)
     state->statementIndent = indent;
     for (;;)
     {
-        writeOp(state->bytecode, OP_LINE, (int)state->line);
+        writeOp(state, OP_LINE, (int)state->line);
         if (indent != state->statementIndent)
         {
             if (indent > state->statementIndent || (indent && !oldStatementIndent))
@@ -1988,10 +1988,10 @@ static uint parseBlock(ParseState *state, uint indent)
                     loopTop = createJumpTargetHere(state);
                     afterLoop = createJumpTarget(state);
 
-                    writeOp(state->bytecode, OP_ADD, iterIndex);
+                    writeOp(state, OP_ADD, iterIndex);
                     IVAdd(state->bytecode, iterStep);
                     IVAdd(state->bytecode, iterIndex);
-                    writeOp(state->bytecode, OP_ITER_GET, iterCollection);
+                    writeOp(state, OP_ITER_GET, iterCollection);
                     IVAdd(state->bytecode, iterIndex);
                     IVAdd(state->bytecode, intFromRef(identifier));
                     iterCondition = createVariable(state);
@@ -2067,7 +2067,7 @@ static void parseFunctionBody(ParseState *state)
     {
         parseBlock(state, indent);
     }
-    writeOp(state->bytecode, OP_RETURN_VOID, 0);
+    writeOp(state, OP_RETURN_VOID, 0);
     state->program->maxJumpCount = max(state->program->maxJumpCount, state->jumpCount);
     state->program->maxJumpTargetCount = max(state->program->maxJumpTargetCount,
                                              (uint)state->jumpTargetCount);
@@ -2082,7 +2082,7 @@ static boolean parseFunctionDeclarationRest(ParseState *state, vref functionName
     size_t varargOffset;
     int varargIndex = INT_MAX;
 
-    writeOp(state->bytecode, OP_FUNCTION_UNLINKED, intFromRef(functionName));
+    writeOp(state, OP_FUNCTION_UNLINKED, intFromRef(functionName));
     paramsOffset = IVSize(state->bytecode);
     IVAdd(state->bytecode, 0);
     varargOffset = IVSize(state->bytecode);
@@ -2212,14 +2212,14 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
     state.current = state.start;
     state.limit = state.start + size;
 
-    writeOp(state.bytecode, OP_FILE, intFromRef(filename));
+    writeOp(&state, OP_FILE, intFromRef(filename));
     IVAddRef(state.bytecode, ns);
 
     while (!eof(&state))
     {
         if (peekIdentifier(&state))
         {
-            writeOp(state.bytecode, OP_LINE, (int)state.line);
+            writeOp(&state, OP_LINE, (int)state.line);
             state.statementLine = state.line;
             name = readIdentifier(&state);
             if (readOperator(&state, ':'))
@@ -2239,7 +2239,7 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
                     /* TODO: skip parsing function body */
                     goto error;
                 }
-                writeOp(state.bytecode, OP_FUNCTION_UNLINKED, intFromRef(name));
+                writeOp(&state, OP_FUNCTION_UNLINKED, intFromRef(name));
                 IVAdd(state.bytecode, 0);
                 IVAdd(state.bytecode, 0);
                 parseFunctionBody(&state);
