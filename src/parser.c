@@ -25,7 +25,6 @@ typedef struct
     uint jumpCount;
     int jumpTargetCount;
 
-    /* Number of named+anonymous variables. */
     int unnamedVariableCount;
 
     intvector *bytecode;
