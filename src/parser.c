@@ -13,8 +13,8 @@
 
 typedef struct
 {
-    const byte *start;
     const byte *current;
+    const byte *start;
     const byte *limit;
     ParsedProgram *program;
     namespaceref ns;
