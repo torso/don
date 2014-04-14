@@ -5,13 +5,11 @@
 #include "bytevector.h"
 #include "file.h"
 #include "heap.h"
-#include "inthashmap.h"
 #include "intvector.h"
 #include "namespace.h"
 #include "native.h"
 #include "parser.h"
 #include "stringpool.h"
-#include "util.h"
 
 typedef struct
 {
