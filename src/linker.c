@@ -49,30 +49,6 @@ static attrprintf(2, 3) void errorf(LinkState *state, const char *format, ...)
     va_end(args);
 }
 
-static int lookupFunction(LinkState *state, namespaceref explicitNS, vref name)
-{
-    int function;
-    if (explicitNS)
-    {
-        function = NamespaceGetFunction(explicitNS, name);
-        if (function < 0)
-        {
-            errorf(state, "Unknown function '%s.%s'",
-                   HeapGetString(NamespaceGetName(explicitNS)),
-                   HeapGetString(name));
-        }
-    }
-    else
-    {
-        function = NamespaceLookupFunction(state->ns, name);
-        if (function < 0)
-        {
-            errorf(state, "Unknown function '%s'", HeapGetString(name));
-        }
-    }
-    return function;
-}
-
 static void finishFunction(LinkState *state)
 {
     if (IVSize(&state->out))
@@ -298,8 +274,9 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
             break;
         case OP_INVOKE_UNLINKED:
         {
-            namespaceref explicitNS = refFromInt(*read++);
-            int function = lookupFunction(&state, explicitNS, refFromInt(arg));
+            vref nsName = refFromInt(*read++);
+            namespaceref ns = 0;
+            int function;
             int functionOffset;
             int parameterCount;
             int varargIndex;
@@ -315,10 +292,31 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
             assert(argumentCount >= 0);
             assert(returnValueCount >= 0);
 
-            if (function < 0)
+            if (nsName)
             {
-                read += argumentCount * 2 + returnValueCount;
-                break;
+                ns = NamespaceGetNamespace(state.ns, nsName);
+                if (!ns)
+                {
+                    errorf(&state, "Unknown namespace '%s'", HeapGetString(nsName));
+                    read += argumentCount * 2 + returnValueCount;
+                    break;
+                }
+                function = NamespaceGetFunction(ns, refFromInt(arg));
+                if (function < 0)
+                {
+                    errorf(&state, "Unknown function '%s.%s'",
+                           HeapGetString(nsName), HeapGetString(refFromInt(arg)));
+                }
+            }
+            else
+            {
+                function = NamespaceLookupFunction(state.ns, refFromInt(arg));
+                if (function < 0)
+                {
+                    errorf(&state, "Unknown function '%s'", HeapGetString(refFromInt(arg)));
+                    read += argumentCount * 2 + returnValueCount;
+                    break;
+                }
             }
 
             functionOffset = IVGet(&parsed->functions, (size_t)function);

@@ -809,7 +809,7 @@ static boolean finishLValue(ParseState *state, const ExpressionState *lvalue,
 }
 
 static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
-                                   namespaceref ns, vref name)
+                                   vref ns, vref name)
 {
     ExpressionState estateArgument;
     size_t oldTempSize = IVSize(&temp);
@@ -1055,7 +1055,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     ExpressionState estate2;
     vref identifier = estate->identifier;
     vref string;
-    namespaceref ns;
+    vref ns;
 
     estate->valueType = VALUE_UNKNOWN;
     estate->identifier = 0;
@@ -1094,23 +1094,16 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         if (!peekOperator2(state, '.', '.') &&
             readOperator(state, '.'))
         {
-            ns = NamespaceGetNamespace(state->ns, identifier);
-            if (!ns)
+            if (state->ns == NAMESPACE_DON && identifier == StringPoolAdd("native"))
             {
-                if (state->ns == NAMESPACE_DON &&
-                    identifier == StringPoolAdd("native"))
+                identifier = readVariableName(state);
+                if (!identifier || !readExpectedOperator(state, '('))
                 {
-                    identifier = readVariableName(state);
-                    if (!identifier || !readExpectedOperator(state, '('))
-                    {
-                        return false;
-                    }
-                    return parseNativeInvocationRest(state, estate, identifier);
+                    return false;
                 }
-                error(state, "Unknown namespace '%s'",
-                      HeapGetString(identifier));
-                return false;
+                return parseNativeInvocationRest(state, estate, identifier);
             }
+            ns = identifier;
             identifier = readVariableName(state);
             if (!identifier)
             {

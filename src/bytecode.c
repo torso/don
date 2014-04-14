@@ -328,7 +328,7 @@ static const int *disassemble(const int *bytecode, const int *base)
         fputs("invoke_unlinked ", stdout);
         if (ns)
         {
-            printf("%s.", HeapGetString(NamespaceGetName(ns)));
+            printf("%s.", HeapGetString(ns));
         }
         printf("%s(", HeapGetString(functionName));
         assert(argumentCount >= 0);
