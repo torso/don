@@ -2291,6 +2291,7 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
         }
         else if (!peekReadNewline(&state))
         {
+            writeOp(&state, OP_LINE, (int)state.line);
             error(&state, "Unsupported character: '%c'", *state.current);
             skipEndOfLine(&state);
         }
