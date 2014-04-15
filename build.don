@@ -165,6 +165,10 @@ debug:
    program = compile()
    exec(gdb program '-f 'input env:{'XDG_CACHE_HOME @tempcache})
 
+disasm:
+   program = compile(optimize:true)
+   exec('objdump '-d program)
+
 install:
    program = compile("/usr/local/share/don/" optimize:true)
    exec('rm '-f @/usr/local/bin/don)
