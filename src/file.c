@@ -650,6 +650,10 @@ void FileClose(File *file)
     {
         feMUnmap(file->fe);
     }
+    else if (!file->fe->dataRefCount)
+    {
+        feClose(file->fe);
+    }
     if (!--file->fe->refCount)
     {
         free(file->fe);
@@ -665,12 +669,25 @@ size_t FileSize(File *file)
 
 void FileRead(File *file, byte *buffer, size_t size)
 {
+    ssize_t sizeRead;
+
+    assert(size);
+    assert(size <= SSIZE_MAX);
     assert(file);
     assert(file->fe);
-    feMMap(file->fe);
-    assert(feSize(file->fe) >= size);
-    memcpy(buffer, file->fe->data, size);
-    feMUnmap(file->fe);
+    assert(file->fe->fd);
+    do
+    {
+        sizeRead = read(file->fe->fd, buffer, size);
+        if (sizeRead < 0)
+        {
+            FailIO("Cannot read file", file->fe->path);
+        }
+        assert((size_t)sizeRead <= size);
+        buffer += sizeRead;
+        size -= size;
+    }
+    while (size);
 }
 
 void FileWrite(File *file, const byte *data, size_t size)

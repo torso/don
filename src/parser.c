@@ -2184,11 +2184,9 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
     File file;
     size_t size;
     vref name;
-    byte *buffer = null;
+    byte *buffer;
 
     assert(filename);
-    FileOpen(&file, HeapGetString(filename), VStringLength(filename));
-    FileMMap(&file, &state.start, &size);
     state.ns = ns;
     state.filename = filename;
     state.line = 1;
@@ -2197,15 +2195,16 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
     state.program = program;
     state.constants = &program->constants;
 
-    if (size && state.start[size - 1] != '\n')
-    {
-        buffer = (byte*)malloc(size + 1);
-        memcpy(buffer, state.start, size);
-        buffer[size++] = '\n';
-        FileClose(&file);
-        state.start = buffer;
-    }
+    FileOpen(&file, HeapGetString(filename), VStringLength(filename));
+    size = FileSize(&file);
+    buffer = (byte*)malloc(size + 1);
+    FileRead(&file, buffer, size);
+    FileClose(&file);
+    /* Make sure the file ends with a newline. That way there is only a need to
+       look for end-of-file on newlines. */
+    buffer[size++] = '\n';
 
+    state.start = buffer;
     state.current = state.start;
     state.limit = state.start + size;
 
@@ -2298,12 +2297,5 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
     }
 
 error:
-    if (buffer)
-    {
-        free(buffer);
-    }
-    else
-    {
-        FileClose(&file);
-    }
+    free(buffer);
 }
