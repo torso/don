@@ -37,7 +37,7 @@ typedef enum
     EXPRESSION_STORED,
     EXPRESSION_MISSING_STORE,
     EXPRESSION_VARIABLE,
-    /* EXPRESSION_FIELD, */
+    EXPRESSION_FIELD,
     EXPRESSION_MANY
 } ExpressionType;
 
@@ -61,6 +61,7 @@ typedef struct
     vref valueIdentifier;
     vref constant;
     nativefunctionref nativeFunction;
+    vref ns;
     int valueCount;
     boolean parseConstant;
     boolean allowSpace;
@@ -715,10 +716,9 @@ static void finishAndStoreValueAt(ParseState *state, const ExpressionState *esta
         }
         return;
 
-    /* case EXPRESSION_FIELD: */
-    /*     writeOp(state, OP_LOAD_FIELD, variable); */
-    /*     IVAdd(state->bytecode, FieldIndexGetIndex(estate->field)); */
-    /*     return; */
+    case EXPRESSION_FIELD:
+        writeOp3(state, OP_LOAD_FIELD, estate->variable, intFromRef(estate->ns), variable);
+        return;
     }
     unreachable;
 }
@@ -745,11 +745,10 @@ static int finishRValue(ParseState *state, const ExpressionState *estate)
     case EXPRESSION_VARIABLE:
         return intFromRef(estate->valueIdentifier);
 
-    /* case EXPRESSION_FIELD: */
-    /*     variable = createVariable(state); */
-    /*     writeOp(state, OP_LOAD_FIELD, variable); */
-    /*     IVAdd(state->bytecode, FieldIndexGetIndex(estate->field)); */
-    /*     return variable; */
+    case EXPRESSION_FIELD:
+        variable = createVariable(state);
+        writeOp3(state, OP_LOAD_FIELD, estate->variable, intFromRef(estate->ns), variable);
+        return variable;
     }
     unreachable;
 }
@@ -796,11 +795,10 @@ static boolean finishLValue(ParseState *state, const ExpressionState *lvalue,
         finishAndStoreValueAt(state, rvalue, intFromRef(lvalue->valueIdentifier));
         return true;
 
-    /* case EXPRESSION_FIELD: */
-    /*     variable = finishRValue(state, rvalue); */
-    /*     writeOp(state, OP_STORE_FIELD, variable); */
-    /*     IVAdd(state->bytecode, FieldIndexGetIndex(lvalue->field)); */
-    /*     return true; */
+    case EXPRESSION_FIELD:
+        writeOp3(state, OP_STORE_FIELD, lvalue->variable,
+                 intFromRef(lvalue->ns), finishRValue(state, rvalue));
+        return true;
     }
     unreachable;
 }
@@ -1110,28 +1108,15 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             {
                 return parseInvocationRest(state, estate, ns, identifier);
             }
-            /* estate->expressionType = EXPRESSION_FIELD; */
-            /* estate->field = NamespaceGetField(ns, identifier); */
-            /* if (!estate->field) */
-            /* { */
-            /*     error(state, "Unknown field '%s.%s'", */
-            /*                    HeapGetString(NamespaceGetName(ns)), */
-            /*                    HeapGetString(identifier)); */
-            /* } */
-            /* return true; */
-            assert(false);
-            return false;
+            estate->expressionType = EXPRESSION_FIELD;
+            estate->ns = ns;
+            estate->variable = intFromRef(identifier);
+            return true;
         }
         if (readOperator(state, '('))
         {
             return parseInvocationRest(state, estate, 0, identifier);
         }
-        /* estate->field = NamespaceLookupField(state->ns, identifier); */
-        /* if (estate->field) */
-        /* { */
-        /*     estate->expressionType = EXPRESSION_FIELD; */
-        /*     return true; */
-        /* } */
         estate->expressionType = EXPRESSION_VARIABLE;
         estate->valueIdentifier = identifier;
         return true;

@@ -281,6 +281,8 @@ static void execute(VM *vm)
 
         case OP_FUNCTION:
         case OP_FUNCTION_UNLINKED:
+        case OP_LOAD_FIELD:
+        case OP_STORE_FIELD:
         case OP_JUMPTARGET:
         case OP_JUMP_INDEXED:
         case OP_BRANCH_TRUE_INDEXED:

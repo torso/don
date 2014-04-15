@@ -1240,6 +1240,8 @@ static vref executeUnary(Instruction op, vref value)
     case OP_LIST:
     case OP_FILELIST:
     case OP_COPY:
+    case OP_LOAD_FIELD:
+    case OP_STORE_FIELD:
     case OP_EQUALS:
     case OP_NOT_EQUALS:
     case OP_LESS_EQUALS:
@@ -1327,6 +1329,8 @@ static vref executeBinaryPartial(Instruction op, vref object,
     case OP_FILELIST:
     case OP_STORE_CONSTANT:
     case OP_COPY:
+    case OP_LOAD_FIELD:
+    case OP_STORE_FIELD:
     case OP_NOT:
     case OP_NEG:
     case OP_INV:
@@ -1452,6 +1456,8 @@ static vref executeBinary(Instruction op,
     case OP_LIST:
     case OP_FILELIST:
     case OP_COPY:
+    case OP_LOAD_FIELD:
+    case OP_STORE_FIELD:
     case OP_NOT:
     case OP_NEG:
     case OP_INV:

@@ -19,6 +19,8 @@ typedef enum
 
     OP_STORE_CONSTANT,
     OP_COPY,
+    OP_LOAD_FIELD,
+    OP_STORE_FIELD,
 
     OP_NOT,
     OP_NEG,

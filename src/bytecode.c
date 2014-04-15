@@ -130,6 +130,22 @@ static const int *disassemble(const int *bytecode, const int *base)
         printf("copy #%d -> #%d\n", arg, *bytecode++);
         break;
 
+    case OP_LOAD_FIELD:
+    {
+        namespaceref ns = refFromInt(*bytecode++);
+        printf("load_field %s.%s -> #%d\n", HeapGetString(ns),
+               HeapGetString(refFromInt(arg)), *bytecode++);
+        break;
+    }
+
+    case OP_STORE_FIELD:
+    {
+        namespaceref ns = refFromInt(*bytecode++);
+        printf("store_field #%d -> %s.%s\n", *bytecode++, HeapGetString(ns),
+               HeapGetString(refFromInt(arg)));
+        break;
+    }
+
     case OP_NOT:
         printf("not #%d -> #%d", arg, *bytecode++);
         break;

@@ -222,6 +222,54 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
             *write++ = (i & 0xff) | (linkVariable(&state, arg) << 8);
             *write++ = linkVariable(&state, *read++);
             break;
+        case OP_LOAD_FIELD:
+        {
+            vref nsName = refFromInt(*read++);
+            namespaceref ns;
+            int field;
+            int variable = *read++;
+            ns = NamespaceGetNamespace(state.ns, nsName);
+            if (!ns)
+            {
+                errorf(&state, "Unknown namespace '%s'", HeapGetString(nsName));
+                break;
+            }
+            field = NamespaceLookupField(ns, refFromInt(arg));
+            if (field < 0)
+            {
+                errorf(&state, "Unknown field '%s.%s'", HeapGetString(nsName),
+                       HeapGetString(refFromInt(arg)));
+                break;
+            }
+            write = IVGetAppendPointer(&state.out, 2);
+            *write++ = OP_COPY | ((state.smallestConstant - field - 1) << 8);
+            *write++ = linkVariable(&state, variable);
+            break;
+        }
+        case OP_STORE_FIELD:
+        {
+            vref nsName = refFromInt(*read++);
+            namespaceref ns;
+            int field;
+            int variable = *read++;
+            ns = NamespaceGetNamespace(state.ns, nsName);
+            if (!ns)
+            {
+                errorf(&state, "Unknown namespace '%s'", HeapGetString(nsName));
+                break;
+            }
+            field = NamespaceLookupField(ns, refFromInt(arg));
+            if (field < 0)
+            {
+                errorf(&state, "Unknown field '%s.%s'", HeapGetString(nsName),
+                       HeapGetString(refFromInt(arg)));
+                break;
+            }
+            write = IVGetAppendPointer(&state.out, 2);
+            *write++ = OP_COPY | (linkVariable(&state, variable) << 8);
+            *write++ = state.smallestConstant - field - 1;
+            break;
+        }
         case OP_ITER_GET:
             write = IVGetAppendPointer(&state.out, 4);
             *write++ = (i & 0xff) | (linkVariable(&state, arg) << 8);
