@@ -2062,7 +2062,7 @@ static void parseFunctionBody(ParseState *state)
     state->jumpTargetCount = 0;
     state->unnamedVariableCount = 0;
     indent = readNewline(state);
-    if (!eof(state))
+    if (indent)
     {
         parseBlock(state, indent);
     }
