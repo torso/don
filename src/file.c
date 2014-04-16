@@ -347,66 +347,95 @@ void FileDisposeAll(void)
 
 
 /* TODO: Handle backslashes */
-static char *cleanFilename(char *filename, size_t length, size_t *resultLength)
+static size_t cleanFilename(char *filename, size_t length)
 {
-    char *p;
+    char *write = filename;
+    const char *read = filename;
+    const char *found = filename;
 
     assert(length);
-    p = filename + length;
-    do
+
+    for (;;)
     {
-        p--;
-        if (*p == '/')
+        size_t l = (size_t)(filename + length - found);
+        found = (char*)memchr((const void*)found, '/', l);
+        if (!found)
         {
-            if (p[1] == '/')
+            l = (size_t)(filename + length - read);
+            memmove(write, read, l + 1);
+            length = (size_t)(write + l - filename);
+            goto done;
+        }
+        found++;
+        for (;;)
+        {
+            int skip;
+            if (*found == '/')
             {
                 /* Strip // */
-                memmove(p, p + 1, length - (size_t)(p - filename));
-                length--;
+                skip = 1;
             }
-            else if (p[1] == '.')
+            else if (*found == '.')
             {
-                if (p[2] == '/')
+                if (found[1] == '/')
                 {
                     /* Strip /./ */
-                    memmove(p, p + 2, length - (size_t)(p - filename) - 1);
-                    length -= 2;
+                    skip = 2;
                 }
-                else if (!p[2])
+                else if (!found[1])
                 {
                     /* Strip /. */
-                    p[1] = 0;
-                    length--;
+                    l = (size_t)(found - read);
+                    memmove(write, read, l);
+                    write += l;
+                    *write = 0;
+                    length = (size_t)(write - filename);
+                    goto done;
                 }
-                else if (p[2] == '.' && p[3] == '/' && !p[4])
+                else if (found[1] == '.' && found[2] == '/' && !found[3])
                 {
-                    /* Strip /../ -> /.. */
-                    p[3] = 0;
-                    length--;
+                    /* Strip /../ -> /.. or -> / at start of path*/
+                    l = (size_t)(found - read);
+                    memmove(write, read, l);
+                    write += l;
+                    if (write != filename + 1)
+                    {
+                        *write++ = '.';
+                        *write++ = '.';
+                    }
+                    *write = 0;
+                    length = (size_t)(write - filename);
+                    goto done;
+                }
+                else if (found[1] == '.' && (found[2] == '/' || !found[2]) &&
+                         write == filename + 1 && found == read)
+                {
+                    /* Strip /../ -> / at start of path */
+                    skip = 2;
+                }
+                else
+                {
+                    break;
                 }
             }
+            else
+            {
+                break;
+            }
+            l = (size_t)(found - read);
+            memmove(write, read, l);
+            write += l;
+            read = found + skip;
+            found = read;
         }
     }
-    while (p != filename);
 
-    while (length >= 3 && p[0] == '/' && p[1] == '.' && p[2] == '.')
+done:
+    if (length >= 4 && filename[length - 4] == '/' && filename[length - 3] == '.' && filename[length - 2] == '.' && filename[length - 1] == '/')
     {
-        if (!p[3])
-        {
-            p[1] = 0;
-            length = 1;
-            break;
-        }
-        if (p[3] == '/')
-        {
-            memmove(p, p + 3, length - 2);
-            length -= 3;
-            continue;
-        }
-        break;
+        filename[--length] = 0;
     }
-    *resultLength = length;
-    return filename;
+    return length;
 }
 
 char *FileCreatePath(const char *restrict base, size_t baseLength,
@@ -445,7 +474,7 @@ char *FileCreatePath(const char *restrict base, size_t baseLength,
     buffer[base2Length + baseLength] = '/';
     memcpy(&buffer[base2Length + baseLength + 1], path, length);
     buffer[base2Length + baseLength + length + 1] = 0;
-    cleanFilename(buffer, base2Length + baseLength + length + 1, resultLength);
+    *resultLength = cleanFilename(buffer, base2Length + baseLength + length + 1);
 
     if (extension &&
         buffer[*resultLength - 1] != '/' &&

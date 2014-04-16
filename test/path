@@ -18,6 +18,7 @@ default:
    test(@/test/./ "/test/")
    test(@/test/.. "/test/..")
    test(@/test/../ "/test/..")
+   test(@/test/.././ "/test/..")
 
    test(@/test/a "/test/a")
    test(@/test/a/ "/test/a/")
@@ -27,6 +28,7 @@ default:
    test(@/.. "/")
    test(@/./ "/")
    test(@/./. "/")
+   test(@/./../a "/a")
    test(@/../ "/")
    test(@/../. "/")
    test(@/../.. "/")

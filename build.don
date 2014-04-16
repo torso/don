@@ -141,11 +141,13 @@ dbgtest:
 default:
    valgrind = true
    out exitcode = run(compile() '-f 'input)
+#   out exitcode = exec('time compile(optimize:true) 'test env:'{XDG_CACHE_HOME tempcache2})
+#   out exitcode = exec('time 'valgrind '-q '--tool=callgrind '--collect-systime=yes '--cache-sim=yes '--branch-sim=yes compile(optimize:true) 'test env:'{XDG_CACHE_HOME tempcache2})
    if exitcode
       fail()
 
 prof:
-   exec('valgrind '-q '--tool=callgrind '--cache-sim=yes '--branch-sim=yes compile(optimize:true) '-f 'input
+   exec('valgrind '-q '--tool=callgrind '--cache-sim=yes '--branch-sim=yes '--collect-systime=yes compile(optimize:true) '-f 'input
         env:{'XDG_CACHE_HOME @tempcache})
 
 gprof:
@@ -176,3 +178,63 @@ install:
    exec('mkdir @/usr/local/share/don/)
    exec('cp program @/usr/local/bin/)
    exec('cp @data/don.don @/usr/local/share/don/)
+
+b:
+   ofiles = cc(@test.c
+               flags:'{-ggdb3 -rdynamic
+                       -Wno-error=unused-parameter -Wno-error=unused-variable
+                       -Wno-error=unused-function -Wall -Wformat=2
+                       -Winit-self -Wmissing-include-dirs -Wswitch-enum
+                       -Wsync-nand -Wstrict-overflow=5 -Wfloat-equal
+                       -Wundef -Wshadow -Wunsafe-loop-optimizations
+                       -Wbad-function-cast -Wc++-compat -Wcast-align
+                       -Wwrite-strings -Wconversion -Wlogical-op
+                       -Waggregate-return -Wstrict-prototypes
+                       -Wold-style-definition -Wmissing-prototypes
+                       -Wmissing-declarations -Wmissing-noreturn
+                       -Wmissing-format-attribute -Wnormalized=nfc -Wpacked
+                       -Wpacked-bitfield-compat -Wredundant-decls
+                       -Wnested-externs -Wunreachable-code
+                       -Wno-error=unreachable-code -Winline -Winvalid-pch
+                       -Wdisabled-optimization -Wstack-protector -pipe
+                       -march=native -O2 -Wno-multichar})
+   p = link(ofiles name:'test)
+   exec('time p 0)
+#   exec('time p 1)
+#   exec('time p 3)
+#   exec('time p 7)
+#   exec('time p 15)
+#   exec('time p 31)
+#   exec('time p 63)
+#   exec('time p 127)
+#   exec('time p 255)
+#   exec('time p 511)
+#   exec('time p 1023)
+#   exec('time p 2047)
+#   exec('time p 4095)
+#   exec('time p 8191)
+#   exec('time p 16383)
+#   exec('time p 32767)
+#   exec('time p 65535)
+#   exec('time p 131071)
+#   exec('time p 262143)
+#   exec('time p 524287)
+#   exec('time p 1048575)
+
+benchmark:
+   p = compile(datadir:@benchmark/data/ optimize:true)
+   rm(@tempcache)
+#   exec('{cp -a tempcache2 tempcache})
+#   run(args:'{time strace $p -f $@benchmark/build.don})
+#   run(args:'{time $p -f $@benchmark/build.don partial})
+#   run(args:'{time valgrind -q $p -f $@benchmark/build.don})
+#   run(args:'{time gdb --args $p -f $@benchmark/build.don})
+   run(args:'{time $p -f $@benchmark/build.don})
+   run(args:'{time $p -f $@benchmark/build.don})
+
+benchmarkprof:
+   p = compile(datadir:@benchmark/data/ optimize:true)
+   rm(@tempcache)
+#   exec('{cp -a tempcache2 tempcache})
+   run(args:'{time valgrind -q --tool=callgrind --cache-sim=yes --branch-sim=yes --collect-systime=yes $p -f $@benchmark/build.don partial})
+   run(args:'{time $p -f $@benchmark/build.don partial})
