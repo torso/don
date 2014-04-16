@@ -21,6 +21,7 @@ typedef struct
     size_t functionStart;
     int smallestConstant;
     int variableCount;
+    int parameterCount;
     inthashmap variables;
     int *jumps;
     int jumpCount;
@@ -64,7 +65,8 @@ static void finishFunction(LinkState *state)
             *pinstruction = (instruction & 0xff) | ((target - offset - 2) << 8);
         }
 
-        IVSet(&state->out, state->functionStart, OP_FUNCTION | (state->variableCount << 8));
+        IVSet(&state->out, state->functionStart,
+              OP_FUNCTION | ((state->variableCount - state->parameterCount) << 8));
     }
 }
 
@@ -174,6 +176,7 @@ boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
             state.functionStart = IVSize(&state.out);
             IVAdd(&state.out, OP_FUNCTION);
             state.variableCount = *read++;
+            state.parameterCount = state.variableCount;
             assert(state.variableCount >= 0);
             read++; /* vararg index */
             for (param = 0; param < state.variableCount; param++)

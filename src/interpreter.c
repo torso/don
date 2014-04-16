@@ -82,7 +82,7 @@ static void initStackFrame(VM *vm, const int **ip, int *bp, int functionOffset,
     assert((i & 0xff) == OP_FUNCTION);
     *ip = bytecode;
     *bp = (int)(IVSize(&vm->stack) - parameterCount);
-    IVSetSize(&vm->stack, (size_t)(*bp + localsCount));
+    IVGrowValue(&vm->stack, intFromRef(HeapInvalid), (size_t)localsCount);
 }
 
 static void popStackFrame(VM *vm, const int **ip, int *bp, uint returnValues)

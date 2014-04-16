@@ -23,6 +23,7 @@ static nonnull pure unused size_t VECTOR_FUNC(Size)(const VECTOR_NAME *v)
 
 extern nonnull void VECTOR_FUNC(SetSize)(VECTOR_NAME *v, size_t size);
 extern nonnull void VECTOR_FUNC(Grow)(VECTOR_NAME *v, size_t size);
+extern nonnull void VECTOR_FUNC(GrowValue)(VECTOR_NAME *v, VECTOR_TYPE value, size_t size);
 extern nonnull void VECTOR_FUNC(GrowZero)(VECTOR_NAME *v, size_t size);
 extern nonnull void VECTOR_FUNC(ReserveSize)(VECTOR_NAME *v, size_t size);
 extern nonnull size_t VECTOR_FUNC(GetReservedAppendSize)(const VECTOR_NAME *v);
