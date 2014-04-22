@@ -897,32 +897,63 @@ boolean FileMkdir(const char *path, size_t length)
     FailIOErrno("Cannot create directory", fe->path, EEXIST);
 }
 
-void FileCopy(const char *srcPath unused, size_t srcLength unused,
-              const char *dstPath unused, size_t dstLength unused)
+void FileCopy(const char *srcPath, size_t srcLength unused,
+              const char *dstPath, size_t dstLength unused)
 {
-    FileEntry *feSrc = feEntry(srcPath, srcLength);
-    FileEntry *feDst = feEntry(dstPath, dstLength);
+    int srcfd;
+    int dstfd;
+    struct stat srcStat;
+    struct stat dstStat;
 
-    feOpen(feSrc, O_CLOEXEC | O_RDONLY);
-    if (!feSrc->fd)
+    srcfd = open(srcPath, O_CLOEXEC | O_RDONLY);
+    if (unlikely(srcfd == -1))
     {
-        FailIO("Error opening file", feSrc->path);
+        FailIO("Error opening file", srcPath);
     }
-    assert(!feIsDirectory(feSrc)); /* TODO: Copy directory */
-    feStat(feDst);
-    if (feDst->status.exists && feSrc->ino == feDst->ino && feSrc->dev == feDst->dev)
+    if (unlikely(fstat(srcfd, &srcStat)))
     {
-        return;
+        FailIO("Error accessing file", srcPath);
     }
-    feMMap(feSrc);
-    feOpen(feDst, O_CLOEXEC | O_CREAT | O_WRONLY | O_APPEND | O_TRUNC);
-    if (!feDst->fd)
+    assert(!S_ISDIR(srcStat.st_mode)); /* TODO: Copy directory */
+
+    /* TODO: Update file table */
+    dstfd = open(dstPath, O_CLOEXEC | O_CREAT | O_WRONLY,
+                 S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+    if (unlikely(dstfd == -1))
     {
-        FailIO("Error opening file", feDst->path);
+        FailIO("Error opening file", dstPath);
     }
-    feWrite(feDst, feSrc->data, feSize(feSrc));
-    feClose(feDst);
-    feMUnmap(feSrc);
+    if (unlikely(fstat(dstfd, &dstStat)))
+    {
+        FailIO("Error accessing file", dstPath);
+    }
+    if (srcStat.st_ino != dstStat.st_ino || srcStat.st_dev != dstStat.st_dev)
+    {
+        byte buffer[4096];
+        if (unlikely(ftruncate(dstfd, 0)))
+        {
+            FailIO("Error truncating file", dstPath);
+        }
+        for (;;)
+        {
+            ssize_t r = read(srcfd, buffer, sizeof(buffer));
+            if (r <= 0)
+            {
+                if (unlikely(r))
+                {
+                    FailIO("Error reading file", srcPath);
+                }
+                break;
+            }
+            if (write(dstfd, buffer, (size_t)r) != r)
+            {
+                FailIO("Error writing file", dstPath);
+            }
+        }
+    }
+
+    close(srcfd);
+    close(dstfd);
 }
 
 void FileRename(const char *oldPath, size_t oldLength,
