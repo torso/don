@@ -49,8 +49,16 @@ static size_t parentPathLength(const char *path, size_t length)
 {
     assert(length > 1);
     assert(*path == '/');
-    while (path[--length] != '/');
-    return max(length, 1);
+    length--;
+    if (path[length] == '/')
+    {
+        length--;
+    }
+    while (path[length] != '/')
+    {
+        length--;
+    }
+    return length + 1;
 }
 
 
