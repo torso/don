@@ -11,8 +11,9 @@ typedef struct
 
 typedef struct
 {
-    FileEntry *fe;
-    const byte *data;
+    int fd;
+    const char *path;
+    byte *data;
     size_t dataSize;
 } File;
 

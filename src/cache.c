@@ -107,6 +107,7 @@ static void disposeIndex(IndexInfo *info)
 
 static void deleteIndex(IndexInfo *info)
 {
+    FileMUnmap(&info->file);
     FileClose(&info->file);
     FileDelete(info->path, info->pathLength);
     info->header.sequenceNumber = 0;
@@ -370,6 +371,7 @@ void CacheDispose(void)
 
     if (infoRead.header.sequenceNumber)
     {
+        FileMUnmap(&infoRead.file);
         FileClose(&infoRead.file);
         FileDelete(infoRead.path, infoRead.pathLength);
         disposeIndex(&infoRead);

@@ -21,20 +21,15 @@
 
 struct _FileEntry
 {
-    uint refCount;
-    uint dataRefCount;
-    int fd;
     mode_t mode;
-    ino_t ino;
-    dev_t dev;
     boolean hasStat;
     FileStatus status;
-    byte *data;
     size_t pathLength;
-    char path[1];
+    char *path;
+    char pathBuffer[PATH_MAX];
 };
 
-static FileEntry *table[0x400];
+static FileEntry table[0x400];
 static const uint tableMask = sizeof(table) / sizeof(*table) - 1;
 static char *cwd;
 static size_t cwdLength;
@@ -70,62 +65,28 @@ static uint feIndex(const char *path, size_t length)
     return HashString(path, length) & tableMask;
 }
 
-static void initEntry(FileEntry *fe, const char *path, size_t length)
-{
-    fe->refCount = 1;
-    fe->dataRefCount = 0;
-    fe->fd = 0;
-    fe->hasStat = 0;
-    fe->data = null;
-    fe->pathLength = length;
-    memcpy(fe->path, path, length);
-    fe->path[length] = 0;
-}
-
-static FileEntry *createEntry(uint index, const char *path, size_t length)
-{
-    FileEntry *fe = (FileEntry*)malloc(sizeof(*fe) - sizeof(fe->path) + length + 1);
-    table[index] = fe;
-    initEntry(fe, path, length);
-    return fe;
-}
-
 static void clearTableEntry(uint index)
 {
-    assert(table[index]->refCount);
-    if (!--table[index]->refCount)
+    if (table[index].path != table[index].pathBuffer)
     {
-        free(table[index]);
+        free(table[index].path);
     }
-    table[index] = null;
+    table[index].path = null;
+    table[index].pathLength = 0;
 }
 
 static FileEntry *feEntry(const char *path, size_t length)
 {
     uint index = feIndex(path, length);
-    FileEntry *fe = table[index];
+    FileEntry *fe = table + index;
 
-    if (!fe)
+    if (fe->pathLength != length || memcmp(fe->path, path, length))
     {
-        return createEntry(index, path, length);
-    }
-    if (fe->refCount > 1)
-    {
-        fe->refCount--;
-        return createEntry(index, path, length);
-    }
-    if (fe->pathLength != length)
-    {
-        if (fe->pathLength < length) /* TODO: Track allocated length? */
-        {
-            clearTableEntry(index);
-            return createEntry(index, path, length);
-        }
-        initEntry(fe, path, length);
-    }
-    else if (memcmp(fe->path, path, length))
-    {
-        initEntry(fe, path, length);
+        fe->hasStat = false;
+        fe->pathLength = length;
+        fe->path = length >= sizeof(fe->pathBuffer) ? (char*)malloc(length + 1) : fe->pathBuffer;
+        memcpy(fe->path, path, length);
+        fe->path[length] = 0;
     }
     return fe;
 }
@@ -139,20 +100,28 @@ static void feStatat(FileEntry *fe, int fdParent, const char *path)
 
         fe->hasStat = true;
         memset(&fe->status, 0, sizeof(fe->status));
-        if (fe->fd)
+        if (
+#ifdef HAVE_OPENAT
+            fstatat(fdParent, path, &s, AT_SYMLINK_NOFOLLOW)
+#else
+            lstat(fe->path, &s)
+#endif
+            )
         {
-            if (fstat(fe->fd, &s))
+            if (errno != ENOENT)
             {
                 FailIO("Error accessing file", fe->path);
             }
+            return;
         }
-        else
+        if (S_ISLNK(s.st_mode))
         {
+            /* TODO: Maybe do something more clever with symlinks. */
             if (
 #ifdef HAVE_OPENAT
-                    fstatat(fdParent, path, &s, AT_SYMLINK_NOFOLLOW)
+                fstatat(fdParent, path, &s2, 0)
 #else
-                    lstat(fe->path, &s)
+                stat(fe->path, &s2)
 #endif
                 )
             {
@@ -160,34 +129,14 @@ static void feStatat(FileEntry *fe, int fdParent, const char *path)
                 {
                     FailIO("Error accessing file", fe->path);
                 }
-                return;
             }
-            if (S_ISLNK(s.st_mode))
+            else
             {
-                /* TODO: Maybe do something more clever with symlinks. */
-                if (
-#ifdef HAVE_OPENAT
-                        fstatat(fdParent, path, &s2, 0)
-#else
-                        stat(fe->path, &s2)
-#endif
-                    )
-                {
-                    if (errno != ENOENT)
-                    {
-                        FailIO("Error accessing file", fe->path);
-                    }
-                }
-                else
-                {
-                    s = s2;
-                }
+                s = s2;
             }
         }
 
         fe->mode = s.st_mode;
-        fe->dev = s.st_dev;
-        fe->ino = s.st_ino;
         fe->status.exists = true;
         fe->status.size = (size_t)s.st_size;
         fe->status.mtime.seconds = s.st_mtime;
@@ -198,31 +147,6 @@ static void feStatat(FileEntry *fe, int fdParent, const char *path)
 static void feStat(FileEntry *fe)
 {
     feStatat(fe, AT_FDCWD, fe->path);
-}
-
-static void feClose(FileEntry *fe)
-{
-    assert(fe->fd);
-    assert(!fe->data);
-    close(fe->fd);
-    fe->fd = 0;
-}
-
-static void feOpen(FileEntry *fe, int flags)
-{
-    assert(!fe->fd);
-    fe->fd = open(fe->path, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-    if (fe->fd == -1)
-    {
-        fe->fd = 0;
-        if (errno == ENOENT)
-        {
-            assert(!fe->hasStat || !fe->status.exists || (flags & O_CREAT));
-            fe->hasStat = true;
-            memset(&fe->status, 0, sizeof(fe->status));
-        }
-        return;
-    }
 }
 
 static boolean feExists(FileEntry *fe)
@@ -239,81 +163,6 @@ static boolean feIsFile(FileEntry *fe)
 static boolean feIsDirectory(FileEntry *fe)
 {
     return feExists(fe) && S_ISDIR(fe->mode);
-}
-
-static size_t feSize(FileEntry *fe)
-{
-    feStat(fe);
-    return fe->status.size;
-}
-
-static void feWrite(FileEntry *fe, const byte *data, size_t size)
-{
-    ssize_t written;
-
-    assert(fe->fd);
-    fe->hasStat = false;
-    while (size)
-    {
-        written = write(fe->fd, data, size);
-        if (written < 0)
-        {
-            FailIO("Error writing to file", fe->path);
-        }
-        assert((size_t)written <= size);
-        size -= (size_t)written;
-        data += written;
-    }
-}
-
-static void feMMap(FileEntry *fe)
-{
-    assert(fe);
-    assert(fe->fd);
-    if (!fe->dataRefCount++)
-    {
-        size_t size;
-        assert(!fe->data);
-        if (feIsDirectory(fe))
-        {
-            FailIOErrno("Cannot read file", fe->path, EISDIR);
-        }
-        size = feSize(fe);
-        if (!size)
-        {
-            fe->data = (byte*)"";
-        }
-        else
-        {
-            fe->data = (byte*)mmap(null, size, PROT_READ, MAP_PRIVATE, fe->fd, 0);
-            if (fe->data == (byte*)-1)
-            {
-                fe->data = null;
-                FailIO("Error reading file", fe->path);
-            }
-        }
-    }
-    assert(fe->data);
-}
-
-static void feMUnmap(FileEntry *fe)
-{
-    int error;
-
-    assert(fe);
-    assert(fe->data);
-    assert(fe->dataRefCount);
-    if (!--fe->dataRefCount)
-    {
-        size_t size = feSize(fe);
-        if (size)
-        {
-            error = munmap(fe->data, size);
-            assert(!error);
-        }
-        fe->data = null;
-        feClose(fe);
-    }
 }
 
 
@@ -344,11 +193,7 @@ void FileDisposeAll(void)
     uint i;
     for (i = 0; i < sizeof(table) / sizeof(*table); i++)
     {
-        if (table[i])
-        {
-            assert(table[i]->refCount == 1);
-            clearTableEntry(i);
-        }
+        clearTableEntry(i);
     }
     free(cwd);
 }
@@ -590,10 +435,7 @@ void FileMarkModified(const char *path unused, size_t length unused)
     uint i;
     for (i = 0; i < sizeof(table) / sizeof(*table); i++)
     {
-        if (table[i])
-        {
-            clearTableEntry(i);
-        }
+        clearTableEntry(i);
     }
 }
 
@@ -620,109 +462,88 @@ void FileOpen(File *file, const char *path, size_t length)
 
 boolean FileTryOpen(File *file, const char *path, size_t length)
 {
-    FileEntry *fe;
+    int fd;
 
     assert(file);
     assert(path);
     assert(length);
     assert(*path == '/');
+    assert(!pathIsDirectory(path, length));
 
-    fe = feEntry(path, length);
-    if (!fe->fd)
+    fd = open(path, O_CLOEXEC | O_RDONLY);
+    if (fd == -1)
     {
-        feOpen(fe, O_CLOEXEC | O_RDONLY);
-        if (!fe->fd)
+        if (errno == ENOENT)
         {
-            if (errno == ENOENT)
-            {
-                return false;
-            }
-            FailIO("Error opening file", fe->path);
+            return false;
         }
+        FailIO("Error opening file", path);
     }
-    if (pathIsDirectory(path, length) && !feIsDirectory(fe))
-    {
-        FailIOErrno("Error opening directory", fe->path, ENOTDIR);
-    }
-    fe->refCount++;
-    file->fe = fe;
+    file->fd = fd;
+    file->path = path;
     file->data = null;
     return true;
 }
 
 void FileOpenAppend(File *file, const char *path, size_t length, boolean truncate)
 {
-    FileEntry *fe;
+    int fd;
 
     assert(file);
     assert(path);
     assert(length);
     assert(*path == '/');
+    assert(!pathIsDirectory(path, length));
 
-    fe = feEntry(path, length);
-    assert(fe->refCount == 1);
-    assert(!fe->dataRefCount);
-    if (fe->fd)
+    /* TODO: Update file table */
+    fd = open(path, truncate ? O_CLOEXEC | O_CREAT | O_RDWR | O_APPEND | O_TRUNC :
+              O_CLOEXEC | O_CREAT | O_RDWR | O_APPEND,
+              S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+    if (fd == -1)
     {
-        feClose(fe);
+        FailIO("Error opening file", path);
     }
-    feOpen(fe, truncate ? O_CLOEXEC | O_CREAT | O_RDWR | O_APPEND | O_TRUNC :
-           O_CLOEXEC | O_CREAT | O_RDWR | O_APPEND);
-    if (!fe->fd)
-    {
-        FailIO("Error opening file", fe->path);
-    }
-    fe->refCount++;
-    fe->hasStat = false;
-    file->fe = fe;
+    file->fd = fd;
     file->data = null;
 }
 
 void FileClose(File *file)
 {
     assert(file);
-    assert(file->fe);
-    assert(file->fe->refCount);
-    if (file->data)
-    {
-        feMUnmap(file->fe);
-    }
-    else if (!file->fe->dataRefCount)
-    {
-        feClose(file->fe);
-    }
-    if (!--file->fe->refCount)
-    {
-        free(file->fe);
-    }
+    assert(file->fd);
+    assert(!file->data);
+    close(file->fd);
 }
 
 size_t FileSize(File *file)
 {
+    struct stat s;
+
     assert(file);
-    assert(file->fe);
-    return feSize(file->fe);
+    assert(file->fd);
+    if (unlikely(fstat(file->fd, &s)))
+    {
+        FailIO("Error accessing file", file->path);
+    }
+    return (size_t)s.st_size;
 }
 
 void FileRead(File *file, byte *buffer, size_t size)
 {
-    ssize_t sizeRead;
-
     assert(size);
     assert(size <= SSIZE_MAX);
     assert(file);
-    assert(file->fe);
-    assert(file->fe->fd);
+    assert(file->fd);
     do
     {
-        sizeRead = read(file->fe->fd, buffer, size);
+        ssize_t sizeRead = read(file->fd, buffer, size);
         if (sizeRead < 0)
         {
-            FailIO("Cannot read file", file->fe->path);
+            FailIO("Cannot read file", file->path);
         }
         assert((size_t)sizeRead <= size);
         buffer += sizeRead;
-        size -= size;
+        size -= (size_t)sizeRead;
     }
     while (size);
 }
@@ -730,8 +551,18 @@ void FileRead(File *file, byte *buffer, size_t size)
 void FileWrite(File *file, const byte *data, size_t size)
 {
     assert(file);
-    assert(file->fe);
-    feWrite(file->fe, data, size);
+    assert(file->fd);
+    while (size)
+    {
+        ssize_t written = write(file->fd, data, size);
+        if (written < 0)
+        {
+            FailIO("Error writing to file", file->path);
+        }
+        assert((size_t)written <= size);
+        size -= (size_t)written;
+        data += written;
+    }
 }
 
 boolean FileIsExecutable(const char *path, size_t length)
@@ -804,9 +635,9 @@ static void deleteDirectoryContents(const FileEntry *fe, int fd)
 void FileDelete(const char *path, size_t length)
 {
     FileEntry *fe = feEntry(path, length);
+    int fd;
     uint i;
 
-    assert(fe->refCount == 1); /* TODO */
     if (fe->hasStat && !fe->status.exists)
     {
         return;
@@ -827,33 +658,28 @@ void FileDelete(const char *path, size_t length)
 
     for (i = 0; i < sizeof(table) / sizeof(*table); i++)
     {
-        FileEntry *fe2 = table[i];
-        if (fe2 && fe2->pathLength > length && !memcmp(fe2->path, path, length) &&
-            fe2->path[length] == '/')
+        if (table[i].pathLength > length && !memcmp(table[i].path, path, length) &&
+            table[i].path[length] == '/')
         {
-            assert(fe2->refCount == 1); /* TODO */
-            if (!fe2->hasStat || (fe2->status.exists && !S_ISDIR(fe2->mode)))
+            if (!table[i].hasStat || (table[i].status.exists && !S_ISDIR(table[i].mode)))
             {
-                if (!unlink(fe2->path) && errno != ENOENT && errno != EISDIR)
+                if (!unlink(table[i].path) && errno != ENOENT && errno != EISDIR)
                 {
-                    FailIO("Error deleting file", fe2->path);
+                    FailIO("Error deleting file", table[i].path);
                 }
             }
-            fe2->hasStat = true;
-            memset(&fe2->status, 0, sizeof(fe2->status));
+            table[i].hasStat = true;
+            memset(&table[i].status, 0, sizeof(table[i].status));
         }
     }
 
-    if (!fe->fd)
+    fd = open(fe->path, O_CLOEXEC | O_RDONLY);
+    if (fd)
     {
-        feOpen(fe, O_CLOEXEC | O_RDONLY);
-        if (!fe->fd)
-        {
-            FailIO("Error deleting directory", fe->path);
-        }
+        FailIO("Error deleting directory", fe->path);
     }
-    deleteDirectoryContents(fe, fe->fd);
-    feClose(fe);
+    deleteDirectoryContents(fe, fd);
+    close(fd);
     if (rmdir(fe->path))
     {
         FailIO("Error deleting directory", fe->path);
@@ -962,12 +788,6 @@ void FileRename(const char *oldPath, size_t oldLength,
     FileEntry *feOld = feEntry(oldPath, oldLength);
     FileEntry *feNew = feEntry(newPath, newLength);
 
-    /* TODO */
-    assert(!feOld->fd);
-    assert(!feNew->fd);
-    assert(feOld->refCount == 1);
-    assert(feNew->refCount == 1);
-
     if (rename(feOld->path, feNew->path))
     {
         /* TODO: Rename directories and across file systems */
@@ -980,26 +800,32 @@ void FileRename(const char *oldPath, size_t oldLength,
 
 void FileMMap(File *file, const byte **p, size_t *size)
 {
-    assert(file);
+    size_t s;
+
     assert(p);
     assert(size);
+    assert(file);
+    assert(file->fd);
     assert(!file->data);
 
-    feMMap(file->fe);
-    file->data = file->fe->data;
-    file->dataSize = file->fe->status.size;
+    s = FileSize(file);
+    file->data = (byte*)mmap(null, s, PROT_READ, MAP_PRIVATE, file->fd, 0);
+    if (file->data == (byte*)-1)
+    {
+        FailIO("Error reading file", file->path);
+    }
+    file->dataSize = s;
     *p = file->data;
-    *size = file->dataSize;
+    *size = s;
 }
 
 void FileMUnmap(File *file)
 {
     assert(file);
-    if (file->data)
-    {
-        feMUnmap(file->fe);
-        file->data = null;
-    }
+    assert(file->data);
+
+    munmap(file->data, file->dataSize);
+    file->data = null;
 }
 
 static void traverseGlob(bytevector *path, int fdParent, size_t parentLength,
