@@ -314,7 +314,7 @@ static uint readNewline(ParseState *state)
         {
             state->current++;
         }
-        if (*state->current != '#')
+        if (unlikely(*state->current != '#'))
         {
             error(state, "Expected linebreak");
         }
@@ -363,7 +363,7 @@ static uint readNewline(ParseState *state)
 static boolean skipWhitespaceAndNewline(ParseState *state)
 {
     skipWhitespace(state);
-    if (peekNewline(state) && readNewline(state) <= state->statementIndent)
+    if (unlikely(peekNewline(state) && readNewline(state) <= state->statementIndent))
     {
         error(state, "Expected increased indentation for continued line");
         return false;
@@ -453,18 +453,18 @@ static boolean peekReadKeywordElse(ParseState *state)
 static vref readVariableName(ParseState *state)
 {
     vref identifier = peekReadIdentifier(state);
-    if (!identifier || isKeyword(identifier))
+    if (likely(identifier && !isKeyword(identifier)))
     {
-        error(state, "Expected variable name");
-        return 0;
+        return identifier;
     }
-    return identifier;
+    error(state, "Expected variable name");
+    return 0;
 }
 
 static boolean readExpectedKeyword(ParseState *state, vref keyword)
 {
     vref identifier = peekReadIdentifier(state);
-    if (identifier == keyword)
+    if (likely(identifier == keyword))
     {
         return true;
     }
@@ -574,7 +574,7 @@ static vref readFilename(ParseState *state)
         assert(!peekNewline(state)); /* TODO: error handling */
         state->current++;
     }
-    if (begin == state->current)
+    if (unlikely(begin == state->current))
     {
         error(state, "Expected filename");
         return 0;
@@ -640,12 +640,12 @@ static boolean readOperator3(ParseState *state, byte op1, byte op2, byte op3)
 
 static boolean readExpectedOperator(ParseState *state, byte op)
 {
-    if (!readOperator(state, op))
+    if (likely(readOperator(state, op)))
     {
-        error(state, "Expected operator '%c'. Got '%c'", op, *state->current);
-        return false;
+        return true;
     }
-    return true;
+    error(state, "Expected operator '%c'. Got '%c'", op, *state->current);
+    return false;
 }
 
 
@@ -666,7 +666,7 @@ static boolean parseNumber(ParseState *state, ExpressionState *estate)
     }
     while (isDigit(*state->current));
 
-    if (isIdentifierCharacter(*state->current))
+    if (unlikely(isIdentifierCharacter(*state->current)))
     {
         error(state, "Invalid character in number literal");
         return false;
@@ -758,7 +758,7 @@ static int parseRValue(ParseState *state, boolean constant)
     ExpressionState estate;
 
     estate.identifier = 0;
-    if (!parseExpression(state, &estate, 1, constant))
+    if (unlikely(!parseExpression(state, &estate, 1, constant)))
     {
         return 0;
     }
@@ -770,7 +770,7 @@ static boolean parseAndStoreValueAt(ParseState *state, int variable)
     ExpressionState estate;
 
     estate.identifier = 0;
-    if (!parseExpression(state, &estate, 1, false))
+    if (unlikely(!parseExpression(state, &estate, 1, false)))
     {
         return false;
     }
@@ -818,7 +818,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
     for (;;)
     {
         int value;
-        if (!skipWhitespaceAndNewline(state))
+        if (unlikely(!skipWhitespaceAndNewline(state)))
         {
             goto error;
         }
@@ -826,7 +826,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
         {
             break;
         }
-        if (!skipWhitespaceAndNewline(state))
+        if (unlikely(!skipWhitespaceAndNewline(state)))
         {
             goto error;
         }
@@ -838,7 +838,7 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 IVAddRef(&temp, estateArgument.identifier);
                 estateArgument.identifier = 0;
                 value = parseRValue(state, false);
-                if (!value || !skipWhitespaceAndNewline(state))
+                if (unlikely(!value || !skipWhitespaceAndNewline(state)))
                 {
                     goto error;
                 }
@@ -848,18 +848,18 @@ static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
                 {
                     break;
                 }
-                if (!readExpectedOperator(state, ':'))
+                if (unlikely(!readExpectedOperator(state, ':')))
                 {
                     goto error;
                 }
             }
-            if (!readExpectedOperator(state, ')'))
+            if (unlikely(!readExpectedOperator(state, ')')))
             {
                 goto error;
             }
             break;
         }
-        if (!parseExpression(state, &estateArgument, 1, false))
+        if (unlikely(!parseExpression(state, &estateArgument, 1, false)))
         {
             goto error;
         }
@@ -894,13 +894,13 @@ static boolean parseNativeInvocationRest(ParseState *state,
     int *restrict write;
     const int *restrict read;
 
-    if (!function)
+    if (unlikely(!function))
     {
         error(state, "Unknown native function '%s'",
               HeapGetString(name));
         return false;
     }
-    if ((uint)estate->valueCount != NativeGetReturnValueCount(function))
+    if (unlikely((uint)estate->valueCount != NativeGetReturnValueCount(function)))
     {
         error(state, "Native function returns %d values, but %d are handled",
               NativeGetReturnValueCount(function), estate->valueCount);
@@ -914,7 +914,7 @@ static boolean parseNativeInvocationRest(ParseState *state,
     for (i = 0; i < argumentCount; i++)
     {
         int value = parseRValue(state, false);
-        if (!value)
+        if (unlikely(!value))
         {
             IVSetSize(&temp, oldTempSize);
             return false;
@@ -942,7 +942,7 @@ static boolean parseBinaryOperationRest(
     int value = finishRValue(state, estate);
     int value2;
     skipExpressionWhitespace(state, estate);
-    if (!parseExpressionRest(state, estate))
+    if (unlikely(!parseExpressionRest(state, estate)))
     {
         return false;
     }
@@ -965,7 +965,7 @@ static boolean parseQuotedValue(ParseState *state, ExpressionState *estate)
     {
         state->current++;
     }
-    if (state->current == begin)
+    if (unlikely(state->current == begin))
     {
         error(state, "Invalid quoted value");
         return false;
@@ -982,7 +982,7 @@ static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
     size_t oldTempSize = IVSize(&temp);
 
     assert(!estate->identifier);
-    if (!skipWhitespaceAndNewline(state))
+    if (unlikely(!skipWhitespaceAndNewline(state)))
     {
         return false;
     }
@@ -991,12 +991,12 @@ static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
         estate2.identifier = 0;
         if (readOperator(state, '$'))
         {
-            if (!parseUnquotedExpression(state, &estate2, estate->parseConstant))
+            if (unlikely(!parseUnquotedExpression(state, &estate2, estate->parseConstant)))
             {
                 goto error;
             }
         }
-        else if (!parseQuotedValue(state, &estate2))
+        else if (unlikely(!parseQuotedValue(state, &estate2)))
         {
             goto error;
         }
@@ -1018,7 +1018,7 @@ static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
         {
             IVAdd(&temp, finishRValue(state, &estate2));
         }
-        if (!skipWhitespaceAndNewline(state))
+        if (unlikely(!skipWhitespaceAndNewline(state)))
         {
             goto error;
         }
@@ -1072,7 +1072,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
                 parsedConstant(estate, VALUE_BOOLEAN, HeapFalse);
                 return true;
             }
-            else if (identifier == keywordNull)
+            else if (likely(identifier == keywordNull))
             {
                 parsedConstant(estate, VALUE_BOOLEAN, 0);
                 return true;
@@ -1081,18 +1081,17 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
                   HeapGetString(identifier));
             return false;
         }
-        if (estate->parseConstant)
+        if (unlikely(estate->parseConstant))
         {
             error(state, "Expected constant");
             return false;
         }
-        if (!peekOperator2(state, '.', '.') &&
-            readOperator(state, '.'))
+        if (!peekOperator2(state, '.', '.') && readOperator(state, '.'))
         {
             if (state->ns == NAMESPACE_DON && identifier == StringPoolAdd("native"))
             {
                 identifier = readVariableName(state);
-                if (!identifier || !readExpectedOperator(state, '('))
+                if (unlikely(!identifier || !readExpectedOperator(state, '(')))
                 {
                     return false;
                 }
@@ -1100,7 +1099,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
             }
             ns = identifier;
             identifier = readVariableName(state);
-            if (!identifier)
+            if (unlikely(!identifier))
             {
                 return false;
             }
@@ -1136,7 +1135,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     if (peekString(state))
     {
         string = readString(state);
-        if (!string)
+        if (unlikely(!string))
         {
             return false;
         }
@@ -1146,7 +1145,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '('))
     {
         skipWhitespace(state);
-        if (!parseExpression(state, estate, estate->valueCount, estate->parseConstant))
+        if (unlikely(!parseExpression(state, estate, estate->valueCount, estate->parseConstant)))
         {
             return false;
         }
@@ -1167,7 +1166,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         do
         {
             estate2.identifier = 0;
-            if (!parseExpression(state, &estate2, 1, false))
+            if (unlikely(!parseExpression(state, &estate2, 1, false)))
             {
                 IVSetSize(&temp, oldTempSize);
                 return false;
@@ -1211,10 +1210,10 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
         IVSetSize(&temp, oldTempSize);
         return true;
     }
-    if (readOperator(state, '@'))
+    if (likely(readOperator(state, '@')))
     {
         string = readFilename(state);
-        if (!string)
+        if (unlikely(!string))
         {
             return false;
         }
@@ -1235,7 +1234,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
 
 static boolean parseExpression11(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression12(state, estate))
+    if (unlikely(!parseExpression12(state, estate)))
     {
         return false;
     }
@@ -1247,12 +1246,12 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
             int index;
             skipWhitespace(state);
             index = parseRValue(state, estate->parseConstant);
-            if (!index)
+            if (unlikely(!index))
             {
                 return false;
             }
             skipWhitespace(state);
-            if (!readExpectedOperator(state, ']'))
+            if (unlikely(!readExpectedOperator(state, ']')))
             {
                 return false;
             }
@@ -1261,8 +1260,7 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
             estate->valueType = VALUE_UNKNOWN;
             continue;
         }
-        if (!peekOperator2(state, '.', '.') &&
-            readOperator(state, '.'))
+        if (!peekOperator2(state, '.', '.') && readOperator(state, '.'))
         {
             assert(false); /* TODO: handle namespace */
         }
@@ -1278,7 +1276,7 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     int variable;
     for (;;)
     {
-        if (!parseExpression11(state, estate))
+        if (unlikely(!parseExpression11(state, estate)))
         {
             return false;
         }
@@ -1300,7 +1298,7 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
             return true;
         }
         /* TODO: Parse concatenated string as constant if possible. */
-        if (estate->parseConstant)
+        if (unlikely(estate->parseConstant))
         {
             error(state, "Expected constant");
             return false;
@@ -1316,7 +1314,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
     {
         int value;
         assert(!readOperator(state, '-')); /* TODO: -- operator */
-        if (!parseExpression10(state, estate))
+        if (unlikely(!parseExpression10(state, estate)))
         {
             return false;
         }
@@ -1330,7 +1328,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '!'))
     {
         int value;
-        if (!parseExpression10(state, estate))
+        if (unlikely(!parseExpression10(state, estate)))
         {
             return false;
         }
@@ -1343,7 +1341,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
     if (readOperator(state, '~'))
     {
         int value;
-        if (!parseExpression10(state, estate))
+        if (unlikely(!parseExpression10(state, estate)))
         {
             return false;
         }
@@ -1359,7 +1357,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
 
 static boolean parseExpression8(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression9(state, estate))
+    if (unlikely(!parseExpression9(state, estate)))
     {
         return false;
     }
@@ -1372,8 +1370,8 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
             {
                 return true;
             }
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression9, OP_MUL, VALUE_NUMBER))
+            if (unlikely(!parseBinaryOperationRest(
+                             state, estate, parseExpression9, OP_MUL, VALUE_NUMBER)))
             {
                 return false;
             }
@@ -1385,8 +1383,8 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
             {
                 return true;
             }
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression9, OP_DIV, VALUE_NUMBER))
+            if (unlikely(!parseBinaryOperationRest(
+                             state, estate, parseExpression9, OP_DIV, VALUE_NUMBER)))
             {
                 return false;
             }
@@ -1398,8 +1396,8 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
             {
                 return true;
             }
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression9, OP_REM, VALUE_NUMBER))
+            if (unlikely(!parseBinaryOperationRest(
+                             state, estate, parseExpression9, OP_REM, VALUE_NUMBER)))
             {
                 return false;
             }
@@ -1412,7 +1410,7 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
 
 static boolean parseExpression7(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression8(state, estate))
+    if (unlikely(!parseExpression8(state, estate)))
     {
         return false;
     }
@@ -1425,8 +1423,8 @@ static boolean parseExpression7(ParseState *state, ExpressionState *estate)
                 return true;
             }
             assert(!readOperator(state, '+')); /* TODO: ++ operator */
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression8, OP_ADD, VALUE_NUMBER))
+            if (unlikely(!parseBinaryOperationRest(
+                             state, estate, parseExpression8, OP_ADD, VALUE_NUMBER)))
             {
                 return false;
             }
@@ -1443,8 +1441,8 @@ static boolean parseExpression7(ParseState *state, ExpressionState *estate)
                 return true;
             }
             assert(!readOperator(state, '-')); /* TODO: -- operator */
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression8, OP_SUB, VALUE_NUMBER))
+            if (unlikely(!parseBinaryOperationRest(
+                             state, estate, parseExpression8, OP_SUB, VALUE_NUMBER)))
             {
                 return false;
             }
@@ -1457,7 +1455,7 @@ static boolean parseExpression7(ParseState *state, ExpressionState *estate)
 
 static boolean parseExpression6(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression7(state, estate))
+    if (unlikely(!parseExpression7(state, estate)))
     {
         return false;
     }
@@ -1471,7 +1469,7 @@ static boolean parseExpression6(ParseState *state, ExpressionState *estate)
 
 static boolean parseExpression5(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression6(state, estate))
+    if (unlikely(!parseExpression6(state, estate)))
     {
         return false;
     }
@@ -1485,7 +1483,7 @@ static boolean parseExpression5(ParseState *state, ExpressionState *estate)
 
 static boolean parseExpression4(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression5(state, estate))
+    if (unlikely(!parseExpression5(state, estate)))
     {
         return false;
     }
@@ -1493,8 +1491,8 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
     {
         if (readOperator2(state, '.', '.'))
         {
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression5, OP_RANGE, VALUE_LIST))
+            if (unlikely(!parseBinaryOperationRest(
+                             state, estate, parseExpression5, OP_RANGE, VALUE_LIST)))
             {
                 return false;
             }
@@ -1502,8 +1500,8 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
         }
         if (readOperator2(state, ':', ':'))
         {
-            if (!parseBinaryOperationRest(
-                    state, estate, parseExpression5, OP_CONCAT_LIST, VALUE_LIST))
+            if (unlikely(!parseBinaryOperationRest(
+                             state, estate, parseExpression5, OP_CONCAT_LIST, VALUE_LIST)))
             {
                 return false;
             }
@@ -1516,7 +1514,7 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
 
 static boolean parseExpression3(ParseState *state, ExpressionState *estate)
 {
-    if (!parseExpression4(state, estate))
+    if (unlikely(!parseExpression4(state, estate)))
     {
         return false;
     }
@@ -1524,8 +1522,8 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
     {
         if (readOperator2(state, '=', '='))
         {
-            if (!parseBinaryOperationRest(state, estate, parseExpression4,
-                                          OP_EQUALS, VALUE_BOOLEAN))
+            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
+                                                   OP_EQUALS, VALUE_BOOLEAN)))
             {
                 return false;
             }
@@ -1533,8 +1531,8 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
         }
         if (readOperator2(state, '!', '='))
         {
-            if (!parseBinaryOperationRest(state, estate, parseExpression4,
-                                          OP_NOT_EQUALS, VALUE_BOOLEAN))
+            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
+                                                   OP_NOT_EQUALS, VALUE_BOOLEAN)))
             {
                 return false;
             }
@@ -1542,8 +1540,8 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
         }
         if (readOperator2(state, '<', '='))
         {
-            if (!parseBinaryOperationRest(state, estate, parseExpression4,
-                                          OP_LESS_EQUALS, VALUE_BOOLEAN))
+            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
+                                                   OP_LESS_EQUALS, VALUE_BOOLEAN)))
             {
                 return false;
             }
@@ -1551,8 +1549,8 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
         }
         if (readOperator2(state, '>', '='))
         {
-            if (!parseBinaryOperationRest(state, estate, parseExpression4,
-                                          OP_GREATER_EQUALS, VALUE_BOOLEAN))
+            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
+                                                   OP_GREATER_EQUALS, VALUE_BOOLEAN)))
             {
                 return false;
             }
@@ -1560,8 +1558,8 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
         }
         if (readOperator(state, '<'))
         {
-            if (!parseBinaryOperationRest(state, estate, parseExpression4,
-                                          OP_LESS, VALUE_BOOLEAN))
+            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
+                                                   OP_LESS, VALUE_BOOLEAN)))
             {
                 return false;
             }
@@ -1569,8 +1567,8 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
         }
         if (readOperator(state, '>'))
         {
-            if (!parseBinaryOperationRest(state, estate, parseExpression4,
-                                          OP_GREATER, VALUE_BOOLEAN))
+            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
+                                                   OP_GREATER, VALUE_BOOLEAN)))
             {
                 return false;
             }
@@ -1585,7 +1583,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
 {
     int target;
 
-    if (!parseExpression3(state, estate))
+    if (unlikely(!parseExpression3(state, estate)))
     {
         return false;
     }
@@ -1598,7 +1596,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
             skipExpressionWhitespaceAndNewline(state, estate);
             target = createJumpTarget(state);
             writeBranch(state, target, OP_BRANCH_FALSE_INDEXED, variable);
-            if (!parseExpression3(state, estate))
+            if (unlikely(!parseExpression3(state, estate)))
             {
                 return false;
             }
@@ -1617,7 +1615,7 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
             skipExpressionWhitespaceAndNewline(state, estate);
             target = createJumpTarget(state);
             writeBranch(state, target, OP_BRANCH_TRUE_INDEXED, variable);
-            if (!parseExpression3(state, estate))
+            if (unlikely(!parseExpression3(state, estate)))
             {
                 return false;
             }
@@ -1638,7 +1636,7 @@ static boolean parseExpressionRest(ParseState *state, ExpressionState *estate)
 {
     const boolean parseConstant = estate->parseConstant;
 
-    if (!parseExpression2(state, estate))
+    if (unlikely(!parseExpression2(state, estate)))
     {
         return false;
     }
@@ -1650,14 +1648,14 @@ static boolean parseExpressionRest(ParseState *state, ExpressionState *estate)
         assert(!parseConstant); /* TODO */
         skipExpressionWhitespace(state, estate);
         writeBranch(state, target1, OP_BRANCH_FALSE_INDEXED, finishRValue(state, estate));
-        if (!parseAndStoreValueAt(state, variable) || !readExpectedOperator(state, ':'))
+        if (unlikely(!parseAndStoreValueAt(state, variable) || !readExpectedOperator(state, ':')))
         {
             return false;
         }
         writeJump(state, target2);
         placeJumpTargetHere(state, target1);
         skipExpressionWhitespace(state, estate);
-        if (!parseAndStoreValueAt(state, variable))
+        if (unlikely(!parseAndStoreValueAt(state, variable)))
         {
             return false;
         }
@@ -1698,7 +1696,7 @@ static boolean parseAssignmentExpressionRest(ParseState *state,
     int value2;
     skipWhitespace(state);
     value2 = parseRValue(state, false);
-    if (!value2)
+    if (unlikely(!value2))
     {
         return false;
     }
@@ -1712,7 +1710,7 @@ static boolean parseExpressionStatement(ParseState *state, vref identifier)
     ExpressionState estate, rvalue;
 
     estate.identifier = identifier;
-    if (!parseExpression(state, &estate, 0, false))
+    if (unlikely(!parseExpression(state, &estate, 0, false)))
     {
         return false;
     }
@@ -1747,7 +1745,7 @@ static boolean parseExpressionStatement(ParseState *state, vref identifier)
         assert(estate.valueCount == 0);
         return true;
     }
-    if (peekIdentifier(state))
+    if (likely(peekIdentifier(state)))
     {
         size_t oldTempSize = IVSize(&temp);
         size_t oldBTempSize = BVSize(&btemp);
@@ -1758,7 +1756,7 @@ static boolean parseExpressionStatement(ParseState *state, vref identifier)
         do
         {
             estate.identifier = 0;
-            if (!parseExpression(state, &estate, 0, false))
+            if (unlikely(!parseExpression(state, &estate, 0, false)))
             {
                 goto error;
             }
@@ -1766,18 +1764,18 @@ static boolean parseExpressionStatement(ParseState *state, vref identifier)
             skipWhitespace(state);
         }
         while (peekIdentifier(state));
-        if (!readExpectedOperator(state, '='))
+        if (unlikely(!readExpectedOperator(state, '=')))
         {
             goto error;
         }
         skipWhitespace(state);
         rvalue.identifier = 0;
         returnValueCount = (int)((BVSize(&btemp) - oldBTempSize) / sizeof(estate));
-        if (!parseExpression(state, &rvalue, returnValueCount, false))
+        if (unlikely(!parseExpression(state, &rvalue, returnValueCount, false)))
         {
             goto error;
         }
-        if (rvalue.expressionType != EXPRESSION_MANY)
+        if (unlikely(rvalue.expressionType != EXPRESSION_MANY))
         {
             error(state, "Expected function invocation");
             goto error;
@@ -1800,7 +1798,7 @@ static boolean parseExpressionStatement(ParseState *state, vref identifier)
             estate = *(const ExpressionState*)BVGetPointer(&btemp, p);
             rvalue.expressionType = EXPRESSION_STORED;
             rvalue.variable = *pindex;
-            if (!finishLValue(state, &estate, &rvalue))
+            if (unlikely(!finishLValue(state, &estate, &rvalue)))
             {
                 goto error;
             }
@@ -1832,7 +1830,7 @@ static boolean parseReturnRest(ParseState *state)
     for (;;)
     {
         value = parseRValue(state, false);
-        if (!value)
+        if (unlikely(!value))
         {
             IVSetSize(&temp, oldTempSize);
             return false;
@@ -1860,7 +1858,7 @@ static uint parseBlock(ParseState *state, uint indent)
     uint oldStatementIndent = state->statementIndent;
     vref identifier;
 
-    if (indent < state->statementIndent)
+    if (unlikely(indent < state->statementIndent))
     {
         writeOp(state, OP_LINE, (int)state->line);
         error(state, "Expected increased indentation level");
@@ -1873,7 +1871,7 @@ static uint parseBlock(ParseState *state, uint indent)
         writeOp(state, OP_LINE, (int)state->line);
         if (indent != state->statementIndent)
         {
-            if (indent > state->statementIndent || (indent && !oldStatementIndent))
+            if (unlikely(indent > state->statementIndent || (indent && !oldStatementIndent)))
             {
                 error(state, "Mismatched indentation level");
             }
@@ -1886,11 +1884,11 @@ static uint parseBlock(ParseState *state, uint indent)
         state->statementLine = state->line;
 
         identifier = peekReadIdentifier(state);
-        if (identifier)
+        if (likely(identifier))
         {
             if (isKeyword(identifier))
             {
-                if (identifier > maxStatementKeyword)
+                if (unlikely(identifier > maxStatementKeyword))
                 {
                     error(state, "Not a statement");
                     goto statementError;
@@ -1901,7 +1899,7 @@ static uint parseBlock(ParseState *state, uint indent)
                     int conditionTarget = createJumpTarget(state);
                     int afterIfTarget;
                     int condition = parseRValue(state, false);
-                    if (!condition)
+                    if (unlikely(!condition))
                     {
                         /* TODO: Ignore else */
                         goto statementError;
@@ -1924,7 +1922,7 @@ static uint parseBlock(ParseState *state, uint indent)
                         identifier = peekReadIdentifier(state);
                         if (identifier != keywordIf)
                         {
-                            if (identifier || !peekNewline(state))
+                            if (unlikely(identifier || !peekNewline(state)))
                             {
                                 error(state, "Garbage after else");
                                 goto statementError;
@@ -1934,11 +1932,11 @@ static uint parseBlock(ParseState *state, uint indent)
                         }
                         skipWhitespace(state);
                         condition = parseRValue(state, false);
-                        if (!condition)
+                        if (unlikely(!condition))
                         {
                             goto statementError;
                         }
-                        if (!peekNewline(state))
+                        if (unlikely(!peekNewline(state)))
                         {
                             error(state, "Garbage after if statement");
                             goto statementError;
@@ -1955,7 +1953,7 @@ static uint parseBlock(ParseState *state, uint indent)
                     placeJumpTargetHere(state, afterIfTarget);
                     continue;
                 }
-                if (identifier == keywordElse)
+                if (unlikely(identifier == keywordElse))
                 {
                     error(state, "else without matching if");
                     goto statementError;
@@ -1969,18 +1967,18 @@ static uint parseBlock(ParseState *state, uint indent)
                     int iterStep;
                     int iterCondition;
                     identifier = readVariableName(state);
-                    if (!identifier)
+                    if (unlikely(!identifier))
                     {
                         goto statementError;
                     }
                     skipWhitespace(state);
-                    if (!readExpectedKeyword(state, keywordIn))
+                    if (unlikely(!readExpectedKeyword(state, keywordIn)))
                     {
                         goto statementError;
                     }
                     skipWhitespace(state);
                     iterCollection = parseRValue(state, false);
-                    if (!iterCollection)
+                    if (unlikely(!iterCollection))
                     {
                         goto statementError;
                     }
@@ -2003,7 +2001,7 @@ static uint parseBlock(ParseState *state, uint indent)
                 }
                 if (identifier == keywordReturn)
                 {
-                    if (!parseReturnRest(state))
+                    if (unlikely(!parseReturnRest(state)))
                     {
                         goto statementError;
                     }
@@ -2013,7 +2011,7 @@ static uint parseBlock(ParseState *state, uint indent)
                     int loopTop = createJumpTargetHere(state);
                     int afterLoop = createJumpTarget(state);
                     int condition = parseRValue(state, false);
-                    if (!condition)
+                    if (unlikely(!condition))
                     {
                         goto statementError;
                     }
@@ -2030,7 +2028,7 @@ static uint parseBlock(ParseState *state, uint indent)
             }
             else
             {
-                if (!parseExpressionStatement(state, identifier))
+                if (unlikely(!parseExpressionStatement(state, identifier)))
                 {
                     goto statementError;
                 }
@@ -2091,7 +2089,7 @@ static boolean parseFunctionDeclarationRest(ParseState *state, vref functionName
         {
             int value = INT_MAX;
             vref parameterName = peekReadIdentifier(state);
-            if (!parameterName || isKeyword(parameterName))
+            if (unlikely(!parameterName || isKeyword(parameterName)))
             {
                 error(state, "Expected parameter name or ')'");
                 return false;
@@ -2102,14 +2100,14 @@ static boolean parseFunctionDeclarationRest(ParseState *state, vref functionName
                 requireDefaultValues = true;
                 skipWhitespace(state);
                 estate.identifier = 0;
-                if (!parseExpression(state, &estate, 1, true))
+                if (unlikely(!parseExpression(state, &estate, 1, true)))
                 {
                     return false;
                 }
                 assert(estate.expressionType == EXPRESSION_CONSTANT);
                 value = variableFromConstant(state, estate.constant);
             }
-            else if (requireDefaultValues)
+            else if (unlikely(requireDefaultValues))
             {
                 error(state, "Default value for parameter '%s' required",
                       HeapGetString(parameterName));
@@ -2135,7 +2133,7 @@ static boolean parseFunctionDeclarationRest(ParseState *state, vref functionName
     }
     IVSet(state->bytecode, paramsOffset, parameterCount);
     IVSet(state->bytecode, varargOffset, varargIndex);
-    if (!peekNewline(state))
+    if (unlikely(!peekNewline(state)))
     {
         error(state, "Garbage after function declaration");
         return false;
@@ -2222,13 +2220,13 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
                 int existingFunction = NamespaceAddTarget(
                     ns, name, (int)IVSize(&program->functions));
                 IVAdd(&program->functions, (int)IVSize(state.bytecode));
-                if (existingFunction >= 0)
+                if (unlikely(existingFunction >= 0))
                 {
                     /* TODO: blacklist function */
                     error(&state, "Multiple functions or targets with name '%s'",
                           HeapGetString(name));
                 }
-                if (!peekNewline(&state))
+                if (unlikely(!peekNewline(&state)))
                 {
                     error(&state, "Garbage after target declaration");
                     /* TODO: skip parsing function body */
@@ -2242,13 +2240,13 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
                 int existingFunction = NamespaceAddFunction(
                     ns, name, (int)IVSize(&program->functions));
                 IVAdd(&program->functions, (int)IVSize(state.bytecode));
-                if (existingFunction >= 0)
+                if (unlikely(existingFunction >= 0))
                 {
                     /* TODO: blacklist function */
                     error(&state, "Multiple functions or targets with name '%s'",
                           HeapGetString(name));
                 }
-                if (!parseFunctionDeclarationRest(&state, name))
+                if (unlikely(!parseFunctionDeclarationRest(&state, name)))
                 {
                     /* TODO: skip parsing function body, but continue parsing after it */
                     goto error;
@@ -2259,7 +2257,7 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
             {
                 ExpressionState estate;
                 skipWhitespace(&state);
-                if (!readOperator(&state, '='))
+                if (unlikely(!readOperator(&state, '=')))
                 {
                     error(&state, "Invalid declaration");
                     /* TODO: skip declaration */
@@ -2270,13 +2268,14 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
                 if (parseExpression(&state, &estate, 1, true))
                 {
                     assert(estate.expressionType == EXPRESSION_CONSTANT);
-                    if (!peekNewline(&state))
+                    if (unlikely(!peekNewline(&state)))
                     {
                         error(&state, "Garbage after variable declaration");
                     }
                     else
                     {
-                        if (NamespaceAddField(ns, name, (int)IVSize(&program->fields)) >= 0)
+                        if (unlikely(NamespaceAddField(
+                                         ns, name, (int)IVSize(&program->fields)) >= 0))
                         {
                             error(&state, "Multiple fields with name '%s'", HeapGetString(name));
                         }
@@ -2289,7 +2288,7 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
         {
             skipEndOfLine(&state);
         }
-        else if (!peekReadNewline(&state))
+        else if (unlikely(!peekReadNewline(&state)))
         {
             writeOp(&state, OP_LINE, (int)state.line);
             error(&state, "Unsupported character: '%c'", *state.current);

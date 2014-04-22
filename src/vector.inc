@@ -26,7 +26,7 @@ static VECTOR_TYPE *vectorGrow(VECTOR_NAME *v, size_t size)
 
     vectorCheck(v);
     size += v->size;
-    if (expect(size > v->allocatedSize, 0))
+    if (unlikely(size > v->allocatedSize))
     {
         newSize = v->allocatedSize;
         do

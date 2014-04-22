@@ -279,7 +279,7 @@ void _assert(const char *expression, const char *file, int line)
 void *mycalloc(size_t count, size_t eltsize)
 {
     void *p = calloc(count, eltsize);
-    if (!p)
+    if (unlikely(!p))
     {
         FailOOM();
     }
@@ -290,7 +290,7 @@ void *mycalloc(size_t count, size_t eltsize)
 void *mymalloc(size_t size)
 {
     void *p = malloc(size);
-    if (!p)
+    if (unlikely(!p))
     {
         FailOOM();
     }
@@ -301,7 +301,7 @@ void *mymalloc(size_t size)
 void *myrealloc(void *ptr, size_t size)
 {
     void *p = realloc(ptr, size);
-    if (!p)
+    if (unlikely(!p))
     {
         FailOOM();
     }

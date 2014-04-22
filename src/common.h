@@ -49,6 +49,8 @@ typedef uint8 byte;
 #define unreachable __builtin_unreachable()
 #endif
 #define expect(a, b) __builtin_expect((a), (b))
+#define likely(a) __builtin_expect(!!(a), 1)
+#define unlikely(a) __builtin_expect(!!(a), 0)
 
 #define min(a, b) ((a) > (b) ? (b) : (a))
 #define max(a, b) ((a) < (b) ? (b) : (a))
