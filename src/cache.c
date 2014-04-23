@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <sys/types.h>
 #include <time.h>
 #ifdef VALGRIND
 #include <valgrind/memcheck.h>

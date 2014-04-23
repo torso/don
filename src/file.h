@@ -17,9 +17,12 @@ typedef struct
 
 typedef struct
 {
-    boolean exists;
-    size_t size;
-    filetime_t mtime;
+    mode_t mode;
+    ino_t ino;
+    uid_t uid;
+    gid_t gid;
+    off_t size;
+    time_t mtime;
 } FileStatus;
 
 typedef void (*TraverseCallback)(const char *path, size_t length,

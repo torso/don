@@ -1,6 +1,7 @@
 #include <memory.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <sys/types.h>
 #include <time.h>
 #include "common.h"
 #include "bytevector.h"
