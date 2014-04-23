@@ -16,9 +16,6 @@
 #include "glob.h"
 #include "hash.h"
 
-#define FILE_FREE_STRUCT 1
-#define FILE_FREE_FILENAME 2
-
 struct _FileEntry
 {
     mode_t mode;
