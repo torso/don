@@ -1,18 +1,10 @@
-#include <stdarg.h>
-#include <stdio.h>
-#include <memory.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <sys/select.h>
 #include <unistd.h>
 #include "common.h"
 #include "bytevector.h"
 #include "fail.h"
-#include "file.h"
-#include "heap.h"
-#include "pipe.h"
 #include "log.h"
-#include "stringpool.h"
+#include "pipe.h"
+#include "value.h"
 
 #define MIN_READ_BUFFER 1024
 

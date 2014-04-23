@@ -1,5 +1,3 @@
-#include <time.h>
-
 struct _FileEntry;
 typedef struct _FileEntry FileEntry;
 

@@ -1,10 +1,9 @@
+#include <memory.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <memory.h>
 #include "common.h"
 #include "vm.h"
 #include "bytecode.h"
-#include "file.h"
 #include "interpreter.h"
 #include "linker.h"
 #include "log.h"
