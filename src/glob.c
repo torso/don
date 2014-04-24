@@ -1,5 +1,5 @@
-#include <string.h>
 #include "common.h"
+#include <string.h>
 #include "glob.h"
 
 bool GlobMatch(const char *pattern, size_t patternLength, const char *string, size_t stringLength)

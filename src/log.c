@@ -1,5 +1,5 @@
-#include <unistd.h>
 #include "common.h"
+#include <unistd.h>
 #include "bytevector.h"
 #include "fail.h"
 #include "log.h"

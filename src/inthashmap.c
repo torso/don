@@ -1,5 +1,5 @@
-#include <string.h>
 #include "common.h"
+#include <string.h>
 #include "inthashmap.h"
 #include "math.h"
 

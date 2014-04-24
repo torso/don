@@ -1,10 +1,8 @@
-#define _XOPEN_SOURCE 600
-#define _GNU_SOURCE
+#include "common.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "common.h"
 #include "vm.h"
 #include "bytecode.h"
 #include "cache.h"

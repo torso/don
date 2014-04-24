@@ -1,10 +1,9 @@
-#define _POSIX_SOURCE
+#include "common.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <time.h>
-#include "common.h"
 #include "bytevector.h"
 #include "fail.h"
 #include "file.h"

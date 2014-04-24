@@ -1,9 +1,8 @@
-#define _XOPEN_SOURCE 500
+#include "common.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "common.h"
 #include "vm.h"
 #include "fail.h"
 #include "file.h"

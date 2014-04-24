@@ -1,6 +1,6 @@
+#include "common.h"
 #include <stdarg.h>
 #include <stdio.h>
-#include "common.h"
 #include "bytecode.h"
 #include "bytevector.h"
 #include "heap.h"

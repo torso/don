@@ -1,5 +1,5 @@
-#include <string.h>
 #include "common.h"
+#include <string.h>
 #include "bytevector.h"
 
 #define VECTOR_NAME bytevector

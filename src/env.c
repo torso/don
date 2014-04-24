@@ -1,6 +1,6 @@
+#include "common.h"
 #include <stdarg.h>
 #include <string.h>
-#include "common.h"
 #include "vm.h"
 #include "env.h"
 #include "stringpool.h"

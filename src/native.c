@@ -1,4 +1,4 @@
-#define _XOPEN_SOURCE 600
+#include "common.h"
 #include <spawn.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -6,7 +6,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include "common.h"
 #include "vm.h"
 #include "bytecode.h"
 #include "cache.h"
