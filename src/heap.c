@@ -99,7 +99,7 @@ static vref heapNext(vref object)
 }
 
 
-static pureconst boolean isInteger(vref object)
+static pureconst bool isInteger(vref object)
 {
     return (uintFromRef(object) & INTEGER_LITERAL_MARK) != 0;
 }
@@ -149,7 +149,7 @@ static const char *getString(vref object)
     unreachable;
 }
 
-static const char *toString(vref object, boolean *copy)
+static const char *toString(vref object, bool *copy)
 {
     *copy = false;
     if (HeapIsString(object))
@@ -165,7 +165,7 @@ static const char *toString(vref object, boolean *copy)
 }
 
 
-static boolean isCollectionType(VType type)
+static bool isCollectionType(VType type)
 {
     switch (type)
     {
@@ -243,7 +243,7 @@ void HeapDispose(void)
 }
 
 
-char *HeapDebug(vref object, boolean address)
+char *HeapDebug(vref object, bool address)
 {
     size_t length = VStringLength(object);
     char *buffer = (char*)malloc(length + 16); /* 16 ought to be enough */
@@ -374,14 +374,14 @@ void HeapHash(vref object, HashState *hash)
     unreachable;
 }
 
-boolean HeapEquals(vref object1, vref object2)
+bool HeapEquals(vref object1, vref object2)
 {
     size_t index;
     size_t size1;
     size_t size2;
     vref item1;
     vref item2;
-    boolean success;
+    bool success;
 
     assert(!HeapIsFutureValue(object1));
     assert(!HeapIsFutureValue(object2));
@@ -671,7 +671,7 @@ vref HeapCreateStringFormatted(const char *format, va_list ap)
     return heapFinishRealloc((byte*)start, (size_t)(data - start));
 }
 
-boolean HeapIsString(vref object)
+bool HeapIsString(vref object)
 {
     assert(!HeapIsFutureValue(object));
     switch (HeapGetObjectType(object))
@@ -772,7 +772,7 @@ const char *HeapGetPath(vref path, size_t *length)
     return getString(s);
 }
 
-boolean HeapIsFile(vref object)
+bool HeapIsFile(vref object)
 {
     return HeapGetObjectType(object) == TYPE_FILE;
 }
@@ -785,9 +785,9 @@ vref HeapPathFromParts(vref path, vref name, vref extension)
     size_t pathLength = 0;
     size_t nameLength;
     size_t extensionLength = 0;
-    boolean freePath = false;
-    boolean freeName;
-    boolean freeExtension = false;
+    bool freePath = false;
+    bool freeName;
+    bool freeExtension = false;
     char *resultPath;
     size_t resultPathLength;
     vref result;
@@ -835,7 +835,7 @@ vref HeapPathFromParts(vref path, vref name, vref extension)
 
 /* TODO: Size limit. */
 static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
-                            boolean *flattened)
+                            bool *flattened)
 {
     size_t i;
     size_t size2;
@@ -901,7 +901,7 @@ vref HeapCreateFilelist(vref value)
     size_t i;
     vref newValue;
     vref *data;
-    boolean converted = false;
+    bool converted = false;
     assert(!HeapIsFutureValue(value)); /* TODO */
     for (;;)
     {
@@ -999,7 +999,7 @@ vref HeapCreateRange(vref lowObject, vref highObject)
     return heapFinishAlloc(objectData);
 }
 
-boolean HeapIsRange(vref object)
+bool HeapIsRange(vref object)
 {
     return HeapGetObjectType(object) == TYPE_INTEGER_RANGE;
 }
@@ -1015,8 +1015,8 @@ vref HeapRangeHigh(vref range)
 }
 
 
-vref HeapSplit(vref string, vref delimiter, boolean removeEmpty,
-               boolean trimLastIfEmpty)
+vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
+               bool trimLastIfEmpty)
 {
     size_t length;
     size_t delimiterLength;
@@ -1125,13 +1125,13 @@ vref HeapConcatList(vref list1, vref list2)
     return heapFinishAlloc(data);
 }
 
-boolean HeapIsCollection(vref object)
+bool HeapIsCollection(vref object)
 {
     return isCollectionType(HeapGetObjectType(object));
 }
 
-boolean HeapCollectionGet(vref object, vref indexObject,
-                          vref *restrict value)
+bool HeapCollectionGet(vref object, vref indexObject,
+                       vref *restrict value)
 {
     const vref *restrict data;
     const vref *restrict limit;
@@ -1483,7 +1483,7 @@ static vref executeBinary(Instruction op,
     unreachable;
 }
 
-boolean HeapIsFutureValue(vref object)
+bool HeapIsFutureValue(vref object)
 {
     return object && HeapGetObjectType(object) == TYPE_FUTURE;
 }

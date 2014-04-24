@@ -29,12 +29,9 @@ typedef uint64_t uint64;
 
 typedef unsigned int uint;
 typedef unsigned long int ulong;
-typedef _Bool boolean;
 typedef uint8 byte;
 
 #define null (0)
-#define false 0
-#define true 1
 
 #define attrprintf(formatarg, args) __attribute((format(printf, formatarg, args)))
 #define nonnull __attribute((nonnull))

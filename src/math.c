@@ -1,14 +1,14 @@
 #include "common.h"
 #include "math.h"
 
-boolean addOverflow(int a, int b)
+bool addOverflow(int a, int b)
 {
-    return (boolean)(b < 1 ? INT_MIN - b > a : INT_MAX - b < a);
+    return (bool)(b < 1 ? INT_MIN - b > a : INT_MAX - b < a);
 }
 
-boolean subOverflow(int a, int b)
+bool subOverflow(int a, int b)
 {
-    return (boolean)(b < 1 ? INT_MAX + b < a : INT_MIN + b > a);
+    return (bool)(b < 1 ? INT_MAX + b < a : INT_MIN + b > a);
 }
 
 uint roundToPow2(uint value)

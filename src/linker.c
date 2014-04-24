@@ -13,7 +13,7 @@
 #include "native.h"
 #include "parser.h"
 
-static const boolean DEBUG_LINKER = false;
+static const bool DEBUG_LINKER = false;
 
 typedef struct
 {
@@ -30,7 +30,7 @@ typedef struct
     vref filename;
     uint line;
     namespaceref ns;
-    boolean hasErrors;
+    bool hasErrors;
 } LinkState;
 
 static void error(LinkState *state, const char *message)
@@ -112,7 +112,7 @@ static void linkVariables(LinkState *state, const int **read, int *write, uint c
     }
 }
 
-boolean Link(ParsedProgram *parsed, LinkedProgram *linked)
+bool Link(ParsedProgram *parsed, LinkedProgram *linked)
 {
     LinkState state;
     int *unlinkedFunctions;

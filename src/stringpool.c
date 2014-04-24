@@ -51,13 +51,13 @@ static vref getSlotValue(const uint *t, uint slot)
     return refFromUint(t[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE]);
 }
 
-static boolean isSlotEmpty(const uint *t, uint slot)
+static bool isSlotEmpty(const uint *t, uint slot)
 {
     checkTable(t);
     return getSlotValue(t, slot) ? false : true;
 }
 
-static boolean slotContainsString(const uint *t, uint slot, uint hash,
+static bool slotContainsString(const uint *t, uint slot, uint hash,
                                   const char *string, size_t length)
 {
     checkTable(t);

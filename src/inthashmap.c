@@ -24,7 +24,7 @@ static int getSlotValue(const inthashmap *map, size_t slot)
     return map->table[slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE];
 }
 
-static boolean isSlotEmpty(const inthashmap *map, size_t slot)
+static bool isSlotEmpty(const inthashmap *map, size_t slot)
 {
     checkSlot(map, slot);
     return !getSlotKey(map, slot);
@@ -193,8 +193,7 @@ void IntHashMapIteratorInit(const inthashmap *map, inthashmapiterator *iterator)
     iterator->position = 0;
 }
 
-boolean IntHashMapIteratorNext(inthashmapiterator *iterator,
-                               int *key, int *value)
+bool IntHashMapIteratorNext(inthashmapiterator *iterator, int *key, int *value)
 {
     int slotKey;
 

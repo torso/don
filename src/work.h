@@ -11,5 +11,5 @@ extern void WorkInit(void);
 extern void WorkDispose(void);
 extern nonnull void WorkAdd(const Work *work);
 extern nonnull void WorkDiscard(const VM *vm);
-extern boolean WorkQueueEmpty(void);
+extern bool WorkQueueEmpty(void);
 extern void WorkExecute(void);

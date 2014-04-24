@@ -26,7 +26,5 @@ extern nonnull int IntHashMapSet(inthashmap *map, int key, int value);
 extern nonnull void IntHashMapRemove(inthashmap *map, int key);
 extern nonnull pure size_t IntHashMapSize(const inthashmap *map);
 
-extern nonnull void IntHashMapIteratorInit(const inthashmap *map,
-                                           inthashmapiterator *iterator);
-extern nonnull boolean IntHashMapIteratorNext(inthashmapiterator *iterator,
-                                              int *key, int *value);
+extern nonnull void IntHashMapIteratorInit(const inthashmap *map, inthashmapiterator *iterator);
+extern nonnull bool IntHashMapIteratorNext(inthashmapiterator *iterator, int *key, int *value);

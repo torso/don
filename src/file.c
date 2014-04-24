@@ -40,7 +40,7 @@ static char *dupPath(const char *path, size_t length)
     return pathZ;
 }
 
-static boolean pathIsDirectory(const char *path, size_t length)
+static bool pathIsDirectory(const char *path, size_t length)
 {
     return path[length] == '/';
 }
@@ -80,7 +80,7 @@ static void clearTableEntry(uint index)
     table[index].pathLength = 0;
 }
 
-static boolean feIsEntry(uint index, const char *path, size_t length)
+static bool feIsEntry(uint index, const char *path, size_t length)
 {
     FileEntry *fe = table + index;
 
@@ -163,17 +163,17 @@ static FileEntry *feEntry(const char *path, size_t length)
     return feEntryAt(path, length, AT_FDCWD, null);
 }
 
-static boolean feExists(FileEntry *fe)
+static bool feExists(FileEntry *fe)
 {
     return fe->status.size >= 0;
 }
 
-static boolean feIsFile(FileEntry *fe)
+static bool feIsFile(FileEntry *fe)
 {
     return feExists(fe) && S_ISREG(fe->status.mode);
 }
 
-static boolean feIsDirectory(FileEntry *fe)
+static bool feIsDirectory(FileEntry *fe)
 {
     return feExists(fe) && S_ISDIR(fe->status.mode);
 }
@@ -388,7 +388,7 @@ char *FileCreatePath(const char *restrict base, size_t baseLength,
 }
 
 char *FileSearchPath(const char *name, size_t length, size_t *resultLength,
-                     boolean executable)
+                     bool executable)
 {
     char *candidate;
     const char *path;
@@ -452,8 +452,8 @@ const FileStatus *FileGetStatus(const char *path, size_t length)
     return &feEntry(path, length)->status;
 }
 
-boolean FileHasChanged(const char *path, size_t length,
-                       const FileStatus *status)
+bool FileHasChanged(const char *path, size_t length,
+                    const FileStatus *status)
 {
     return memcmp(FileGetStatus(path, length), status, sizeof(FileStatus)) != 0;
 }
@@ -466,7 +466,7 @@ void FileOpen(File *file, const char *path, size_t length)
     }
 }
 
-boolean FileTryOpen(File *file, const char *path, size_t length)
+bool FileTryOpen(File *file, const char *path, size_t length)
 {
     int fd;
 
@@ -491,7 +491,7 @@ boolean FileTryOpen(File *file, const char *path, size_t length)
     return true;
 }
 
-void FileOpenAppend(File *file, const char *path, size_t length, boolean truncate)
+void FileOpenAppend(File *file, const char *path, size_t length, bool truncate)
 {
     int fd;
 
@@ -571,7 +571,7 @@ void FileWrite(File *file, const byte *data, size_t size)
     }
 }
 
-boolean FileIsExecutable(const char *path, size_t length)
+bool FileIsExecutable(const char *path, size_t length)
 {
     FileEntry *fe = feEntry(path, length);
     return feIsFile(fe) && (fe->status.mode & (S_IXUSR | S_IXGRP | S_IXOTH));
@@ -677,7 +677,7 @@ void FileDelete(const char *path, size_t length)
     free(pathZ);
 }
 
-boolean FileMkdir(const char *path, size_t length)
+bool FileMkdir(const char *path, size_t length)
 {
     uint index = feIndex(path, length);
     char *pathZ;
@@ -830,7 +830,7 @@ static void traverseGlob(bytevector *path, int fdParent, size_t parentLength,
 {
     FileEntry *fe;
     const char *p;
-    boolean asterisk;
+    bool asterisk;
     size_t componentLength;
     size_t childLength;
     size_t oldSize = BVSize(path);

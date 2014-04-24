@@ -27,13 +27,13 @@ extern VBool VGetBool(vref value);
   Returns true if the value is truthy.
   Returns false if true value if falsy or not yet known.
 */
-extern boolean VIsTruthy(vref value);
+extern bool VIsTruthy(vref value);
 
 /*
   Returns true if the value is falsy.
   Returns false if true value if truthy or not yet known.
 */
-extern boolean VIsFalsy(vref value);
+extern bool VIsFalsy(vref value);
 
 
 /*

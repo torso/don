@@ -12,7 +12,7 @@ typedef struct
     inthashmap targetIndex;
 } Namespace;
 
-static boolean initialised;
+static bool initialised;
 static bytevector namespaceData;
 static inthashmap nameNamespace;
 

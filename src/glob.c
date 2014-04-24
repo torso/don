@@ -2,8 +2,7 @@
 #include "common.h"
 #include "glob.h"
 
-boolean GlobMatch(const char *pattern, size_t patternLength,
-                  const char *string, size_t stringLength)
+bool GlobMatch(const char *pattern, size_t patternLength, const char *string, size_t stringLength)
 {
     while (patternLength--)
     {

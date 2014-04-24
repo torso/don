@@ -34,12 +34,12 @@ VBool VGetBool(vref value)
     return TRUTHY;
 }
 
-boolean VIsTruthy(vref value)
+bool VIsTruthy(vref value)
 {
     return VGetBool(value) == TRUTHY;
 }
 
-boolean VIsFalsy(vref value)
+bool VIsFalsy(vref value)
 {
     return VGetBool(value) == FALSY;
 }

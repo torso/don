@@ -37,32 +37,32 @@ extern char *FileCreatePath(const char *restrict base, size_t baseLength,
                             const char *restrict extension, size_t extLength,
                             size_t *resultLength);
 extern nonnull char *FileSearchPath(const char *name, size_t length,
-                                    size_t *resultLength, boolean executable);
+                                    size_t *resultLength, bool executable);
 extern nonnull const char *FileStripPath(const char *path, size_t *length);
 extern nonnull void FileTraverseGlob(const char *pattern, size_t length,
                                      TraverseCallback callback, void *userdata);
 
 extern nonnull void FileMarkModified(const char *path, size_t length);
 extern nonnull const FileStatus *FileGetStatus(const char *path, size_t length);
-extern nonnull boolean FileHasChanged(const char *path, size_t length,
-                                      const FileStatus *status);
+extern nonnull bool FileHasChanged(const char *path, size_t length,
+                                   const FileStatus *status);
 
 extern nonnull void FileOpen(File *file, const char *path, size_t length);
 
 /*
   Opens the file for reading. Returns false if the file does not exist.
 */
-extern nonnull boolean FileTryOpen(File *file, const char *path, size_t length);
-extern nonnull void FileOpenAppend(File *file, const char *path, size_t length, boolean truncate);
+extern nonnull bool FileTryOpen(File *file, const char *path, size_t length);
+extern nonnull void FileOpenAppend(File *file, const char *path, size_t length, bool truncate);
 extern nonnull void FileClose(File *file);
 
 extern nonnull size_t FileSize(File *file);
 extern nonnull void FileRead(File *file, byte *buffer, size_t size);
 extern nonnull void FileWrite(File *file, const byte *buffer, size_t size);
 
-extern nonnull boolean FileIsExecutable(const char *path, size_t length);
+extern nonnull bool FileIsExecutable(const char *path, size_t length);
 extern nonnull void FileDelete(const char *path, size_t length);
-extern nonnull boolean FileMkdir(const char *path, size_t length);
+extern nonnull bool FileMkdir(const char *path, size_t length);
 extern nonnull void FileCopy(const char *srcPath, size_t srcLength,
                              const char *dstPath, size_t dstLength);
 extern nonnull void FileRename(const char *oldPath, size_t oldLength,

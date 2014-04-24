@@ -67,8 +67,8 @@ typedef struct
     nativefunctionref nativeFunction;
     vref ns;
     int valueCount;
-    boolean parseConstant;
-    boolean allowSpace;
+    bool parseConstant;
+    bool allowSpace;
 } ExpressionState;
 
 static vref keywordElse;
@@ -88,11 +88,9 @@ static intvector temp;
 static bytevector btemp;
 
 
-static boolean parseExpression(ParseState *state, ExpressionState *estate,
-                               int valueCount, boolean constant);
-static boolean parseUnquotedExpression(ParseState *state,
-                                       ExpressionState *estate,
-                                       boolean constant);
+static bool parseExpression(ParseState *state, ExpressionState *estate,
+                            int valueCount, bool constant);
+static bool parseUnquotedExpression(ParseState *state, ExpressionState *estate, bool constant);
 
 
 static int encodeOp(Instruction op, int param)
@@ -127,7 +125,7 @@ static size_t getOffset(const ParseState *state, const byte *begin)
     return (size_t)(state->current - begin);
 }
 
-static boolean eof(const ParseState *state)
+static bool eof(const ParseState *state)
 {
     return state->current == state->limit;
 }
@@ -218,9 +216,9 @@ static void parsedConstant(ExpressionState *estate, ValueType valueType, vref co
 }
 
 
-static boolean isInitialIdentifierCharacter(byte c)
+static bool isInitialIdentifierCharacter(byte c)
 {
-    static boolean characters[] = {
+    static bool characters[] = {
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -244,9 +242,9 @@ static boolean isInitialIdentifierCharacter(byte c)
     /*     c == '_'; */
 }
 
-static boolean isIdentifierCharacter(byte c)
+static bool isIdentifierCharacter(byte c)
 {
-    static boolean characters[] = {
+    static bool characters[] = {
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -271,7 +269,7 @@ static boolean isIdentifierCharacter(byte c)
     /*     c == '_'; */
 }
 
-static boolean isFilenameCharacter(byte c)
+static bool isFilenameCharacter(byte c)
 {
     return (c >= 'a' && c <= 'z') ||
         (c >= 'A' && c <= 'Z') ||
@@ -294,12 +292,12 @@ static void skipEndOfLine(ParseState *state)
     state->line++;
 }
 
-static boolean peekNewline(ParseState *state)
+static bool peekNewline(ParseState *state)
 {
     return *state->current == '\n' || *state->current == '#';
 }
 
-static boolean peekReadNewline(ParseState *state)
+static bool peekReadNewline(ParseState *state)
 {
     if (*state->current == '\n')
     {
@@ -364,7 +362,7 @@ static uint readNewline(ParseState *state)
     }
 }
 
-static boolean skipWhitespaceAndNewline(ParseState *state)
+static bool skipWhitespaceAndNewline(ParseState *state)
 {
     skipWhitespace(state);
     if (unlikely(peekNewline(state) && readNewline(state) <= state->statementIndent))
@@ -407,17 +405,17 @@ static uint skipStatement(ParseState *state)
     return indent;
 }
 
-static boolean peekComment(const ParseState *state)
+static bool peekComment(const ParseState *state)
 {
     return *state->current == '#';
 }
 
-static boolean isKeyword(vref identifier)
+static bool isKeyword(vref identifier)
 {
     return identifier <= maxKeyword;
 }
 
-static boolean peekIdentifier(const ParseState *state)
+static bool peekIdentifier(const ParseState *state)
 {
     return isInitialIdentifierCharacter(*state->current);
 }
@@ -440,7 +438,7 @@ static vref peekReadIdentifier(ParseState *state)
     return 0;
 }
 
-static boolean peekReadKeywordElse(ParseState *state)
+static bool peekReadKeywordElse(ParseState *state)
 {
     if (state->current[0] == 'e' &&
         state->current[1] == 'l' &&
@@ -465,7 +463,7 @@ static vref readVariableName(ParseState *state)
     return 0;
 }
 
-static boolean readExpectedKeyword(ParseState *state, vref keyword)
+static bool readExpectedKeyword(ParseState *state, vref keyword)
 {
     vref identifier = peekReadIdentifier(state);
     if (likely(identifier == keyword))
@@ -476,17 +474,17 @@ static boolean readExpectedKeyword(ParseState *state, vref keyword)
     return false;
 }
 
-static boolean isDigit(byte b)
+static bool isDigit(byte b)
 {
     return b >= '0' && b <= '9';
 }
 
-static boolean peekNumber(const ParseState *state)
+static bool peekNumber(const ParseState *state)
 {
     return isDigit(*state->current);
 }
 
-static boolean peekString(const ParseState *state)
+static bool peekString(const ParseState *state)
 {
     return *state->current == '"';
 }
@@ -494,7 +492,7 @@ static boolean peekString(const ParseState *state)
 static vref readString(ParseState *state)
 {
     bytevector string;
-    boolean copied = false;
+    bool copied = false;
     const byte *begin;
     vref s;
 
@@ -586,7 +584,7 @@ static vref readFilename(ParseState *state)
     return StringPoolAdd2((const char*)begin, getOffset(state, begin));
 }
 
-static boolean readOperator(ParseState *state, byte op)
+static bool readOperator(ParseState *state, byte op)
 {
     if (*state->current == op)
     {
@@ -596,12 +594,12 @@ static boolean readOperator(ParseState *state, byte op)
     return false;
 }
 
-static boolean peekOperator(ParseState *state, byte op)
+static bool peekOperator(ParseState *state, byte op)
 {
     return *state->current == op;
 }
 
-static boolean reverseIfOperator(ParseState *state, byte op)
+static bool reverseIfOperator(ParseState *state, byte op)
 {
     if (peekOperator(state, op))
     {
@@ -611,7 +609,7 @@ static boolean reverseIfOperator(ParseState *state, byte op)
     return false;
 }
 
-static boolean readOperator2(ParseState *state, byte op1, byte op2)
+static bool readOperator2(ParseState *state, byte op1, byte op2)
 {
     if (state->current[0] == op1 && state->current[1] == op2)
     {
@@ -621,7 +619,7 @@ static boolean readOperator2(ParseState *state, byte op1, byte op2)
     return false;
 }
 
-static boolean peekOperator2(ParseState *state, byte op1, byte op2)
+static bool peekOperator2(ParseState *state, byte op1, byte op2)
 {
     if (state->current[0] == op1 && state->current[1] == op2)
     {
@@ -630,7 +628,7 @@ static boolean peekOperator2(ParseState *state, byte op1, byte op2)
     return false;
 }
 
-static boolean readOperator3(ParseState *state, byte op1, byte op2, byte op3)
+static bool readOperator3(ParseState *state, byte op1, byte op2, byte op3)
 {
     if (state->current[0] == op1 &&
         state->current[1] == op2 &&
@@ -642,7 +640,7 @@ static boolean readOperator3(ParseState *state, byte op1, byte op2, byte op3)
     return false;
 }
 
-static boolean readExpectedOperator(ParseState *state, byte op)
+static bool readExpectedOperator(ParseState *state, byte op)
 {
     if (likely(readOperator(state, op)))
     {
@@ -656,7 +654,7 @@ static boolean readExpectedOperator(ParseState *state, byte op)
 /* TODO: Parse big numbers */
 /* TODO: Parse non-decimal numbers */
 /* TODO: Parse non-integer numbers */
-static boolean parseNumber(ParseState *state, ExpressionState *estate)
+static bool parseNumber(ParseState *state, ExpressionState *estate)
 {
     int value = 0;
 
@@ -757,7 +755,7 @@ static int finishRValue(ParseState *state, const ExpressionState *estate)
     unreachable;
 }
 
-static int parseRValue(ParseState *state, boolean constant)
+static int parseRValue(ParseState *state, bool constant)
 {
     ExpressionState estate;
 
@@ -769,7 +767,7 @@ static int parseRValue(ParseState *state, boolean constant)
     return finishRValue(state, &estate);
 }
 
-static boolean parseAndStoreValueAt(ParseState *state, int variable)
+static bool parseAndStoreValueAt(ParseState *state, int variable)
 {
     ExpressionState estate;
 
@@ -782,8 +780,8 @@ static boolean parseAndStoreValueAt(ParseState *state, int variable)
     return true;
 }
 
-static boolean finishLValue(ParseState *state, const ExpressionState *lvalue,
-                            const ExpressionState *rvalue)
+static bool finishLValue(ParseState *state, const ExpressionState *lvalue,
+                         const ExpressionState *rvalue)
 {
     /* int variable; */
     switch (lvalue->expressionType)
@@ -807,8 +805,7 @@ static boolean finishLValue(ParseState *state, const ExpressionState *lvalue,
     unreachable;
 }
 
-static boolean parseInvocationRest(ParseState *state, ExpressionState *estate,
-                                   vref ns, vref name)
+static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref ns, vref name)
 {
     ExpressionState estateArgument;
     size_t oldTempSize = IVSize(&temp);
@@ -887,9 +884,7 @@ error:
     return false;
 }
 
-static boolean parseNativeInvocationRest(ParseState *state,
-                                         ExpressionState *estate,
-                                         vref name)
+static bool parseNativeInvocationRest(ParseState *state, ExpressionState *estate, vref name)
 {
     nativefunctionref function = NativeFindFunction(name);
     uint argumentCount;
@@ -938,9 +933,9 @@ static boolean parseNativeInvocationRest(ParseState *state,
     return readExpectedOperator(state, ')');
 }
 
-static boolean parseBinaryOperationRest(
+static bool parseBinaryOperationRest(
     ParseState *state, ExpressionState *estate,
-    boolean (*parseExpressionRest)(ParseState*, ExpressionState*),
+    bool (*parseExpressionRest)(ParseState*, ExpressionState*),
     Instruction instruction, ValueType valueType)
 {
     int value = finishRValue(state, estate);
@@ -958,7 +953,7 @@ static boolean parseBinaryOperationRest(
     return true;
 }
 
-static boolean parseQuotedValue(ParseState *state, ExpressionState *estate)
+static bool parseQuotedValue(ParseState *state, ExpressionState *estate)
 {
     static const char terminators[] = " \n\r(){}[]";
     const byte *begin = state->current;
@@ -979,10 +974,10 @@ static boolean parseQuotedValue(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseQuotedListRest(ParseState *state, ExpressionState *estate)
+static bool parseQuotedListRest(ParseState *state, ExpressionState *estate)
 {
     ExpressionState estate2;
-    boolean constant = true;
+    bool constant = true;
     size_t oldTempSize = IVSize(&temp);
 
     assert(!estate->identifier);
@@ -1049,7 +1044,7 @@ error:
     return false;
 }
 
-static boolean parseExpression12(ParseState *state, ExpressionState *estate)
+static bool parseExpression12(ParseState *state, ExpressionState *estate)
 {
     ExpressionState estate2;
     vref identifier = estate->identifier;
@@ -1158,7 +1153,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '{'))
     {
-        boolean constant;
+        bool constant;
         size_t oldTempSize = IVSize(&temp);
         skipWhitespace(state);
         if (readOperator(state, '}'))
@@ -1236,7 +1231,7 @@ static boolean parseExpression12(ParseState *state, ExpressionState *estate)
     return false;
 }
 
-static boolean parseExpression11(ParseState *state, ExpressionState *estate)
+static bool parseExpression11(ParseState *state, ExpressionState *estate)
 {
     if (unlikely(!parseExpression12(state, estate)))
     {
@@ -1273,10 +1268,10 @@ static boolean parseExpression11(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression10(ParseState *state, ExpressionState *estate)
+static bool parseExpression10(ParseState *state, ExpressionState *estate)
 {
-    boolean first = true;
-    boolean acceptNonString;
+    bool first = true;
+    bool acceptNonString;
     int variable;
     for (;;)
     {
@@ -1312,7 +1307,7 @@ static boolean parseExpression10(ParseState *state, ExpressionState *estate)
     }
 }
 
-static boolean parseExpression9(ParseState *state, ExpressionState *estate)
+static bool parseExpression9(ParseState *state, ExpressionState *estate)
 {
     if (readOperator(state, '-'))
     {
@@ -1359,7 +1354,7 @@ static boolean parseExpression9(ParseState *state, ExpressionState *estate)
     return parseExpression10(state, estate);
 }
 
-static boolean parseExpression8(ParseState *state, ExpressionState *estate)
+static bool parseExpression8(ParseState *state, ExpressionState *estate)
 {
     if (unlikely(!parseExpression9(state, estate)))
     {
@@ -1412,7 +1407,7 @@ static boolean parseExpression8(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression7(ParseState *state, ExpressionState *estate)
+static bool parseExpression7(ParseState *state, ExpressionState *estate)
 {
     if (unlikely(!parseExpression8(state, estate)))
     {
@@ -1457,7 +1452,7 @@ static boolean parseExpression7(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression6(ParseState *state, ExpressionState *estate)
+static bool parseExpression6(ParseState *state, ExpressionState *estate)
 {
     if (unlikely(!parseExpression7(state, estate)))
     {
@@ -1471,7 +1466,7 @@ static boolean parseExpression6(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression5(ParseState *state, ExpressionState *estate)
+static bool parseExpression5(ParseState *state, ExpressionState *estate)
 {
     if (unlikely(!parseExpression6(state, estate)))
     {
@@ -1485,7 +1480,7 @@ static boolean parseExpression5(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression4(ParseState *state, ExpressionState *estate)
+static bool parseExpression4(ParseState *state, ExpressionState *estate)
 {
     if (unlikely(!parseExpression5(state, estate)))
     {
@@ -1516,7 +1511,7 @@ static boolean parseExpression4(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression3(ParseState *state, ExpressionState *estate)
+static bool parseExpression3(ParseState *state, ExpressionState *estate)
 {
     if (unlikely(!parseExpression4(state, estate)))
     {
@@ -1583,7 +1578,7 @@ static boolean parseExpression3(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression2(ParseState *state, ExpressionState *estate)
+static bool parseExpression2(ParseState *state, ExpressionState *estate)
 {
     int target;
 
@@ -1636,9 +1631,9 @@ static boolean parseExpression2(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpressionRest(ParseState *state, ExpressionState *estate)
+static bool parseExpressionRest(ParseState *state, ExpressionState *estate)
 {
-    const boolean parseConstant = estate->parseConstant;
+    const bool parseConstant = estate->parseConstant;
 
     if (unlikely(!parseExpression2(state, estate)))
     {
@@ -1672,8 +1667,8 @@ static boolean parseExpressionRest(ParseState *state, ExpressionState *estate)
     return true;
 }
 
-static boolean parseExpression(ParseState *state, ExpressionState *estate,
-                               int valueCount, boolean constant)
+static bool parseExpression(ParseState *state, ExpressionState *estate,
+                            int valueCount, bool constant)
 {
     estate->valueCount = valueCount;
     estate->parseConstant = constant;
@@ -1681,9 +1676,7 @@ static boolean parseExpression(ParseState *state, ExpressionState *estate,
     return parseExpressionRest(state, estate);
 }
 
-static boolean parseUnquotedExpression(ParseState *state,
-                                       ExpressionState *estate,
-                                       boolean constant)
+static bool parseUnquotedExpression(ParseState *state, ExpressionState *estate, bool constant)
 {
     estate->valueCount = 1;
     estate->parseConstant = constant;
@@ -1691,9 +1684,8 @@ static boolean parseUnquotedExpression(ParseState *state,
     return parseExpressionRest(state, estate);
 }
 
-static boolean parseAssignmentExpressionRest(ParseState *state,
-                                             ExpressionState *estate,
-                                             Instruction instruction)
+static bool parseAssignmentExpressionRest(ParseState *state, ExpressionState *estate,
+                                          Instruction instruction)
 {
     ExpressionState estate2;
     int value = finishRValue(state, estate);
@@ -1709,7 +1701,7 @@ static boolean parseAssignmentExpressionRest(ParseState *state,
     return finishLValue(state, estate, &estate2);
 }
 
-static boolean parseExpressionStatement(ParseState *state, vref identifier)
+static bool parseExpressionStatement(ParseState *state, vref identifier)
 {
     ExpressionState estate, rvalue;
 
@@ -1820,7 +1812,7 @@ error:
     return false;
 }
 
-static boolean parseReturnRest(ParseState *state)
+static bool parseReturnRest(ParseState *state)
 {
     size_t oldTempSize;
     int value;
@@ -2074,10 +2066,10 @@ static void parseFunctionBody(ParseState *state)
                                              (uint)state->jumpTargetCount);
 }
 
-static boolean parseFunctionDeclarationRest(ParseState *state, vref functionName)
+static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
 {
     ExpressionState estate;
-    boolean requireDefaultValues = false;
+    bool requireDefaultValues = false;
     size_t paramsOffset;
     int parameterCount = 0;
     size_t varargOffset;

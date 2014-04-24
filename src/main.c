@@ -38,10 +38,10 @@ int main(int argc, const char **argv)
     size_t cacheDirectoryLength;
     namespaceref defaultNamespace;
     vref name;
-    boolean parseOptions = true;
-    boolean disassemble = false;
+    bool parseOptions = true;
+    bool disassemble = false;
     size_t size;
-    boolean fail;
+    bool fail;
     ParsedProgram parsed;
     LinkedProgram linked;
 
@@ -225,7 +225,7 @@ int main(int argc, const char **argv)
 
 void cleanShutdown(int exitcode)
 {
-    static boolean shuttingDown;
+    static bool shuttingDown;
     if (shuttingDown)
     {
         exit(EXIT_FAILURE);

@@ -16,7 +16,7 @@ void Fail(const char *format, ...)
     cleanShutdown(EXIT_FAILURE);
 }
 
-void FailErrno(boolean forked)
+void FailErrno(bool forked)
 {
     fprintf(stderr, "don: %s\n", strerror(errno));
     if (forked)

@@ -73,7 +73,7 @@ typedef struct
     size_t entry;
 } TableEntry;
 
-static boolean initialised;
+static bool initialised;
 static const byte *oldEntries;
 static size_t oldEntriesSize;
 static bytevector newEntries;
@@ -186,7 +186,7 @@ static void initIndex(uint slot, IndexInfo *info)
                                 sizeof(filename), null, 0, &info->pathLength);
 }
 
-static boolean openIndex(IndexInfo *info)
+static bool openIndex(IndexInfo *info)
 {
     FileHeader *header;
     if (!FileTryOpen(&info->file, info->path, info->pathLength))
@@ -384,8 +384,8 @@ void CacheDispose(void)
     free(cacheDir);
 }
 
-void CacheGet(const byte *hash, boolean echoCachedOutput,
-              boolean *uptodate, char **path, size_t *pathLength, vref *out)
+void CacheGet(const byte *hash, bool echoCachedOutput,
+              bool *uptodate, char **path, size_t *pathLength, vref *out)
 {
     const char *p;
     char filename[CACHE_FILENAME_LENGTH + 1];

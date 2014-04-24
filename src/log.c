@@ -83,7 +83,7 @@ static void processNewData(LogPipe *p, size_t newData)
 {
     size_t beginOffset;
     size_t offset;
-    boolean lastWasNewline;
+    bool lastWasNewline;
 
     if (!newData)
     {

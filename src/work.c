@@ -7,7 +7,7 @@
 #include "stringpool.h"
 #include "work.h"
 
-static const boolean DEBUG_WORK = false;
+static const bool DEBUG_WORK = false;
 
 static bytevector queue;
 
@@ -110,7 +110,7 @@ void WorkDiscard(const VM *vm)
     }
 }
 
-boolean WorkQueueEmpty(void)
+bool WorkQueueEmpty(void)
 {
     return BVSize(&queue) == 0;
 }

@@ -12,7 +12,7 @@
 #include "stringpool.h"
 #include "work.h"
 
-static const boolean TRACE = false;
+static const bool TRACE = false;
 
 static const int *vmBytecode;
 
@@ -111,7 +111,7 @@ static void execute(VM *vm)
     vref string;
     int function;
     nativefunctionref nativeFunction;
-    boolean condition;
+    bool condition;
 
     for (;;)
     {
@@ -301,7 +301,7 @@ void InterpreterExecute(const LinkedProgram *program, int target)
 {
     VM *vm;
     uint i;
-    boolean idle = false;
+    bool idle = false;
 
     vmBytecode = program->bytecode;
     vmTable = (VM**)malloc(vmTableSize * sizeof(*vmTable));
