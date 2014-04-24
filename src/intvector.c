@@ -1,4 +1,4 @@
-#include <memory.h>
+#include <string.h>
 #include "common.h"
 #include "intvector.h"
 

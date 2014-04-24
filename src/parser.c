@@ -1,7 +1,7 @@
 #define _POSIX_SOURCE
-#include <memory.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <time.h>
 #include "common.h"

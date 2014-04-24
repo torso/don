@@ -2,7 +2,7 @@
 #define _GNU_SOURCE
 #include <stdarg.h>
 #include <stdio.h>
-#include <memory.h>
+#include <string.h>
 #include <unistd.h>
 #include "common.h"
 #include "vm.h"

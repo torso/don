@@ -1,12 +1,12 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <time.h>
 #ifdef VALGRIND
 #include <valgrind/memcheck.h>
 #endif
-#include "memory.h"
 #include "common.h"
 #include "bytevector.h"
 #include "cache.h"

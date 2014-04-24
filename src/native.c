@@ -1,8 +1,8 @@
 #define _XOPEN_SOURCE 600
-#include <memory.h>
 #include <spawn.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
