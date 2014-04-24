@@ -19,6 +19,7 @@
 struct _FileEntry
 {
     FileStatus status;
+    int timeStamp;
     size_t pathLength;
     char *path;
     char pathBuffer[72+128];
@@ -28,6 +29,7 @@ static FileEntry table[0x400];
 static const uint tableMask = sizeof(table) / sizeof(*table) - 1;
 static char *cwd;
 static size_t cwdLength;
+static int currentTimeStamp;
 
 
 static char *dupPath(const char *path, size_t length)
@@ -82,7 +84,8 @@ static boolean feIsEntry(uint index, const char *path, size_t length)
 {
     FileEntry *fe = table + index;
 
-    return fe->pathLength == length && !memcmp(fe->path, path, length);
+    return fe->timeStamp == currentTimeStamp &&
+        fe->pathLength == length && !memcmp(fe->path, path, length);
 }
 
 static FileEntry *feEntryAt(const char *path, size_t length, int fdParent, const char *relPath)
@@ -92,11 +95,13 @@ static FileEntry *feEntryAt(const char *path, size_t length, int fdParent, const
     struct stat s;
     struct stat s2;
 
-    if (fe->pathLength == length && !memcmp(fe->path, path, length))
+    if (fe->timeStamp == currentTimeStamp &&
+        fe->pathLength == length && !memcmp(fe->path, path, length))
     {
         return fe;
     }
 
+    fe->timeStamp = currentTimeStamp;
     fe->pathLength = length;
     fe->path = length >= sizeof(fe->pathBuffer) ? (char*)malloc(length + 1) : fe->pathBuffer;
     memcpy(fe->path, path, length);
@@ -439,12 +444,7 @@ const char *FileStripPath(const char *path, size_t *length)
 
 void FileMarkModified(const char *path unused, size_t length unused)
 {
-    /* TODO: Do something clever. */
-    uint i;
-    for (i = 0; i < sizeof(table) / sizeof(*table); i++)
-    {
-        clearTableEntry(i);
-    }
+    currentTimeStamp++;
 }
 
 const FileStatus *FileGetStatus(const char *path, size_t length)
@@ -652,6 +652,7 @@ void FileDelete(const char *path, size_t length)
         }
     }
     pathZ = dupPath(path, length);
+    FileMarkModified(pathZ, length);
     if (!unlink(pathZ) || errno == ENOENT)
     {
         free(pathZ);
@@ -694,6 +695,7 @@ boolean FileMkdir(const char *path, size_t length)
     }
     /* TODO: Avoid malloc and copy */
     pathZ = dupPath(path, length);
+    FileMarkModified(pathZ, length);
     if (!mkdir(pathZ, S_IRWXU | S_IRWXG | S_IRWXO))
     {
         free(pathZ);
@@ -735,7 +737,7 @@ void FileCopy(const char *srcPath, size_t srcLength unused,
     }
     assert(!S_ISDIR(srcStat.st_mode)); /* TODO: Copy directory */
 
-    /* TODO: Update file table */
+    FileMarkModified(dstPath, dstLength);
     dstfd = open(dstPath, O_CLOEXEC | O_CREAT | O_WRONLY,
                  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
     if (unlikely(dstfd == -1))
@@ -786,7 +788,8 @@ void FileRename(const char *oldPath, size_t oldLength,
         /* TODO: Rename directories and across file systems */
         Fail("Error renaming file from %s to %s: %s", oldPathZ, newPathZ, strerror(errno));
     }
-    /* TODO: Update file table */
+    FileMarkModified(oldPathZ, oldLength);
+    FileMarkModified(newPathZ, newLength);
     free(oldPathZ);
     free(newPathZ);
 }
