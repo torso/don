@@ -1,3 +1,4 @@
+#define _POSIX_SOURCE
 #include <memory.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -5,6 +6,7 @@
 #include <time.h>
 #include "common.h"
 #include "bytevector.h"
+#include "fail.h"
 #include "file.h"
 #include "heap.h"
 #include "intvector.h"
@@ -2197,6 +2199,10 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
 
     FileOpen(&file, HeapGetString(filename), VStringLength(filename));
     size = FileSize(&file);
+    if (unlikely(size >= SSIZE_MAX))
+    {
+        Fail("File too big: %s\n", HeapGetString(filename));
+    }
     buffer = (byte*)malloc(size + 1);
     FileRead(&file, buffer, size);
     FileClose(&file);
