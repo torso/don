@@ -5,9 +5,15 @@
 #define _GNU_SOURCE 1
 
 #include <limits.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdint.h>
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
 #include <stdbool.h>
+#else
+#define bool signed char
+#define true 1
+#define false 0
+#endif
 
 #ifdef VALGRIND
 #undef NVALGRIND
@@ -26,18 +32,12 @@
 #define HAVE_PIPE2 1
 #define VFORK vfork
 
-typedef int8_t int8;
-typedef int16_t int16;
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-
 typedef unsigned int uint;
 typedef unsigned long int ulong;
-typedef uint8 byte;
+typedef unsigned char byte;
 
-#define null (0)
+#define null NULL
+#define SIZE_MAX ((size_t)-1)
 
 #define attrprintf(formatarg, args) __attribute((format(printf, formatarg, args)))
 #define nonnull __attribute((nonnull))

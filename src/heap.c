@@ -64,9 +64,9 @@ static vref heapFinishAlloc(byte *objectData)
 static vref heapFinishRealloc(byte *objectData, size_t size)
 {
     assert(size);
-    assert(size <= UINT32_MAX - 1);
+    assert(size <= UINT_MAX - 1);
     assert(HeapPageFree == objectData);
-    *(uint32*)(objectData - OBJECT_OVERHEAD) = (uint32)size;
+    *(uint*)(objectData - OBJECT_OVERHEAD) = (uint)size;
     HeapPageFree += size;
     return heapFinishAlloc(objectData);
 }
@@ -93,7 +93,7 @@ static vref heapNext(vref object)
 {
     checkObject(object);
     return refFromSize(
-        *(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_SIZE) +
+        *(uint*)(HeapPageBase + sizeFromRef(object) + HEADER_SIZE) +
         sizeFromRef(object) + OBJECT_OVERHEAD);
 }
 
@@ -200,8 +200,8 @@ void HeapGet(vref v, HeapObject *ho)
     else
     {
         byte *p = HeapPageBase + sizeFromRef(v);
-        ho->type = (VType)*(uint32*)(p + HEADER_TYPE);
-        ho->size = (VType)*(uint32*)(p + HEADER_SIZE);
+        ho->type = (VType)*(uint*)(p + HEADER_TYPE);
+        ho->size = (VType)*(uint*)(p + HEADER_SIZE);
         ho->data = p + OBJECT_OVERHEAD;
     }
 }
@@ -288,13 +288,13 @@ VType HeapGetObjectType(vref object)
 {
     checkObject(object);
     return isInteger(object) ? TYPE_INTEGER :
-        (VType)*(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_TYPE);
+        (VType)*(uint*)(HeapPageBase + sizeFromRef(object) + HEADER_TYPE);
 }
 
 size_t HeapGetObjectSize(vref object)
 {
     checkObject(object);
-    return *(uint32*)(HeapPageBase + sizeFromRef(object) + HEADER_SIZE);
+    return *(uint*)(HeapPageBase + sizeFromRef(object) + HEADER_SIZE);
 }
 
 const byte *HeapGetObjectData(vref object)

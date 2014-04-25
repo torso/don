@@ -26,20 +26,6 @@ void BVAddUint(bytevector *v, uint value)
     *p = value;
 }
 
-void BVAddInt16(bytevector *v, int16 value)
-{
-    byte *p = vectorGrow(v, sizeof(value));
-    *p++ = (byte)(value >> 8);
-    *p = (byte)value;
-}
-
-void BVAddUint16(bytevector *v, uint16 value)
-{
-    byte *p = vectorGrow(v, sizeof(value));
-    *p++ = (byte)(value >> 8);
-    *p = (byte)value;
-}
-
 void BVAddSize(bytevector *v, size_t value)
 {
     size_t *p = (size_t*)vectorGrow(v, sizeof(value));
@@ -76,13 +62,6 @@ uint BVGetUint(const bytevector *v, size_t index)
     return *(uint*)&v->data[index];
 }
 
-uint16 BVGetUint16(const bytevector *v, size_t index)
-{
-    vectorCheckRange(v, index, sizeof(uint16));
-    return (uint16)(((uint16)v->data[index] << 8) + v->data[index + 1]);
-}
-
-
 void BVSetInt(bytevector *v, size_t index, int value)
 {
     vectorCheckRange(v, index, sizeof(value));
@@ -113,15 +92,6 @@ uint BVReadUint(const bytevector *v, size_t *index)
     uint value;
     vectorCheckRange(v, *index, sizeof(value));
     value = *(uint*)&v->data[*index];
-    *index += sizeof(value);
-    return value;
-}
-
-uint16 BVReadUint16(const bytevector *v, size_t *index)
-{
-    uint16 value;
-    vectorCheckRange(v, *index, sizeof(value));
-    value = (uint16)((v->data[*index] << 8) + v->data[*index + 1]);
     *index += sizeof(value);
     return value;
 }
