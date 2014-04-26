@@ -27,8 +27,8 @@ typedef struct
     uint statementIndent;
     uint jumpCount;
     int jumpTargetCount;
-
     int unnamedVariableCount;
+    bool isTarget;
 
     intvector *bytecode;
     intvector *constants;
@@ -1821,6 +1821,10 @@ static bool parseReturnRest(ParseState *state)
         writeOp(state, OP_RETURN_VOID, 0);
         return true;
     }
+    if (unlikely(state->isTarget))
+    {
+        error(state, "Targets can't return values");
+    }
     oldTempSize = IVSize(&temp);
     for (;;)
     {
@@ -2232,6 +2236,7 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
                     goto error;
                 }
                 writeOp3(&state, OP_FUNCTION_UNLINKED, intFromRef(name), 0, 0);
+                state.isTarget = true;
                 parseFunctionBody(&state);
             }
             else if (readOperator(&state, '('))
@@ -2250,6 +2255,7 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
                     /* TODO: skip parsing function body, but continue parsing after it */
                     goto error;
                 }
+                state.isTarget = false;
                 parseFunctionBody(&state);
             }
             else

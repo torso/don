@@ -3,10 +3,12 @@
 #+5: Parameter 'b' already has a value
 #+5: No parameter with name 'c'
 #+5: No value for parameter 'a'
+#+6: Targets can't return values
 
 default:
 
     f()
     g(b:1 b:2 c:3)
+    return d
 
 g(a b)
