@@ -1,3 +1,5 @@
-default:
+target default
+{
     a = "PASS"
     echo(a)
+}

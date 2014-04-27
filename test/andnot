@@ -1,16 +1,13 @@
-default:
-   if !false && false
-      echo("FAIL")
-   if false && !false
-      echo("FAIL")
-   if false && !true
-      echo("FAIL")
-   if !true && false
-      echo("FAIL")
-   if !true && true
-      echo("FAIL")
-   if true && !true
-      echo("FAIL")
-   if !false && true
-      if true && !false
-         echo("PASS")
+target default
+{
+    if !false && false { echo("FAIL") }
+    if false && !false { echo("FAIL") }
+    if false && !true { echo("FAIL") }
+    if !true && false { echo("FAIL") }
+    if !true && true { echo("FAIL") }
+    if true && !true { echo("FAIL") }
+    if !false && true
+    {
+        if true && !false { echo("PASS") }
+    }
+}

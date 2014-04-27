@@ -1,3 +1,7 @@
-default:
-   if "abc"[0] == "a" && "abc"[1] == "b" && "abc"[2] == "c" && "a"[0] == "a"
-      echo("PASS")
+target default
+{
+    if "abc"[0] == "a" && "abc"[1] == "b" && "abc"[2] == "c" && "a"[0] == "a"
+    {
+        echo("PASS")
+    }
+}

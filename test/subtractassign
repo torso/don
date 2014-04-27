@@ -1,5 +1,9 @@
-default:
-   a = 3
-   a -= 1
-   if a == 2
-      echo("PASS")
+target default
+{
+    a = 3
+    a -= 1
+    if a == 2
+    {
+        echo("PASS")
+    }
+}

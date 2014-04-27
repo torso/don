@@ -1,9 +1,17 @@
-default:
+target default
+{
     a = "FAIL"
     b = true
     while a == "FAIL"
+    {
         if b
+        {
             b = false
+        }
         else
+        {
             a = "PASS"
+        }
+    }
     echo(a)
+}

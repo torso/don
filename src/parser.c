@@ -24,11 +24,11 @@ typedef struct
     vref filename;
     uint line;
     uint statementLine;
-    uint statementIndent;
     uint jumpCount;
     int jumpTargetCount;
     int unnamedVariableCount;
     bool isTarget;
+    bool structuralError;
 
     intvector *bytecode;
     intvector *constants;
@@ -73,10 +73,12 @@ typedef struct
 static vref keywordElse;
 static vref keywordFalse;
 static vref keywordFor;
+static vref keywordFn;
 static vref keywordIf;
 static vref keywordIn;
 static vref keywordNull;
 static vref keywordReturn;
+static vref keywordTarget;
 static vref keywordTrue;
 static vref keywordWhile;
 
@@ -90,6 +92,7 @@ static bytevector btemp;
 static bool parseExpression(ParseState *state, ExpressionState *estate,
                             int valueCount, bool constant);
 static bool parseUnquotedExpression(ParseState *state, ExpressionState *estate, bool constant);
+static void parseBlock(ParseState *state);
 
 
 static int encodeOp(Instruction op, int param)
@@ -277,19 +280,72 @@ static bool isFilenameCharacter(byte c)
 }
 
 
-static void skipWhitespace(ParseState *state)
+static bool readOperator(ParseState *state, byte op)
 {
-    while (*state->current == ' ')
+    if (*state->current == op)
     {
         state->current++;
+        return true;
     }
+    return false;
 }
 
-static void skipEndOfLine(ParseState *state)
+static bool peekOperator(ParseState *state, byte op)
 {
-    while (!eof(state) && *state->current++ != '\n');
-    state->line++;
+    return *state->current == op;
 }
+
+static bool reverseIfOperator(ParseState *state, byte op)
+{
+    if (peekOperator(state, op))
+    {
+        state->current--;
+        return true;
+    }
+    return false;
+}
+
+static bool readOperator2(ParseState *state, byte op1, byte op2)
+{
+    if (state->current[0] == op1 && state->current[1] == op2)
+    {
+        state->current += 2;
+        return true;
+    }
+    return false;
+}
+
+static bool peekOperator2(ParseState *state, byte op1, byte op2)
+{
+    if (state->current[0] == op1 && state->current[1] == op2)
+    {
+        return true;
+    }
+    return false;
+}
+
+static bool readOperator3(ParseState *state, byte op1, byte op2, byte op3)
+{
+    if (state->current[0] == op1 &&
+        state->current[1] == op2 &&
+        state->current[2] == op3)
+    {
+        state->current += 3;
+        return true;
+    }
+    return false;
+}
+
+static bool readExpectedOperator(ParseState *state, byte op)
+{
+    if (likely(readOperator(state, op)))
+    {
+        return true;
+    }
+    error(state, "Expected operator '%c'. Got '%c'", op, *state->current);
+    return false;
+}
+
 
 static bool peekNewline(ParseState *state)
 {
@@ -361,13 +417,44 @@ static uint readNewline(ParseState *state)
     }
 }
 
+static void skipWhitespace(ParseState *state)
+{
+    while (*state->current == ' ')
+    {
+        state->current++;
+    }
+}
+
+static void skipEndOfLine(ParseState *state)
+{
+    while (*state->current++ != '\n');
+    state->line++;
+}
+
+static bool skipBlockWhitespace(ParseState *state)
+{
+    skipWhitespace(state);
+    if (peekNewline(state))
+    {
+        uint line = state->line;
+        readNewline(state);
+        if (unlikely(eof(state)))
+        {
+            writeOp(state, OP_LINE, (int)line + 1);
+            error(state, "Expected operator '}'");
+            return true;
+        }
+        return readOperator(state, '}');
+    }
+    return readOperator(state, '}');
+}
+
 static bool skipWhitespaceAndNewline(ParseState *state)
 {
     skipWhitespace(state);
-    if (unlikely(peekNewline(state) && readNewline(state) <= state->statementIndent))
+    if (unlikely(peekNewline(state)))
     {
-        error(state, "Expected increased indentation for continued line");
-        return false;
+        readNewline(state);
     }
     return true;
 }
@@ -387,21 +474,6 @@ static void skipExpressionWhitespaceAndNewline(ParseState *state,
     {
         skipWhitespaceAndNewline(state);
     }
-}
-
-static uint skipStatement(ParseState *state)
-{
-    uint indent;
-    do
-    {
-        while (*state->current != '\n')
-        {
-            state->current++;
-        }
-        indent = readNewline(state);
-    }
-    while (indent > state->statementIndent);
-    return indent;
 }
 
 static bool peekComment(const ParseState *state)
@@ -581,72 +653,6 @@ static vref readFilename(ParseState *state)
         return 0;
     }
     return StringPoolAdd2((const char*)begin, getOffset(state, begin));
-}
-
-static bool readOperator(ParseState *state, byte op)
-{
-    if (*state->current == op)
-    {
-        state->current++;
-        return true;
-    }
-    return false;
-}
-
-static bool peekOperator(ParseState *state, byte op)
-{
-    return *state->current == op;
-}
-
-static bool reverseIfOperator(ParseState *state, byte op)
-{
-    if (peekOperator(state, op))
-    {
-        state->current--;
-        return true;
-    }
-    return false;
-}
-
-static bool readOperator2(ParseState *state, byte op1, byte op2)
-{
-    if (state->current[0] == op1 && state->current[1] == op2)
-    {
-        state->current += 2;
-        return true;
-    }
-    return false;
-}
-
-static bool peekOperator2(ParseState *state, byte op1, byte op2)
-{
-    if (state->current[0] == op1 && state->current[1] == op2)
-    {
-        return true;
-    }
-    return false;
-}
-
-static bool readOperator3(ParseState *state, byte op1, byte op2, byte op3)
-{
-    if (state->current[0] == op1 &&
-        state->current[1] == op2 &&
-        state->current[2] == op3)
-    {
-        state->current += 3;
-        return true;
-    }
-    return false;
-}
-
-static bool readExpectedOperator(ParseState *state, byte op)
-{
-    if (likely(readOperator(state, op)))
-    {
-        return true;
-    }
-    error(state, "Expected operator '%c'. Got '%c'", op, *state->current);
-    return false;
 }
 
 
@@ -1852,33 +1858,30 @@ static bool parseReturnRest(ParseState *state)
     }
 }
 
-static uint parseBlock(ParseState *state, uint indent)
+static void parseBlock(ParseState *state)
 {
-    uint oldStatementIndent = state->statementIndent;
     vref identifier;
 
-    if (unlikely(indent < state->statementIndent))
+    skipWhitespace(state);
+    if (peekNewline(state))
     {
+        readNewline(state);
+    }
+    if (unlikely(!readOperator(state, '{')))
+    {
+        state->structuralError = true;
         writeOp(state, OP_LINE, (int)state->line);
-        error(state, "Expected increased indentation level");
-        return indent;
+        error(state, "Expected operator '{'");
+        return;
     }
 
-    state->statementIndent = indent;
     for (;;)
     {
-        writeOp(state, OP_LINE, (int)state->line);
-        if (indent != state->statementIndent)
+        if (skipBlockWhitespace(state))
         {
-            if (unlikely(indent > state->statementIndent || (indent && !oldStatementIndent)))
-            {
-                error(state, "Mismatched indentation level");
-            }
-            else
-            {
-                break;
-            }
+            return;
         }
+        writeOp(state, OP_LINE, (int)state->line);
 
         state->statementLine = state->line;
 
@@ -1889,7 +1892,7 @@ static uint parseBlock(ParseState *state, uint indent)
             {
                 if (unlikely(identifier > maxStatementKeyword))
                 {
-                    error(state, "Not a statement");
+                    error(state, "Not a statement1");
                     goto statementError;
                 }
                 skipWhitespace(state);
@@ -1900,13 +1903,18 @@ static uint parseBlock(ParseState *state, uint indent)
                     int condition = parseRValue(state, false);
                     if (unlikely(!condition))
                     {
-                        /* TODO: Ignore else */
+                        state->structuralError = true;
                         goto statementError;
                     }
                     writeBranch(state, conditionTarget, OP_BRANCH_FALSE_INDEXED, condition);
 
-                    indent = parseBlock(state, readNewline(state));
-                    if (indent != state->statementIndent || !peekReadKeywordElse(state))
+                    parseBlock(state);
+                    if (skipBlockWhitespace(state))
+                    {
+                        placeJumpTargetHere(state, conditionTarget);
+                        return;
+                    }
+                    if (!peekReadKeywordElse(state))
                     {
                         placeJumpTargetHere(state, conditionTarget);
                         continue;
@@ -1917,16 +1925,21 @@ static uint parseBlock(ParseState *state, uint indent)
                     {
                         writeJump(state, afterIfTarget);
                         placeJumpTargetHere(state, conditionTarget);
-                        skipWhitespace(state);
+                        if (skipBlockWhitespace(state))
+                        {
+                            error(state, "Expected block after else");
+                            return;
+                        }
                         identifier = peekReadIdentifier(state);
                         if (identifier != keywordIf)
                         {
-                            if (unlikely(identifier || !peekNewline(state)))
+                            if (unlikely(identifier))
                             {
+                                writeOp(state, OP_LINE, (int)state->line);
                                 error(state, "Garbage after else");
                                 goto statementError;
                             }
-                            indent = parseBlock(state, readNewline(state));
+                            parseBlock(state);
                             break;
                         }
                         skipWhitespace(state);
@@ -1935,27 +1948,20 @@ static uint parseBlock(ParseState *state, uint indent)
                         {
                             goto statementError;
                         }
-                        if (unlikely(!peekNewline(state)))
-                        {
-                            error(state, "Garbage after if statement");
-                            goto statementError;
-                        }
                         conditionTarget = createJumpTarget(state);
                         writeBranch(state, conditionTarget, OP_BRANCH_FALSE_INDEXED, condition);
-                        indent = parseBlock(state, readNewline(state));
-                        if (indent != state->statementIndent || !peekReadKeywordElse(state))
+                        parseBlock(state);
+                        if (skipBlockWhitespace(state))
+                        {
+                            return;
+                        }
+                        if (!peekReadKeywordElse(state))
                         {
                             placeJumpTargetHere(state, conditionTarget);
                             break;
                         }
                     }
                     placeJumpTargetHere(state, afterIfTarget);
-                    continue;
-                }
-                if (unlikely(identifier == keywordElse))
-                {
-                    error(state, "else without matching if");
-                    goto statementError;
                 }
                 else if (identifier == keywordFor)
                 {
@@ -1993,12 +1999,11 @@ static uint parseBlock(ParseState *state, uint indent)
                     iterCondition = createVariable(state);
                     IVAdd(state->bytecode, iterCondition);
                     writeBranch(state, afterLoop, OP_BRANCH_FALSE_INDEXED, iterCondition);
-                    indent = parseBlock(state, readNewline(state));
+                    parseBlock(state);
                     writeJump(state, loopTop);
                     placeJumpTargetHere(state, afterLoop);
-                    continue;
                 }
-                if (identifier == keywordReturn)
+                else if (identifier == keywordReturn)
                 {
                     if (unlikely(!parseReturnRest(state)))
                     {
@@ -2015,10 +2020,17 @@ static uint parseBlock(ParseState *state, uint indent)
                         goto statementError;
                     }
                     writeBranch(state, afterLoop, OP_BRANCH_FALSE_INDEXED, condition);
-                    indent = parseBlock(state, readNewline(state));
+                    parseBlock(state);
                     writeJump(state, loopTop);
                     placeJumpTargetHere(state, afterLoop);
-                    continue;
+                }
+                else if (unlikely(identifier == keywordElse))
+                {
+                    if (!state->structuralError)
+                    {
+                        error(state, "else without matching if");
+                    }
+                    goto statementError;
                 }
                 else
                 {
@@ -2035,33 +2047,47 @@ static uint parseBlock(ParseState *state, uint indent)
         }
         else
         {
-            error(state, "Not a statement");
+            error(state, "Not a statement2");
             goto statementError;
         }
-
-        indent = readNewline(state);
         continue;
 
 statementError:
-        indent = skipStatement(state);
-        continue;
+        while (*state->current != '\n')
+        {
+            state->current++;
+        }
     }
-    state->statementIndent = oldStatementIndent;
-    return indent;
 }
 
 static void parseFunctionBody(ParseState *state)
 {
-    uint indent;
-
-    state->statementIndent = 0;
     state->jumpCount = 0;
     state->jumpTargetCount = 0;
     state->unnamedVariableCount = 0;
-    indent = readNewline(state);
-    if (indent)
+    state->structuralError = false;
+    parseBlock(state);
+    if (!eof(state))
     {
-        parseBlock(state, indent);
+        skipWhitespace(state);
+        if (!peekNewline(state))
+        {
+            uint indent;
+            if (!state->structuralError)
+            {
+                writeOp(state, OP_LINE, (int)state->line);
+                error(state, "Garbage after function body");
+            }
+            do
+            {
+                while (*state->current != '\n')
+                {
+                    state->current++;
+                }
+                indent = readNewline(state);
+            }
+            while (indent);
+        }
     }
     writeOp(state, OP_RETURN_VOID, 0);
     state->program->maxJumpCount = max(state->program->maxJumpCount, state->jumpCount);
@@ -2132,27 +2158,25 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
     }
     IVSet(state->bytecode, paramsOffset, parameterCount);
     IVSet(state->bytecode, varargOffset, varargIndex);
-    if (unlikely(!peekNewline(state)))
-    {
-        error(state, "Garbage after function declaration");
-        return false;
-    }
     return true;
 }
 
 void ParserAddKeywords(void)
 {
     keywordElse = StringPoolAdd("else");
-    keywordFalse = StringPoolAdd("false");
     keywordFor = StringPoolAdd("for");
     keywordIf = StringPoolAdd("if");
-    keywordIn = StringPoolAdd("in");
-    keywordNull = StringPoolAdd("null");
     keywordReturn = StringPoolAdd("return");
-    keywordTrue = StringPoolAdd("true");
     keywordWhile = StringPoolAdd("while");
     maxStatementKeyword = keywordWhile;
-    maxKeyword = keywordWhile;
+
+    keywordFalse = StringPoolAdd("false");
+    keywordFn = StringPoolAdd("fn");
+    keywordIn = StringPoolAdd("in");
+    keywordNull = StringPoolAdd("null");
+    keywordTarget = StringPoolAdd("target");
+    keywordTrue = StringPoolAdd("true");
+    maxKeyword = keywordTrue;
 }
 
 void ParseInit(ParsedProgram *program)
@@ -2180,14 +2204,12 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
     ParseState state;
     File file;
     size_t size;
-    vref name;
     byte *buffer;
 
     assert(filename);
     state.ns = ns;
     state.filename = filename;
     state.line = 1;
-    state.statementIndent = 0;
     state.bytecode = &program->bytecode;
     state.program = program;
     state.constants = &program->constants;
@@ -2215,40 +2237,31 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
     {
         if (peekIdentifier(&state))
         {
+            vref identifier = readIdentifier(&state);
             writeOp(&state, OP_LINE, (int)state.line);
             state.statementLine = state.line;
-            name = readIdentifier(&state);
-            if (readOperator(&state, ':'))
+            skipWhitespace(&state);
+            if (identifier == keywordFn)
             {
-                int existingFunction = NamespaceAddTarget(
-                    ns, name, (int)IVSize(&program->functions));
-                IVAdd(&program->functions, (int)IVSize(state.bytecode));
-                if (unlikely(existingFunction >= 0))
+                vref name = peekReadIdentifier(&state);
+                if (unlikely(!name))
                 {
-                    /* TODO: blacklist function */
-                    error(&state, "Multiple functions or targets with name '%s'",
-                          HeapGetString(name));
-                }
-                if (unlikely(!peekNewline(&state)))
-                {
-                    error(&state, "Garbage after target declaration");
-                    /* TODO: skip parsing function body */
+                    error(&state, "Expected function name after 'fn' keyword");
+                    /* TODO: skip parsing function body, but continue parsing after it */
                     goto error;
                 }
-                writeOp3(&state, OP_FUNCTION_UNLINKED, intFromRef(name), 0, 0);
-                state.isTarget = true;
-                parseFunctionBody(&state);
-            }
-            else if (readOperator(&state, '('))
-            {
-                int existingFunction = NamespaceAddFunction(
-                    ns, name, (int)IVSize(&program->functions));
-                IVAdd(&program->functions, (int)IVSize(state.bytecode));
-                if (unlikely(existingFunction >= 0))
+                if (unlikely(NamespaceAddFunction(ns, name, (int)IVSize(&program->functions)) >= 0))
                 {
                     /* TODO: blacklist function */
                     error(&state, "Multiple functions or targets with name '%s'",
                           HeapGetString(name));
+                }
+                IVAdd(&program->functions, (int)IVSize(state.bytecode));
+                if (unlikely(!readOperator(&state, '(')))
+                {
+                    error(&state, "Expected operator '(' after function name");
+                    /* TODO: skip parsing function body, but continue parsing after it */
+                    goto error;
                 }
                 if (unlikely(!parseFunctionDeclarationRest(&state, name)))
                 {
@@ -2256,6 +2269,20 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
                     goto error;
                 }
                 state.isTarget = false;
+                parseFunctionBody(&state);
+            }
+            else if (identifier == keywordTarget)
+            {
+                vref name = peekReadIdentifier(&state);
+                if (unlikely(NamespaceAddTarget(ns, name, (int)IVSize(&program->functions)) >= 0))
+                {
+                    /* TODO: blacklist function */
+                    error(&state, "Multiple functions or targets with name '%s'",
+                          HeapGetString(name));
+                }
+                IVAdd(&program->functions, (int)IVSize(state.bytecode));
+                writeOp3(&state, OP_FUNCTION_UNLINKED, intFromRef(name), 0, 0);
+                state.isTarget = true;
                 parseFunctionBody(&state);
             }
             else
@@ -2280,9 +2307,10 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
                     else
                     {
                         if (unlikely(NamespaceAddField(
-                                         ns, name, (int)IVSize(&program->fields)) >= 0))
+                                         ns, identifier, (int)IVSize(&program->fields)) >= 0))
                         {
-                            error(&state, "Multiple fields with name '%s'", HeapGetString(name));
+                            error(&state, "Multiple fields with name '%s'",
+                                  HeapGetString(identifier));
                         }
                         IVAdd(&program->fields, intFromRef(estate.constant));
                     }

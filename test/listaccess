@@ -1,6 +1,12 @@
-default:
-   a = {2 null true}
-   b = 3..5
-   if a[0] == 2 && a[ 1] == null && a[2 ] == true
-      if b[0] == 3 && b[1] == 4 && b[2] == 5
-         echo("PASS")
+target default
+{
+    a = {2 null true}
+    b = 3..5
+    if a[0] == 2 && a[ 1] == null && a[2 ] == true
+    {
+        if b[0] == 3 && b[1] == 4 && b[2] == 5
+        {
+            echo("PASS")
+        }
+    }
+}

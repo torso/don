@@ -1,3 +1,7 @@
-default:
+target default
+{
     if true
+    {
         echo("PASS")
+    }
+}

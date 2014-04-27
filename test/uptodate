@@ -1,15 +1,25 @@
 #target: uncached cached cached
 
-uncached:
-   cache uptodate = getCache("test" 0)
-   if !uptodate
-      setUptodate(cache)
-      cached()
+target uncached
+{
+    cache uptodate = getCache("test" 0)
+    if !uptodate
+    {
+        setUptodate(cache)
+        cached()
+    }
+}
 
-cached:
-   cache uptodate = getCache("test" 0)
-   if uptodate
-      echo("PASS")
-   cache uptodate = getCache("test" 1)
-   if uptodate
-      echo("FAIL")
+target cached
+{
+    cache uptodate = getCache("test" 0)
+    if uptodate
+    {
+        echo("PASS")
+    }
+    cache uptodate = getCache("test" 1)
+    if uptodate
+    {
+        echo("FAIL")
+    }
+}

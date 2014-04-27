@@ -1,5 +1,11 @@
-default:
+target default
+{
     if "A" != "A"
+    {
         echo("FAIL")
+    }
     else
+    {
         echo("PASS")
+    }
+}

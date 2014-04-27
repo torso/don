@@ -1,4 +1,8 @@
-default:
-   if null
-      echo("FAIL")
-   echo("PASS")
+target default
+{
+    if null
+    {
+        echo("FAIL")
+    }
+    echo("PASS")
+}

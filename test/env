@@ -1,3 +1,7 @@
-default:
-   if env("TERM") == "dumb"
-      echo("PASS")
+target default
+{
+    if env("TERM") == "dumb"
+    {
+        echo("PASS")
+    }
+}

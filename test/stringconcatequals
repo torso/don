@@ -1,6 +1,16 @@
-default:
+target default
+{
     if "a""b" == "a""b"
+    {
         if "a""b" == "ab"
+        {
             if "a""b" != "a"
+            {
                 if "a""b" != "ac"
+                {
                     echo("PASS")
+                }
+            }
+        }
+    }
+}

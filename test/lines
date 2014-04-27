@@ -1,12 +1,20 @@
-test(a b expected)
-   result = lines(a b)
-   if result != expected
-      echo("FAIL: "a" "b": "result)
+fn test(a b expected)
+{
+    result = lines(a b)
+    if result != expected
+    {
+        echo("FAIL: "a" "b": "result)
+    }
+}
 
-default:
-   test("a\nb" true {"a" "b"})
-   test("a\nb\n" true {"a" "b"})
-   test("a\nb" false {"a" "b"})
-   test("a\nb\n" false {"a" "b" ""})
-   if size(lines("")) == 0
-      echo("PASS")
+target default
+{
+    test("a\nb" true {"a" "b"})
+    test("a\nb\n" true {"a" "b"})
+    test("a\nb" false {"a" "b"})
+    test("a\nb\n" false {"a" "b" ""})
+    if size(lines("")) == 0
+    {
+        echo("PASS")
+    }
+}

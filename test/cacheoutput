@@ -1,9 +1,13 @@
 #target: test1 test2
 
-test1:
-   cache = getCache("test" 0)
-   setUptodate(cache output:{"PASS" ""})
-   getCache("test" 0)
+target test1
+{
+    cache = getCache("test" 0)
+    setUptodate(cache output:{"PASS" ""})
+    getCache("test" 0)
+}
 
-test2:
-   getCache("test" 0)
+target test2
+{
+    getCache("test" 0)
+}

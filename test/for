@@ -1,6 +1,12 @@
-default:
+target default
+{
     sum = 0
     for i in 2..6
+    {
         sum = sum + i
+    }
     if sum == 20
+    {
         echo("PASS")
+    }
+}

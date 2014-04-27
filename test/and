@@ -1,9 +1,19 @@
-default:
+target default
+{
     if false && false
-       echo("FAIL")
+    {
+        echo("FAIL")
+    }
     if false && true
-       echo("FAIL")
+    {
+        echo("FAIL")
+    }
     if true && false
-       echo("FAIL")
+    {
+        echo("FAIL")
+    }
     if true && true
-       echo("PASS")
+    {
+        echo("PASS")
+    }
+}

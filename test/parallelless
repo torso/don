@@ -1,4 +1,8 @@
-default:
-   output exitcode = exec("echo" echo:false)
-   if exitcode < 1
-      echo("PASS")
+target default
+{
+    output exitcode = exec("echo" echo:false)
+    if exitcode < 1
+    {
+        echo("PASS")
+    }
+}

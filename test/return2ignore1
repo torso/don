@@ -1,5 +1,9 @@
-f()
+fn f()
+{
     return "PASS" 5
+}
 
-default:
+target default
+{
     echo(f())
+}

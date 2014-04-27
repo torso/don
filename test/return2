@@ -1,8 +1,16 @@
-f()
+fn f()
+{
     return 2 5
+}
 
-default:
+target default
+{
     a b = f()
     if a == 2
+    {
         if b == 5
+        {
             echo("PASS")
+        }
+    }
+}

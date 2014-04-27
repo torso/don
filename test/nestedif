@@ -1,8 +1,18 @@
-default:
-   if false
-      if true
-         echo("FAIL")
-      else
-         echo("FAIL")
-   else
-      echo("PASS")
+target default
+{
+    if false
+    {
+        if true
+        {
+            echo("FAIL")
+        }
+        else
+        {
+            echo("FAIL")
+        }
+    }
+    else
+    {
+        echo("PASS")
+    }
+}

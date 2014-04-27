@@ -1,3 +1,7 @@
-default:
-   if """" == ""
-      echo("PASS")
+target default
+{
+    if """" == ""
+    {
+        echo("PASS")
+    }
+}

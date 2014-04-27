@@ -1,3 +1,7 @@
-default:
-   if filename(@/path/file.ext) == "file.ext"
-      echo("PASS")
+target default
+{
+    if filename(@/path/file.ext) == "file.ext"
+    {
+        echo("PASS")
+    }
+}

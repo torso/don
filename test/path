@@ -1,37 +1,45 @@
 testno = 0
 failed = false
 
-test(path result)
-   testno += 1
-   if ""path != result
-      echo("FAIL"testno": "path" != "result)
-      failed = true
+fn test(path result)
+{
+    testno += 1
+    if ""path != result
+    {
+        echo("FAIL"testno": "path" != "result)
+        failed = true
+    }
+}
 
-default:
-   test(@/ "/")
-   test(@// "/")
-   test(@/test "/test")
-   test(@/test/ "/test/")
-   test(@/test// "/test/")
-   test(@//test/ "/test/")
-   test(@/test/. "/test/")
-   test(@/test/./ "/test/")
-   test(@/test/.. "/test/..")
-   test(@/test/../ "/test/..")
-   test(@/test/.././ "/test/..")
+target default
+{
+    test(@/ "/")
+    test(@// "/")
+    test(@/test "/test")
+    test(@/test/ "/test/")
+    test(@/test// "/test/")
+    test(@//test/ "/test/")
+    test(@/test/. "/test/")
+    test(@/test/./ "/test/")
+    test(@/test/.. "/test/..")
+    test(@/test/../ "/test/..")
+    test(@/test/.././ "/test/..")
 
-   test(@/test/a "/test/a")
-   test(@/test/a/ "/test/a/")
-   test(@/test//a "/test/a")
+    test(@/test/a "/test/a")
+    test(@/test/a/ "/test/a/")
+    test(@/test//a "/test/a")
 
-   test(@/. "/")
-   test(@/.. "/")
-   test(@/./ "/")
-   test(@/./. "/")
-   test(@/./../a "/a")
-   test(@/../ "/")
-   test(@/../. "/")
-   test(@/../.. "/")
+    test(@/. "/")
+    test(@/.. "/")
+    test(@/./ "/")
+    test(@/./. "/")
+    test(@/./../a "/a")
+    test(@/../ "/")
+    test(@/../. "/")
+    test(@/../.. "/")
 
-   if !failed
-      echo("PASS")
+    if !failed
+    {
+        echo("PASS")
+    }
+}

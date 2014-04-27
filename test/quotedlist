@@ -1,24 +1,42 @@
-default:
-   x = 5
+target default
+{
+    x = 5
 
-   if '{} != {}
-      echo("FAIL1")
-   if '{x} != {"x"}
-      echo("FAIL2")
-   if '{x+2} != {"x+2"}
-      echo("FAIL3")
-   if '{x + "2"} != {"x" "+" "\"2\""}
-      echo("FAIL4")
+    if '{} != {}
+    {
+        echo("FAIL1")
+    }
+    if '{x} != {"x"}
+    {
+        echo("FAIL2")
+    }
+    if '{x+2} != {"x+2"}
+    {
+        echo("FAIL3")
+    }
+    if '{x + "2"} != {"x" "+" "\"2\""}
+    {
+        echo("FAIL4")
+    }
 
-   if {x} != {5}
-      echo("FAIL5")
-   if '{$x} != {5}
-      echo("FAIL6")
-   if '{$x-2 $x - 2} != {3 5 '- '2}
-      echo("FAIL7")
+    if {x} != {5}
+    {
+        echo("FAIL5")
+    }
+    if '{$x} != {5}
+    {
+        echo("FAIL6")
+    }
+    if '{$x-2 $x - 2} != {3 5 '- '2}
+    {
+        echo("FAIL7")
+    }
 
-   if '{1
-        2} != {'1 '2}
-      echo("FAIL8")
+    if '{1
+         2} != {'1 '2}
+    {
+        echo("FAIL8")
+    }
 
-   echo("PASS")
+    echo("PASS")
+}

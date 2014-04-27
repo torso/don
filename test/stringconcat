@@ -1,2 +1,4 @@
-default:
+target default
+{
     echo("P""A""S""S")
+}

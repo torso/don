@@ -5,10 +5,13 @@
 #+5: No value for parameter 'a'
 #+6: Targets can't return values
 
-default:
-
+target default
+{
     f()
     g(b:1 b:2 c:3)
     return d
+}
 
-g(a b)
+fn g(a b)
+{
+}

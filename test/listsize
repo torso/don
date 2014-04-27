@@ -1,3 +1,7 @@
-default:
-   if size({}) == 0 && size({2 4 null}) == 3 && size(3..6) == 4
-      echo("PASS")
+target default
+{
+    if size({}) == 0 && size({2 4 null}) == 3 && size(3..6) == 4
+    {
+        echo("PASS")
+    }
+}

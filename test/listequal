@@ -1,4 +1,10 @@
-default:
+target default
+{
     if {} == {} && {0 100 true false "abc" null} == {0 100 true false "abc" null}
+    {
         if {} != {1} && {2 3} != {3 4}
+        {
             echo("PASS")
+        }
+    }
+}

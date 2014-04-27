@@ -1,26 +1,40 @@
 #target: test1 test2 test3
 
-cached(key value)
-   cache uptodate data = getCache("test" key)
-   if !uptodate
-      fail()
-   if data != value
-      fail("value:"data" expected:"value)
+fn cached(key value)
+{
+    cache uptodate data = getCache("test" key)
+    if !uptodate
+    {
+        fail()
+    }
+    if data != value
+    {
+        fail("value:"data" expected:"value)
+    }
+}
 
-update(key value)
-   cache uptodate = getCache("test" key)
-   setUptodate(cache data:value)
+fn update(key value)
+{
+    cache uptodate = getCache("test" key)
+    setUptodate(cache data:value)
+}
 
-test1:
+target test1
+{
    update(0 "v1")
    update(0 "v2")
    echo("PASS")
+}
 
-test2:
+target test2
+{
    cached(0 "v2")
    update(0 "v3")
    echo("PASS")
+}
 
-test3:
+target test3
+{
    cached(0 "v3")
    echo("PASS")
+}

@@ -1,2 +1,4 @@
-default:
-   exec("echo" "PASS")
+target default
+{
+    exec("echo" "PASS")
+}
