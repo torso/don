@@ -327,7 +327,7 @@ target b
 
 target benchmark
 {
-    p = compile(datadir:@benchmark/data/ optimize:true)
+    p = compile(optimize:true)
     rm(@tempcache)
 #    exec('{cp -a tempcache2 tempcache})
 #    run(args:'{time strace $p -f $@benchmark/build.don})
@@ -340,7 +340,7 @@ target benchmark
 
 target benchmarkprof
 {
-    p = compile(datadir:@benchmark/data/ optimize:true)
+    p = compile(optimize:true)
     rm(@tempcache)
 #    exec('{cp -a tempcache2 tempcache})
     run(args:'{time valgrind -q --tool=callgrind --cache-sim=yes --branch-sim=yes --collect-systime=yes $p -f $@benchmark/build.don partial})
