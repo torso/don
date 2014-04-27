@@ -1,4 +1,4 @@
-fn test(a b)
+fn test(a, b)
 {
     if a
     {
@@ -16,7 +16,7 @@ fn test(a b)
 
 target default
 {
-    if test(true true) == 1 && test(true false) == 1 && test(false true) == 2 && test(false false) == 3
+    if test(true, true) == 1 && test(true, false) == 1 && test(false, true) == 2 && test(false, false) == 3
     {
         echo("PASS")
     }

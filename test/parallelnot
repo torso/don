@@ -1,6 +1,6 @@
 target default
 {
-    cacheFile uptodate = getCache("parallelnot" 0)
+    cacheFile uptodate = getCache("parallelnot", 0)
     if !uptodate
     {
         echo("PASS")

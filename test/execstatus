@@ -1,6 +1,6 @@
 target default
 {
-    out exitcode = exec("echo" "-n")
+    out exitcode = exec("echo", "-n")
     if exitcode == 0
     {
         echo("PASS")

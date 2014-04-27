@@ -1,8 +1,8 @@
 #target: test1 test2 test3
 
-fn cached(key value)
+fn cached(key, value)
 {
-    cache uptodate data = getCache("test" key)
+    cache uptodate data = getCache("test", key)
     if !uptodate
     {
         fail()
@@ -13,28 +13,28 @@ fn cached(key value)
     }
 }
 
-fn update(key value)
+fn update(key, value)
 {
-    cache uptodate = getCache("test" key)
-    setUptodate(cache data:value)
+    cache uptodate = getCache("test", key)
+    setUptodate(cache, data:value)
 }
 
 target test1
 {
-   update(0 "v1")
-   update(0 "v2")
+   update(0, "v1")
+   update(0, "v2")
    echo("PASS")
 }
 
 target test2
 {
-   cached(0 "v2")
-   update(0 "v3")
+   cached(0, "v2")
+   update(0, "v3")
    echo("PASS")
 }
 
 target test3
 {
-   cached(0 "v3")
+   cached(0, "v3")
    echo("PASS")
 }

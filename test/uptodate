@@ -2,7 +2,7 @@
 
 target uncached
 {
-    cache uptodate = getCache("test" 0)
+    cache uptodate = getCache("test", 0)
     if !uptodate
     {
         setUptodate(cache)
@@ -12,12 +12,12 @@ target uncached
 
 target cached
 {
-    cache uptodate = getCache("test" 0)
+    cache uptodate = getCache("test", 0)
     if uptodate
     {
         echo("PASS")
     }
-    cache uptodate = getCache("test" 1)
+    cache uptodate = getCache("test", 1)
     if uptodate
     {
         echo("FAIL")

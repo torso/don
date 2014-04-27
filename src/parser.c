@@ -23,6 +23,7 @@ typedef struct
     namespaceref ns;
     vref filename;
     uint line;
+    uint lineBeforeSkip;
     uint statementLine;
     uint jumpCount;
     int jumpTargetCount;
@@ -336,16 +337,6 @@ static bool readOperator3(ParseState *state, byte op1, byte op2, byte op3)
     return false;
 }
 
-static bool readExpectedOperator(ParseState *state, byte op)
-{
-    if (likely(readOperator(state, op)))
-    {
-        return true;
-    }
-    error(state, "Expected operator '%c'. Got '%c'", op, *state->current);
-    return false;
-}
-
 
 static bool peekNewline(ParseState *state)
 {
@@ -449,14 +440,14 @@ static bool skipBlockWhitespace(ParseState *state)
     return readOperator(state, '}');
 }
 
-static bool skipWhitespaceAndNewline(ParseState *state)
+static void skipWhitespaceAndNewline(ParseState *state)
 {
+    state->lineBeforeSkip = state->line;
     skipWhitespace(state);
     if (unlikely(peekNewline(state)))
     {
         readNewline(state);
     }
-    return true;
 }
 
 static void skipExpressionWhitespace(ParseState *state, ExpressionState *estate)
@@ -659,7 +650,7 @@ static vref readFilename(ParseState *state)
 /* TODO: Parse big numbers */
 /* TODO: Parse non-decimal numbers */
 /* TODO: Parse non-integer numbers */
-static bool parseNumber(ParseState *state, ExpressionState *estate)
+static void parseNumber(ParseState *state, ExpressionState *estate)
 {
     int value = 0;
 
@@ -673,14 +664,43 @@ static bool parseNumber(ParseState *state, ExpressionState *estate)
     }
     while (isDigit(*state->current));
 
-    if (unlikely(isIdentifierCharacter(*state->current)))
-    {
-        error(state, "Invalid character in number literal");
-        return false;
-    }
-
     parsedConstant(estate, VALUE_NUMBER, HeapBoxInteger(value));
-    return true;
+}
+
+static bool readExpectedOperator(ParseState *state, byte op)
+{
+    if (likely(readOperator(state, op)))
+    {
+        return true;
+    }
+    writeOp(state, OP_LINE, (int)state->lineBeforeSkip);
+    if (peekIdentifier(state))
+    {
+        ParseState stateCopy = *state;
+        vref identifier = readIdentifier(&stateCopy);
+        error(state, "Expected operator '%c'. Got '%s'", op, HeapGetString(identifier));
+    }
+    else if (peekNumber(state))
+    {
+        ParseState stateCopy = *state;
+        ExpressionState estate;
+        parseNumber(&stateCopy, &estate);
+        error(state, "Expected operator '%c'. Got '%d'", op, HeapUnboxInteger(estate.constant));
+    }
+    else if (peekString(state))
+    {
+        error(state, "Expected operator '%c'. Got string", op);
+    }
+    else if (*state->current == '\'')
+    {
+        error(state, "Expected operator '%c'. Got quoted value", op);
+    }
+    else
+    {
+        error(state, "Expected operator '%c'. Got '%c'", op, *state->current);
+    }
+    writeOp(state, OP_LINE, (int)state->statementLine);
+    return false;
 }
 
 
@@ -820,57 +840,61 @@ static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref
     assert(!estate->identifier);
     estate->expressionType = EXPRESSION_MANY;
     estate->valueType = VALUE_UNKNOWN;
-
-    for (;;)
+    skipWhitespaceAndNewline(state);
+    if (!readOperator(state, ')'))
     {
-        int value;
-        if (unlikely(!skipWhitespaceAndNewline(state)))
+        do
         {
-            goto error;
-        }
-        if (readOperator(state, ')'))
-        {
-            break;
-        }
-        if (unlikely(!skipWhitespaceAndNewline(state)))
-        {
-            goto error;
-        }
-        estateArgument.identifier = peekReadIdentifier(state);
-        if (estateArgument.identifier && readOperator(state, ':'))
-        {
-            for (;;)
+            int value;
+            skipWhitespaceAndNewline(state);
+            estateArgument.identifier = peekReadIdentifier(state);
+            /* skipWhitespaceAndNewline(state); */ /* TODO: breaks expression parsing: missing ',' becomes string concatenation */
+            if (estateArgument.identifier && readOperator(state, ':'))
             {
-                IVAddRef(&temp, estateArgument.identifier);
-                estateArgument.identifier = 0;
-                value = parseRValue(state, false);
-                if (unlikely(!value || !skipWhitespaceAndNewline(state)))
+                for (;;)
                 {
-                    goto error;
+                    IVAddRef(&temp, estateArgument.identifier);
+                    estateArgument.identifier = 0;
+                    skipWhitespaceAndNewline(state);
+                    value = parseRValue(state, false);
+                    if (unlikely(!value))
+                    {
+                        goto error;
+                    }
+                    IVAdd(&temp, value);
+                    skipWhitespaceAndNewline(state);
+                    if (!readOperator(state, ','))
+                    {
+                        break;
+                    }
+                    skipWhitespaceAndNewline(state);
+                    estateArgument.identifier = peekReadIdentifier(state);
+                    if (!estateArgument.identifier)
+                    {
+                        error(state, "Expected parameter name"); /* TODO: Nicer error message */
+                        goto error;
+                    }
+                    skipWhitespaceAndNewline(state);
+                    if (unlikely(!readExpectedOperator(state, ':')))
+                    {
+                        goto error;
+                    }
                 }
-                IVAdd(&temp, value);
-                estateArgument.identifier = peekReadIdentifier(state);
-                if (!estateArgument.identifier)
-                {
-                    break;
-                }
-                if (unlikely(!readExpectedOperator(state, ':')))
-                {
-                    goto error;
-                }
+                break;
             }
-            if (unlikely(!readExpectedOperator(state, ')')))
+            if (unlikely(!parseExpression(state, &estateArgument, 1, false)))
             {
                 goto error;
             }
-            break;
+            IVAdd(&temp, 0);
+            IVAdd(&temp, finishRValue(state, &estateArgument));
+            skipWhitespaceAndNewline(state);
         }
-        if (unlikely(!parseExpression(state, &estateArgument, 1, false)))
+        while (readOperator(state, ','));
+        if (unlikely(!readExpectedOperator(state, ')')))
         {
             goto error;
         }
-        IVAdd(&temp, 0);
-        IVAdd(&temp, finishRValue(state, &estateArgument));
     }
 
     state->program->invocationCount++;
@@ -915,6 +939,7 @@ static bool parseNativeInvocationRest(ParseState *state, ExpressionState *estate
     estate->valueType = VALUE_UNKNOWN;
     estate->nativeFunction = function;
 
+    skipWhitespaceAndNewline(state);
     for (i = 0; i < argumentCount; i++)
     {
         int value = parseRValue(state, false);
@@ -924,7 +949,15 @@ static bool parseNativeInvocationRest(ParseState *state, ExpressionState *estate
             return false;
         }
         IVAdd(&temp, value);
-        skipWhitespace(state);
+        if (i != argumentCount - 1)
+        {
+            if (unlikely(!readExpectedOperator(state, ',')))
+            {
+                IVSetSize(&temp, oldTempSize);
+                return false;
+            }
+        }
+        skipWhitespaceAndNewline(state);
     }
     argumentCount = (uint)(IVSize(&temp) - oldTempSize);
     write = IVGetAppendPointer(state->bytecode, 1 + argumentCount);
@@ -986,10 +1019,7 @@ static bool parseQuotedListRest(ParseState *state, ExpressionState *estate)
     size_t oldTempSize = IVSize(&temp);
 
     assert(!estate->identifier);
-    if (unlikely(!skipWhitespaceAndNewline(state)))
-    {
-        return false;
-    }
+    skipWhitespaceAndNewline(state);
     while (!readOperator(state, '}'))
     {
         estate2.identifier = 0;
@@ -1022,10 +1052,7 @@ static bool parseQuotedListRest(ParseState *state, ExpressionState *estate)
         {
             IVAdd(&temp, finishRValue(state, &estate2));
         }
-        if (unlikely(!skipWhitespaceAndNewline(state)))
-        {
-            goto error;
-        }
+        skipWhitespaceAndNewline(state);
     }
     if (constant)
     {
@@ -1134,7 +1161,8 @@ static bool parseExpression12(ParseState *state, ExpressionState *estate)
     }
     if (peekNumber(state))
     {
-        return parseNumber(state, estate);
+        parseNumber(state, estate);
+        return true;
     }
     if (peekString(state))
     {
@@ -2117,7 +2145,7 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
             if (unlikely(!parameterName || isKeyword(parameterName)))
             {
                 error(state, "Expected parameter name or ')'");
-                return false;
+                goto error;
             }
             skipWhitespace(state);
             if (readOperator(state, ':'))
@@ -2127,7 +2155,7 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
                 estate.identifier = 0;
                 if (unlikely(!parseExpression(state, &estate, 1, true)))
                 {
-                    return false;
+                    goto error;
                 }
                 assert(estate.expressionType == EXPRESSION_CONSTANT);
                 value = variableFromConstant(state, estate.constant);
@@ -2136,7 +2164,7 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
             {
                 error(state, "Default value for parameter '%s' required",
                       HeapGetString(parameterName));
-                return false;
+                goto error;
             }
             else if (readOperator3(state, '.', '.', '.'))
             {
@@ -2149,13 +2177,19 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
             IVAdd(state->bytecode, intFromRef(parameterName));
             IVAdd(state->bytecode, value);
             parameterCount++;
-            if (readOperator(state, ')'))
+            skipWhitespaceAndNewline(state);
+            if (!readOperator(state, ','))
             {
                 break;
             }
-            skipWhitespace(state);
+            skipWhitespaceAndNewline(state);
+        }
+        if (!readExpectedOperator(state, ')'))
+        {
+            goto error;
         }
     }
+error:
     IVSet(state->bytecode, paramsOffset, parameterCount);
     IVSet(state->bytecode, varargOffset, varargIndex);
     return true;

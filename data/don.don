@@ -3,19 +3,19 @@ fn cat(filename)
     echo(read(filename))
 }
 
-fn contains(data element)
+fn contains(data, element)
 {
-    return indexOf(data element) != null
+    return indexOf(data, element) != null
 }
 
-fn cp(src dst)
+fn cp(src, dst)
 {
-    native.cp(src dst)
+    native.cp(src, dst)
 }
 
-fn echo(message prefix:null)
+fn echo(message, prefix:null)
 {
-    native.echo(message prefix)
+    native.echo(message, prefix)
 }
 
 fn env(name)
@@ -23,9 +23,9 @@ fn env(name)
     return native.getEnv(name)
 }
 
-fn exec(command... env:{} fail:true echo:true echoStderr:true access:@/ modify:@/)
+fn exec(command..., env:{}, fail:true, echo:true, echoStderr:true, access:@/, modify:@/)
 {
-    output exitcode internalError = native.exec(command env echo echoStderr filelist(access) filelist(modify))
+    output exitcode internalError = native.exec(command, env, echo, echoStderr, filelist(access), filelist(modify))
     if fail && exitcode != 0
     {
         if internalError == 1
@@ -41,7 +41,7 @@ fn exec(command... env:{} fail:true echo:true echoStderr:true access:@/ modify:@
     return output exitcode
 }
 
-fn fail(message:null silent:false)
+fn fail(message:null, silent:false)
 {
     if silent
     {
@@ -55,7 +55,7 @@ fn fail(message:null silent:false)
     native.fail("BUILD FAILED")
 }
 
-fn file(path name:null extension:null)
+fn file(path, name:null, extension:null)
 {
     if name == null
     {
@@ -66,7 +66,7 @@ fn file(path name:null extension:null)
         name = path
         path = null
     }
-    return native.file(path name extension)
+    return native.file(path, name, extension)
 }
 
 fn filename(path)
@@ -79,15 +79,15 @@ fn filelist(value)
     return native.filelist(value)
 }
 
-fn getCache(label version key... echoCachedOutput:true)
+fn getCache(label, version, key..., echoCachedOutput:true)
 {
-    cacheFile uptodate data = native.getCache({label version key} echoCachedOutput)
+    cacheFile uptodate data = native.getCache({label version key}, echoCachedOutput)
     return cacheFile uptodate data
 }
 
-fn indexOf(data element)
+fn indexOf(data, element)
 {
-    return native.indexOf(data element)
+    return native.indexOf(data, element)
 }
 
 fn int(str)
@@ -95,24 +95,24 @@ fn int(str)
     n = 0
     for i in 0..size(str)-1
     {
-        n = n*10 + indexOf("0123456789" str[i])
+        n = n*10 + indexOf("0123456789", str[i])
     }
     return n
 }
 
-fn lines(value trimLastIfEmpty:true)
+fn lines(value, trimLastIfEmpty:true)
 {
-    return native.lines(value trimLastIfEmpty)
+    return native.lines(value, trimLastIfEmpty)
 }
 
 fn mkdir(path)
 {
-    exec("mkdir" "-p" path access:{} modify:path)
+    exec("mkdir", "-p", path, access:{}, modify:path)
 }
 
-fn mv(src dst)
+fn mv(src, dst)
 {
-    native.mv(src dst)
+    native.mv(src, dst)
 }
 
 fn pid()
@@ -125,9 +125,9 @@ fn read(filename)
     return native.readFile(file(filename))
 }
 
-fn replace(data original replacement)
+fn replace(data, original, replacement)
 {
-    result count = native.replace(data original replacement)
+    result count = native.replace(data, original, replacement)
     return result count
 }
 
@@ -136,9 +136,9 @@ fn rm(filename)
     native.rm(filename)
 }
 
-fn setUptodate(cacheFile output:{"" ""} data:"" accessedFiles:{})
+fn setUptodate(cacheFile, output:{"" ""}, data:"", accessedFiles:{})
 {
-    native.setUptodate(cacheFile output[0] output[1] data filelist(accessedFiles))
+    native.setUptodate(cacheFile, output[0], output[1], data, filelist(accessedFiles))
 }
 
 fn sign(n)
@@ -151,9 +151,9 @@ fn size(value)
     return native.size(value)
 }
 
-fn split(value delimiter:" " removeEmpty:false)
+fn split(value, delimiter:" ", removeEmpty:false)
 {
-    return native.split(value delimiter removeEmpty)
+    return native.split(value, delimiter, removeEmpty)
 }
 
 fn sum(n...)
@@ -166,29 +166,29 @@ fn sum(n...)
     return result
 }
 
-fn startsWith(data element)
+fn startsWith(data, element)
 {
-    return indexOf(data element) == 0
+    return indexOf(data, element) == 0
 }
 
-fn write(filename data)
+fn write(filename, data)
 {
-    native.writeFile(file(filename) data)
+    native.writeFile(file(filename), data)
 }
 
-fn cc(files... flags:{})
+fn cc(files..., flags:{})
 {
     result = {}
     failed = false
     env = {env("LANG") env("LC_CTYPE") env("LC_MESSAGES") env("LC_ALL") env("GCC_EXEC_PREFIX") env("COMPILER_PATH") env("LIBRARY_PATH") env("CPATH") env("C_INCLUDE_PATH") env("CPLUS_INCLUDE_PATH") env("OBJC_INCLUDE_PATH")}
     for f in filelist(files)
     {
-        cache uptodate = getCache("cc" 0 f flags env)
-        ofile = file(cache filename(f) "o")
+        cache uptodate = getCache("cc", 0, f, flags, env)
+        ofile = file(cache, filename(f), "o")
         if !uptodate
         {
-            dependFile = file(cache filename(f) "d")
-            out exitcode = exec("cc" "-c" "-MD" "-MF" dependFile "-o" ofile flags f fail:false modify:{dependFile ofile})
+            dependFile = file(cache, filename(f), "d")
+            out exitcode = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f, fail:false, modify:{dependFile ofile})
             if exitcode
             {
                 failed = true
@@ -196,11 +196,11 @@ fn cc(files... flags:{})
             else
             {
                 depend = read(dependFile)
-                depend = depend[indexOf(depend ": ") + 2 .. size(depend) - 2]
-                depend = replace(depend "\\\n" "")
-                depend = split(depend removeEmpty:true)
+                depend = depend[indexOf(depend, ": ") + 2 .. size(depend) - 2]
+                depend = replace(depend, "\\\n", "")
+                depend = split(depend, removeEmpty:true)
                 rm(dependFile)
-                setUptodate(cache out accessedFiles:filelist(depend))
+                setUptodate(cache, out, accessedFiles:filelist(depend))
             }
         }
         result = result::{ofile}
@@ -212,7 +212,7 @@ fn cc(files... flags:{})
     return result
 }
 
-fn link(files... flags:{} libs:{} name:"a.out")
+fn link(files..., flags:{}, libs:{}, name:"a.out")
 {
     files = filelist(files)
     env = {env("LANG") env("LC_CTYPE") env("LC_MESSAGES") env("LC_ALL") env("GCC_EXEC_PREFIX") env("COMPILER_PATH") env("LIBRARY_PATH") env("CPATH") env("C_INCLUDE_PATH") env("CPLUS_INCLUDE_PATH") env("OBJC_INCLUDE_PATH")}
@@ -221,12 +221,12 @@ fn link(files... flags:{} libs:{} name:"a.out")
     {
         libargs = libargs::{"-l"l}
     }
-    cache uptodate = getCache("link" 0 files flags libs env)
-    program = file(cache name)
+    cache uptodate = getCache("link", 0, files, flags, libs, env)
+    program = file(cache, name)
     if !uptodate
     {
-        out exitcode = exec("cc" "-o" program files flags libargs modify:program)
-        setUptodate(cache out accessedFiles:files)
+        out exitcode = exec("cc", "-o", program, files, flags, libargs, modify:program)
+        setUptodate(cache, out, accessedFiles:files)
     }
     return program
 }

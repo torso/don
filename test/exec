@@ -1,4 +1,4 @@
 target default
 {
-    exec("echo" "PASS")
+    exec("echo", "PASS")
 }

@@ -3,14 +3,14 @@ fn f1(a)
     return a == 2
 }
 
-fn f2(a b c d e)
+fn f2(a, b, c, d, e)
 {
     return a == 1 && b == 5 && c == 2 && d == 3 && e == 4
 }
 
 target default
 {
-    if f1(a:2) && f2(1 c:2 e:4 d:3 b:5)
+    if f1(a:2) && f2(1, c:2, e:4, d:3, b:5)
     {
         echo("PASS")
     }

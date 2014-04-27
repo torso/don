@@ -2,59 +2,59 @@
 
 fn uncached(key)
 {
-    cache uptodate = getCache("test" key)
+    cache uptodate = getCache("test", key)
     if uptodate
     {
         fail()
     }
 }
 
-fn cached(key value)
+fn cached(key, value)
 {
-   cache uptodate data = getCache("test" key)
+   cache uptodate data = getCache("test", key)
    if !uptodate
    {
        fail()
    }
    if data != value
    {
-       fail("value:"data" expected:"value)
+       fail("value:"data", expected:"value)
    }
 }
 
-fn update(key value)
+fn update(key, value)
 {
-    cache uptodate = getCache("test" key)
-    setUptodate(cache data:value)
+    cache uptodate = getCache("test", key)
+    setUptodate(cache, data:value)
 }
 
 fn die()
 {
-    exec('kill '-s 'KILL pid())
+    exec("kill", "-s", "KILL", pid())
 }
 
 target test1
 {
     uncached(0)
-    update(0 "v1")
+    update(0, "v1")
     uncached(1)
-    cached(0 "v1")
+    cached(0, "v1")
     echo("PASS")
     die()
 }
 
 target test2
 {
-    cached(0 "v1")
+    cached(0, "v1")
     uncached(1)
-    update(1 "v2")
+    update(1, "v2")
     echo("PASS")
     die()
 }
 
 target test3
 {
-    cached(0 "v1")
-    cached(1 "v2")
+    cached(0, "v1")
+    cached(1, "v2")
     echo("PASS")
 }

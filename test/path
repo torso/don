@@ -1,7 +1,7 @@
 testno = 0
 failed = false
 
-fn test(path result)
+fn test(path, result)
 {
     testno += 1
     if ""path != result
@@ -13,30 +13,30 @@ fn test(path result)
 
 target default
 {
-    test(@/ "/")
-    test(@// "/")
-    test(@/test "/test")
-    test(@/test/ "/test/")
-    test(@/test// "/test/")
-    test(@//test/ "/test/")
-    test(@/test/. "/test/")
-    test(@/test/./ "/test/")
-    test(@/test/.. "/test/..")
-    test(@/test/../ "/test/..")
-    test(@/test/.././ "/test/..")
+    test(@/, "/")
+    test(@//, "/")
+    test(@/test, "/test")
+    test(@/test/, "/test/")
+    test(@/test//, "/test/")
+    test(@//test/, "/test/")
+    test(@/test/., "/test/")
+    test(@/test/./, "/test/")
+    test(@/test/.., "/test/..")
+    test(@/test/../, "/test/..")
+    test(@/test/.././, "/test/..")
 
-    test(@/test/a "/test/a")
-    test(@/test/a/ "/test/a/")
-    test(@/test//a "/test/a")
+    test(@/test/a, "/test/a")
+    test(@/test/a/, "/test/a/")
+    test(@/test//a, "/test/a")
 
-    test(@/. "/")
-    test(@/.. "/")
-    test(@/./ "/")
-    test(@/./. "/")
-    test(@/./../a "/a")
-    test(@/../ "/")
-    test(@/../. "/")
-    test(@/../.. "/")
+    test(@/., "/")
+    test(@/.., "/")
+    test(@/./, "/")
+    test(@/./., "/")
+    test(@/./../a, "/a")
+    test(@/../, "/")
+    test(@/../., "/")
+    test(@/../.., "/")
 
     if !failed
     {

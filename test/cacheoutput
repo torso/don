@@ -2,12 +2,12 @@
 
 target test1
 {
-    cache = getCache("test" 0)
-    setUptodate(cache output:{"PASS" ""})
-    getCache("test" 0)
+    cache = getCache("test", 0)
+    setUptodate(cache, output:{"PASS" ""})
+    getCache("test", 0)
 }
 
 target test2
 {
-    getCache("test" 0)
+    getCache("test", 0)
 }
