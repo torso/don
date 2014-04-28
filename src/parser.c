@@ -45,22 +45,10 @@ typedef enum
     EXPRESSION_MANY
 } ExpressionType;
 
-typedef enum
-{
-    VALUE_UNKNOWN,
-    VALUE_NULL,
-    VALUE_BOOLEAN,
-    VALUE_NUMBER,
-    VALUE_LIST,
-    VALUE_STRING,
-    VALUE_FILE
-} ValueType;
-
 typedef struct
 {
     vref identifier;
     ExpressionType expressionType;
-    ValueType valueType;
     int variable;
     vref valueIdentifier;
     vref constant;
@@ -225,10 +213,9 @@ static int variableFromConstant(ParseState *state, vref value)
 }
 
 
-static void parsedConstant(ExpressionState *estate, ValueType valueType, vref constant)
+static void parsedConstant(ExpressionState *estate, vref constant)
 {
     estate->expressionType = EXPRESSION_CONSTANT;
-    estate->valueType = valueType;
     estate->constant = constant;
 }
 
@@ -604,7 +591,7 @@ static void parseNumber(ParseState *state, ExpressionState *estate)
     }
     while (isDigit(*state->current));
 
-    parsedConstant(estate, VALUE_NUMBER, HeapBoxInteger(value));
+    parsedConstant(estate, HeapBoxInteger(value));
 }
 
 static bool readExpectedOperator(ParseState *state, byte op)
@@ -791,7 +778,7 @@ static bool parseString(ParseState *state, ExpressionState *estate)
             state->current++;
             if (IVSize(&temp) == oldTempSize)
             {
-                parsedConstant(estate, VALUE_STRING, s);
+                parsedConstant(estate, s);
             }
             else
             {
@@ -801,7 +788,6 @@ static bool parseString(ParseState *state, ExpressionState *estate)
                 }
                 writeOpFromTemp(state, OP_CONCAT_STRING, oldTempSize);
                 estate->expressionType = EXPRESSION_MISSING_STORE;
-                estate->valueType = VALUE_STRING;
             }
             return true;
         }
@@ -892,7 +878,6 @@ static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref
 
     assert(!estate->identifier);
     estate->expressionType = EXPRESSION_MANY;
-    estate->valueType = VALUE_UNKNOWN;
     skipWhitespaceAndNewline(state);
     if (!readOperator(state, ')'))
     {
@@ -989,7 +974,6 @@ static bool parseNativeInvocationRest(ParseState *state, ExpressionState *estate
     }
     argumentCount = NativeGetParameterCount(function);
     estate->expressionType = EXPRESSION_MANY;
-    estate->valueType = VALUE_UNKNOWN;
     estate->nativeFunction = function;
 
     skipWhitespaceAndNewline(state);
@@ -1027,7 +1011,7 @@ static bool parseNativeInvocationRest(ParseState *state, ExpressionState *estate
 static bool parseBinaryOperationRest(
     ParseState *state, ExpressionState *estate,
     bool (*parseExpressionRest)(ParseState*, ExpressionState*),
-    Instruction instruction, ValueType valueType)
+    Instruction instruction)
 {
     int value = finishRValue(state, estate);
     int value2;
@@ -1039,7 +1023,6 @@ static bool parseBinaryOperationRest(
     value2 = finishRValue(state, estate);
     writeOp2(state, instruction, value, value2);
     estate->expressionType = EXPRESSION_MISSING_STORE;
-    estate->valueType = valueType;
     skipExpressionWhitespace(state, estate);
     return true;
 }
@@ -1060,8 +1043,7 @@ static bool parseQuotedValue(ParseState *state, ExpressionState *estate)
         error(state, "Invalid quoted value");
         return false;
     }
-    parsedConstant(estate, VALUE_STRING,
-                   StringPoolAdd2((const char*)begin, getOffset(state, begin)));
+    parsedConstant(estate, StringPoolAdd2((const char*)begin, getOffset(state, begin)));
     return true;
 }
 
@@ -1109,7 +1091,7 @@ static bool parseQuotedListRest(ParseState *state, ExpressionState *estate)
     }
     if (constant)
     {
-        parsedConstant(estate, VALUE_LIST, HeapCreateArrayFromVectorSegment(
+        parsedConstant(estate, HeapCreateArrayFromVectorSegment(
                            &temp, oldTempSize, IVSize(&temp) - oldTempSize));
     }
     else
@@ -1119,7 +1101,6 @@ static bool parseQuotedListRest(ParseState *state, ExpressionState *estate)
         *write++ = encodeOp(OP_LIST, (int)length);
         memcpy(write, IVGetPointer(&temp, oldTempSize), length * sizeof(*write));
         estate->expressionType = EXPRESSION_MISSING_STORE;
-        estate->valueType = VALUE_LIST;
     }
     IVSetSize(&temp, oldTempSize);
     return true;
@@ -1136,7 +1117,6 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
     vref string;
     vref ns;
 
-    estate->valueType = VALUE_UNKNOWN;
     estate->identifier = 0;
     if (!identifier)
     {
@@ -1148,17 +1128,17 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         {
             if (identifier == keywordTrue)
             {
-                parsedConstant(estate, VALUE_BOOLEAN, HeapTrue);
+                parsedConstant(estate, HeapTrue);
                 return true;
             }
             else if (identifier == keywordFalse)
             {
-                parsedConstant(estate, VALUE_BOOLEAN, HeapFalse);
+                parsedConstant(estate, HeapFalse);
                 return true;
             }
             else if (likely(identifier == keywordNull))
             {
-                parsedConstant(estate, VALUE_BOOLEAN, 0);
+                parsedConstant(estate, 0);
                 return true;
             }
             error(state, "Unexpected keyword '%s'",
@@ -1238,7 +1218,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         skipWhitespace(state);
         if (readOperator(state, '}'))
         {
-            parsedConstant(estate, VALUE_LIST, HeapEmptyList);
+            parsedConstant(estate, HeapEmptyList);
             return true;
         }
         constant = true;
@@ -1274,7 +1254,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         while (!readOperator(state, '}'));
         if (constant)
         {
-            parsedConstant(estate, VALUE_LIST, HeapCreateArrayFromVectorSegment(
+            parsedConstant(estate, HeapCreateArrayFromVectorSegment(
                                &temp, oldTempSize, IVSize(&temp) - oldTempSize));
         }
         else
@@ -1282,7 +1262,6 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
             uint length = (uint)(IVSize(&temp) - oldTempSize);
             int *restrict write = IVGetAppendPointer(state->bytecode, 1 + length);
             estate->expressionType = EXPRESSION_MISSING_STORE;
-            estate->valueType = VALUE_LIST;
             *write++ = encodeOp(OP_LIST, (int)length);
             memcpy(write, IVGetPointer(&temp, oldTempSize), length * sizeof(*write));
         }
@@ -1298,13 +1277,12 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         }
         if (!strchr(HeapGetString(string), '*'))
         {
-            parsedConstant(estate, VALUE_FILE, HeapCreatePath(string));
+            parsedConstant(estate, HeapCreatePath(string));
             return true;
         }
         /* TODO: @{} syntax */
         writeOp(state, OP_FILELIST, intFromRef(string));
         estate->expressionType = EXPRESSION_MISSING_STORE;
-        estate->valueType = VALUE_FILE;
         return true;
     }
     error(state, "Invalid expression");
@@ -1336,7 +1314,6 @@ static bool parseExpression10(ParseState *state, ExpressionState *estate)
             }
             writeOp2(state, OP_INDEXED_ACCESS, value, index);
             estate->expressionType = EXPRESSION_MISSING_STORE;
-            estate->valueType = VALUE_UNKNOWN;
             continue;
         }
         if (!peekOperator2(state, '.', '.') && readOperator(state, '.'))
@@ -1362,7 +1339,6 @@ static bool parseExpression9(ParseState *state, ExpressionState *estate)
         writeOp(state, OP_NEG, value);
         skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_MISSING_STORE;
-        estate->valueType = VALUE_NUMBER;
         return true;
     }
     if (readOperator(state, '!'))
@@ -1389,7 +1365,6 @@ static bool parseExpression9(ParseState *state, ExpressionState *estate)
         writeOp(state, OP_INV, value);
         skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_MISSING_STORE;
-        estate->valueType = VALUE_NUMBER;
         return true;
     }
     return parseExpression10(state, estate);
@@ -1411,7 +1386,7 @@ static bool parseExpression8(ParseState *state, ExpressionState *estate)
                 return true;
             }
             if (unlikely(!parseBinaryOperationRest(
-                             state, estate, parseExpression9, OP_MUL, VALUE_NUMBER)))
+                             state, estate, parseExpression9, OP_MUL)))
             {
                 return false;
             }
@@ -1424,7 +1399,7 @@ static bool parseExpression8(ParseState *state, ExpressionState *estate)
                 return true;
             }
             if (unlikely(!parseBinaryOperationRest(
-                             state, estate, parseExpression9, OP_DIV, VALUE_NUMBER)))
+                             state, estate, parseExpression9, OP_DIV)))
             {
                 return false;
             }
@@ -1437,7 +1412,7 @@ static bool parseExpression8(ParseState *state, ExpressionState *estate)
                 return true;
             }
             if (unlikely(!parseBinaryOperationRest(
-                             state, estate, parseExpression9, OP_REM, VALUE_NUMBER)))
+                             state, estate, parseExpression9, OP_REM)))
             {
                 return false;
             }
@@ -1464,7 +1439,7 @@ static bool parseExpression7(ParseState *state, ExpressionState *estate)
             }
             assert(!readOperator(state, '+')); /* TODO: ++ operator */
             if (unlikely(!parseBinaryOperationRest(
-                             state, estate, parseExpression8, OP_ADD, VALUE_NUMBER)))
+                             state, estate, parseExpression8, OP_ADD)))
             {
                 return false;
             }
@@ -1472,17 +1447,14 @@ static bool parseExpression7(ParseState *state, ExpressionState *estate)
         }
         else if (readOperator(state, '-'))
         {
-            if (peekOperator(state, '=') ||
-                (estate->valueType != VALUE_UNKNOWN &&
-                 estate->valueType != VALUE_NUMBER &&
-                 *state->current != ' '))
+            if (peekOperator(state, '='))
             {
                 state->current--;
                 return true;
             }
             assert(!readOperator(state, '-')); /* TODO: -- operator */
             if (unlikely(!parseBinaryOperationRest(
-                             state, estate, parseExpression8, OP_SUB, VALUE_NUMBER)))
+                             state, estate, parseExpression8, OP_SUB)))
             {
                 return false;
             }
@@ -1532,7 +1504,7 @@ static bool parseExpression4(ParseState *state, ExpressionState *estate)
         if (readOperator2(state, '.', '.'))
         {
             if (unlikely(!parseBinaryOperationRest(
-                             state, estate, parseExpression5, OP_RANGE, VALUE_LIST)))
+                             state, estate, parseExpression5, OP_RANGE)))
             {
                 return false;
             }
@@ -1541,7 +1513,7 @@ static bool parseExpression4(ParseState *state, ExpressionState *estate)
         if (readOperator2(state, ':', ':'))
         {
             if (unlikely(!parseBinaryOperationRest(
-                             state, estate, parseExpression5, OP_CONCAT_LIST, VALUE_LIST)))
+                             state, estate, parseExpression5, OP_CONCAT_LIST)))
             {
                 return false;
             }
@@ -1562,8 +1534,7 @@ static bool parseExpression3(ParseState *state, ExpressionState *estate)
     {
         if (readOperator2(state, '=', '='))
         {
-            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
-                                                   OP_EQUALS, VALUE_BOOLEAN)))
+            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4, OP_EQUALS)))
             {
                 return false;
             }
@@ -1571,8 +1542,7 @@ static bool parseExpression3(ParseState *state, ExpressionState *estate)
         }
         if (readOperator2(state, '!', '='))
         {
-            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
-                                                   OP_NOT_EQUALS, VALUE_BOOLEAN)))
+            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4, OP_NOT_EQUALS)))
             {
                 return false;
             }
@@ -1581,7 +1551,7 @@ static bool parseExpression3(ParseState *state, ExpressionState *estate)
         if (readOperator2(state, '<', '='))
         {
             if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
-                                                   OP_LESS_EQUALS, VALUE_BOOLEAN)))
+                                                   OP_LESS_EQUALS)))
             {
                 return false;
             }
@@ -1590,7 +1560,7 @@ static bool parseExpression3(ParseState *state, ExpressionState *estate)
         if (readOperator2(state, '>', '='))
         {
             if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
-                                                   OP_GREATER_EQUALS, VALUE_BOOLEAN)))
+                                                   OP_GREATER_EQUALS)))
             {
                 return false;
             }
@@ -1598,8 +1568,7 @@ static bool parseExpression3(ParseState *state, ExpressionState *estate)
         }
         if (readOperator(state, '<'))
         {
-            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
-                                                   OP_LESS, VALUE_BOOLEAN)))
+            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4, OP_LESS)))
             {
                 return false;
             }
@@ -1607,8 +1576,7 @@ static bool parseExpression3(ParseState *state, ExpressionState *estate)
         }
         if (readOperator(state, '>'))
         {
-            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4,
-                                                   OP_GREATER, VALUE_BOOLEAN)))
+            if (unlikely(!parseBinaryOperationRest(state, estate, parseExpression4, OP_GREATER)))
             {
                 return false;
             }
@@ -1643,7 +1611,6 @@ static bool parseExpression2(ParseState *state, ExpressionState *estate)
             finishAndStoreValueAt(state, estate, variable);
             placeJumpTargetHere(state, target);
             estate->expressionType = EXPRESSION_STORED;
-            estate->valueType = VALUE_UNKNOWN;
             estate->variable = variable;
             skipExpressionWhitespace(state, estate);
             continue;
@@ -1662,7 +1629,6 @@ static bool parseExpression2(ParseState *state, ExpressionState *estate)
             finishAndStoreValueAt(state, estate, variable);
             placeJumpTargetHere(state, target);
             estate->expressionType = EXPRESSION_STORED;
-            estate->valueType = VALUE_UNKNOWN;
             estate->variable = variable;
             skipExpressionWhitespace(state, estate);
             continue;
@@ -1701,7 +1667,6 @@ static bool parseExpressionRest(ParseState *state, ExpressionState *estate)
         }
         placeJumpTargetHere(state, target2);
         estate->expressionType = EXPRESSION_STORED;
-        estate->valueType = VALUE_UNKNOWN;
         estate->variable = variable;
         return true;
     }
