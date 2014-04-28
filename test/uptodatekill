@@ -18,7 +18,7 @@ fn cached(key, value)
    }
    if data != value
    {
-       fail("value:"data", expected:"value)
+       fail("value:$data, expected:$value")
    }
 }
 

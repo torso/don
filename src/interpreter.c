@@ -121,6 +121,7 @@ static void execute(VM *vm)
         {
             printf("[%p] %u: ", (void*)vm, (uint)(ip - vmBytecode));
             BytecodeDisassembleInstruction(ip, vmBytecode);
+            fflush(stdout);
         }
         ip++;
         switch ((Instruction)(i & 0xff))
@@ -197,7 +198,6 @@ static void execute(VM *vm)
         case OP_DIV:
         case OP_REM:
         case OP_CONCAT_LIST:
-        case OP_CONCAT_STRING:
         case OP_INDEXED_ACCESS:
         case OP_RANGE:
             value = loadValue(vm, vm->bp, *ip++);
@@ -205,6 +205,35 @@ static void execute(VM *vm)
                        HeapApplyBinary((Instruction)(i & 0xff), value,
                                        loadValue(vm, vm->bp, arg)));
             break;
+
+        case OP_CONCAT_STRING:
+        {
+            /* TODO: Handle future values */
+            size_t length = 0;
+            char *data;
+            for (i = 0; i < arg; i++)
+            {
+                length += VStringLength(HeapWait(loadValue(vm, vm->bp, ip[i])));
+            }
+            if (length)
+            {
+                string = HeapCreateUninitialisedString(length, &data);
+                for (i = 0; i < arg; i++)
+                {
+                    value = HeapWait(loadValue(vm, vm->bp, *ip++));
+                    length = VStringLength(value);
+                    VWriteString(value, data);
+                    data += length;
+                }
+            }
+            else
+            {
+                string = HeapEmptyString;
+                ip += arg;
+            }
+            storeValue(vm, vm->bp, *ip++, string);
+            break;
+        }
 
         case OP_JUMP:
             vm->ip = ip + arg + 1;

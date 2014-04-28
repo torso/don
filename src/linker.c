@@ -141,14 +141,15 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
     while (read < limit)
     {
         int i = *read;
+        int op = (Instruction)(i & 0xff);
         int arg = i >> 8;
         if (DEBUG_LINKER)
         {
-            printf(" link %ld: %d %d: ", read - start, i & 0xff, i >> 8);
+            printf(" link %ld: %d %d: ", read - start, op, i >> 8);
             BytecodeDisassembleInstruction(read, start);
         }
         read++;
-        switch ((Instruction)(i & 0xff))
+        switch ((Instruction)op)
         {
         case OP_FILE:
             state.filename = refFromInt(arg);
@@ -200,7 +201,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
         case OP_TRUE:
         case OP_FALSE:
         case OP_EMPTY_LIST:
-            IVAdd(&state.out, (i & 0xff) | (linkVariable(&state, arg) << 8));
+            IVAdd(&state.out, op | (linkVariable(&state, arg) << 8));
             break;
         case OP_LIST:
             write = IVGetAppendPointer(&state.out, (uint)arg + 2);
@@ -214,7 +215,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
             break;
         case OP_STORE_CONSTANT:
             write = IVGetAppendPointer(&state.out, 2);
-            *write++ = (i & 0xff) | (linkVariable(&state, arg) << 8);
+            *write++ = op | (linkVariable(&state, arg) << 8);
             *write++ = *read++;
             break;
         case OP_COPY:
@@ -222,7 +223,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
         case OP_NEG:
         case OP_INV:
             write = IVGetAppendPointer(&state.out, 2);
-            *write++ = (i & 0xff) | (linkVariable(&state, arg) << 8);
+            *write++ = op | (linkVariable(&state, arg) << 8);
             *write++ = linkVariable(&state, *read++);
             break;
         case OP_LOAD_FIELD:
@@ -275,7 +276,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
         }
         case OP_ITER_GET:
             write = IVGetAppendPointer(&state.out, 4);
-            *write++ = (i & 0xff) | (linkVariable(&state, arg) << 8);
+            *write++ = op | (linkVariable(&state, arg) << 8);
             *write++ = linkVariable(&state, *read++);
             *write++ = linkVariable(&state, *read++);
             *write++ = linkVariable(&state, *read++);
@@ -293,13 +294,17 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
         case OP_DIV:
         case OP_REM:
         case OP_CONCAT_LIST:
-        case OP_CONCAT_STRING:
         case OP_INDEXED_ACCESS:
         case OP_RANGE:
             write = IVGetAppendPointer(&state.out, 3);
-            *write++ = (i & 0xff) | (linkVariable(&state, arg) << 8);
+            *write++ = op | (linkVariable(&state, arg) << 8);
             *write++ = linkVariable(&state, *read++);
             *write++ = linkVariable(&state, *read++);
+            break;
+        case OP_CONCAT_STRING:
+            write = IVGetAppendPointer(&state.out, (uint)arg + 2);
+            *write++ = i;
+            linkVariables(&state, &read, write, (uint)arg + 1);
             break;
         case OP_JUMPTARGET:
             state.jumpTargetTable[arg] = (int)IVSize(&state.out);
@@ -317,7 +322,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
             break;
         case OP_RETURN:
             write = IVGetAppendPointer(&state.out, (uint)arg + 1);
-            *write++ = OP_RETURN | (arg << 8);
+            *write++ = i;
             linkVariables(&state, &read, write, (uint)arg);
             break;
         case OP_RETURN_VOID:

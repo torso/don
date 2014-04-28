@@ -1,6 +1,7 @@
 target default
 {
-    if """" == ""
+    a = ""
+    if "$a" == "" && "$a$a" == ""
     {
         echo("PASS")
     }

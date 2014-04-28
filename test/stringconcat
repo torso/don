@@ -1,4 +1,6 @@
 target default
 {
-    echo("P""A""S""S")
+    a = "A"
+    b = "S"
+    echo("P$a$(b)S")
 }

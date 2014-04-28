@@ -124,3 +124,4 @@ extern vref HeapWait(vref object);
 
 extern vref HeapApplyUnary(Instruction op, vref value);
 extern vref HeapApplyBinary(Instruction op, vref value1, vref value2);
+extern vref HeapApplyMany(Instruction op, const vref *values, size_t count);

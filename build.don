@@ -4,7 +4,7 @@ gdb = '{gdb -q --args}
 fn compile(datadir:@data/, extraflags:{}, linkflags:{}, optimize:false)
 {
     ofiles = cc(@src/*.c,
-                flags:'{$("-DDATADIR=\""datadir"\"")
+                flags:'{$("-DDATADIR=\"$datadir\"")
                         $(valgrind ? '-DVALGRIND : '-DNVALGRIND)
                         -ggdb3 -rdynamic -std=c89 -pedantic
                         -Wno-error=unused-parameter -Wno-error=unused-variable
@@ -32,7 +32,7 @@ fn run(args..., output:true)
     {
         logfile = @valgrind-log
         out exitcode = exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes",
-                            "--log-file="logfile, args,
+                            "--log-file=$logfile", args,
                             env:{'XDG_CACHE_HOME @tempcache},
                             fail:false, echo:output, echoStderr:output)
         log = read(logfile)
@@ -46,20 +46,20 @@ fn run(args..., output:true)
             {
                 if startsWith(line, '*)
                 {
-                    log = log""line"\n"
+                    log = "$log$line\n"
                     copy = false
                 }
                 else
                 {
                     if contains(line, "==    ") && copy
                     {
-                        log = log""line"\n"
+                        log = "$log$line\n"
                     }
                     else
                     {
                         if contains(line, 'VALGRIND_PRINTF_BACKTRACE)
                         {
-                            log = log""line"\n"
+                            log = "$log$line\n"
                             copy = true
                         }
                         else
@@ -70,7 +70,7 @@ fn run(args..., output:true)
                 }
             }
         }
-        out = {out[0] out[1]""log}
+        out = {out[0] "$(out[1])$log"}
         if output && log != ""
         {
             echo(log)
@@ -112,9 +112,9 @@ fn dotest(program, debug:false)
                     if line[0] == '+
                     {
                         j = indexOf(line, ':)
-                        line = f":"(maxFailLine+int(line[1..j-1]))""line[j..size(line)-1]
+                        line = "$f:$(maxFailLine+int(line[1..j-1]))$(line[j..size(line)-1])"
                     }
-                    expected = expected""line"\n"
+                    expected = "$expected$line\n"
                     i += 1
                 }
             }
@@ -130,7 +130,7 @@ fn dotest(program, debug:false)
             }
             else
             {
-                fail("Unknown command \""command[0]"\" while parsing "f)
+                fail("Unknown command \"$(command[0])\" while parsing $f")
             }
         }
 
@@ -151,7 +151,7 @@ fn dotest(program, debug:false)
                 {
                     echo("")
                 }
-                echo("FAIL: "filename(f)""(size(targets) > 1 || targets[i] != 'default ? ":"targets[i] : ""))
+                echo("FAIL: $(filename(f))$(size(targets) > 1 || targets[i] != 'default ? ":$(targets[i])" : "")")
                 hasOutput = out[0] != "" || out[1] != ""
                 if hasOutput
                 {
@@ -192,8 +192,8 @@ fn dotest(program, debug:false)
     {
         echo("")
     }
-    echo("pass:  "passcount)
-    echo("fail:  "failcount)
+    echo("pass:  $passcount")
+    echo("fail:  $failcount")
     if failcount
     {
         fail(silent:true)

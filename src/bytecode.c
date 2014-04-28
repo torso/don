@@ -217,7 +217,17 @@ static const int *disassemble(const int *bytecode, const int *base)
         break;
 
     case OP_CONCAT_STRING:
-        printBinaryOperation(&bytecode, "\"\"", arg);
+        fputs("concat_string ", stdout);
+        assert(arg > 0);
+        printValue(&bytecode);
+        while (--arg)
+        {
+            fputs(",", stdout);
+            printValue(&bytecode);
+        }
+        fputs(" -> ", stdout);
+        printValue(&bytecode);
+        puts("");
         break;
 
     case OP_CONCAT_LIST:

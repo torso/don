@@ -3,7 +3,7 @@ fn test(text, substring, expectedResult)
     i = indexOf(text, substring)
     if i != expectedResult
     {
-        echo("FAIL: "text" "substring": "i)
+        echo("FAIL: $text $substring: $i")
     }
 }
 

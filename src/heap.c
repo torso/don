@@ -1313,7 +1313,6 @@ static vref executeBinaryPartial(Instruction op, vref object,
     case OP_DIV:
     case OP_REM:
     case OP_CONCAT_LIST:
-    case OP_CONCAT_STRING:
     case OP_INDEXED_ACCESS:
     case OP_RANGE:
         return object;
@@ -1334,6 +1333,7 @@ static vref executeBinaryPartial(Instruction op, vref object,
     case OP_NEG:
     case OP_INV:
     case OP_ITER_GET:
+    case OP_CONCAT_STRING:
     case OP_JUMPTARGET:
     case OP_JUMP:
     case OP_JUMP_INDEXED:
@@ -1358,7 +1358,6 @@ static vref executeBinaryPartial(Instruction op, vref object,
 static vref executeBinary(Instruction op,
                           vref value1, vref value2)
 {
-    byte *data;
     size_t size1;
     size_t size2;
 
@@ -1401,19 +1400,6 @@ static vref executeBinary(Instruction op,
 
     case OP_CONCAT_LIST:
         return HeapConcatList(value2, value1);
-
-    case OP_CONCAT_STRING:
-        size1 = VStringLength(value2);
-        size2 = VStringLength(value1);
-        if (!size1 && !size2)
-        {
-            return HeapEmptyString;
-        }
-        data = heapAlloc(TYPE_STRING, size1 + size2 + 1);
-        VWriteString(value2, (char*)data);
-        VWriteString(value1, (char*)data + size1);
-        data[size1 + size2] = 0;
-        return heapFinishAlloc(data);
 
     case OP_INDEXED_ACCESS:
         if (HeapIsString(value2))
@@ -1461,6 +1447,7 @@ static vref executeBinary(Instruction op,
     case OP_NEG:
     case OP_INV:
     case OP_ITER_GET:
+    case OP_CONCAT_STRING:
     case OP_JUMPTARGET:
     case OP_JUMP:
     case OP_JUMP_INDEXED:

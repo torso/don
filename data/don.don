@@ -30,13 +30,13 @@ fn exec(command..., env:{}, fail:true, echo:true, echoStderr:true, access:@/, mo
     {
         if internalError == 1
         {
-            don.fail("Command not found: "command[0])
+            don.fail("Command not found: $(command[0])")
         }
         if internalError == 2
         {
-            don.fail("File is not executable: "command[0])
+            don.fail("File is not executable: $(command[0])")
         }
-        don.fail("Process exited with status "exitcode)
+        don.fail("Process exited with status $exitcode")
     }
     return output exitcode
 }
@@ -47,10 +47,10 @@ fn fail(message:null, silent:false)
     {
         native.fail(null)
     }
-    message = message == null ? "" : ""message
+    message = message == null ? "" : "$message"
     if message != ""
     {
-        native.fail("BUILD FAILED: "message)
+        native.fail("BUILD FAILED: $message")
     }
     native.fail("BUILD FAILED")
 }
@@ -219,7 +219,7 @@ fn link(files..., flags:{}, libs:{}, name:"a.out")
     libargs = {}
     for l in libs
     {
-        libargs = libargs::{"-l"l}
+        libargs = libargs::{"-l$l"}
     }
     cache uptodate = getCache("link", 0, files, flags, libs, env)
     program = file(cache, name)

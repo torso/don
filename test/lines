@@ -3,7 +3,7 @@ fn test(a, b, expected)
     result = lines(a, b)
     if result != expected
     {
-        echo("FAIL: "a" "b": "result)
+        echo("FAIL: $a $b: $result")
     }
 }
 

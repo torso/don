@@ -93,6 +93,7 @@ static bytevector btemp;
 static bool parseExpression(ParseState *state, ExpressionState *estate,
                             int valueCount, bool constant);
 static bool parseUnquotedExpression(ParseState *state, ExpressionState *estate, bool constant);
+static int parseRValue(ParseState *state, bool constant);
 static void parseBlock(ParseState *state);
 
 
@@ -120,6 +121,19 @@ static void writeOp3(ParseState *state, Instruction op, int param1, int param2, 
     *write++ = encodeOp(op, param1);
     *write++ = param2;
     *write++ = param3;
+}
+
+static void writeOpFromTemp(ParseState *state, Instruction op, size_t oldTempSize)
+{
+    uint count = (uint)(IVSize(&temp) - oldTempSize);
+    int *restrict write = IVGetAppendPointer(state->bytecode, 1 + count);
+    const int *restrict read = IVGetPointer(&temp, oldTempSize);
+    *write++ = encodeOp(op, (int)count);
+    while (count--)
+    {
+        *write++ = *read++;
+    }
+    IVSetSize(&temp, oldTempSize);
 }
 
 
@@ -551,80 +565,6 @@ static bool peekString(const ParseState *state)
     return *state->current == '"';
 }
 
-static vref readString(ParseState *state)
-{
-    bytevector string;
-    bool copied = false;
-    const byte *begin;
-    vref s;
-
-    assert(peekString(state));
-    begin = ++state->current;
-    for (;;)
-    {
-        assert(!eof(state)); /* TODO: error handling */
-        switch (*state->current)
-        {
-        case '\"':
-            if (copied)
-            {
-                BVAddData(&string, begin, getOffset(state, begin));
-                s = StringPoolAdd2(
-                    (const char*)BVGetPointer(&string, 0),
-                    BVSize(&string));
-                BVDispose(&string);
-            }
-            else
-            {
-                s = StringPoolAdd2((const char*)begin, getOffset(state, begin));
-            }
-            state->current++;
-            return s;
-
-        case  '\\':
-            if (!copied)
-            {
-                BVInit(&string, 128);
-                copied = true;
-            }
-            BVAddData(&string, begin, getOffset(state, begin));
-            state->current++;
-            switch (*state->current)
-            {
-            case '\\': BVAdd(&string, '\\'); break;
-            case '\'': BVAdd(&string, '\''); break;
-            case '"': BVAdd(&string, '"'); break;
-            case '0': BVAdd(&string, '\0'); break;
-            case 'f': BVAdd(&string, '\f'); break;
-            case 'n': BVAdd(&string, '\n'); break;
-            case 'r': BVAdd(&string, '\r'); break;
-            case 't': BVAdd(&string, '\t'); break;
-            case 'v': BVAdd(&string, '\v'); break;
-
-            default:
-                error(state, "Invalid escape sequence");
-                break;
-            }
-            state->current++;
-            begin = state->current;
-            break;
-
-        case '\r':
-        case '\n':
-            error(state, "Newline in string literal");
-            if (copied)
-            {
-                BVDispose(&string);
-            }
-            return 0;
-
-        default:
-            state->current++;
-            break;
-        }
-    }
-}
-
 static vref readFilename(ParseState *state)
 {
     const byte *begin;
@@ -828,6 +768,119 @@ static bool finishLValue(ParseState *state, const ExpressionState *lvalue,
         return true;
     }
     unreachable;
+}
+
+static bool parseString(ParseState *state, ExpressionState *estate)
+{
+    size_t oldTempSize = IVSize(&temp);
+    size_t oldBTempSize = BVSize(&btemp);
+    const byte *begin = ++state->current;
+
+    assert(begin[-1] == '\"');
+    for (;;)
+    {
+        switch (*state->current)
+        {
+        case '\"':
+        {
+            vref s;
+            BVAddData(&btemp, begin, getOffset(state, begin));
+            s = StringPoolAdd2((const char*)BVGetPointer(&btemp, oldBTempSize),
+                               BVSize(&btemp) - oldBTempSize);
+            BVSetSize(&btemp, oldBTempSize);
+            state->current++;
+            if (IVSize(&temp) == oldTempSize)
+            {
+                parsedConstant(estate, VALUE_STRING, s);
+            }
+            else
+            {
+                if (s != HeapEmptyString)
+                {
+                    IVAdd(&temp, variableFromConstant(state, s));
+                }
+                writeOpFromTemp(state, OP_CONCAT_STRING, oldTempSize);
+                estate->expressionType = EXPRESSION_MISSING_STORE;
+                estate->valueType = VALUE_STRING;
+            }
+            return true;
+        }
+
+        case '$':
+        {
+            size_t length;
+            BVAddData(&btemp, begin, getOffset(state, begin));
+            length = BVSize(&btemp) - oldBTempSize;
+            if (length)
+            {
+                IVAdd(&temp, variableFromConstant(
+                          state,
+                          StringPoolAdd2((const char*)BVGetPointer(&btemp, oldBTempSize), length)));
+                BVSetSize(&btemp, oldBTempSize);
+            }
+            state->current++;
+            if (peekIdentifier(state))
+            {
+                IVAddRef(&temp, readVariableName(state));
+            }
+            else if (likely(*state->current == '('))
+            {
+                int value;
+                state->current++;
+                value = parseRValue(state, false);
+                state->lineBeforeSkip = state->line;
+                if (unlikely(!value) || unlikely(!readExpectedOperator(state, ')')))
+                {
+                    goto error;
+                }
+                IVAdd(&temp, value);
+            }
+            else
+            {
+                error(state, "Expected variable or '('. Got '%c'", *state->current);
+            }
+            begin = state->current;
+            break;
+        }
+
+        case  '\\':
+            BVAddData(&btemp, begin, getOffset(state, begin));
+            state->current++;
+            switch (*state->current)
+            {
+            case '\\': BVAdd(&btemp, '\\'); break;
+            case '\'': BVAdd(&btemp, '\''); break;
+            case '"': BVAdd(&btemp, '"'); break;
+            case '0': BVAdd(&btemp, '\0'); break;
+            case 'f': BVAdd(&btemp, '\f'); break;
+            case 'n': BVAdd(&btemp, '\n'); break;
+            case 'r': BVAdd(&btemp, '\r'); break;
+            case 't': BVAdd(&btemp, '\t'); break;
+            case 'v': BVAdd(&btemp, '\v'); break;
+
+            default:
+                error(state, "Invalid escape sequence");
+                break;
+            }
+            state->current++;
+            begin = state->current;
+            break;
+
+        case '\r':
+        case '\n':
+            error(state, "Newline in string literal");
+            goto error;
+
+        default:
+            state->current++;
+            break;
+        }
+    }
+
+error:
+    IVSetSize(&temp, oldTempSize);
+    BVSetSize(&btemp, oldBTempSize);
+    return false;
 }
 
 static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref ns, vref name)
@@ -1076,7 +1129,7 @@ error:
     return false;
 }
 
-static bool parseExpression12(ParseState *state, ExpressionState *estate)
+static bool parseExpression11(ParseState *state, ExpressionState *estate)
 {
     ExpressionState estate2;
     vref identifier = estate->identifier;
@@ -1166,13 +1219,7 @@ static bool parseExpression12(ParseState *state, ExpressionState *estate)
     }
     if (peekString(state))
     {
-        string = readString(state);
-        if (unlikely(!string))
-        {
-            return false;
-        }
-        parsedConstant(estate, VALUE_STRING, string);
-        return true;
+        return parseString(state, estate);
     }
     if (readOperator(state, '('))
     {
@@ -1264,9 +1311,9 @@ static bool parseExpression12(ParseState *state, ExpressionState *estate)
     return false;
 }
 
-static bool parseExpression11(ParseState *state, ExpressionState *estate)
+static bool parseExpression10(ParseState *state, ExpressionState *estate)
 {
-    if (unlikely(!parseExpression12(state, estate)))
+    if (unlikely(!parseExpression11(state, estate)))
     {
         return false;
     }
@@ -1299,45 +1346,6 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         break;
     }
     return true;
-}
-
-static bool parseExpression10(ParseState *state, ExpressionState *estate)
-{
-    bool first = true;
-    bool acceptNonString;
-    int variable;
-    for (;;)
-    {
-        if (unlikely(!parseExpression11(state, estate)))
-        {
-            return false;
-        }
-        acceptNonString = estate->expressionType == EXPRESSION_CONSTANT &&
-            estate->valueType == VALUE_STRING;
-        if (!first)
-        {
-            int variable2 = finishRValue(state, estate);
-            writeOp2(state, OP_CONCAT_STRING, variable, variable2);
-            estate->expressionType = EXPRESSION_MISSING_STORE;
-            estate->valueType = VALUE_STRING;
-        }
-        if (!peekString(state) &&
-            (!acceptNonString ||
-             (!peekIdentifier(state) && !peekNumber(state) &&
-              !peekOperator(state, '(') &&
-              !peekOperator(state, '{') && !peekOperator(state, '@'))))
-        {
-            return true;
-        }
-        /* TODO: Parse concatenated string as constant if possible. */
-        if (unlikely(estate->parseConstant))
-        {
-            error(state, "Expected constant");
-            return false;
-        }
-        variable = finishRValue(state, estate);
-        first = false;
-    }
 }
 
 static bool parseExpression9(ParseState *state, ExpressionState *estate)
@@ -1871,15 +1879,7 @@ static bool parseReturnRest(ParseState *state)
         IVAdd(&temp, value);
         if (peekNewline(state))
         {
-            uint count = (uint)(IVSize(&temp) - oldTempSize);
-            int *restrict write = IVGetAppendPointer(state->bytecode, 1 + count);
-            const int *restrict read = IVGetPointer(&temp, oldTempSize);
-            *write++ = encodeOp(OP_RETURN, (int)count);
-            while (count--)
-            {
-                *write++ = *read++;
-            }
-            IVSetSize(&temp, oldTempSize);
+            writeOpFromTemp(state, OP_RETURN, oldTempSize);
             return true;
         }
         skipWhitespace(state);
