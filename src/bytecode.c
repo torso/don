@@ -44,7 +44,6 @@ static const int *disassemble(const int *bytecode, const int *base)
 
     case OP_ERROR:
         printf("error: %s\n", HeapGetString(refFromInt(arg)));
-        bytecode += arg;
         break;
 
     case OP_FUNCTION:
