@@ -23,7 +23,7 @@ fn env(name)
     return native.getEnv(name)
 }
 
-fn exec(command..., env:{}, fail:true, echo:true, echoStderr:true, access:@/, modify:@/)
+fn exec(command..., env:[], fail:true, echo:true, echoStderr:true, access:@/, modify:@/)
 {
     output exitcode internalError = native.exec(command, env, echo, echoStderr, filelist(access), filelist(modify))
     if fail && exitcode != 0
@@ -81,7 +81,7 @@ fn filelist(value)
 
 fn getCache(label, version, key..., echoCachedOutput:true)
 {
-    cacheFile uptodate data = native.getCache({label version key}, echoCachedOutput)
+    cacheFile uptodate data = native.getCache([label version key], echoCachedOutput)
     return cacheFile uptodate data
 }
 
@@ -107,7 +107,7 @@ fn lines(value, trimLastIfEmpty:true)
 
 fn mkdir(path)
 {
-    exec("mkdir", "-p", path, access:{}, modify:path)
+    exec("mkdir", "-p", path, access:[], modify:path)
 }
 
 fn mv(src, dst)
@@ -136,7 +136,7 @@ fn rm(filename)
     native.rm(filename)
 }
 
-fn setUptodate(cacheFile, output:{"" ""}, data:"", accessedFiles:{})
+fn setUptodate(cacheFile, output:["" ""], data:"", accessedFiles:[])
 {
     native.setUptodate(cacheFile, output[0], output[1], data, filelist(accessedFiles))
 }
@@ -176,11 +176,14 @@ fn write(filename, data)
     native.writeFile(file(filename), data)
 }
 
-fn cc(files..., flags:{})
+fn cc(files..., flags:[])
 {
-    result = {}
+    result = []
     failed = false
-    env = {env("LANG") env("LC_CTYPE") env("LC_MESSAGES") env("LC_ALL") env("GCC_EXEC_PREFIX") env("COMPILER_PATH") env("LIBRARY_PATH") env("CPATH") env("C_INCLUDE_PATH") env("CPLUS_INCLUDE_PATH") env("OBJC_INCLUDE_PATH")}
+    env = [env("LANG") env("LC_CTYPE") env("LC_MESSAGES") env("LC_ALL")
+           env("GCC_EXEC_PREFIX") env("COMPILER_PATH") env("LIBRARY_PATH")
+           env("CPATH") env("C_INCLUDE_PATH") env("CPLUS_INCLUDE_PATH")
+           env("OBJC_INCLUDE_PATH")]
     for f in filelist(files)
     {
         cache uptodate = getCache("cc", 0, f, flags, env)
@@ -188,7 +191,7 @@ fn cc(files..., flags:{})
         if !uptodate
         {
             dependFile = file(cache, filename(f), "d")
-            out exitcode = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f, fail:false, modify:{dependFile ofile})
+            out exitcode = exec("cc", "-c", "-MD", "-MF", dependFile, "-o", ofile, flags, f, fail:false, modify:[dependFile ofile])
             if exitcode
             {
                 failed = true
@@ -203,7 +206,7 @@ fn cc(files..., flags:{})
                 setUptodate(cache, out, accessedFiles:filelist(depend))
             }
         }
-        result = result::{ofile}
+        result = result::[ofile]
     }
     if failed
     {
@@ -212,14 +215,17 @@ fn cc(files..., flags:{})
     return result
 }
 
-fn link(files..., flags:{}, libs:{}, name:"a.out")
+fn link(files..., flags:[], libs:[], name:"a.out")
 {
     files = filelist(files)
-    env = {env("LANG") env("LC_CTYPE") env("LC_MESSAGES") env("LC_ALL") env("GCC_EXEC_PREFIX") env("COMPILER_PATH") env("LIBRARY_PATH") env("CPATH") env("C_INCLUDE_PATH") env("CPLUS_INCLUDE_PATH") env("OBJC_INCLUDE_PATH")}
-    libargs = {}
+    env = [env("LANG") env("LC_CTYPE") env("LC_MESSAGES") env("LC_ALL")
+           env("GCC_EXEC_PREFIX") env("COMPILER_PATH") env("LIBRARY_PATH")
+           env("CPATH") env("C_INCLUDE_PATH") env("CPLUS_INCLUDE_PATH")
+           env("OBJC_INCLUDE_PATH")]
+    libargs = []
     for l in libs
     {
-        libargs = libargs::{"-l$l"}
+        libargs = libargs::["-l$l"]
     }
     cache uptodate = getCache("link", 0, files, flags, libs, env)
     program = file(cache, name)

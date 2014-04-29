@@ -1,6 +1,6 @@
 target default
 {
-    a = {2 null true}
+    a = [2 null true]
     b = 3..5
     if a[0] == 2 && a[ 1] == null && a[2 ] == true
     {

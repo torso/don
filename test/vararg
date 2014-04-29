@@ -43,7 +43,7 @@ target default
     {
         echo("FAIL3")
     }
-    if sum2(n:{3}, j:7) != 10 || sum2(j:7, n:{3}) != 10
+    if sum2(n:[3], j:7) != 10 || sum2(j:7, n:[3]) != 10
     {
         echo("FAIL4")
     }
@@ -52,11 +52,11 @@ target default
     {
         echo("FAIL5")
     }
-    if sum3(j:4) != 8 || sum3(j:4, n:{2}) != 10 || sum3(n:{2}, j:4) != 10
+    if sum3(j:4) != 8 || sum3(j:4, n:[2]) != 10 || sum3(n:[2], j:4) != 10
     {
         echo("FAIL6")
     }
-    if sum3(n:{3}, j:7, k:8) != 18 || sum3(k:8, j:7, n:{3}) != 18
+    if sum3(n:[3], j:7, k:8) != 18 || sum3(k:8, j:7, n:[3]) != 18
     {
         echo("FAIL7")
     }

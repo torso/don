@@ -1119,12 +1119,12 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         /* TODO: Prevent use as lvalue */
         return readExpectedOperator(state, ')');
     }
-    if (readOperator(state, '{'))
+    if (readOperator(state, '['))
     {
         bool constant;
         size_t oldTempSize = IVSize(&temp);
         skipWhitespaceAndNewline(state);
-        if (readOperator(state, '}'))
+        if (readOperator(state, ']'))
         {
             parsedConstant(estate, HeapEmptyList);
             return true;
@@ -1159,7 +1159,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
             }
             skipWhitespaceAndNewline(state);
         }
-        while (!readOperator(state, '}'));
+        while (!readOperator(state, ']'));
         if (constant)
         {
             parsedConstant(estate, HeapCreateArrayFromVectorSegment(

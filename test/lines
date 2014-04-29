@@ -9,10 +9,10 @@ fn test(a, b, expected)
 
 target default
 {
-    test("a\nb", true, {"a" "b"})
-    test("a\nb\n", true, {"a" "b"})
-    test("a\nb", false, {"a" "b"})
-    test("a\nb\n", false, {"a" "b" ""})
+    test("a\nb", true, ["a" "b"])
+    test("a\nb\n", true, ["a" "b"])
+    test("a\nb", false, ["a" "b"])
+    test("a\nb\n", false, ["a" "b" ""])
     if size(lines("")) == 0
     {
         echo("PASS")

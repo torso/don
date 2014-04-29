@@ -9,9 +9,9 @@ fn test(a, b, c, expected)
 
 target default
 {
-    test("a b c",    " ", false, {"a" "b" "c"})
-    test(" a b  c ", " ", false, {"" "a" "b" "" "c" ""})
-    test(" a b  c ", " ", true,  {"a" "b" "c"})
+    test("a b c",    " ", false, ["a" "b" "c"])
+    test(" a b  c ", " ", false, ["" "a" "b" "" "c" ""])
+    test(" a b  c ", " ", true,  ["a" "b" "c"])
 
     echo("PASS")
 }
