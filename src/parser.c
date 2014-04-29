@@ -1992,14 +1992,8 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
 {
     ExpressionState estate;
     bool requireDefaultValues = false;
-    size_t paramsOffset;
-    int parameterCount = 0;
-    size_t varargOffset;
     int varargIndex = INT_MAX;
-
-    paramsOffset = IVSize(state->bytecode) + 1;
-    varargOffset = paramsOffset + 1;
-    writeOp3(state, OP_FUNCTION_UNLINKED, intFromRef(functionName), 0, 0);
+    size_t oldTempSize = IVSize(&temp);
 
     if (!readOperator(state, ')'))
     {
@@ -2034,29 +2028,57 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
             else if (readOperator3(state, '.', '.', '.'))
             {
                 assert(varargIndex == INT_MAX); /* TODO: error message */
-                varargIndex = parameterCount;
+                varargIndex = (int)(IVSize(&temp) - oldTempSize) / 2;
                 requireDefaultValues = true;
                 skipWhitespace(state);
                 value = variableFromConstant(state, HeapEmptyList);
             }
-            IVAdd(state->bytecode, intFromRef(parameterName));
-            IVAdd(state->bytecode, value);
-            parameterCount++;
+            IVAdd(&temp, intFromRef(parameterName));
+            IVAdd(&temp, value);
             skipWhitespaceAndNewline(state);
             if (!readOperator(state, ','))
             {
                 break;
             }
             skipWhitespaceAndNewline(state);
+            continue;
+
+    error:
+            for (;;)
+            {
+                byte c = *state->current++;
+                if (c == ',')
+                {
+                    skipWhitespaceAndNewline(state);
+                    break;
+                }
+                if (c == ')' || (c == '\n' && (eof(state) || *state->current != ' ')))
+                {
+                    goto done;
+                }
+            }
         }
         if (!readExpectedOperator(state, ')'))
         {
             goto error;
         }
     }
-error:
-    IVSet(state->bytecode, paramsOffset, parameterCount);
-    IVSet(state->bytecode, varargOffset, varargIndex);
+done:
+    IVAdd(&state->program->functions, (int)IVSize(state->bytecode));
+    {
+        int parameterCount = (int)(IVSize(&temp) - oldTempSize) / 2;
+        int *write = IVGetAppendPointer(state->bytecode, 3 + (size_t)parameterCount * 2);
+        const int *read = IVGetPointer(&temp, oldTempSize);
+        *write++ = encodeOp(OP_FUNCTION_UNLINKED, intFromRef(functionName));
+        *write++ = parameterCount;
+        *write++ = varargIndex;
+        while (parameterCount--)
+        {
+            *write++ = *read++;
+            *write++ = *read++;
+        }
+        IVSetSize(&temp, oldTempSize);
+    }
     return true;
 }
 
@@ -2155,9 +2177,9 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
                     error(&state, "Multiple functions or targets with name '%s'",
                           HeapGetString(name));
                 }
-                IVAdd(&program->functions, (int)IVSize(state.bytecode));
                 if (unlikely(!readOperator(&state, '(')))
                 {
+                    IVAdd(&program->functions, 0); /* TODO: This will probably cause a crash when linking */
                     error(&state, "Expected operator '(' after function name");
                     /* TODO: skip parsing function body, but continue parsing after it */
                     goto error;
