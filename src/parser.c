@@ -80,7 +80,6 @@ static bytevector btemp;
 
 static bool parseExpression(ParseState *state, ExpressionState *estate,
                             int valueCount, bool constant);
-static bool parseUnquotedExpression(ParseState *state, ExpressionState *estate, bool constant);
 static int parseRValue(ParseState *state, bool constant);
 static void parseBlock(ParseState *state);
 
@@ -1027,89 +1026,6 @@ static bool parseBinaryOperationRest(
     return true;
 }
 
-static bool parseQuotedValue(ParseState *state, ExpressionState *estate)
-{
-    static const char terminators[] = " \n\r(){}[]";
-    const byte *begin = state->current;
-
-    assert(!estate->identifier);
-    while (!eof(state) &&
-           !memchr(terminators, *state->current, sizeof(terminators)))
-    {
-        state->current++;
-    }
-    if (unlikely(state->current == begin))
-    {
-        error(state, "Invalid quoted value");
-        return false;
-    }
-    parsedConstant(estate, StringPoolAdd2((const char*)begin, getOffset(state, begin)));
-    return true;
-}
-
-static bool parseQuotedListRest(ParseState *state, ExpressionState *estate)
-{
-    ExpressionState estate2;
-    bool constant = true;
-    size_t oldTempSize = IVSize(&temp);
-
-    assert(!estate->identifier);
-    skipWhitespaceAndNewline(state);
-    while (!readOperator(state, '}'))
-    {
-        estate2.identifier = 0;
-        if (readOperator(state, '$'))
-        {
-            if (unlikely(!parseUnquotedExpression(state, &estate2, estate->parseConstant)))
-            {
-                goto error;
-            }
-        }
-        else if (unlikely(!parseQuotedValue(state, &estate2)))
-        {
-            goto error;
-        }
-        if (constant)
-        {
-            if (estate2.expressionType == EXPRESSION_CONSTANT)
-            {
-                IVAddRef(&temp, estate2.constant);
-            }
-            else
-            {
-                constant = false;
-                convertConstantsToValues(state,
-                                         (int*)IVGetWritePointer(&temp, oldTempSize),
-                                         IVSize(&temp) - oldTempSize);
-            }
-        }
-        if (!constant)
-        {
-            IVAdd(&temp, finishRValue(state, &estate2));
-        }
-        skipWhitespaceAndNewline(state);
-    }
-    if (constant)
-    {
-        parsedConstant(estate, HeapCreateArrayFromVectorSegment(
-                           &temp, oldTempSize, IVSize(&temp) - oldTempSize));
-    }
-    else
-    {
-        uint length = (uint)(IVSize(&temp) - oldTempSize);
-        int *restrict write = IVGetAppendPointer(state->bytecode, 1 + length);
-        *write++ = encodeOp(OP_LIST, (int)length);
-        memcpy(write, IVGetPointer(&temp, oldTempSize), length * sizeof(*write));
-        estate->expressionType = EXPRESSION_MISSING_STORE;
-    }
-    IVSetSize(&temp, oldTempSize);
-    return true;
-
-error:
-    IVSetSize(&temp, oldTempSize);
-    return false;
-}
-
 static bool parseExpression11(ParseState *state, ExpressionState *estate)
 {
     ExpressionState estate2;
@@ -1184,14 +1100,6 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         estate->valueIdentifier = identifier;
         return true;
     }
-    if (readOperator(state, '\''))
-    {
-        if (readOperator(state, '{'))
-        {
-            return parseQuotedListRest(state, estate);
-        }
-        return parseQuotedValue(state, estate);
-    }
     if (peekNumber(state))
     {
         parseNumber(state, estate);
@@ -1215,7 +1123,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
     {
         bool constant;
         size_t oldTempSize = IVSize(&temp);
-        skipWhitespace(state);
+        skipWhitespaceAndNewline(state);
         if (readOperator(state, '}'))
         {
             parsedConstant(estate, HeapEmptyList);
@@ -1249,7 +1157,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
             {
                 IVAdd(&temp, finishRValue(state, &estate2));
             }
-            skipWhitespace(state);
+            skipWhitespaceAndNewline(state);
         }
         while (!readOperator(state, '}'));
         if (constant)
@@ -1679,14 +1587,6 @@ static bool parseExpression(ParseState *state, ExpressionState *estate,
     estate->valueCount = valueCount;
     estate->parseConstant = constant;
     estate->allowSpace = true;
-    return parseExpressionRest(state, estate);
-}
-
-static bool parseUnquotedExpression(ParseState *state, ExpressionState *estate, bool constant)
-{
-    estate->valueCount = 1;
-    estate->parseConstant = constant;
-    estate->allowSpace = false;
     return parseExpressionRest(state, estate);
 }
 
