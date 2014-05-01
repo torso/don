@@ -495,6 +495,33 @@ static const byte *skipString(const ParseState *state)
     }
 }
 
+static bool skipToComma(ParseState *state, char expectedTerminator)
+{
+    for (;;)
+    {
+        byte c = *state->current++;
+        if (c == ',')
+        {
+            skipWhitespaceAndNewline(state);
+            return true;
+        }
+        if (c == expectedTerminator || (c == '\n' && (eof(state) || *state->current != ' ')))
+        {
+            return false;
+        }
+        if (c == '"')
+        {
+            state->current--;
+            state->current = skipString(state);
+            if (*state->current != '"')
+            {
+                state->structuralError = true;
+                return false;
+            }
+        }
+    }
+}
+
 static bool peekComment(const ParseState *state)
 {
     return *state->current == '#';
@@ -911,6 +938,80 @@ error:
     return false;
 }
 
+static bool parseListRest(ParseState *state, ExpressionState *estate)
+{
+    ExpressionState estate2;
+    bool constant;
+    size_t oldTempSize = IVSize(&temp);
+    skipWhitespaceAndNewline(state);
+    if (readOperator(state, ']'))
+    {
+        parsedConstant(estate, HeapEmptyList);
+        return true;
+    }
+    constant = true;
+    for (;;)
+    {
+        estate2.identifier = 0;
+        if (unlikely(!parseExpression(state, &estate2, 1, false)))
+        {
+            IVSetSize(&temp, oldTempSize);
+            goto error;
+        }
+        if (constant)
+        {
+            if (estate2.expressionType == EXPRESSION_CONSTANT)
+            {
+                IVAddRef(&temp, estate2.constant);
+            }
+            else
+            {
+                constant = false;
+                convertConstantsToValues(
+                    state,
+                    (int*)IVGetWritePointer(&temp, oldTempSize),
+                    IVSize(&temp) - oldTempSize);
+            }
+        }
+        if (!constant)
+        {
+            IVAdd(&temp, finishRValue(state, &estate2));
+        }
+
+        skipWhitespaceAndNewline(state);
+        if (readOperator(state, ','))
+        {
+            skipWhitespaceAndNewline(state);
+            continue;
+        }
+        if (readOperator(state, ']'))
+        {
+            break;
+        }
+        readExpectedOperator(state, ']');
+error:
+        if (!skipToComma(state, ']'))
+        {
+            break;
+        }
+    }
+    if (constant)
+    {
+        parsedConstant(estate, HeapCreateArrayFromVectorSegment(
+                           &temp, oldTempSize, IVSize(&temp) - oldTempSize));
+    }
+    else
+    {
+        uint length = (uint)(IVSize(&temp) - oldTempSize);
+        int *restrict write = IVGetAppendPointer(state->bytecode, 1 + length);
+        estate->expressionType = EXPRESSION_MISSING_STORE;
+        *write++ = encodeOp(OP_LIST, (int)length);
+        memcpy(write, IVGetPointer(&temp, oldTempSize), length * sizeof(*write));
+    }
+    IVSetSize(&temp, oldTempSize);
+    return true;
+}
+
 static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref ns, vref name)
 {
     ExpressionState estateArgument;
@@ -1071,7 +1172,6 @@ static bool parseBinaryOperationRest(
 
 static bool parseExpression11(ParseState *state, ExpressionState *estate)
 {
-    ExpressionState estate2;
     vref identifier = estate->identifier;
     vref string;
     vref ns;
@@ -1164,60 +1264,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '['))
     {
-        bool constant;
-        size_t oldTempSize = IVSize(&temp);
-        skipWhitespaceAndNewline(state);
-        if (readOperator(state, ']'))
-        {
-            parsedConstant(estate, HeapEmptyList);
-            return true;
-        }
-        constant = true;
-        do
-        {
-            estate2.identifier = 0;
-            if (unlikely(!parseExpression(state, &estate2, 1, false)))
-            {
-                IVSetSize(&temp, oldTempSize);
-                return false;
-            }
-            if (constant)
-            {
-                if (estate2.expressionType == EXPRESSION_CONSTANT)
-                {
-                    IVAddRef(&temp, estate2.constant);
-                }
-                else
-                {
-                    constant = false;
-                    convertConstantsToValues(
-                        state,
-                        (int*)IVGetWritePointer(&temp, oldTempSize),
-                        IVSize(&temp) - oldTempSize);
-                }
-            }
-            if (!constant)
-            {
-                IVAdd(&temp, finishRValue(state, &estate2));
-            }
-            skipWhitespaceAndNewline(state);
-        }
-        while (!readOperator(state, ']'));
-        if (constant)
-        {
-            parsedConstant(estate, HeapCreateArrayFromVectorSegment(
-                               &temp, oldTempSize, IVSize(&temp) - oldTempSize));
-        }
-        else
-        {
-            uint length = (uint)(IVSize(&temp) - oldTempSize);
-            int *restrict write = IVGetAppendPointer(state->bytecode, 1 + length);
-            estate->expressionType = EXPRESSION_MISSING_STORE;
-            *write++ = encodeOp(OP_LIST, (int)length);
-            memcpy(write, IVGetPointer(&temp, oldTempSize), length * sizeof(*write));
-        }
-        IVSetSize(&temp, oldTempSize);
-        return true;
+        return parseListRest(state, estate);
     }
     if (likely(readOperator(state, '@')))
     {
@@ -2078,35 +2125,25 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
             }
             IVAdd(&temp, intFromRef(parameterName));
             IVAdd(&temp, value);
+
             skipWhitespaceAndNewline(state);
-            if (!readOperator(state, ','))
+            if (readOperator(state, ','))
+            {
+                skipWhitespaceAndNewline(state);
+                continue;
+            }
+            if (readOperator(state, ')'))
             {
                 break;
             }
-            skipWhitespaceAndNewline(state);
-            continue;
-
+            readExpectedOperator(state, ')');
     error:
-            for (;;)
+            if (!skipToComma(state, ')'))
             {
-                byte c = *state->current++;
-                if (c == ',')
-                {
-                    skipWhitespaceAndNewline(state);
-                    break;
-                }
-                if (c == ')' || (c == '\n' && (eof(state) || *state->current != ' ')))
-                {
-                    goto done;
-                }
+                break;
             }
         }
-        if (!readExpectedOperator(state, ')'))
-        {
-            goto error;
-        }
     }
-done:
     IVAdd(&state->program->functions, (int)IVSize(state->bytecode));
     {
         int parameterCount = (int)(IVSize(&temp) - oldTempSize) / 2;

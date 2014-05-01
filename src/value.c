@@ -199,7 +199,7 @@ char *VWriteString(vref value, char *dst)
         {
             if (index)
             {
-                *dst++ = ' ';
+                *dst++ = ',';
             }
             dst = VWriteString(item, dst);
         }
