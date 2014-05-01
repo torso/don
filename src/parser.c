@@ -477,6 +477,24 @@ static void skipExpressionWhitespaceAndNewline(ParseState *state,
     }
 }
 
+static const byte *skipString(const ParseState *state)
+{
+    const byte *p = state->current;
+    assert(*p == '"');
+    for (;;)
+    {
+        p++;
+        if (*p == '"' || *p == '\n')
+        {
+            return p;
+        }
+        if (*p == '\\' && (p[1] == '"' || p[1] == '\\'))
+        {
+            p++;
+        }
+    }
+}
+
 static bool peekComment(const ParseState *state)
 {
     return *state->current == '#';
@@ -625,7 +643,21 @@ static bool readExpectedOperator(ParseState *state, byte op)
     }
     else if (peekString(state))
     {
-        error(state, "Expected operator '%c'. Got string", op);
+        const byte *p = skipString(state);
+        if (*p == '"')
+        {
+            size_t oldBTempSize = BVSize(&btemp);
+            BVAddData(&btemp, state->current, (size_t)(p - state->current + 1));
+            BVAdd(&btemp, 0);
+            error(state, "Expected operator '%c'. Got %s", op,
+                  BVGetPointer(&btemp, oldBTempSize));
+            BVSetSize(&btemp, oldBTempSize);
+            return false;
+        }
+        else
+        {
+            error(state, "Expected operator '%c'. Got string", op);
+        }
     }
     else if (*state->current == '\'')
     {
@@ -633,6 +665,7 @@ static bool readExpectedOperator(ParseState *state, byte op)
     }
     else
     {
+        /* TODO: Nicer message for @ */
         error(state, "Expected operator '%c'. Got '%c'", op, *state->current);
     }
     writeOp(state, OP_LINE, (int)state->statementLine);
