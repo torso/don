@@ -14,6 +14,8 @@
 #include "parser.h"
 #include "stringpool.h"
 
+static const bool DEBUG_PARSER = false;
+
 typedef struct
 {
     const byte *current;
@@ -138,6 +140,14 @@ static bool eof(const ParseState *state)
 static attrprintf(2, 3) void error(ParseState *state, const char *format, ...)
 {
     va_list args;
+    if (DEBUG_PARSER)
+    {
+        va_start(args, format);
+        fprintf(stderr, "%d:", state->line);
+        fprintf(stderr, format, args);
+        fputs("\n", stderr);
+        va_end(args);
+    }
     va_start(args, format);
     writeOp(state, OP_ERROR, intFromRef(HeapCreateStringFormatted(format, args)));
     va_end(args);

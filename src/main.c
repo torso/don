@@ -178,6 +178,12 @@ int main(int argc, const char **argv)
 
     ParseDispose();
 
+
+    if (disassemble)
+    {
+        BytecodeDisassemble(IVGetPointer(&parsed.bytecode, 0), IVGetPointer(&parsed.bytecode, 0) + IVSize(&parsed.bytecode));
+        fflush(stdout);
+    }
     if (!Link(&parsed, &linked))
     {
         return 1;
