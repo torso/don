@@ -23,7 +23,6 @@ typedef struct
     const byte *limit;
     ParsedProgram *program;
     namespaceref ns;
-    vref filename;
     uint line;
     uint lineBeforeSkip;
     uint statementLine;
@@ -2200,7 +2199,7 @@ void ParseDispose(void)
     BVDispose(&btemp);
 }
 
-void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
+void ParseFile(ParsedProgram *program, const char *filename, size_t filenameLength, namespaceref ns)
 {
     ParseState state;
     File file;
@@ -2208,18 +2207,18 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
     byte *buffer;
 
     assert(filename);
+    assert(!filename[filenameLength]);
     state.ns = ns;
-    state.filename = filename;
     state.line = 1;
     state.bytecode = &program->bytecode;
     state.program = program;
     state.constants = &program->constants;
 
-    FileOpen(&file, HeapGetString(filename), VStringLength(filename));
+    FileOpen(&file, filename, filenameLength);
     size = FileSize(&file);
     if (unlikely(size >= SSIZE_MAX))
     {
-        Fail("File too big: %s\n", HeapGetString(filename));
+        Fail("File too big: %s\n", filename);
     }
     buffer = (byte*)malloc(size + 1);
     FileRead(&file, buffer, size);
@@ -2232,7 +2231,8 @@ void ParseFile(ParsedProgram *program, vref filename, namespaceref ns)
     state.current = state.start;
     state.limit = state.start + size;
 
-    writeOp2(&state, OP_FILE, intFromRef(filename), intFromRef(ns));
+    writeOp(&state, OP_FILE, intFromRef(ns));
+    IVAppendString(state.bytecode, filename, filenameLength);
 
     while (!eof(&state))
     {

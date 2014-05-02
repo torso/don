@@ -31,7 +31,6 @@ int main(int argc, const char **argv)
     const char *env;
     size_t envLength;
     char *string;
-    vref filename;
     char *cacheDirectory;
     size_t cacheDirectoryLength;
     namespaceref defaultNamespace;
@@ -162,19 +161,17 @@ int main(int argc, const char **argv)
                             DATADIR "don.don", strlen(DATADIR "don.don"),
                             null, 0,
                             &size);
-    filename = StringPoolAdd2(string, size);
-    free(string);
     ParseInit(&parsed);
-    ParseFile(&parsed, filename, NamespaceCreate(StringPoolAdd("don")));
+    ParseFile(&parsed, string, size, NamespaceCreate(StringPoolAdd("don")));
+    free(string);
 
     string = FileCreatePath(null, 0,
                             inputFilename, strlen(inputFilename),
                             null, 0,
                             &size);
-    filename = StringPoolAdd2(string, size);
-    free(string);
     defaultNamespace = NamespaceCreate(0);
-    ParseFile(&parsed, filename, defaultNamespace);
+    ParseFile(&parsed, string, size, defaultNamespace);
+    free(string);
 
     ParseDispose();
 

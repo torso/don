@@ -27,7 +27,7 @@ typedef struct
     int jumpCount;
     int *jumpTargetTable;
 
-    vref filename;
+    const char *filename;
     uint line;
     namespaceref ns;
     bool hasErrors;
@@ -36,7 +36,7 @@ typedef struct
 static void error(LinkState *state, const char *message)
 {
     state->hasErrors = true;
-    fprintf(stderr, "%s:%u: %s\n", HeapGetString(state->filename), state->line, message);
+    fprintf(stderr, "%s:%u: %s\n", state->filename, state->line, message);
 }
 
 static attrprintf(2, 3) void errorf(LinkState *state, const char *format, ...)
@@ -44,7 +44,7 @@ static attrprintf(2, 3) void errorf(LinkState *state, const char *format, ...)
     va_list args;
     va_start(args, format);
     state->hasErrors = true;
-    fprintf(stderr, "%s:%u: ", HeapGetString(state->filename), state->line);
+    fprintf(stderr, "%s:%u: ", state->filename, state->line);
     vfprintf(stderr, format, args);
     fputs("\n", stderr);
     va_end(args);
@@ -152,10 +152,14 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
         switch ((Instruction)op)
         {
         case OP_FILE:
-            state.filename = refFromInt(arg);
-            state.ns = refFromInt(*read++);
+        {
+            int length = *read++;
+            state.filename = (const char*)read;
+            state.ns = refFromInt(arg);
             state.line = 1;
+            read += (length + 4) >> 2;
             break;
+        }
 
         case OP_LINE:
             state.line = (uint)arg;

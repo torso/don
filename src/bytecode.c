@@ -32,9 +32,11 @@ static const int *disassemble(const int *bytecode, const int *base)
     {
     case OP_FILE:
     {
-        vref ns = NamespaceGetName(refFromInt(*bytecode++));
-        printf("file %s namespace:%s\n", HeapGetString(refFromInt(arg)),
+        vref ns = NamespaceGetName(refFromInt(arg));
+        int length = *bytecode++;
+        printf("file %s namespace:%s\n", (const char*)bytecode,
                ns ? HeapGetString(ns) : "<unnamed>");
+        bytecode += (length + 4) >> 2;
         break;
     }
 
