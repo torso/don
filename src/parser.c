@@ -71,6 +71,7 @@ static vref keywordReturn;
 static vref keywordTarget;
 static vref keywordTrue;
 static vref keywordWhile;
+static vref identifierNative;
 
 static vref maxStatementKeyword;
 static vref maxKeyword;
@@ -1210,7 +1211,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         }
         if (!peekOperator2(state, '.', '.') && readOperator(state, '.'))
         {
-            if (state->ns == NAMESPACE_DON && identifier == StringPoolAdd("native"))
+            if (state->ns == NAMESPACE_DON && identifier == identifierNative)
             {
                 identifier = readVariableName(state);
                 if (unlikely(!identifier || !readExpectedOperator(state, '(')))
@@ -2177,6 +2178,8 @@ void ParserAddKeywords(void)
     keywordTarget = StringPoolAdd("target");
     keywordTrue = StringPoolAdd("true");
     maxKeyword = keywordTrue;
+
+    identifierNative = StringPoolAdd("native");
 }
 
 void ParseInit(ParsedProgram *program)
