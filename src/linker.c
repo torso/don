@@ -189,11 +189,11 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
                 int name = *read++;
                 read++; /* default value */
 
-                if (NamespaceGetField(state.ns, refFromInt(name)) >= 0)
+                if (unlikely(NamespaceGetField(state.ns, refFromInt(name)) >= 0))
                 {
                     errorf(&state, "'%s' is a global variable", HeapGetString(refFromInt(name)));
                 }
-                else if (IntHashMapSet(&state.variables, name, param + 1))
+                else if (unlikely(IntHashMapSet(&state.variables, name, param + 1)))
                 {
                     errorf(&state, "Multiple uses of parameter name '%s'",
                            HeapGetString(refFromInt(name)));
@@ -237,13 +237,13 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
             int field;
             int variable = *read++;
             ns = NamespaceGetNamespace(state.ns, nsName);
-            if (!ns)
+            if (unlikely(!ns))
             {
                 errorf(&state, "Unknown namespace '%s'", HeapGetString(nsName));
                 break;
             }
             field = NamespaceLookupField(ns, refFromInt(arg));
-            if (field < 0)
+            if (unlikely(field < 0))
             {
                 errorf(&state, "Unknown field '%s.%s'", HeapGetString(nsName),
                        HeapGetString(refFromInt(arg)));
@@ -261,13 +261,13 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
             int field;
             int variable = *read++;
             ns = NamespaceGetNamespace(state.ns, nsName);
-            if (!ns)
+            if (unlikely(!ns))
             {
                 errorf(&state, "Unknown namespace '%s'", HeapGetString(nsName));
                 break;
             }
             field = NamespaceLookupField(ns, refFromInt(arg));
-            if (field < 0)
+            if (unlikely(field < 0))
             {
                 errorf(&state, "Unknown field '%s.%s'", HeapGetString(nsName),
                        HeapGetString(refFromInt(arg)));
@@ -355,14 +355,14 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
             if (nsName)
             {
                 ns = NamespaceGetNamespace(state.ns, nsName);
-                if (!ns)
+                if (unlikely(!ns))
                 {
                     errorf(&state, "Unknown namespace '%s'", HeapGetString(nsName));
                     read += argumentCount * 2 + returnValueCount;
                     break;
                 }
                 function = NamespaceGetFunction(ns, refFromInt(arg));
-                if (function < 0)
+                if (unlikely(function < 0))
                 {
                     errorf(&state, "Unknown function '%s.%s'",
                            HeapGetString(nsName), HeapGetString(refFromInt(arg)));
@@ -371,7 +371,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
             else
             {
                 function = NamespaceLookupFunction(state.ns, refFromInt(arg));
-                if (function < 0)
+                if (unlikely(function < 0))
                 {
                     errorf(&state, "Unknown function '%s'", HeapGetString(refFromInt(arg)));
                     read += argumentCount * 2 + returnValueCount;
@@ -421,7 +421,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
                 read++;
                 *write++ = linkVariable(&state, *read++);
             }
-            if (argumentCount > index && varargIndex == INT_MAX && !*read)
+            if (unlikely(argumentCount > index && varargIndex == INT_MAX && !*read))
             {
                 error(&state, "Too many arguments");
             }
@@ -442,11 +442,11 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
             {
                 int name = *read++;
                 int value = *read++;
-                for (index = 0; index < parameterCount; index++)
+                for (index = 0; likely(index < parameterCount); index++)
                 {
                     if (parameters[index * 2] == name)
                     {
-                        if (argWriteStart[index] == INT_MAX)
+                        if (likely(argWriteStart[index] == INT_MAX))
                         {
                             argWriteStart[index] = linkVariable(&state, value);
                         }
@@ -465,7 +465,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
                 if (argWriteStart[index] == INT_MAX)
                 {
                     int value = parameters[index * 2 + 1];
-                    if (refFromInt(value) == INT_MAX)
+                    if (unlikely(refFromInt(value) == INT_MAX))
                     {
                         errorf(&state, "No value for parameter '%s'",
                                HeapGetString(refFromInt(parameters[index * 2])));
