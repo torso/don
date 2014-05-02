@@ -624,7 +624,7 @@ static vref readFilename(ParseState *state)
         error(state, "Expected filename");
         return 0;
     }
-    return StringPoolAdd2((const char*)begin, getOffset(state, begin));
+    return HeapCreateString((const char*)begin, getOffset(state, begin));
 }
 
 
@@ -841,8 +841,8 @@ static bool parseString(ParseState *state, ExpressionState *estate)
         {
             vref s;
             BVAddData(&btemp, begin, getOffset(state, begin));
-            s = StringPoolAdd2((const char*)BVGetPointer(&btemp, oldBTempSize),
-                               BVSize(&btemp) - oldBTempSize);
+            s = HeapCreateString((const char*)BVGetPointer(&btemp, oldBTempSize),
+                                 BVSize(&btemp) - oldBTempSize);
             BVSetSize(&btemp, oldBTempSize);
             state->current++;
             if (IVSize(&temp) == oldTempSize)
@@ -870,7 +870,7 @@ static bool parseString(ParseState *state, ExpressionState *estate)
             {
                 IVAdd(&temp, variableFromConstant(
                           state,
-                          StringPoolAdd2((const char*)BVGetPointer(&btemp, oldBTempSize), length)));
+                          HeapCreateString((const char*)BVGetPointer(&btemp, oldBTempSize), length)));
                 BVSetSize(&btemp, oldBTempSize);
             }
             state->current++;
