@@ -1132,7 +1132,6 @@ bool HeapIsCollection(vref object)
 bool HeapCollectionGet(vref object, vref indexObject,
                        vref *restrict value)
 {
-    const vref *restrict data;
     const vref *restrict limit;
     const int *restrict intData;
     ssize_t i;
@@ -1155,9 +1154,11 @@ bool HeapCollectionGet(vref object, vref indexObject,
     switch (HeapGetObjectType(object))
     {
     case TYPE_ARRAY:
-        data = (const vref*)HeapGetObjectData(object);
-        *value = data[index];
+    {
+        vref *restrict data = (vref*)HeapGetObjectData(object);
+        *value = data[index] = HeapTryWait(data[index]);
         return true;
+    }
 
     case TYPE_INTEGER_RANGE:
         intData = (const int *)HeapGetObjectData(object);
@@ -1167,7 +1168,8 @@ bool HeapCollectionGet(vref object, vref indexObject,
         return true;
 
     case TYPE_CONCAT_LIST:
-        data = (const vref*)HeapGetObjectData(object);
+    {
+        const vref *restrict data = (const vref*)HeapGetObjectData(object);
         limit = data + HeapGetObjectSize(object);
         while (data < limit)
         {
@@ -1181,6 +1183,7 @@ bool HeapCollectionGet(vref object, vref indexObject,
             data++;
         }
         return false;
+    }
 
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
