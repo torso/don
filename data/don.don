@@ -30,13 +30,13 @@ fn exec(command..., env:[], fail:true, echo:true, echoStderr:true, access:@/, mo
     {
         if internalError == 1
         {
-            don.fail("Command not found: $(command[0])")
+            fail("Command not found: $(command[0])")
         }
         if internalError == 2
         {
-            don.fail("File is not executable: $(command[0])")
+            fail("File is not executable: $(command[0])")
         }
-        don.fail("Process exited with status $exitcode")
+        fail("Process exited with status $exitcode")
     }
     return output exitcode
 }
