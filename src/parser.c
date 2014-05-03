@@ -849,6 +849,12 @@ static bool parseString(ParseState *state, ExpressionState *estate)
             {
                 parsedConstant(estate, s);
             }
+            else if (unlikely(estate->parseConstant))
+            {
+                error(state, "Expected constant");
+                parsedConstant(estate, HeapEmptyString);
+                IVSetSize(&temp, oldTempSize);
+            }
             else
             {
                 if (s != HeapEmptyString)
