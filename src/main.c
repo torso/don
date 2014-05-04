@@ -53,14 +53,14 @@ int main(int argc, const char **argv)
             options = argv[i] + 1;
             if (!*options)
             {
-                fprintf(stderr, "Invalid argument: \"-\"\n");
+                fputs("Invalid argument: \"-\"\n", stderr);
                 return 1;
             }
             if (*options == '-')
             {
                 if (*++options)
                 {
-                    fprintf(stderr, "TODO: Long option\n");
+                    fputs("TODO: Long option\n", stderr);
                     return 1;
                 }
                 else
@@ -81,12 +81,12 @@ int main(int argc, const char **argv)
                 case 'f':
                     if (inputFilename)
                     {
-                        fprintf(stderr, "More than one input file specified.\n");
+                        fputs("More than one input file specified.\n", stderr);
                         return 1;
                     }
                     if (++i >= argc)
                     {
-                        fprintf(stderr, "Option \"-f\" requires an argument.\n");
+                        fputs("Option \"-f\" requires an argument.\n", stderr);
                         return 1;
                     }
                     inputFilename = argv[i];

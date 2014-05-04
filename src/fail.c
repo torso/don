@@ -28,7 +28,7 @@ void FailErrno(bool forked)
 
 void FailOOM(void)
 {
-    fprintf(stderr, "don: Out of memory\n");
+    fputs("don: Out of memory\n", stderr);
     exit(EXIT_FAILURE);
 }
 
