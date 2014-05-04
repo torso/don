@@ -858,7 +858,7 @@ static bool nativeSplit(SplitEnv *env)
 
     data = HeapIsFile(env->value) ? readFile(env->value) : env->value;
     assert(HeapIsString(data));
-    assert(HeapIsString(env->delimiter));
+    assert(HeapIsString(env->delimiter) || HeapIsCollection(env->delimiter));
     env->result = HeapSplit(data, env->delimiter, VIsTruthy(env->removeEmpty),
                             false);
     return true;

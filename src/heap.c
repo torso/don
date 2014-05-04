@@ -30,6 +30,7 @@ static byte *HeapPageBase;
 static byte *HeapPageFree;
 static const byte *HeapPageLimit;
 static size_t HeapPageOffset;
+static intvector ivtemp;
 
 vref HeapTrue;
 vref HeapFalse;
@@ -210,6 +211,7 @@ void HeapInit(void)
 {
     byte *p;
 
+    IVInit(&ivtemp, 128);
     HeapPageIndex = (byte**)malloc(INITIAL_HEAP_INDEX_SIZE * sizeof(*HeapPageIndex));
     HeapPageIndexSize = INITIAL_HEAP_INDEX_SIZE;
     HeapPageIndex[0] = (byte*)malloc(PAGE_SIZE);
@@ -239,6 +241,7 @@ void HeapDispose(void)
     }
     free(HeapPageIndex);
     HeapPageIndex = null;
+    IVDispose(&ivtemp);
 }
 
 
@@ -1017,13 +1020,16 @@ vref HeapRangeHigh(vref range)
 vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
                bool trimLastIfEmpty)
 {
+    size_t oldTempSize = IVSize(&ivtemp);
     size_t length;
-    size_t delimiterLength;
+    size_t delimiterCount;
     size_t offset;
     size_t lastOffset;
-    vref offsetref;
     vref value;
     intvector substrings;
+    const char *pstring;
+    const int *delimiterVector;
+    const int *delimiterVectorLimit;
 
     assert(HeapIsString(string));
     length = VStringLength(string);
@@ -1031,39 +1037,81 @@ vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
     {
         return HeapEmptyList;
     }
-    delimiterLength = VStringLength(delimiter);
-    if (!delimiterLength || length < delimiterLength)
+    if (HeapIsCollection(delimiter))
     {
-        return string;
+        size_t i;
+        delimiterCount = VCollectionSize(delimiter);
+        for (i = 0; i < delimiterCount; i++)
+        {
+            vref s;
+            size_t delimiterLength;
+            HeapCollectionGet(delimiter, HeapBoxSize(i), &s);
+            delimiterLength = VStringLength(s);
+            assert(delimiterLength <= INT_MAX);
+            if (!delimiterLength || delimiterLength > length)
+            {
+                /* delimiterCount--; */
+                continue;
+            }
+            IVAdd(&ivtemp, (int)delimiterLength);
+            VWriteString(s, (char*)IVGetAppendPointer(
+                             &ivtemp, (delimiterLength + sizeof(int) - 1) / sizeof(int)));
+        }
+        if (IVSize(&ivtemp) == oldTempSize)
+        {
+            return HeapCreateArrayFromData(&string, 1);
+        }
     }
+    else
+    {
+        size_t delimiterLength = VStringLength(delimiter);
+        assert(delimiterLength <= INT_MAX);
+        if (!delimiterLength || delimiterLength > length)
+        {
+            return HeapCreateArrayFromData(&string, 1);
+        }
+        IVAdd(&ivtemp, (int)delimiterLength);
+        VWriteString(delimiter, (char*)IVGetAppendPointer(
+                         &ivtemp, (delimiterLength + sizeof(int) - 1) / sizeof(int)));
+    }
+    delimiterVector = IVGetPointer(&ivtemp, oldTempSize);
+    delimiterVectorLimit = delimiterVector + IVSize(&ivtemp) - oldTempSize;
+
     IVInit(&substrings, 4);
+    pstring = getString(string); /* TODO: Handle concatenated strings */
     offset = 0;
     lastOffset = 0;
-    for (;;)
+continueMatching:
+    while (offset < length)
     {
-        offsetref = HeapStringIndexOf(string, offset, delimiter);
-        if (!offsetref)
+        const int *currentDelimiter = delimiterVector;
+        while (currentDelimiter < delimiterVectorLimit)
         {
-            if (length != lastOffset || !(removeEmpty || trimLastIfEmpty))
+            size_t delimiterLength = (size_t)*currentDelimiter++;
+            if (!memcmp(pstring + offset, currentDelimiter, delimiterLength))
             {
-                IVAddRef(&substrings,
-                         HeapCreateSubstring(string, lastOffset,
-                                             length - lastOffset));
+                if (offset != lastOffset || !removeEmpty)
+                {
+                    IVAddRef(&substrings,
+                             HeapCreateSubstring(string, lastOffset, offset - lastOffset));
+                }
+                offset += delimiterLength;
+                lastOffset = offset;
+                goto continueMatching;
             }
-            break;
+            currentDelimiter += (delimiterLength + sizeof(int) - 1) / sizeof(int);
         }
-        offset = HeapUnboxSize(offsetref);
-        if (offset != lastOffset || !removeEmpty)
-        {
-            IVAddRef(&substrings,
-                     HeapCreateSubstring(string, lastOffset,
-                                         offset - lastOffset));
-        }
-        offset += delimiterLength;
-        lastOffset = offset;
+        offset++;
+    }
+    if (length != lastOffset || !(removeEmpty || trimLastIfEmpty))
+    {
+        IVAddRef(&substrings,
+                 HeapCreateSubstring(string, lastOffset,
+                                     length - lastOffset));
     }
     value = HeapCreateArrayFromVector(&substrings);
     IVDispose(&substrings);
+    IVSetSize(&ivtemp, oldTempSize);
     return value;
 }
 

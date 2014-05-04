@@ -3,7 +3,7 @@ fn test(a, b, c, expected)
     result = split(a, b, removeEmpty:c)
     if result != expected
     {
-        echo("FAIL: $a $b $c: $result")
+        echo("FAIL: \"$a\" \"$b\" empty:$c: result:$result expected:$expected")
     }
 }
 
@@ -12,6 +12,8 @@ target default
     test("a b c",    " ", false, ["a", "b", "c"])
     test(" a b  c ", " ", false, ["", "a", "b", "", "c", ""])
     test(" a b  c ", " ", true,  ["a", "b", "c"])
+    test(" a b \n c ", [" ", "\n"], true,  ["a", "b", "c"])
+    test("..a..b .. c..", [" ", ".."], true,  ["a", "b", "c"])
 
     echo("PASS")
 }

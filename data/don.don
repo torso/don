@@ -151,7 +151,7 @@ fn size(value)
     return native.size(value)
 }
 
-fn split(value, delimiter:" ", removeEmpty:false)
+fn split(value, delimiter:[" ", "\n"], removeEmpty:false)
 {
     return native.split(value, delimiter, removeEmpty)
 }
