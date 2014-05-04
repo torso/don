@@ -494,9 +494,12 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
     table[i].entry = oldEntriesSize + BVSize(&newEntries) + 1;
 
     entryStart = BVSize(&newEntries);
-    BVGrow(&newEntries, offsetof(Entry, dependencies) +
-           dependencyCount * sizeof(entry->dependencies));
-    entry = (Entry*)BVGetPointer(&newEntries, entryStart);
+    entry = (Entry*)BVGetAppendPointer(&newEntries, offsetof(Entry, dependencies) +
+                                       dependencyCount * sizeof(entry->dependencies));
+#ifdef VALGRIND
+    /* Ignore undefined padding */
+    VALGRIND_MAKE_MEM_DEFINED(entry, offsetof(Entry, dependencies));
+#endif
     memcpy(entry->hash, hash, CACHE_DIGEST_SIZE);
     entry->dependencyCount = dependencyCount;
     entry->dataLength = (uint)VStringLength(data);
@@ -506,7 +509,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
     {
         vref value;
         uint length;
-        size_t pathStart;
+        char *pathStart;
         if (!HeapCollectionGet(dependencies, HeapBoxSize(i), &value))
         {
             assert(false); /* TODO: Error handling. */
@@ -514,14 +517,16 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
         assert(HeapIsFile(value));
         length = (uint)VStringLength(value);
 
-        pathStart = BVSize(&newEntries);
-        VWriteString(value, (char*)BVGetAppendPointer(&newEntries, length));
+        pathStart = (char*)BVGetAppendPointer(&newEntries, length);
+        VWriteString(value, pathStart);
 
         entry = (Entry*)BVGetPointer(&newEntries, entryStart);
+#ifdef VALGRIND
+        /* Ignore undefined padding */
+        VALGRIND_MAKE_MEM_DEFINED(entry->dependencies + i, sizeof(*entry->dependencies));
+#endif
         entry->dependencies[i].pathLength = length;
-        memcpy(&entry->dependencies[i].status,
-               FileGetStatus((const char*)BVGetPointer(&newEntries, pathStart),
-                             length),
+        memcpy(&entry->dependencies[i].status, FileGetStatus(pathStart, length),
                sizeof(FileStatus));
     }
     appendString(data);
@@ -530,9 +535,5 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
     /* TODO: Add padding for alignment */
     entry = (Entry*)BVGetPointer(&newEntries, entryStart);
     entry->size = BVSize(&newEntries) - entryStart;
-#ifdef VALGRIND
-    /* Ignore undefined padding */
-    VALGRIND_MAKE_MEM_DEFINED(entry, offsetof(Entry, dependencies));
-#endif
     FileWrite(&infoWrite.file, (const byte*)entry, entry->size);
 }
