@@ -13,10 +13,10 @@
 #include "fail.h"
 #include "file.h"
 #include "hash.h"
+#include "log.h"
 #include "namespace.h"
 #include "native.h"
 #include "pipe.h"
-#include "log.h"
 #include "stringpool.h"
 #include "work.h"
 

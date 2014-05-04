@@ -12,6 +12,5 @@ extern void LogAutoNewline(void);
 
 extern void LogSetPrefix(const char *prefix, size_t length);
 
-#ifdef PIPE_H
-extern PipeListener LogPipeOutListener;
-#endif
+struct _PipeListener;
+extern struct _PipeListener LogPipeOutListener;
