@@ -18,21 +18,13 @@ typedef struct
 } LogPipe;
 
 static nonnull void logPrintRaw(const byte *data, size_t length);
-static nonnull void logPrintErrRaw(const byte *data, size_t length);
 static void logNewline(void);
-static void logErrNewline(void);
 
 static LogPipe out;
-static LogPipe err;
 
 PipeListener LogPipeOutListener =
 {
     null, logPrintRaw
-};
-
-PipeListener LogPipeErrListener =
-{
-    null, logPrintErrRaw
 };
 
 
@@ -123,15 +115,12 @@ static void processNewData(LogPipe *p, size_t newData)
 void LogInit(void)
 {
     BVInit(&out.buffer, MIN_READ_BUFFER * 2);
-    BVInit(&err.buffer, MIN_READ_BUFFER * 2);
     out.fd = STDOUT_FILENO;
-    err.fd = STDERR_FILENO;
 }
 
 void LogDispose(void)
 {
     BVDispose(&out.buffer);
-    BVDispose(&err.buffer);
 }
 
 
@@ -156,11 +145,6 @@ void logPrintRaw(const byte *data, size_t length)
     logPrint(&out, (const char*)data, length);
 }
 
-void logPrintErrRaw(const byte *data, size_t length)
-{
-    logPrint(&err, (const char*)data, length);
-}
-
 void LogPrintAutoNewline(const char *text, size_t length)
 {
     if (!length)
@@ -172,20 +156,6 @@ void LogPrintAutoNewline(const char *text, size_t length)
     if (text[length - 1] != '\n')
     {
         logNewline();
-    }
-}
-
-void LogPrintErrAutoNewline(const char *text, size_t length)
-{
-    if (!length)
-    {
-        logErrNewline();
-        return;
-    }
-    logPrint(&err, text, length);
-    if (text[length - 1] != '\n')
-    {
-        logErrNewline();
     }
 }
 
@@ -217,19 +187,9 @@ void LogPrintObjectAutoNewline(vref object)
     logPrintObjectAutoNewline(&out, object);
 }
 
-void LogPrintErrObjectAutoNewline(vref object)
-{
-    logPrintObjectAutoNewline(&err, object);
-}
-
 void logNewline(void)
 {
     logPrint(&out, "\n", 1);
-}
-
-void logErrNewline(void)
-{
-    logPrint(&err, "\n", 1);
 }
 
 void LogAutoNewline(void)
@@ -237,14 +197,6 @@ void LogAutoNewline(void)
     if (BVSize(&out.buffer) && BVPeek(&out.buffer) != '\n')
     {
         logNewline();
-    }
-}
-
-void LogErrAutoNewline(void)
-{
-    if (BVSize(&err.buffer) && BVPeek(&err.buffer) != '\n')
-    {
-        logErrNewline();
     }
 }
 

@@ -65,6 +65,7 @@ extern nonnull bool HeapIsString(vref object);
   running before the VM starts.)
 */
 extern nonnull const char *HeapGetString(vref object);
+extern nonnull char *HeapGetStringCopy(vref object);
 
 extern nonnull char *HeapWriteSubstring(vref object, size_t offset,
                                         size_t length, char *restrict dst);

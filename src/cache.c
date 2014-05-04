@@ -443,7 +443,7 @@ void CacheGet(const byte *hash, bool echoCachedOutput,
         }
         if (entry->errLength)
         {
-            LogPrintErrAutoNewline(p, entry->errLength);
+            LogPrintAutoNewline(p, entry->errLength);
         }
     }
 }

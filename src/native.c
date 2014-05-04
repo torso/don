@@ -361,7 +361,7 @@ static bool nativeExec(ExecEnv *env)
     }
     if (VIsTruthy(env->echoErr))
     {
-        PipeAddListener(&err, &LogPipeErrListener);
+        PipeAddListener(&err, &LogPipeOutListener);
     }
     PipeConsume2(&out, &err);
 
@@ -382,7 +382,6 @@ static bool nativeExec(ExecEnv *env)
                            BVSize(&err.buffer)));
     PipeDispose(&err);
     LogAutoNewline();
-    LogErrAutoNewline();
     return true;
 }
 
@@ -402,7 +401,8 @@ static bool nativeFail(FailEnv *env)
     }
     if (env->message)
     {
-        LogPrintErrObjectAutoNewline(env->message);
+        fputs(HeapGetStringCopy(env->message), stderr);
+        fputs("\n", stderr);
     }
     FailVM(env->work.vm);
 }

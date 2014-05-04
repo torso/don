@@ -705,6 +705,15 @@ const char *HeapGetString(vref object)
     return (const char*)HeapGetObjectData(object);
 }
 
+char *HeapGetStringCopy(vref object)
+{
+    size_t length = VStringLength(object);
+    char *copy = (char*)malloc(length + 1);
+    VWriteString(object, copy);
+    copy[length] = 0;
+    return copy;
+}
+
 char *HeapWriteSubstring(vref object, size_t offset, size_t length,
                          char *dst)
 {
