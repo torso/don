@@ -1,29 +1,29 @@
 valgrind = false
-gdb = ["gdb", "-q", "--args"]
+gdb = ['gdb', '-q', '--args']
 
 fn compile(datadir:@data/, extraflags:[], linkflags:[], optimize:false)
 {
     ofiles = cc(@src/*.c,
                 flags:["-DDATADIR=\"$datadir\"",
-                       (valgrind ? "-DVALGRIND" : "-DNVALGRIND"),
-                       "-ggdb3", "-rdynamic", "-std=c89", "-pedantic",
-                       "-Wno-error=unused-parameter", "-Wno-error=unused-variable",
-                       "-Wno-error=unused-function", "-Wall", "-Wextra", "-Wformat=2",
-                       "-Winit-self", "-Wmissing-include-dirs", "-Wswitch-enum",
-                       "-Wsync-nand", "-Wunused", "-Wstrict-overflow=5", "-Wfloat-equal",
-                       "-Wundef", "-Wshadow", "-Wunsafe-loop-optimizations",
-                       "-Wbad-function-cast", "-Wc++-compat", "-Wcast-align",
-                       "-Wwrite-strings", "-Wconversion", "-Wlogical-op",
-                       "-Waggregate-return", "-Wstrict-prototypes",
-                       "-Wold-style-definition", "-Wmissing-prototypes",
-                       "-Wmissing-declarations", "-Wmissing-noreturn",
-                       "-Wmissing-format-attribute", "-Wnormalized=nfc", "-Wpacked",
-                       "-Wpacked-bitfield-compat", "-Wredundant-decls",
-                       "-Wnested-externs", "-Wunreachable-code",
-                       "-Wno-error=unreachable-code", "-Winline", "-Winvalid-pch",
-                       "-Wdisabled-optimization", "-Wstack-protector", "-pipe",
-                       "-march=native"]::(optimize ? ["-O2"] : ["-DDEBUG", "-O0"])::extraflags)
-    return link(ofiles, flags:linkflags, name:"don")
+                       (valgrind ? '-DVALGRIND' : '-DNVALGRIND'),
+                       '-ggdb3', '-rdynamic', '-std=c89', '-pedantic',
+                       '-Wno-error=unused-parameter', '-Wno-error=unused-variable',
+                       '-Wno-error=unused-function', '-Wall', '-Wextra', '-Wformat=2',
+                       '-Winit-self', '-Wmissing-include-dirs', '-Wswitch-enum',
+                       '-Wsync-nand', '-Wunused', '-Wstrict-overflow=5', '-Wfloat-equal',
+                       '-Wundef', '-Wshadow', '-Wunsafe-loop-optimizations',
+                       '-Wbad-function-cast', '-Wc++-compat', '-Wcast-align',
+                       '-Wwrite-strings', '-Wconversion', '-Wlogical-op',
+                       '-Waggregate-return', '-Wstrict-prototypes',
+                       '-Wold-style-definition', '-Wmissing-prototypes',
+                       '-Wmissing-declarations', '-Wmissing-noreturn',
+                       '-Wmissing-format-attribute', '-Wnormalized=nfc', '-Wpacked',
+                       '-Wpacked-bitfield-compat', '-Wredundant-decls',
+                       '-Wnested-externs', '-Wunreachable-code',
+                       '-Wno-error=unreachable-code', '-Winline', '-Winvalid-pch',
+                       '-Wdisabled-optimization', '-Wstack-protector', '-pipe',
+                       '-march=native']::(optimize ? ['-O2'] : ['-DDEBUG', '-O0'])::extraflags)
+    return link(ofiles, flags:linkflags, name:'don')
 }
 
 fn run(args..., output:true)
@@ -31,33 +31,33 @@ fn run(args..., output:true)
     if valgrind
     {
         logfile = @valgrind-log
-        out exitcode = exec("valgrind", "-q", "--leak-check=full", "--show-reachable=yes",
+        out exitcode = exec('valgrind', '-q', '--leak-check=full', '--show-reachable=yes',
                             "--log-file=$logfile", args,
-                            env:["XDG_CACHE_HOME", @tempcache],
+                            env:['XDG_CACHE_HOME', @tempcache],
                             fail:false, echo:output, echoStderr:output)
         log = read(logfile)
         rm(logfile)
-        if (exitcode != 0 || contains(log, "** Assertion failed")) && !contains(log, "== Process terminating")
+        if (exitcode != 0 || contains(log, '** Assertion failed')) && !contains(log, '== Process terminating')
         {
             l = lines(log)
-            log = ""
+            log = ''
             copy = false
             for line in l
             {
-                if startsWith(line, "*")
+                if startsWith(line, '*')
                 {
                     log = "$log$line\n"
                     copy = false
                 }
                 else
                 {
-                    if contains(line, "==    ") && copy
+                    if contains(line, '==    ') && copy
                     {
                         log = "$log$line\n"
                     }
                     else
                     {
-                        if contains(line, "VALGRIND_PRINTF_BACKTRACE")
+                        if contains(line, 'VALGRIND_PRINTF_BACKTRACE')
                         {
                             log = "$log$line\n"
                             copy = true
@@ -71,14 +71,14 @@ fn run(args..., output:true)
             }
         }
         out = [out[0], "$(out[1])$log"]
-        if output && log != ""
+        if output && log != ''
         {
             echo(log)
         }
     }
     else
     {
-        out exitcode = exec(args, env:["XDG_CACHE_HOME", @tempcache],
+        out exitcode = exec(args, env:['XDG_CACHE_HOME', @tempcache],
                             fail:false, echo:output, echoStderr:output)
     }
     return out exitcode
@@ -92,33 +92,33 @@ fn dotest(program, debug:false)
     for f in @test/*
     {
         test = read(f)
-        targets = ["default"]
+        targets = ['default']
         expected = null
-        if test[0] == "#"
+        if test[0] == '#'
         {
             lines = split(test, "\n")
-            command = split(lines[0], " ")
-            if command[0] == "#fail:"
+            command = split(lines[0], ' ')
+            if command[0] == '#fail:'
             {
-                expected = ""
+                expected = ''
                 maxFailLine = 1
-                while maxFailLine < size(lines) && size(lines[maxFailLine]) && lines[maxFailLine][0] == "#"
+                while maxFailLine < size(lines) && size(lines[maxFailLine]) && lines[maxFailLine][0] == '#'
                 {
                     maxFailLine += 1
                 }
                 for i in 1..maxFailLine-1
                 {
                     line = lines[i][1..size(lines[i])-1]
-                    if line[0] == "+"
+                    if line[0] == '+'
                     {
-                        j = indexOf(line, ":")
+                        j = indexOf(line, ':')
                         line = "$f:$(maxFailLine+int(line[1..j-1]))$(line[j..size(line)-1])"
                     }
                     expected = "$expected$line\n"
                     i += 1
                 }
             }
-            else if command[0] == "#target:"
+            else if command[0] == '#target:'
             {
                 targets = []
                 i = 1
@@ -139,8 +139,8 @@ fn dotest(program, debug:false)
         rm(@tempcache)
         while result && i < size(targets)
         {
-            out exitcode = run(program, "-f", f, targets[i], output:false)
-            if expected ? exitcode && out[0] == "" && out[1] == expected : exitcode == 0 && out[0] == "PASS\n" && out[1] == ""
+            out exitcode = run(program, '-f', f, targets[i], output:false)
+            if expected ? exitcode && out[0] == '' && out[1] == expected : exitcode == 0 && out[0] == "PASS\n" && out[1] == ''
             {
                 i += 1
             }
@@ -149,19 +149,19 @@ fn dotest(program, debug:false)
                 result = false
                 if hasOutput
                 {
-                    echo("")
+                    echo('')
                 }
-                echo("FAIL: $(filename(f))$(size(targets) > 1 || targets[i] != "default" ? ":$(targets[i])" : "")")
-                hasOutput = out[0] != "" || out[1] != ""
+                echo("FAIL: $(filename(f))$(size(targets) > 1 || targets[i] != 'default' ? ":$(targets[i])" : '')")
+                hasOutput = out[0] != '' || out[1] != ''
                 if hasOutput
                 {
                     if out[0]
                     {
-                        echo(out[0], prefix:"> ")
+                        echo(out[0], prefix:'> ')
                     }
                     if out[1]
                     {
-                        echo(out[1], prefix:"> ")
+                        echo(out[1], prefix:'> ')
                     }
                 }
                 if debug
@@ -170,12 +170,12 @@ fn dotest(program, debug:false)
                     j = 0
                     while j < i
                     {
-                        exec(program, "-f", f, targets[j], fail:false, echo:false, echoStderr:false,
-                             env:["XDG_CACHE_HOME", @tempcache])
+                        exec(program, '-f', f, targets[j], fail:false, echo:false, echoStderr:false,
+                             env:['XDG_CACHE_HOME', @tempcache])
                         j += 1
                     }
-                    exec(gdb, program, "-f", f, targets[j], fail:false,
-                         env:["XDG_CACHE_HOME", @tempcache])
+                    exec(gdb, program, '-f', f, targets[j], fail:false,
+                         env:['XDG_CACHE_HOME', @tempcache])
                 }
             }
         }
@@ -190,7 +190,7 @@ fn dotest(program, debug:false)
     }
     if failcount
     {
-        echo("")
+        echo('')
     }
     echo("pass:  $passcount")
     echo("fail:  $failcount")
@@ -218,15 +218,15 @@ target dbgtest
 
 target covtest
 {
-    dotest(compile(extraflags:["--coverage"], linkflags:["--coverage"]))
+    dotest(compile(extraflags:['--coverage'], linkflags:['--coverage']))
 }
 
 target default
 {
     valgrind = true
-    out exitcode = run(compile(), "-f", "input")
-#    out exitcode = exec("time", compile(optimize:true), "test", env:["XDG_CACHE_HOME", "tempcache2"])
-#    out exitcode = exec("time", "valgrind", "-q", "--tool=callgrind", "--collect-systime=yes", "--cache-sim=yes", "--branch-sim=yes", compile(optimize:true), "test", env:["XDG_CACHE_HOME", "tempcache2"])
+    out exitcode = run(compile(), '-f', 'input')
+#    out exitcode = exec('time', compile(optimize:true), 'test', env:['XDG_CACHE_HOME', 'tempcache2'])
+#    out exitcode = exec('time', 'valgrind', '-q', '--tool=callgrind', '--collect-systime=yes', '--cache-sim=yes', '--branch-sim=yes', compile(optimize:true), 'test', env:['XDG_CACHE_HOME', 'tempcache2'])
     if exitcode
     {
         fail()
@@ -235,25 +235,25 @@ target default
 
 target prof
 {
-    exec("valgrind", "-q", "--tool=callgrind", "--cache-sim=yes", "--branch-sim=yes", "--collect-systime=yes", compile(optimize:true), "-f", "input",
-         env:["XDG_CACHE_HOME", @tempcache])
+    exec('valgrind', '-q', '--tool=callgrind', '--cache-sim=yes', '--branch-sim=yes', '--collect-systime=yes', compile(optimize:true), '-f', 'input',
+         env:['XDG_CACHE_HOME', @tempcache])
 }
 
 target gprof
 {
-    p = compile(extraflags:["-pg"], linkflags:["-pg"], optimize:true)
-    out exitcode = run(p, "-f", "input")
+    p = compile(extraflags:['-pg'], linkflags:['-pg'], optimize:true)
+    out exitcode = run(p, '-f', 'input')
     if exitcode
     {
         fail()
     }
-    exec("gprof", p)
+    exec('gprof', p)
 }
 
 target strace
 {
     valgrind = false
-    out exitcode = run("strace", "-qvC", compile(), "-f", "input")
+    out exitcode = run('strace', '-qvC', compile(), '-f', 'input')
     if exitcode
     {
         fail()
@@ -262,87 +262,87 @@ target strace
 
 target debug
 {
-    exec("gdb", compile(), "-f", "input", env:["XDG_CACHE_HOME", @tempcache])
+    exec('gdb', compile(), '-f', 'input', env:['XDG_CACHE_HOME', @tempcache])
 }
 
 target disasm
 {
     program = compile(optimize:true)
-    exec("objdump", "-d", program)
+    exec('objdump', '-d', program)
 }
 
 target install
 {
-    program = compile("/usr/local/share/don/", optimize:true)
-    exec("rm", "-f", @/usr/local/bin/don)
-    exec("rm", "-rf", @/usr/local/share/don)
-    exec("mkdir", @/usr/local/share/don/)
-    exec("cp", program, @/usr/local/bin/)
-    exec("cp", @data/don.don, @/usr/local/share/don/)
+    program = compile('/usr/local/share/don/', optimize:true)
+    exec('rm', '-f', @/usr/local/bin/don)
+    exec('rm', '-rf', @/usr/local/share/don)
+    exec('mkdir', @/usr/local/share/don/)
+    exec('cp', program, @/usr/local/bin/)
+    exec('cp', @data/don.don, @/usr/local/share/don/)
 }
 
 target b
 {
     ofiles = cc(@test.c,
-                flags:["-ggdb3", "-rdynamic",
-                       "-Wno-error=unused-parameter", "-Wno-error=unused-variable",
-                       "-Wno-error=unused-function", "-Wall", "-Wformat=2",
-                       "-Winit-self", "-Wmissing-include-dirs", "-Wswitch-enum",
-                       "-Wsync-nand", "-Wstrict-overflow=5", "-Wfloat-equal",
-                       "-Wundef", "-Wshadow", "-Wunsafe-loop-optimizations",
-                       "-Wbad-function-cast", "-Wc++-compat", "-Wcast-align",
-                       "-Wwrite-strings", "-Wconversion", "-Wlogical-op",
-                       "-Waggregate-return", "-Wstrict-prototypes",
-                       "-Wold-style-definition", "-Wmissing-prototypes",
-                       "-Wmissing-declarations", "-Wmissing-noreturn",
-                       "-Wmissing-format-attribute", "-Wnormalized=nfc", "-Wpacked",
-                       "-Wpacked-bitfield-compat", "-Wredundant-decls",
-                       "-Wnested-externs", "-Wunreachable-code",
-                       "-Wno-error=unreachable-code", "-Winline", "-Winvalid-pch",
-                       "-Wdisabled-optimization", "-Wstack-protector", "-pipe",
-                       "-march=native", "-O2", "-Wno-multichar"])
-    p = link(ofiles, name:"test")
-    exec("time", p, 0)
-#    exec("time", p, 1)
-#    exec("time", p, 3)
-#    exec("time", p, 7)
-#    exec("time", p, 15)
-#    exec("time", p, 31)
-#    exec("time", p, 63)
-#    exec("time", p, 127)
-#    exec("time", p, 255)
-#    exec("time", p, 511)
-#    exec("time", p, 1023)
-#    exec("time", p, 2047)
-#    exec("time", p, 4095)
-#    exec("time", p, 8191)
-#    exec("time", p, 16383)
-#    exec("time", p, 32767)
-#    exec("time", p, 65535)
-#    exec("time", p, 131071)
-#    exec("time", p, 262143)
-#    exec("time", p, 524287)
-#    exec("time", p, 1048575)
+                flags:['-ggdb3', '-rdynamic',
+                       '-Wno-error=unused-parameter', '-Wno-error=unused-variable',
+                       '-Wno-error=unused-function', '-Wall', '-Wformat=2',
+                       '-Winit-self', '-Wmissing-include-dirs', '-Wswitch-enum',
+                       '-Wsync-nand', '-Wstrict-overflow=5', '-Wfloat-equal',
+                       '-Wundef', '-Wshadow', '-Wunsafe-loop-optimizations',
+                       '-Wbad-function-cast', '-Wc++-compat', '-Wcast-align',
+                       '-Wwrite-strings', '-Wconversion', '-Wlogical-op',
+                       '-Waggregate-return', '-Wstrict-prototypes',
+                       '-Wold-style-definition', '-Wmissing-prototypes',
+                       '-Wmissing-declarations', '-Wmissing-noreturn',
+                       '-Wmissing-format-attribute', '-Wnormalized=nfc', '-Wpacked',
+                       '-Wpacked-bitfield-compat', '-Wredundant-decls',
+                       '-Wnested-externs', '-Wunreachable-code',
+                       '-Wno-error=unreachable-code', '-Winline', '-Winvalid-pch',
+                       '-Wdisabled-optimization', '-Wstack-protector', '-pipe',
+                       '-march=native', '-O2', '-Wno-multichar'])
+    p = link(ofiles, name:'test')
+    exec('time', p, 0)
+#    exec('time', p, 1)
+#    exec('time', p, 3)
+#    exec('time', p, 7)
+#    exec('time', p, 15)
+#    exec('time', p, 31)
+#    exec('time', p, 63)
+#    exec('time', p, 127)
+#    exec('time', p, 255)
+#    exec('time', p, 511)
+#    exec('time', p, 1023)
+#    exec('time', p, 2047)
+#    exec('time', p, 4095)
+#    exec('time', p, 8191)
+#    exec('time', p, 16383)
+#    exec('time', p, 32767)
+#    exec('time', p, 65535)
+#    exec('time', p, 131071)
+#    exec('time', p, 262143)
+#    exec('time', p, 524287)
+#    exec('time', p, 1048575)
 }
 
 target benchmark
 {
     p = compile(optimize:true)
     rm(@tempcache)
-#    exec(["cp", "-a", "tempcache2", "tempcache"])
-#    run("time", "strace", p, "-f", @benchmark/build.don)
-#    run("time", p, "-f", @benchmark/build.don, "partial")
-#    run("time", "valgrind", "-q", p, "-f", @benchmark/build.don)
-#    run("time", "gdb", "--args", p, "-f", @benchmark/build.don)
-    run("time", p, "-f", @benchmark/build.don)
-    run("time", p, "-f", @benchmark/build.don)
+#    exec(['cp', '-a', 'tempcache2', 'tempcache'])
+#    run('time', 'strace', p, '-f', @benchmark/build.don)
+#    run('time', p, '-f', @benchmark/build.don, 'partial')
+#    run('time', 'valgrind', '-q', p, '-f', @benchmark/build.don)
+#    run('time', 'gdb', '--args', p, '-f', @benchmark/build.don)
+    run('time', p, '-f', @benchmark/build.don)
+    run('time', p, '-f', @benchmark/build.don)
 }
 
 target benchmarkprof
 {
     p = compile(optimize:true)
     rm(@tempcache)
-#    exec(["cp", "-a", "tempcache2", "tempcache"])
-    run("time", "valgrind", "-q", "--tool=callgrind", "--cache-sim=yes", "--branch-sim=yes", "--collect-systime=yes", p, "-f", @benchmark/build.don, "partial")
-    run("time", p, "-f", @benchmark/build.don, "partial")
+#    exec(['cp', '-a', 'tempcache2', 'tempcache'])
+    run('time', 'valgrind', '-q', '--tool=callgrind', '--cache-sim=yes', '--branch-sim=yes', '--collect-systime=yes', p, '-f', @benchmark/build.don, 'partial')
+    run('time', p, '-f', @benchmark/build.don, 'partial')
 }

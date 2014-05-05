@@ -1,18 +1,21 @@
+fn test(a, b, eq)
+{
+    if eq ? a == b : a != b
+    {
+        return
+    }
+    echo("FAIL: \"$a\" \"$b\": $eq")
+}
+
 target default
 {
-    a = "a"
-    b = "b"
-    if "$a$b" == "ab"
-    {
-        if "$a$b" == "$a$b"
-        {
-            if "$a$b" != "a"
-            {
-                if "$a$b" != "ac"
-                {
-                    echo("PASS")
-                }
-            }
-        }
-    }
+    a = "c"
+    b = 'd'
+    test("$a$b", 'cd', true)
+    test("$a$b", "$a$b", true)
+    test("$a$b", 'c', false)
+    test("$a$b", 'ce', false)
+    test("$a$b", '$a$b', false)
+
+    echo("PASS")
 }

@@ -477,7 +477,7 @@ static void skipExpressionWhitespaceAndNewline(ParseState *state,
     }
 }
 
-static const byte *skipString(const ParseState *state)
+static const byte *skipDoubleQuotedString(const ParseState *state)
 {
     const byte *p = state->current;
     assert(*p == '"');
@@ -491,6 +491,20 @@ static const byte *skipString(const ParseState *state)
         if (*p == '\\' && (p[1] == '"' || p[1] == '\\'))
         {
             p++;
+        }
+    }
+}
+
+static const byte *skipSingleQuotedString(const ParseState *state)
+{
+    const byte *p = state->current;
+    assert(*p == '\'');
+    for (;;)
+    {
+        p++;
+        if (*p == '\'' || *p == '\n')
+        {
+            return p;
         }
     }
 }
@@ -512,8 +526,18 @@ static bool skipToComma(ParseState *state, char expectedTerminator)
         if (c == '"')
         {
             state->current--;
-            state->current = skipString(state);
+            state->current = skipDoubleQuotedString(state);
             if (*state->current != '"')
+            {
+                state->structuralError = true;
+                return false;
+            }
+        }
+        if (c == '\'')
+        {
+            state->current--;
+            state->current = skipSingleQuotedString(state);
+            if (*state->current != '\'')
             {
                 state->structuralError = true;
                 return false;
@@ -601,11 +625,6 @@ static bool peekNumber(const ParseState *state)
     return isDigit(*state->current);
 }
 
-static bool peekString(const ParseState *state)
-{
-    return *state->current == '"';
-}
-
 static vref readFilename(ParseState *state)
 {
     const byte *begin;
@@ -668,10 +687,28 @@ static bool readExpectedOperator(ParseState *state, byte op)
         parseNumber(&stateCopy, &estate);
         error(state, "Expected operator '%c'. Got '%d'", op, HeapUnboxInteger(estate.constant));
     }
-    else if (peekString(state))
+    else if (*state->current == '"')
     {
-        const byte *p = skipString(state);
+        const byte *p = skipDoubleQuotedString(state);
         if (*p == '"')
+        {
+            size_t oldBTempSize = BVSize(&btemp);
+            BVAddData(&btemp, state->current, (size_t)(p - state->current + 1));
+            BVAdd(&btemp, 0);
+            error(state, "Expected operator '%c'. Got %s", op,
+                  BVGetPointer(&btemp, oldBTempSize));
+            BVSetSize(&btemp, oldBTempSize);
+            return false;
+        }
+        else
+        {
+            error(state, "Expected operator '%c'. Got string", op);
+        }
+    }
+    else if (*state->current == '\'')
+    {
+        const byte *p = skipSingleQuotedString(state);
+        if (*p == '\'')
         {
             size_t oldBTempSize = BVSize(&btemp);
             BVAddData(&btemp, state->current, (size_t)(p - state->current + 1));
@@ -826,18 +863,18 @@ static bool finishLValue(ParseState *state, const ExpressionState *lvalue,
     unreachable;
 }
 
-static bool parseString(ParseState *state, ExpressionState *estate)
+static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
 {
     size_t oldTempSize = IVSize(&temp);
     size_t oldBTempSize = BVSize(&btemp);
     const byte *begin = ++state->current;
 
-    assert(begin[-1] == '\"');
+    assert(begin[-1] == '"');
     for (;;)
     {
         switch (*state->current)
         {
-        case '\"':
+        case '"':
         {
             vref s;
             BVAddData(&btemp, begin, getOffset(state, begin));
@@ -904,7 +941,7 @@ static bool parseString(ParseState *state, ExpressionState *estate)
             break;
         }
 
-        case  '\\':
+        case '\\':
             BVAddData(&btemp, begin, getOffset(state, begin));
             state->current++;
             switch (*state->current)
@@ -942,6 +979,25 @@ error:
     IVSetSize(&temp, oldTempSize);
     BVSetSize(&btemp, oldBTempSize);
     return false;
+}
+
+static bool parseSingleQuotedString(ParseState *state, ExpressionState *estate)
+{
+    const byte *begin = ++state->current;
+
+    assert(begin[-1] == '\'');
+    while (*state->current != '\'')
+    {
+        if (unlikely(*state->current == '\n' || *state->current == '\r'))
+        {
+            error(state, "Newline in string literal");
+            return false;
+        }
+        state->current++;
+    }
+    parsedConstant(estate, HeapCreateString((const char*)begin, (size_t)(state->current - begin)));
+    state->current++;
+    return true;
 }
 
 static bool parseListRest(ParseState *state, ExpressionState *estate)
@@ -1254,9 +1310,13 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         parseNumber(state, estate);
         return true;
     }
-    if (peekString(state))
+    if (*state->current == '"')
     {
-        return parseString(state, estate);
+        return parseDoubleQuotedString(state, estate);
+    }
+    if (*state->current == '\'')
+    {
+        return parseSingleQuotedString(state, estate);
     }
     if (readOperator(state, '('))
     {
