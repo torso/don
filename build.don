@@ -233,6 +233,16 @@ target default
     }
 }
 
+target gimp
+{
+    valgrind = true
+    out exitcode = run(compile(), '-f', 'gimp/build.don')
+    if exitcode
+    {
+        fail()
+    }
+}
+
 target prof
 {
     exec('valgrind', '-q', '--tool=callgrind', '--cache-sim=yes', '--branch-sim=yes', '--collect-systime=yes', compile(optimize:true, linkflags:['-static']), '-f', 'input',
