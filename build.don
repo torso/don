@@ -202,7 +202,7 @@ fn dotest(program, debug:false)
 
 target test
 {
-    dotest(compile())
+    dotest(compile(linkflags:['-static']))
 }
 
 target vtest
@@ -235,7 +235,7 @@ target default
 
 target prof
 {
-    exec('valgrind', '-q', '--tool=callgrind', '--cache-sim=yes', '--branch-sim=yes', '--collect-systime=yes', compile(optimize:true), '-f', 'input',
+    exec('valgrind', '-q', '--tool=callgrind', '--cache-sim=yes', '--branch-sim=yes', '--collect-systime=yes', compile(optimize:true, linkflags:['-static']), '-f', 'input',
          env:['XDG_CACHE_HOME', @tempcache])
 }
 
