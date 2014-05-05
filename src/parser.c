@@ -723,10 +723,6 @@ static bool readExpectedOperator(ParseState *state, byte op)
             error(state, "Expected operator '%c'. Got string", op);
         }
     }
-    else if (*state->current == '\'')
-    {
-        error(state, "Expected operator '%c'. Got quoted value", op);
-    }
     else
     {
         /* TODO: Nicer message for @ */
