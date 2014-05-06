@@ -389,12 +389,12 @@ static uint readNewline(ParseState *state)
 
         do
         {
-            state->current++;
-            state->line++;
             if (state->current == state->limit)
             {
                 return 0;
             }
+            state->current++;
+            state->line++;
         }
         while (*state->current == '\n');
 
@@ -864,40 +864,46 @@ static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
     size_t oldTempSize = IVSize(&temp);
     size_t oldBTempSize = BVSize(&btemp);
     const byte *begin = ++state->current;
+    const byte *end;
+    const byte *terminatorBegin = null;
+    size_t terminatorLength = 0;
 
     assert(begin[-1] == '"');
+    if (peekOperator2(state, '"', '"'))
+    {
+        state->current += 2;
+        skipWhitespace(state);
+        terminatorBegin = state->current;
+        if (unlikely(!isIdentifierCharacter(*state->current)))
+        {
+            error(state, "Expected terminator after '<<' operator");
+            state->structuralError = true;
+            return false;
+        }
+        while (isIdentifierCharacter(*++state->current));
+        terminatorLength = (size_t)(state->current - terminatorBegin);
+        skipWhitespace(state);
+        if (unlikely(!peekReadNewline(state)))
+        {
+            error(state, "Expected newline to start multiline string literal");
+            state->structuralError = true;
+            return false;
+        }
+        begin = state->current;
+    }
     for (;;)
     {
         switch (*state->current)
         {
         case '"':
         {
-            vref s;
-            BVAddData(&btemp, begin, getOffset(state, begin));
-            s = HeapCreateString((const char*)BVGetPointer(&btemp, oldBTempSize),
-                                 BVSize(&btemp) - oldBTempSize);
-            BVSetSize(&btemp, oldBTempSize);
-            state->current++;
-            if (IVSize(&temp) == oldTempSize)
+            if (terminatorBegin)
             {
-                parsedConstant(estate, s);
+                state->current++;
+                break;
             }
-            else if (unlikely(estate->parseConstant))
-            {
-                error(state, "Expected constant");
-                parsedConstant(estate, HeapEmptyString);
-                IVSetSize(&temp, oldTempSize);
-            }
-            else
-            {
-                if (s != HeapEmptyString)
-                {
-                    IVAdd(&temp, variableFromConstant(state, s));
-                }
-                writeOpFromTemp(state, OP_CONCAT_STRING, oldTempSize);
-                estate->expressionType = EXPRESSION_MISSING_STORE;
-            }
-            return true;
+            end = state->current++;
+            goto finishString;
         }
 
         case '$':
@@ -954,7 +960,7 @@ static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
 
             default:
                 error(state, "Invalid escape sequence");
-                break;
+                continue;
             }
             state->current++;
             begin = state->current;
@@ -962,14 +968,61 @@ static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
 
         case '\r':
         case '\n':
-            error(state, "Newline in string literal");
-            goto error;
+            /* TODO: Unify line endings in resulting string */
+            if (unlikely(!terminatorBegin))
+            {
+                error(state, "Newline in string literal");
+                goto error;
+            }
+            if (unlikely(eof(state)))
+            {
+                error(state, "Unterminated multiline string literal");
+                goto error;
+            }
+            state->current++;
+            state->line++;
+            if (!strncmp((const char*)terminatorBegin,
+                         (const char*)state->current, terminatorLength))
+            {
+                end = state->current;
+                state->current += terminatorLength;
+                goto finishString;
+            }
+            break;
 
         default:
             state->current++;
             break;
         }
     }
+
+finishString:
+    BVAddData(&btemp, begin, (size_t)(end - begin));
+    {
+        vref s = HeapCreateString((const char*)BVGetPointer(&btemp, oldBTempSize),
+                                  BVSize(&btemp) - oldBTempSize);
+        BVSetSize(&btemp, oldBTempSize);
+        if (IVSize(&temp) == oldTempSize)
+        {
+            parsedConstant(estate, s);
+        }
+        else if (unlikely(estate->parseConstant))
+        {
+            error(state, "Expected constant");
+            parsedConstant(estate, HeapEmptyString);
+            IVSetSize(&temp, oldTempSize);
+        }
+        else
+        {
+            if (s != HeapEmptyString)
+            {
+                IVAdd(&temp, variableFromConstant(state, s));
+            }
+            writeOpFromTemp(state, OP_CONCAT_STRING, oldTempSize);
+            estate->expressionType = EXPRESSION_MISSING_STORE;
+        }
+    }
+    return true;
 
 error:
     IVSetSize(&temp, oldTempSize);
@@ -2290,7 +2343,7 @@ void ParseFile(ParsedProgram *program, const char *filename, size_t filenameLeng
     FileClose(&file);
     /* Make sure the file ends with a newline. That way there is only a need to
        look for end-of-file on newlines. */
-    buffer[size++] = '\n';
+    buffer[size] = '\n';
 
     state.start = buffer;
     state.current = state.start;

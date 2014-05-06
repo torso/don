@@ -1,0 +1,14 @@
+target default
+{
+    a = """end
+abc
+def
+end
+    if a == "abc\ndef\n"
+    {
+        b = 'AS'
+        echo("""foo
+P$(b)S
+foo)
+    }
+}
