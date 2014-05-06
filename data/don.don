@@ -120,9 +120,9 @@ fn pid()
     return native.pid()
 }
 
-fn read(filename)
+fn read(filename, valueIfNotExists:null)
 {
-    return native.readFile(file(filename))
+    return native.readFile(file(filename), valueIfNotExists)
 }
 
 fn replace(data, original, replacement)

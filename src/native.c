@@ -117,7 +117,7 @@ static char **createStringArray(vref collection)
     return strings;
 }
 
-static vref readFile(vref object)
+static vref readFile(vref object, vref valueIfNotExists)
 {
     const char *path;
     size_t pathLength;
@@ -127,7 +127,17 @@ static vref readFile(vref object)
     size_t size;
 
     path = HeapGetPath(object, &pathLength);
-    FileOpen(&file, path, pathLength);
+    if (valueIfNotExists)
+    {
+        if (!FileTryOpen(&file, path, pathLength))
+        {
+            return valueIfNotExists;
+        }
+    }
+    else
+    {
+        FileOpen(&file, path, pathLength);
+    }
     size = FileSize(&file);
     if (!size)
     {
@@ -591,7 +601,7 @@ static bool nativeLines(LinesEnv *env)
         return false;
     }
 
-    content = HeapIsFile(env->value) ? readFile(env->value) : env->value;
+    content = HeapIsFile(env->value) ? readFile(env->value, 0) : env->value;
     assert(HeapIsString(content));
     env->result = HeapSplit(content, HeapNewline, false,
                             VIsTruthy(env->trimLastIfEmpty));
@@ -651,6 +661,7 @@ typedef struct
     Work work;
 
     vref file;
+    vref valueIfNotExists;
 
     vref result;
 } ReadFileEnv;
@@ -662,11 +673,12 @@ static void nativePreReadFile(ReadFileEnv *env)
 
 static bool nativeReadFile(ReadFileEnv *env)
 {
-    if (!VIsTruthy(env->work.condition) || HeapIsFutureValue(env->file))
+    if (!VIsTruthy(env->work.condition) || HeapIsFutureValue(env->file) ||
+        HeapIsFutureValue(env->valueIfNotExists))
     {
         return false;
     }
-    env->result = readFile(env->file);
+    env->result = readFile(env->file, env->valueIfNotExists);
     return true;
 }
 
@@ -856,7 +868,7 @@ static bool nativeSplit(SplitEnv *env)
         return false;
     }
 
-    data = HeapIsFile(env->value) ? readFile(env->value) : env->value;
+    data = HeapIsFile(env->value) ? readFile(env->value, 0) : env->value;
     assert(HeapIsString(data));
     assert(HeapIsString(env->delimiter) || HeapIsCollection(env->delimiter));
     env->result = HeapSplit(data, env->delimiter, VIsTruthy(env->removeEmpty),
@@ -936,7 +948,7 @@ void NativeInit(void)
     addFunctionInfo("lines",       (preInvoke)nativePreLines,       (invoke)nativeLines,       2, 1);
     addFunctionInfo("mv",          (preInvoke)nativePreMv,          (invoke)nativeMv,          2, 0);
     addFunctionInfo("pid",         null,                            (invoke)nativePid,         0, 1);
-    addFunctionInfo("readFile",    (preInvoke)nativePreReadFile,    (invoke)nativeReadFile,    1, 1);
+    addFunctionInfo("readFile",    (preInvoke)nativePreReadFile,    (invoke)nativeReadFile,    2, 1);
     addFunctionInfo("replace",     null,                            (invoke)nativeReplace,     3, 2);
     addFunctionInfo("rm",          (preInvoke)nativePreRm,          (invoke)nativeRm,          1, 0);
     addFunctionInfo("setUptodate", (preInvoke)nativePreSetUptodate, (invoke)nativeSetUptodate, 5, 0);
