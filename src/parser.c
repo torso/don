@@ -1988,7 +1988,7 @@ static void parseBlock(ParseState *state)
             {
                 if (unlikely(identifier > maxStatementKeyword))
                 {
-                    error(state, "Not a statement1");
+                    error(state, "Not a statement");
                     goto statementError;
                 }
                 skipWhitespace(state);
@@ -2142,7 +2142,7 @@ static void parseBlock(ParseState *state)
         }
         else
         {
-            error(state, "Not a statement2");
+            error(state, "Not a statement");
             goto statementError;
         }
         continue;
