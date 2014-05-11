@@ -4,6 +4,12 @@
 #+8: Expected variable or '(' after '$'. Got '\n'
 #+9: '[' must be escaped as '\[' in bracketed list
 #+11: Not a statement
+#+15: Invalid expression
+#+19: Expected expression inside '$()'
+#+23: Expected expression inside '$()'
+#+27: Expected expression inside '$()'
+#+34: Expected operator ')'. Got '}'
+#+40: End of file reached while parsing '[]' expression. Started on line 51
 
 target default
 {
@@ -15,4 +21,32 @@ target default
             [
         ]
         ]
+
+    b = [
+            $(
+            *
+        )]
+
+    b = [
+            $(
+        )]
+
+    c = [
+            $(
+        ]
+
+    d = [
+        $(
+}
+
+fn f()
+{
+    e = [
+        $(
+        1
+}
+
+fn g()
+{
+    e = [
 }

@@ -39,7 +39,6 @@ typedef enum
 {
     EXPRESSION_CONSTANT,
     EXPRESSION_STORED,
-    EXPRESSION_MISSING_STORE,
     EXPRESSION_VARIABLE,
     EXPRESSION_FIELD,
     EXPRESSION_MANY
@@ -63,7 +62,7 @@ typedef struct
     vref ns;
     int valueCount;
     bool parseConstant;
-    bool allowSpace;
+    bool eatNewlines;
 } ExpressionState;
 
 static vref keywordElse;
@@ -88,8 +87,8 @@ static bytevector btemp;
 
 
 static bool parseExpression(ParseState *state, ExpressionState *estate,
-                            int valueCount, bool constant);
-static int parseRValue(ParseState *state, bool constant);
+                            int valueCount, bool constant, bool eatNewlines);
+static int parseRValue(ParseState *state, bool constant, bool eatNewlines);
 static void parseBlock(ParseState *state);
 
 
@@ -158,6 +157,24 @@ static attrprintf(2, 3) void error(ParseState *state, const char *format, ...)
     va_start(args, format);
     writeOp(state, OP_ERROR, intFromRef(HeapCreateStringFormatted(format, args)));
     va_end(args);
+}
+
+static attrprintf(3, 4) void errorOnLine(ParseState *state, int line, const char *format, ...)
+{
+    va_list args;
+    if (DEBUG_PARSER)
+    {
+        va_start(args, format);
+        fprintf(stderr, "%d:", line);
+        fprintf(stderr, format, args);
+        fputs("\n", stderr);
+        va_end(args);
+    }
+    writeOp(state, OP_LINE, line);
+    va_start(args, format);
+    writeOp(state, OP_ERROR, intFromRef(HeapCreateStringFormatted(format, args)));
+    va_end(args);
+    writeOp(state, OP_LINE, state->line);
 }
 
 
@@ -366,6 +383,7 @@ static bool peekReadNewline(ParseState *state)
     {
         state->current++;
         state->line++;
+        writeOp(state, OP_LINE, state->line);
         return true;
     }
     return false;
@@ -438,6 +456,7 @@ static void skipEndOfLine(ParseState *state)
 {
     while (*state->current++ != '\n');
     state->line++;
+    writeOp(state, OP_LINE, state->line);
 }
 
 static bool skipBlockWhitespace(ParseState *state)
@@ -449,8 +468,10 @@ static bool skipBlockWhitespace(ParseState *state)
         readNewline(state);
         if (unlikely(eof(state)))
         {
-            writeOp(state, OP_LINE, line + 1);
-            error(state, "Expected operator '}'");
+            if (!state->structuralError)
+            {
+                errorOnLine(state, line + 1, "Expected operator '}'");
+            }
             return true;
         }
         return readOperator(state, '}');
@@ -470,18 +491,32 @@ static void skipWhitespaceAndNewline(ParseState *state)
 
 static void skipExpressionWhitespace(ParseState *state, ExpressionState *estate)
 {
-    if (estate->allowSpace)
+    if (estate->eatNewlines)
+    {
+        skipWhitespaceAndNewline(state);
+    }
+    else
     {
         skipWhitespace(state);
     }
 }
 
-static void skipExpressionWhitespaceAndNewline(ParseState *state,
-                                               ExpressionState *estate)
+static bool unreadNewline(ParseState *state)
 {
-    if (estate->allowSpace)
+    const byte *p = state->current;
+    for (;;)
     {
-        skipWhitespaceAndNewline(state);
+        p--;
+        if (*p == '\n')
+        {
+            state->current = p;
+            state->line--;
+            return true;
+        }
+        if (*p != ' ')
+        {
+            return false;
+        }
     }
 }
 
@@ -768,7 +803,6 @@ static void finishAndStoreValueAt(ParseState *state, const ExpressionState *esta
 
     case EXPRESSION_MANY:
         assert(estate->valueCount == 1);
-    case EXPRESSION_MISSING_STORE:
         IVAdd(state->bytecode, variable);
         return;
 
@@ -801,7 +835,6 @@ static int finishRValue(ParseState *state, const ExpressionState *estate)
 
     case EXPRESSION_MANY:
         assert(estate->valueCount == 1);
-    case EXPRESSION_MISSING_STORE:
         variable = createVariable(state);
         IVAdd(state->bytecode, variable);
         return variable;
@@ -817,24 +850,24 @@ static int finishRValue(ParseState *state, const ExpressionState *estate)
     unreachable;
 }
 
-static int parseRValue(ParseState *state, bool constant)
+static int parseRValue(ParseState *state, bool constant, bool eatNewlines)
 {
     ExpressionState estate;
 
     estate.identifier = 0;
-    if (unlikely(!parseExpression(state, &estate, 1, constant)))
+    if (unlikely(!parseExpression(state, &estate, 1, constant, eatNewlines)))
     {
         return 0;
     }
     return finishRValue(state, &estate);
 }
 
-static bool parseAndStoreValueAt(ParseState *state, int variable)
+static bool parseAndStoreValueAt(ParseState *state, int variable, bool eatNewlines)
 {
     ExpressionState estate;
 
     estate.identifier = 0;
-    if (unlikely(!parseExpression(state, &estate, 1, false)))
+    if (unlikely(!parseExpression(state, &estate, 1, false, eatNewlines)))
     {
         return false;
     }
@@ -850,7 +883,6 @@ static bool finishLValue(ParseState *state, const ExpressionState *lvalue,
     {
     case EXPRESSION_CONSTANT:
     case EXPRESSION_STORED:
-    case EXPRESSION_MISSING_STORE:
     case EXPRESSION_MANY:
         error(state, "Invalid target for assignment");
         return false;
@@ -881,8 +913,14 @@ static int parseDollarExpressionRest(ParseState *state)
         int value;
         state->current++;
         skipWhitespaceAndNewline(state);
-        value = parseRValue(state, false);
-        state->lineBeforeSkip = state->line;
+        if (unlikely(peekOperator(state, ')')) ||
+            unlikely(peekOperator(state, ']')) ||
+            unlikely(peekOperator(state, '}')))
+        {
+            errorOnLine(state, state->lineBeforeSkip, "Expected expression inside '$()'");
+            return ERROR_MISSING_RIGHTPAREN;
+        }
+        value = parseRValue(state, false, true);
         if (unlikely(!value))
         {
             return ERROR_INVALID_EXPRESSION;
@@ -1013,6 +1051,7 @@ static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
             }
             state->current++;
             state->line++;
+            writeOp(state, OP_LINE, state->line);
             if (!strncmp((const char*)terminatorBegin,
                          (const char*)state->current, terminatorLength))
             {
@@ -1046,12 +1085,15 @@ finishString:
         }
         else
         {
+            int variable = createVariable(state);
             if (s != HeapEmptyString)
             {
                 IVAdd(&temp, variableFromConstant(state, s));
             }
             writeOpFromTemp(state, OP_CONCAT_STRING, oldTempSize);
-            estate->expressionType = EXPRESSION_MISSING_STORE;
+            IVAdd(state->bytecode, variable);
+            estate->variable = variable;
+            estate->expressionType = EXPRESSION_STORED;
         }
     }
     return true;
@@ -1096,7 +1138,7 @@ static bool parseListRest(ParseState *state, ExpressionState *estate)
     for (;;)
     {
         estate2.identifier = 0;
-        if (unlikely(!parseExpression(state, &estate2, 1, estate->parseConstant)))
+        if (unlikely(!parseExpression(state, &estate2, 1, estate->parseConstant, true)))
         {
             IVSetSize(&temp, oldTempSize);
             goto error;
@@ -1146,10 +1188,11 @@ error:
     else
     {
         uint length = (uint)(IVSize(&temp) - oldTempSize);
-        int *restrict write = IVGetAppendPointer(state->bytecode, 1 + length);
-        estate->expressionType = EXPRESSION_MISSING_STORE;
+        int *restrict write = IVGetAppendPointer(state->bytecode, 2 + length);
         *write++ = encodeOp(OP_LIST, (int)length);
         memcpy(write, IVGetPointer(&temp, oldTempSize), length * sizeof(*write));
+        write[length] = estate->variable = createVariable(state);
+        estate->expressionType = EXPRESSION_STORED;
     }
     IVSetSize(&temp, oldTempSize);
     return true;
@@ -1192,6 +1235,7 @@ static bool parseBracketedListRest(ParseState *state, ExpressionState *estate)
     size_t oldTempSize = IVSize(&temp);
     size_t oldBTempSize = BVSize(&btemp);
     size_t concatCount;
+    int lineStart = state->line;
 
     skipWhitespaceAndNewline(state);
     for (;;)
@@ -1231,6 +1275,15 @@ itemParsed:
 
             case '\r':
             case '\n':
+                if (unlikely(eof(state)))
+                {
+                    error(state,
+                          "End of file reached while parsing '[]' expression. Started on line %d",
+                          lineStart);
+                    state->structuralError = true;
+                    goto error;
+                }
+                /* fallthrough */
             case ' ':
                 finishBracketListItem(state, begin, state->current, constant,
                                       concatCount, oldBTempSize);
@@ -1261,6 +1314,13 @@ itemParsed:
                     break;
 
                 case ERROR_MISSING_RIGHTPAREN:
+                    if (*state->current == '}')
+                    {
+                        if (unreadNewline(state))
+                        {
+                            goto error;
+                        }
+                    }
                     goto error;
                 case ERROR_INVALID_EXPRESSION:
                     break;
@@ -1334,10 +1394,11 @@ done:
     else
     {
         uint length = (uint)(IVSize(&temp) - oldTempSize);
-        int *restrict write = IVGetAppendPointer(state->bytecode, 1 + length);
-        estate->expressionType = EXPRESSION_MISSING_STORE;
+        int *restrict write = IVGetAppendPointer(state->bytecode, 2 + length);
         *write++ = encodeOp(OP_LIST, (int)length);
         memcpy(write, IVGetPointer(&temp, oldTempSize), length * sizeof(*write));
+        write[length] = estate->variable = createVariable(state);
+        estate->expressionType = EXPRESSION_STORED;
     }
     IVSetSize(&temp, oldTempSize);
     return true;
@@ -1363,7 +1424,7 @@ static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref
             int value;
             skipWhitespaceAndNewline(state);
             estateArgument.identifier = peekReadIdentifier(state);
-            /* skipWhitespaceAndNewline(state); */ /* TODO: breaks expression parsing: missing ',' becomes string concatenation */
+            skipWhitespaceAndNewline(state);
             if (estateArgument.identifier && readOperator(state, ':'))
             {
                 for (;;)
@@ -1371,7 +1432,7 @@ static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref
                     IVAddRef(&temp, estateArgument.identifier);
                     estateArgument.identifier = 0;
                     skipWhitespaceAndNewline(state);
-                    value = parseRValue(state, false);
+                    value = parseRValue(state, false, true);
                     if (unlikely(!value))
                     {
                         goto error;
@@ -1397,7 +1458,7 @@ static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref
                 }
                 break;
             }
-            if (unlikely(!parseExpression(state, &estateArgument, 1, false)))
+            if (unlikely(!parseExpression(state, &estateArgument, 1, false, true)))
             {
                 goto error;
             }
@@ -1456,7 +1517,7 @@ static bool parseNativeInvocationRest(ParseState *state, ExpressionState *estate
     skipWhitespaceAndNewline(state);
     for (i = 0; i < argumentCount; i++)
     {
-        int value = parseRValue(state, false);
+        int value = parseRValue(state, false, true);
         if (unlikely(!value))
         {
             IVSetSize(&temp, oldTempSize);
@@ -1492,15 +1553,18 @@ static bool parseBinaryOperationRest(
 {
     int value = finishRValue(state, estate);
     int value2;
-    skipExpressionWhitespace(state, estate);
+    int variable;
+    skipWhitespaceAndNewline(state);
     if (unlikely(!parseExpressionRest(state, estate)))
     {
         return false;
     }
     value2 = finishRValue(state, estate);
-    writeOp2(state, instruction, value, value2);
-    estate->expressionType = EXPRESSION_MISSING_STORE;
     skipExpressionWhitespace(state, estate);
+    variable = createVariable(state);
+    writeOp3(state, instruction, value, value2, variable);
+    estate->variable = variable;
+    estate->expressionType = EXPRESSION_STORED;
     return true;
 }
 
@@ -1601,12 +1665,15 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '('))
     {
+        bool oldEatNewlines = estate->eatNewlines;
         skipWhitespace(state);
-        if (unlikely(!parseExpression(state, estate, estate->valueCount, estate->parseConstant)))
+        if (unlikely(!parseExpression(state, estate, estate->valueCount,
+                                      estate->parseConstant, true)))
         {
             return false;
         }
         /* TODO: Prevent use as lvalue */
+        estate->eatNewlines = oldEatNewlines;
         return readExpectedOperator(state, ')');
     }
     if (readOperator(state, '['))
@@ -1615,6 +1682,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
     }
     if (likely(readOperator(state, '@')))
     {
+        int variable;
         string = readFilename(state);
         if (unlikely(!string))
         {
@@ -1626,8 +1694,10 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
             return true;
         }
         /* TODO: @{} syntax */
-        writeOp(state, OP_FILELIST, intFromRef(string));
-        estate->expressionType = EXPRESSION_MISSING_STORE;
+        variable = createVariable(state);
+        writeOp2(state, OP_FILELIST, intFromRef(string), variable);
+        estate->variable = variable;
+        estate->expressionType = EXPRESSION_STORED;
         return true;
     }
     error(state, "Invalid expression");
@@ -1642,23 +1712,27 @@ static bool parseExpression10(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
+        skipExpressionWhitespace(state, estate);
         if (readOperator(state, '['))
         {
             int value = finishRValue(state, estate);
             int index;
-            skipWhitespace(state);
-            index = parseRValue(state, estate->parseConstant);
+            int variable;
+            skipWhitespaceAndNewline(state);
+            index = parseRValue(state, estate->parseConstant, true);
             if (unlikely(!index))
             {
                 return false;
             }
-            skipWhitespace(state);
+            skipWhitespaceAndNewline(state);
             if (unlikely(!readExpectedOperator(state, ']')))
             {
                 return false;
             }
-            writeOp2(state, OP_INDEXED_ACCESS, value, index);
-            estate->expressionType = EXPRESSION_MISSING_STORE;
+            variable = createVariable(state);
+            writeOp3(state, OP_INDEXED_ACCESS, value, index, variable);
+            estate->variable = variable;
+            estate->expressionType = EXPRESSION_STORED;
             continue;
         }
         if (!peekOperator2(state, '.', '.') && readOperator(state, '.'))
@@ -1672,44 +1746,49 @@ static bool parseExpression10(ParseState *state, ExpressionState *estate)
 
 static bool parseExpression9(ParseState *state, ExpressionState *estate)
 {
+    int variable;
+    int value;
     if (readOperator(state, '-'))
     {
-        int value;
         assert(!readOperator(state, '-')); /* TODO: -- operator */
         if (unlikely(!parseExpression10(state, estate)))
         {
             return false;
         }
         value = finishRValue(state, estate);
-        writeOp(state, OP_NEG, value);
         skipExpressionWhitespace(state, estate);
-        estate->expressionType = EXPRESSION_MISSING_STORE;
+        variable = createVariable(state);
+        writeOp2(state, OP_NEG, value, variable);
+        estate->variable = variable;
+        estate->expressionType = EXPRESSION_STORED;
         return true;
     }
     if (readOperator(state, '!'))
     {
-        int value;
         if (unlikely(!parseExpression10(state, estate)))
         {
             return false;
         }
         value = finishRValue(state, estate);
-        writeOp(state, OP_NOT, value);
         skipExpressionWhitespace(state, estate);
-        estate->expressionType = EXPRESSION_MISSING_STORE;
+        variable = createVariable(state);
+        writeOp2(state, OP_NOT, value, variable);
+        estate->variable = variable;
+        estate->expressionType = EXPRESSION_STORED;
         return true;
     }
     if (readOperator(state, '~'))
     {
-        int value;
         if (unlikely(!parseExpression10(state, estate)))
         {
             return false;
         }
         value = finishRValue(state, estate);
-        writeOp(state, OP_INV, value);
         skipExpressionWhitespace(state, estate);
-        estate->expressionType = EXPRESSION_MISSING_STORE;
+        variable = createVariable(state);
+        writeOp2(state, OP_INV, value, variable);
+        estate->variable = variable;
+        estate->expressionType = EXPRESSION_STORED;
         return true;
     }
     return parseExpression10(state, estate);
@@ -1723,7 +1802,6 @@ static bool parseExpression8(ParseState *state, ExpressionState *estate)
     }
     for (;;)
     {
-        skipExpressionWhitespace(state, estate);
         if (readOperator(state, '*'))
         {
             if (reverseIfOperator(state, '='))
@@ -1735,6 +1813,7 @@ static bool parseExpression8(ParseState *state, ExpressionState *estate)
             {
                 return false;
             }
+            skipExpressionWhitespace(state, estate);
             continue;
         }
         if (readOperator(state, '/'))
@@ -1748,6 +1827,7 @@ static bool parseExpression8(ParseState *state, ExpressionState *estate)
             {
                 return false;
             }
+            skipExpressionWhitespace(state, estate);
             continue;
         }
         if (readOperator(state, '%'))
@@ -1761,6 +1841,7 @@ static bool parseExpression8(ParseState *state, ExpressionState *estate)
             {
                 return false;
             }
+            skipExpressionWhitespace(state, estate);
             continue;
         }
         break;
@@ -1946,7 +2027,7 @@ static bool parseExpression2(ParseState *state, ExpressionState *estate)
         {
             int variable = createVariable(state);
             finishAndStoreValueAt(state, estate, variable);
-            skipExpressionWhitespaceAndNewline(state, estate);
+            skipWhitespaceAndNewline(state);
             target = createJumpTarget(state);
             writeBranch(state, target, OP_BRANCH_FALSE_INDEXED, variable);
             if (unlikely(!parseExpression3(state, estate)))
@@ -1964,7 +2045,7 @@ static bool parseExpression2(ParseState *state, ExpressionState *estate)
         {
             int variable = createVariable(state);
             finishAndStoreValueAt(state, estate, variable);
-            skipExpressionWhitespaceAndNewline(state, estate);
+            skipWhitespaceAndNewline(state);
             target = createJumpTarget(state);
             writeBranch(state, target, OP_BRANCH_TRUE_INDEXED, variable);
             if (unlikely(!parseExpression3(state, estate)))
@@ -1997,20 +2078,22 @@ static bool parseExpressionRest(ParseState *state, ExpressionState *estate)
         int target2 = createJumpTarget(state);
         int variable = createVariable(state);
         assert(!parseConstant); /* TODO */
-        skipExpressionWhitespace(state, estate);
+        skipWhitespaceAndNewline(state);
         writeBranch(state, target1, OP_BRANCH_FALSE_INDEXED, finishRValue(state, estate));
-        if (unlikely(!parseAndStoreValueAt(state, variable) || !readExpectedOperator(state, ':')))
+        if (unlikely(!parseAndStoreValueAt(state, variable, true)) ||
+            unlikely(!readExpectedOperator(state, ':')))
         {
             return false;
         }
         writeJump(state, target2);
         placeJumpTargetHere(state, target1);
-        skipExpressionWhitespace(state, estate);
-        if (unlikely(!parseAndStoreValueAt(state, variable)))
+        skipWhitespaceAndNewline(state);
+        if (unlikely(!parseAndStoreValueAt(state, variable, false)))
         {
             return false;
         }
         placeJumpTargetHere(state, target2);
+        skipExpressionWhitespace(state, estate);
         estate->expressionType = EXPRESSION_STORED;
         estate->variable = variable;
         return true;
@@ -2019,11 +2102,11 @@ static bool parseExpressionRest(ParseState *state, ExpressionState *estate)
 }
 
 static bool parseExpression(ParseState *state, ExpressionState *estate,
-                            int valueCount, bool constant)
+                            int valueCount, bool constant, bool eatNewlines)
 {
     estate->valueCount = valueCount;
     estate->parseConstant = constant;
-    estate->allowSpace = true;
+    estate->eatNewlines = eatNewlines;
     return parseExpressionRest(state, estate);
 }
 
@@ -2033,14 +2116,17 @@ static bool parseAssignmentExpressionRest(ParseState *state, ExpressionState *es
     ExpressionState estate2;
     int value = finishRValue(state, estate);
     int value2;
+    int variable;
     skipWhitespaceAndNewline(state);
-    value2 = parseRValue(state, false);
+    value2 = parseRValue(state, false, false);
     if (unlikely(!value2))
     {
         return false;
     }
-    writeOp2(state, instruction, value, value2);
-    estate2.expressionType = EXPRESSION_MISSING_STORE;
+    variable = createVariable(state);
+    writeOp3(state, instruction, value, value2, variable);
+    estate2.variable = variable;
+    estate2.expressionType = EXPRESSION_STORED;
     return finishLValue(state, estate, &estate2);
 }
 
@@ -2049,7 +2135,7 @@ static bool parseExpressionStatement(ParseState *state, vref identifier)
     ExpressionState estate, rvalue;
 
     estate.identifier = identifier;
-    if (unlikely(!parseExpression(state, &estate, 0, false)))
+    if (unlikely(!parseExpression(state, &estate, 0, false, false)))
     {
         return false;
     }
@@ -2057,7 +2143,8 @@ static bool parseExpressionStatement(ParseState *state, vref identifier)
     {
         skipWhitespaceAndNewline(state);
         rvalue.identifier = 0;
-        return parseExpression(state, &rvalue, 1, false) && finishLValue(state, &estate, &rvalue);
+        return parseExpression(state, &rvalue, 1, false, false) &&
+            finishLValue(state, &estate, &rvalue);
     }
     if (readOperator2(state, '+', '='))
     {
@@ -2095,7 +2182,7 @@ static bool parseExpressionStatement(ParseState *state, vref identifier)
         do
         {
             estate.identifier = 0;
-            if (unlikely(!parseExpression(state, &estate, 0, false)))
+            if (unlikely(!parseExpression(state, &estate, 0, false, false)))
             {
                 goto error;
             }
@@ -2110,7 +2197,7 @@ static bool parseExpressionStatement(ParseState *state, vref identifier)
         skipWhitespace(state);
         rvalue.identifier = 0;
         returnValueCount = (int)((BVSize(&btemp) - oldBTempSize) / sizeof(estate));
-        if (unlikely(!parseExpression(state, &rvalue, returnValueCount, false)))
+        if (unlikely(!parseExpression(state, &rvalue, returnValueCount, false, false)))
         {
             goto error;
         }
@@ -2172,7 +2259,7 @@ static bool parseReturnRest(ParseState *state)
     oldTempSize = IVSize(&temp);
     for (;;)
     {
-        value = parseRValue(state, false);
+        value = parseRValue(state, false, false);
         if (unlikely(!value))
         {
             IVSetSize(&temp, oldTempSize);
@@ -2226,7 +2313,7 @@ static void parseBlock(ParseState *state)
                 {
                     int conditionTarget = createJumpTarget(state);
                     int afterIfTarget;
-                    int condition = parseRValue(state, false);
+                    int condition = parseRValue(state, false, false);
                     if (unlikely(!condition))
                     {
                         state->structuralError = true;
@@ -2268,7 +2355,7 @@ static void parseBlock(ParseState *state)
                             break;
                         }
                         skipWhitespace(state);
-                        condition = parseRValue(state, false);
+                        condition = parseRValue(state, false, false);
                         if (unlikely(!condition))
                         {
                             goto statementError;
@@ -2307,7 +2394,7 @@ static void parseBlock(ParseState *state)
                         goto statementError;
                     }
                     skipWhitespace(state);
-                    iterCollection = parseRValue(state, false);
+                    iterCollection = parseRValue(state, false, false);
                     if (unlikely(!iterCollection))
                     {
                         goto statementError;
@@ -2339,7 +2426,7 @@ static void parseBlock(ParseState *state)
                 {
                     int loopTop = createJumpTargetHere(state);
                     int afterLoop = createJumpTarget(state);
-                    int condition = parseRValue(state, false);
+                    int condition = parseRValue(state, false, false);
                     if (unlikely(!condition))
                     {
                         goto statementError;
@@ -2443,7 +2530,7 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
                 requireDefaultValues = true;
                 skipWhitespace(state);
                 estate.identifier = 0;
-                if (unlikely(!parseExpression(state, &estate, 1, true)))
+                if (unlikely(!parseExpression(state, &estate, 1, true, true)))
                 {
                     goto error;
                 }
@@ -2641,7 +2728,7 @@ void ParseFile(ParsedProgram *program, const char *filename, size_t filenameLeng
                 }
                 skipWhitespace(&state);
                 estate.identifier = 0;
-                if (parseExpression(&state, &estate, 1, true))
+                if (parseExpression(&state, &estate, 1, true, false))
                 {
                     assert(estate.expressionType == EXPRESSION_CONSTANT);
                     if (unlikely(!peekNewline(&state)))
