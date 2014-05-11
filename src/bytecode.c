@@ -148,15 +148,15 @@ static const int *disassemble(const int *bytecode, const int *base)
     }
 
     case OP_NOT:
-        printf("not #%d -> #%d", arg, *bytecode++);
+        printf("not #%d -> #%d\n", arg, *bytecode++);
         break;
 
     case OP_NEG:
-        printf("neg #%d -> #%d", arg, *bytecode++);
+        printf("neg #%d -> #%d\n", arg, *bytecode++);
         break;
 
     case OP_INV:
-        printf("inv #%d -> #%d", arg, *bytecode++);
+        printf("inv #%d -> #%d\n", arg, *bytecode++);
         break;
 
     case OP_ITER_GET:
