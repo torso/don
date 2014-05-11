@@ -23,9 +23,8 @@ typedef struct
     const byte *limit;
     ParsedProgram *program;
     namespaceref ns;
-    uint line;
-    uint lineBeforeSkip;
-    uint statementLine;
+    int line;
+    int lineBeforeSkip;
     uint jumpCount;
     int jumpTargetCount;
     int unnamedVariableCount;
@@ -413,6 +412,7 @@ static uint readNewline(ParseState *state)
         }
         else if (*state->current != '\n')
         {
+            writeOp(state, OP_LINE, state->line);
             return (uint)getOffset(state, lineBegin);
         }
     }
@@ -437,11 +437,11 @@ static bool skipBlockWhitespace(ParseState *state)
     skipWhitespace(state);
     if (peekNewline(state))
     {
-        uint line = state->line;
+        int line = state->line;
         readNewline(state);
         if (unlikely(eof(state)))
         {
-            writeOp(state, OP_LINE, (int)line + 1);
+            writeOp(state, OP_LINE, line + 1);
             error(state, "Expected operator '}'");
             return true;
         }
@@ -673,7 +673,7 @@ static bool readExpectedOperator(ParseState *state, byte op)
     {
         return true;
     }
-    writeOp(state, OP_LINE, (int)state->lineBeforeSkip);
+    writeOp(state, OP_LINE, state->lineBeforeSkip);
     if (peekIdentifier(state))
     {
         ParseState stateCopy = *state;
@@ -728,7 +728,7 @@ static bool readExpectedOperator(ParseState *state, byte op)
         /* TODO: Nicer message for @ */
         error(state, "Expected operator '%c'. Got '%c'", op, *state->current);
     }
-    writeOp(state, OP_LINE, (int)state->statementLine);
+    writeOp(state, OP_LINE, state->line);
     return false;
 }
 
@@ -1970,7 +1970,6 @@ static void parseBlock(ParseState *state)
     if (unlikely(!readOperator(state, '{')))
     {
         state->structuralError = true;
-        writeOp(state, OP_LINE, (int)state->line);
         error(state, "Expected operator '{'");
         return;
     }
@@ -1981,9 +1980,6 @@ static void parseBlock(ParseState *state)
         {
             return;
         }
-        writeOp(state, OP_LINE, (int)state->line);
-
-        state->statementLine = state->line;
 
         identifier = peekReadIdentifier(state);
         if (likely(identifier))
@@ -2035,7 +2031,6 @@ static void parseBlock(ParseState *state)
                         {
                             if (unlikely(identifier))
                             {
-                                writeOp(state, OP_LINE, (int)state->line);
                                 error(state, "Garbage after else");
                                 goto statementError;
                             }
@@ -2175,7 +2170,6 @@ static void parseFunctionBody(ParseState *state)
             uint indent;
             if (!state->structuralError)
             {
-                writeOp(state, OP_LINE, (int)state->line);
                 error(state, "Garbage after function body");
             }
             do
@@ -2359,8 +2353,6 @@ void ParseFile(ParsedProgram *program, const char *filename, size_t filenameLeng
         if (peekIdentifier(&state))
         {
             vref identifier = readIdentifier(&state);
-            writeOp(&state, OP_LINE, (int)state.line);
-            state.statementLine = state.line;
             skipWhitespace(&state);
             if (identifier == keywordFn)
             {
@@ -2444,7 +2436,6 @@ void ParseFile(ParsedProgram *program, const char *filename, size_t filenameLeng
         }
         else if (unlikely(!peekReadNewline(&state)))
         {
-            writeOp(&state, OP_LINE, (int)state.line);
             error(&state, "Unsupported character: '%c'", *state.current);
             skipEndOfLine(&state);
         }
