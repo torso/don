@@ -102,7 +102,7 @@ size_t VStringLength(vref value)
         {
             size--;
         }
-        size = size + 2;
+        size = size + 6;
         for (index = 0; HeapCollectionGet(value, HeapBoxSize(index++), &item);)
         {
             size += VStringLength(item);
@@ -193,7 +193,11 @@ char *VWriteString(vref value, char *dst)
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
-        *dst++ = '[';
+        *dst++ = 'l';
+        *dst++ = 'i';
+        *dst++ = 's';
+        *dst++ = 't';
+        *dst++ = '(';
         for (index = 0; HeapCollectionGet(value, HeapBoxSize(index), &item);
              index++)
         {
@@ -203,7 +207,7 @@ char *VWriteString(vref value, char *dst)
             }
             dst = VWriteString(item, dst);
         }
-        *dst++ = ']';
+        *dst++ = ')';
         return dst;
 
     case TYPE_FUTURE:

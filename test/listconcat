@@ -1,8 +1,8 @@
 target default
 {
-    if [0, 100]::[true, false, "abc", null] == [0, 100, true, false, "abc", null]
+    if list(0, 100)::list(true, false, "abc", null) == list(0, 100, true, false, "abc", null)
     {
-        if [2]::[3] != [3]::[4] && [2]::[3, 4] == [2, 3]::[4]
+        if list(2)::list(3) != list(3)::list(4) && list(2)::list(3, 4) == list(2, 3)::list(4)
         {
             echo("PASS")
         }

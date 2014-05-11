@@ -1,0 +1,18 @@
+#fail:
+#+6: Newline in escape sequence
+#+7: Invalid escape sequence
+#+8: Expected variable or '(' after '$'. Got '\n'
+#+9: '[' must be escaped as '\[' in bracketed list
+#+11: Not a statement
+
+target default
+{
+    a =
+        [
+            \
+            \+
+            $
+            [
+        ]
+        ]
+}

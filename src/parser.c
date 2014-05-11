@@ -45,6 +45,13 @@ typedef enum
     EXPRESSION_MANY
 } ExpressionType;
 
+typedef enum
+{
+    NO_ERROR = 0,
+    ERROR_MISSING_RIGHTPAREN,
+    ERROR_INVALID_EXPRESSION
+} Error;
+
 typedef struct
 {
     vref identifier;
@@ -65,6 +72,7 @@ static vref keywordFor;
 static vref keywordFn;
 static vref keywordIf;
 static vref keywordIn;
+static vref keywordList;
 static vref keywordNull;
 static vref keywordReturn;
 static vref keywordTarget;
@@ -859,6 +867,37 @@ static bool finishLValue(ParseState *state, const ExpressionState *lvalue,
     unreachable;
 }
 
+static int parseDollarExpressionRest(ParseState *state)
+{
+    assert(*state->current == '$');
+    state->current++;
+    if (peekIdentifier(state))
+    {
+        IVAddRef(&temp, readVariableName(state));
+        return NO_ERROR;
+    }
+    if (likely(*state->current == '('))
+    {
+        int value;
+        state->current++;
+        skipWhitespaceAndNewline(state);
+        value = parseRValue(state, false);
+        state->lineBeforeSkip = state->line;
+        if (unlikely(!value))
+        {
+            return ERROR_INVALID_EXPRESSION;
+        }
+        if (unlikely(!readExpectedOperator(state, ')')))
+        {
+            return ERROR_MISSING_RIGHTPAREN;
+        }
+        IVAdd(&temp, value);
+        return NO_ERROR;
+    }
+    error(state, "Expected variable or '(' after '$'. Got '%c'", *state->current);
+    return ERROR_INVALID_EXPRESSION;
+}
+
 static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
 {
     size_t oldTempSize = IVSize(&temp);
@@ -918,26 +957,17 @@ static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
                           HeapCreateString((const char*)BVGetPointer(&btemp, oldBTempSize), length)));
                 BVSetSize(&btemp, oldBTempSize);
             }
-            state->current++;
-            if (peekIdentifier(state))
+            switch (expect(parseDollarExpressionRest(state), NO_ERROR))
             {
-                IVAddRef(&temp, readVariableName(state));
-            }
-            else if (likely(*state->current == '('))
-            {
-                int value;
-                state->current++;
-                value = parseRValue(state, false);
-                state->lineBeforeSkip = state->line;
-                if (unlikely(!value) || unlikely(!readExpectedOperator(state, ')')))
-                {
-                    goto error;
-                }
-                IVAdd(&temp, value);
-            }
-            else
-            {
-                error(state, "Expected variable or '('. Got '%c'", *state->current);
+            case NO_ERROR:
+            case ERROR_INVALID_EXPRESSION:
+                break;
+
+            case ERROR_MISSING_RIGHTPAREN:
+                goto error;
+                break;
+            default:
+                unreachable;
             }
             begin = state->current;
             break;
@@ -1057,7 +1087,7 @@ static bool parseListRest(ParseState *state, ExpressionState *estate)
     bool constant;
     size_t oldTempSize = IVSize(&temp);
     skipWhitespaceAndNewline(state);
-    if (readOperator(state, ']'))
+    if (readOperator(state, ')'))
     {
         parsedConstant(estate, HeapEmptyList);
         return true;
@@ -1066,7 +1096,7 @@ static bool parseListRest(ParseState *state, ExpressionState *estate)
     for (;;)
     {
         estate2.identifier = 0;
-        if (unlikely(!parseExpression(state, &estate2, 1, false)))
+        if (unlikely(!parseExpression(state, &estate2, 1, estate->parseConstant)))
         {
             IVSetSize(&temp, oldTempSize);
             goto error;
@@ -1097,13 +1127,13 @@ static bool parseListRest(ParseState *state, ExpressionState *estate)
             skipWhitespaceAndNewline(state);
             continue;
         }
-        if (readOperator(state, ']'))
+        if (readOperator(state, ')'))
         {
             break;
         }
-        readExpectedOperator(state, ']');
+        readExpectedOperator(state, ')');
 error:
-        if (!skipToComma(state, ']'))
+        if (!skipToComma(state, ')'))
         {
             break;
         }
@@ -1123,6 +1153,197 @@ error:
     }
     IVSetSize(&temp, oldTempSize);
     return true;
+}
+
+static void finishBracketListItem(ParseState *state, const byte *begin, const byte *end,
+                                  bool constant, size_t concatCount, size_t oldBTempSize)
+{
+    size_t length;
+    vref s;
+    BVAddData(&btemp, begin, (size_t)(end - begin));
+    length = BVSize(&btemp) - oldBTempSize;
+    if (length)
+    {
+        concatCount++;
+        s = HeapCreateString((const char*)BVGetPointer(&btemp, oldBTempSize), length);
+        BVSetSize(&btemp, oldBTempSize);
+        if (constant)
+        {
+            IVAdd(&temp, intFromRef(s));
+        }
+        else
+        {
+            IVAdd(&temp, variableFromConstant(state, s));
+        }
+    }
+    if (concatCount > 1)
+    {
+        int variable = createVariable(state);
+        assert(!constant);
+        writeOpFromTemp(state, OP_CONCAT_STRING, IVSize(&temp) - concatCount);
+        IVAdd(state->bytecode, variable);
+        IVAdd(&temp, variable);
+    }
+}
+
+static bool parseBracketedListRest(ParseState *state, ExpressionState *estate)
+{
+    bool constant = true;
+    size_t oldTempSize = IVSize(&temp);
+    size_t oldBTempSize = BVSize(&btemp);
+    size_t concatCount;
+
+    skipWhitespaceAndNewline(state);
+    for (;;)
+    {
+        const byte *begin;
+itemParsed:
+        if (readOperator(state, ']'))
+        {
+            break;
+        }
+
+        begin = state->current;
+        if (peekNumber(state))
+        {
+            parseNumber(state, estate);
+            if (*state->current == ' ' || *state->current == ']' ||
+                *state->current == '\n' || *state->current == '\r')
+            {
+                IVAdd(&temp, constant ? intFromRef(estate->constant) :
+                      variableFromConstant(state, estate->constant));
+                skipWhitespaceAndNewline(state);
+                continue;
+            }
+            state->current = begin;
+        }
+
+        concatCount = 0;
+        for (;;)
+        {
+            switch (*state->current)
+            {
+            case ']':
+                finishBracketListItem(state, begin, state->current, constant,
+                                      concatCount, oldBTempSize);
+                state->current++;
+                goto done;
+
+            case '\r':
+            case '\n':
+            case ' ':
+                finishBracketListItem(state, begin, state->current, constant,
+                                      concatCount, oldBTempSize);
+                skipWhitespaceAndNewline(state);
+                goto itemParsed;
+
+            case '$':
+            {
+                if (constant)
+                {
+                    convertConstantsToValues(
+                        state,
+                        (int*)IVGetWritePointer(&temp, oldTempSize),
+                        IVSize(&temp) - oldTempSize);
+                }
+                constant = false;
+                if (begin != state->current)
+                {
+                    finishBracketListItem(state, begin, state->current, false,
+                                          0, oldBTempSize);
+                    concatCount++;
+                }
+
+                switch (expect(parseDollarExpressionRest(state), NO_ERROR))
+                {
+                case NO_ERROR:
+                    concatCount++;
+                    break;
+
+                case ERROR_MISSING_RIGHTPAREN:
+                    goto error;
+                case ERROR_INVALID_EXPRESSION:
+                    break;
+                default:
+                    unreachable;
+                }
+                begin = state->current;
+                break;
+            }
+
+            case '\'':
+            case '"':
+                error(state, "TODO: quotes in bracketed list");
+                state->current++;
+                break;
+
+            case '[':
+                /* Unnecessary restriction, but helps editors match brackets. */
+                error(state, "'[' must be escaped as '\\[' in bracketed list");
+                state->current++;
+                break;
+
+            case '\\':
+                BVAddData(&btemp, begin, (size_t)(state->current - begin));
+                state->current++;
+                switch (*state->current)
+                {
+                case '\\':
+                case '\'':
+                case '$':
+                case '"':
+                case '[':
+                case ']':
+                case ' ':
+                    begin = state->current++;
+                    continue;
+
+                case '0': BVAdd(&btemp, '\0'); break;
+                case 'f': BVAdd(&btemp, '\f'); break;
+                case 'n': BVAdd(&btemp, '\n'); break;
+                case 'r': BVAdd(&btemp, '\r'); break;
+                case 't': BVAdd(&btemp, '\t'); break;
+                case 'v': BVAdd(&btemp, '\v'); break;
+
+                case '\n':
+                    error(state, "Newline in escape sequence");
+                    continue;
+
+                default:
+                    state->current++;
+                    error(state, "Invalid escape sequence");
+                    continue;
+                }
+                state->current++;
+                begin = state->current;
+                break;
+
+            default:
+                state->current++;
+                break;
+            }
+        }
+    }
+
+done:
+    if (constant)
+    {
+        parsedConstant(estate, HeapCreateArrayFromVectorSegment(
+                           &temp, oldTempSize, IVSize(&temp) - oldTempSize));
+    }
+    else
+    {
+        uint length = (uint)(IVSize(&temp) - oldTempSize);
+        int *restrict write = IVGetAppendPointer(state->bytecode, 1 + length);
+        estate->expressionType = EXPRESSION_MISSING_STORE;
+        *write++ = encodeOp(OP_LIST, (int)length);
+        memcpy(write, IVGetPointer(&temp, oldTempSize), length * sizeof(*write));
+    }
+    IVSetSize(&temp, oldTempSize);
+    return true;
+
+error:
+    return false;
 }
 
 static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref ns, vref name)
@@ -1303,12 +1524,21 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
                 parsedConstant(estate, HeapTrue);
                 return true;
             }
-            else if (identifier == keywordFalse)
+            if (identifier == keywordFalse)
             {
                 parsedConstant(estate, HeapFalse);
                 return true;
             }
-            else if (likely(identifier == keywordNull))
+            if (identifier == keywordList)
+            {
+                skipWhitespaceAndNewline(state);
+                if (unlikely(!readExpectedOperator(state, '(')))
+                {
+                    return false;
+                }
+                return parseListRest(state, estate);
+            }
+            if (likely(identifier == keywordNull))
             {
                 parsedConstant(estate, 0);
                 return true;
@@ -1381,7 +1611,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
     }
     if (readOperator(state, '['))
     {
-        return parseListRest(state, estate);
+        return parseBracketedListRest(state, estate);
     }
     if (likely(readOperator(state, '@')))
     {
@@ -2285,6 +2515,7 @@ void ParserAddKeywords(void)
     keywordFalse = StringPoolAdd("false");
     keywordFn = StringPoolAdd("fn");
     keywordIn = StringPoolAdd("in");
+    keywordList = StringPoolAdd("list");
     keywordNull = StringPoolAdd("null");
     keywordTarget = StringPoolAdd("target");
     keywordTrue = StringPoolAdd("true");

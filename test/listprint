@@ -1,6 +1,6 @@
 target default
 {
-    if "x$([])" == "x[]" && "x$([0, 100, true, false, null])" == "x[0,100,true,false,null]"
+    if "x$([])" == "xlist()" && "x$(list(0, 100, true, false, null))" == "xlist(0,100,true,false,null)"
     {
         echo("PASS")
     }

@@ -1,8 +1,9 @@
 target default
 {
-    if [] == [] && [0, 100, true, false, "abc", null] == [0, 100, true, false, "abc", null]
+    if list() == list() &&
+        list(0, 100, true, false, "abc", null) == list(0, 100, true, false, "abc", null)
     {
-        if [] != [1] && [2, 3] != [3, 4]
+        if list() != list(1) && list(2, 3) != list(3, 4)
         {
             echo("PASS")
         }

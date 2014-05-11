@@ -1,0 +1,84 @@
+testno = 0
+
+fn test(a, b)
+{
+    testno += 1
+    if a != b
+    {
+        echo("FAIL $testno: \"$a\" != \"$b\"")
+    }
+}
+
+target default
+{
+    test(list(), [])
+    test(list(), [
+             ])
+
+    test(list("a"), [a])
+    test(list("a"), [ a])
+    test(list("a"), [a ])
+    test(list("a"), [
+             a])
+    test(list("a"), [a
+             ])
+
+    test(list("ab"), [ab])
+    test(list("a", "b"), [a b])
+    test(list("a", "b"), [a  b])
+    test(list("a", "b"), [ a  b ])
+    test(list("a", "b"), [ a
+                           b ])
+
+    test(list(7), [7])
+    test(list(72), [72])
+    test(list(72), [ 72 ])
+    test(list(72, 73), [72 73])
+    test(list("7a"), [7a])
+    test(list("a7"), [a7])
+
+    c = "d"
+    ca = 5
+    test(list("d"), [$c])
+    test(list("d"), [ $c])
+    test(list("d"), [$c ])
+    test(list("ad"), [a$c])
+    test(list("ad"), [a$c ])
+    test(list("ad"), [ a$c])
+    test(list("a", "d"), [a $c])
+    test(list(5), [$ca])
+
+    test(list("d"), [$(c)])
+    test(list("d"), [ $(c)])
+    test(list("d"), [$(c) ])
+    test(list(5), [$(ca)])
+    test(list(5), [$( ca)])
+    test(list(5), [$(ca )])
+    test(list(5), [$(5)])
+    test(list(7), [$(5 + 2)])
+
+    test(list("da"), [$(c)a])
+    test(list("ad"), [a$(c)])
+    test(list("ada"), [a$(c)a])
+    test(list("da5"), [$(c)a$ca])
+    test(list("adb5"), [a$(c)b$ca])
+    test(list("adb5c"), [a$(c)b$(ca)c])
+
+    test(list("\n"), [\n])
+    test(list(" "), [\ ])
+    test(list("a\nb"), [a\nb])
+    test(list("a\0b"), [a\0b])
+    test(list("a\fb"), [a\fb])
+    test(list("a\rb"), [a\rb])
+    test(list("a\tb"), [a\tb])
+    test(list("a\vb"), [a\vb])
+    test(list("a b"), [a\ b])
+    test(list("a\\b"), [a\\b])
+    test(list("a\"b"), [a\"b])
+    test(list("a'b"), [a\'b])
+    test(list("a\$b"), [a\$b])
+    test(list("a[b"), [a\[b])
+    test(list("a]b"), [a\]b])
+
+    echo("PASS")
+}

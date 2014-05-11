@@ -1,12 +1,12 @@
 target default
 {
-    if contains("\n$(exec("env", env:["TEST", "value"], echo:false)[0])\n", "\nTEST=value\n")
+    if contains("\n$(exec("env", env:[TEST value], echo:false)[0])\n", "\nTEST=value\n")
     {
-        if !contains("\n$(exec("env", env:["TEST", null], echo:false)[0])", "\nTEST=")
+        if !contains("\n$(exec("env", env:list("TEST", null), echo:false)[0])", "\nTEST=")
         {
             if contains("\n$(exec("env", echo:false)[0])\n", "\nTERM=dumb\n")
             {
-                if !contains("\n$(exec("env", env:["TERM", null], echo:false)[0])", "\nTERM=")
+                if !contains("\n$(exec("env", env:list("TERM", null), echo:false)[0])", "\nTERM=")
                 {
                     echo("PASS")
                 }
