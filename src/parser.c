@@ -878,7 +878,6 @@ static bool parseAndStoreValueAt(ParseState *state, int variable, bool eatNewlin
 static bool finishLValue(ParseState *state, const ExpressionState *lvalue,
                          const ExpressionState *rvalue)
 {
-    /* int variable; */
     switch (lvalue->expressionType)
     {
     case EXPRESSION_CONSTANT:
