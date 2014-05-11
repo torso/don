@@ -1803,7 +1803,7 @@ static bool parseAssignmentExpressionRest(ParseState *state, ExpressionState *es
     ExpressionState estate2;
     int value = finishRValue(state, estate);
     int value2;
-    skipWhitespace(state);
+    skipWhitespaceAndNewline(state);
     value2 = parseRValue(state, false);
     if (unlikely(!value2))
     {
@@ -1825,7 +1825,7 @@ static bool parseExpressionStatement(ParseState *state, vref identifier)
     }
     if (readOperator(state, '='))
     {
-        skipWhitespace(state);
+        skipWhitespaceAndNewline(state);
         rvalue.identifier = 0;
         return parseExpression(state, &rvalue, 1, false) && finishLValue(state, &estate, &rvalue);
     }
