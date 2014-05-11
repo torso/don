@@ -946,11 +946,14 @@ static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
         case '\\':
             BVAddData(&btemp, begin, getOffset(state, begin));
             state->current++;
-            switch (*state->current)
+            switch (*state->current++)
             {
-            case '\\': BVAdd(&btemp, '\\'); break;
-            case '\'': BVAdd(&btemp, '\''); break;
-            case '"': BVAdd(&btemp, '"'); break;
+            case '\\':
+            case '\'':
+            case '"':
+            case '$':
+                begin = state->current - 1;
+                continue;
             case '0': BVAdd(&btemp, '\0'); break;
             case 'f': BVAdd(&btemp, '\f'); break;
             case 'n': BVAdd(&btemp, '\n'); break;
@@ -962,7 +965,6 @@ static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
                 error(state, "Invalid escape sequence");
                 continue;
             }
-            state->current++;
             begin = state->current;
             break;
 
