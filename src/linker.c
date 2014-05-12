@@ -35,6 +35,10 @@ typedef struct
 
 static void error(LinkState *state, const char *message)
 {
+    if (DEBUG_LINKER)
+    {
+        fflush(stdout);
+    }
     state->hasErrors = true;
     fprintf(stderr, "%s:%u: %s\n", state->filename, state->line, message);
 }
