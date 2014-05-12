@@ -119,7 +119,6 @@ void WorkExecute(void)
 {
     Work *work;
     vref *p1;
-    vref *p2;
     uint parameterCount;
     uint i;
     struct
@@ -147,16 +146,5 @@ void WorkExecute(void)
         printWork("executing: ", work);
     }
     NativeWork(&env.work);
-    for (i = NativeGetReturnValueCount(work->function),
-             p1 = (vref*)(work+1) + parameterCount,
-             p2 = env.values + parameterCount;
-         i--;
-         p1++, p2++)
-    {
-        if (*p1 != *p2)
-        {
-            HeapSetFutureValue(*p1, *p2);
-        }
-    }
     BVRemoveRange(&queue, 0, getWorkSize(work));
 }

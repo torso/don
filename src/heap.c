@@ -858,7 +858,7 @@ static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
         size2 = HeapGetObjectSize(list) / sizeof(vref);
         for (i = 0; i < size2; i++)
         {
-            vref v = *src++;
+            vref v = HeapTryWait(*src++);
             assert(!HeapIsFutureValue(v)); /* TODO */
             if (HeapIsCollection(v))
             {

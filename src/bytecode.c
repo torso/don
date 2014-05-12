@@ -403,22 +403,7 @@ static const int *disassemble(const int *bytecode, const int *base)
                 printValue(&bytecode);
             }
         }
-        count = NativeGetReturnValueCount(nativeFunction);
-        if (count)
-        {
-            fputs(") -> ", stdout);
-            printValue(&bytecode);
-            while (--count)
-            {
-                fputs(",", stdout);
-                printValue(&bytecode);
-            }
-            puts("");
-        }
-        else
-        {
-            puts(")");
-        }
+        printf(") -> #%d\n", *bytecode++);
         break;
     }
 

@@ -58,11 +58,11 @@ typedef struct
     int variable;
     vref valueIdentifier;
     vref constant;
-    nativefunctionref nativeFunction;
     vref ns;
     int valueCount;
     bool parseConstant;
     bool eatNewlines;
+    bool sideEffects;
 } ExpressionState;
 
 static vref keywordElse;
@@ -1415,6 +1415,7 @@ static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref
 
     assert(!estate->identifier);
     estate->expressionType = EXPRESSION_MANY;
+    estate->sideEffects = true;
     skipWhitespaceAndNewline(state);
     if (!readOperator(state, ')'))
     {
@@ -1503,15 +1504,13 @@ static bool parseNativeInvocationRest(ParseState *state, ExpressionState *estate
               HeapGetString(name));
         return false;
     }
-    if (unlikely((uint)estate->valueCount != NativeGetReturnValueCount(function)))
+    if (unlikely((uint)estate->valueCount != (NativeGetReturnValueCount(function) ? 1 : 0)))
     {
         error(state, "Native function returns %d values, but %d are handled",
               NativeGetReturnValueCount(function), estate->valueCount);
         return false;
     }
     argumentCount = NativeGetParameterCount(function);
-    estate->expressionType = EXPRESSION_MANY;
-    estate->nativeFunction = function;
 
     skipWhitespaceAndNewline(state);
     for (i = 0; i < argumentCount; i++)
@@ -1534,13 +1533,16 @@ static bool parseNativeInvocationRest(ParseState *state, ExpressionState *estate
         skipWhitespaceAndNewline(state);
     }
     argumentCount = (uint)(IVSize(&temp) - oldTempSize);
-    write = IVGetAppendPointer(state->bytecode, 1 + argumentCount);
+    write = IVGetAppendPointer(state->bytecode, 2 + argumentCount);
     *write++ = encodeOp(OP_INVOKE_NATIVE, intFromRef(function));
     read = IVGetPointer(&temp, oldTempSize);
     while (argumentCount--)
     {
         *write++ = *read++;
     }
+    estate->expressionType = EXPRESSION_STORED;
+    *write++ = estate->variable = createVariable(state);
+    estate->sideEffects = true;
     IVSetSize(&temp, oldTempSize);
     return readExpectedOperator(state, ')');
 }
@@ -1673,6 +1675,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         }
         /* TODO: Prevent use as lvalue */
         estate->eatNewlines = oldEatNewlines;
+        estate->sideEffects = false;
         return readExpectedOperator(state, ')');
     }
     if (readOperator(state, '['))
@@ -2106,6 +2109,7 @@ static bool parseExpression(ParseState *state, ExpressionState *estate,
     estate->valueCount = valueCount;
     estate->parseConstant = constant;
     estate->eatNewlines = eatNewlines;
+    estate->sideEffects = false;
     return parseExpressionRest(state, estate);
 }
 
@@ -2165,7 +2169,7 @@ static bool parseExpressionStatement(ParseState *state, vref identifier)
     {
         return parseAssignmentExpressionRest(state, &estate, OP_REM);
     }
-    if (estate.expressionType == EXPRESSION_MANY)
+    if (estate.sideEffects)
     {
         assert(estate.valueCount == 0);
         return true;

@@ -23,7 +23,7 @@
 #define NATIVE_FUNCTION_COUNT 21
 
 typedef bool (*preInvoke)(void*);
-typedef bool (*invoke)(void*);
+typedef bool (*invoke)(const void*);
 
 typedef struct
 {
@@ -197,13 +197,14 @@ typedef struct
     vref dst;
 } CpEnv;
 
-static void nativePreCp(CpEnv *env)
+static bool nativePreCp(CpEnv *env)
 {
     env->work.accessedFiles = env->src;
     env->work.modifiedFiles = env->dst;
+    return false;
 }
 
-static bool nativeCp(CpEnv *env)
+static bool nativeCp(const CpEnv *env)
 {
     const char *srcPath;
     const char *dstPath;
@@ -230,7 +231,7 @@ typedef struct
     vref prefix;
 } EchoEnv;
 
-static bool nativeEcho(EchoEnv *env)
+static bool nativeEcho(const EchoEnv *env)
 {
     char *buffer;
     size_t length;
@@ -269,27 +270,20 @@ typedef struct
     vref access;
     vref modify;
 
-    vref output;
+    vref outputStd;
+    vref outputErr;
     vref exitcode;
     vref internalError;
 } ExecEnv;
 
-static void nativePreExec(ExecEnv *env)
+static bool nativePreExec(ExecEnv *env)
 {
-    vref output[2];
-
     env->work.accessedFiles = env->access;
     env->work.modifiedFiles = env->modify;
-
-    if (!env->output)
-    {
-        output[0] = HeapCreateFutureValue();
-        output[1] = HeapCreateFutureValue();
-        env->output = HeapCreateArrayFromData(output, 2);
-    }
+    return false;
 }
 
-static bool nativeExec(ExecEnv *env)
+static bool nativeExec(const ExecEnv *env)
 {
     char *executable;
     vref value;
@@ -313,7 +307,6 @@ static bool nativeExec(ExecEnv *env)
         return false;
     }
 
-    env->internalError = HeapBoxInteger(0);
     executable = FileSearchPath(argv[0], strlen(argv[0]), &length, true);
     if (!executable)
     {
@@ -321,19 +314,17 @@ static bool nativeExec(ExecEnv *env)
         if (executable)
         {
             free(executable);
-            env->exitcode = HeapBoxInteger(126);
-            env->internalError = HeapBoxInteger(2);
+            HeapSetFutureValue(env->exitcode, HeapBoxInteger(126));
+            HeapSetFutureValue(env->internalError, HeapBoxInteger(2));
         }
         else
         {
-            env->exitcode = HeapBoxInteger(127);
-            env->internalError = HeapBoxInteger(1);
+            HeapSetFutureValue(env->exitcode, HeapBoxInteger(127));
+            HeapSetFutureValue(env->internalError, HeapBoxInteger(1));
         }
         free(argv);
-        HeapCollectionGet(env->output, HeapBoxInteger(0), &value);
-        HeapSetFutureValue(value, HeapEmptyString);
-        HeapCollectionGet(env->output, HeapBoxInteger(1), &value);
-        HeapSetFutureValue(value, HeapEmptyString);
+        HeapSetFutureValue(env->outputStd, HeapEmptyString);
+        HeapSetFutureValue(env->outputErr, HeapEmptyString);
         return true;
     }
 
@@ -380,14 +371,13 @@ static bool nativeExec(ExecEnv *env)
     {
         FailErrno(false);
     }
-    env->exitcode = HeapBoxInteger(WEXITSTATUS(status));
-    HeapCollectionGet(env->output, HeapBoxInteger(0), &value);
-    HeapSetFutureValue(value, HeapCreateString(
+    HeapSetFutureValue(env->internalError, HeapBoxInteger(0));
+    HeapSetFutureValue(env->exitcode, HeapBoxInteger(WEXITSTATUS(status)));
+    HeapSetFutureValue(env->outputStd, HeapCreateString(
                            (const char*)BVGetPointer(&out.buffer, 0),
                            BVSize(&out.buffer)));
     PipeDispose(&out);
-    HeapCollectionGet(env->output, HeapBoxInteger(1), &value);
-    HeapSetFutureValue(value, HeapCreateString(
+    HeapSetFutureValue(env->outputErr, HeapCreateString(
                            (const char*)BVGetPointer(&err.buffer, 0),
                            BVSize(&err.buffer)));
     PipeDispose(&err);
@@ -402,7 +392,7 @@ typedef struct
     vref message;
 } FailEnv;
 
-static bool nativeFail(FailEnv *env)
+static bool nativeFail(const FailEnv *env)
 {
     if (!VIsTruthy(env->work.condition))
     {
@@ -428,7 +418,7 @@ typedef struct
     vref result;
 } FileEnv;
 
-static bool nativeFile(FileEnv *env)
+static bool nativeFile(const FileEnv *env)
 {
     if (HeapIsFutureValue(env->path) || HeapIsFutureValue(env->name) ||
         HeapIsFutureValue(env->extension))
@@ -436,7 +426,7 @@ static bool nativeFile(FileEnv *env)
         return false;
     }
 
-    env->result = HeapPathFromParts(env->path, env->name, env->extension);
+    HeapSetFutureValue(env->result, HeapPathFromParts(env->path, env->name, env->extension));
     return true;
 }
 
@@ -449,7 +439,7 @@ typedef struct
     vref result;
 } FilenameEnv;
 
-static bool nativeFilename(FilenameEnv *env)
+static bool nativeFilename(const FilenameEnv *env)
 {
     const char *s;
     size_t length;
@@ -461,7 +451,7 @@ static bool nativeFilename(FilenameEnv *env)
 
     s = HeapGetPath(env->path, &length);
     s = FileStripPath(s, &length);
-    env->result = HeapCreateString(s, length);
+    HeapSetFutureValue(env->result, HeapCreateString(s, length));
     return true;
 }
 
@@ -475,9 +465,14 @@ typedef struct
 } FilelistEnv;
 
 /* TODO: Remove duplicate files. */
-static bool nativeFilelist(FilelistEnv *env)
+static bool nativeFilelist(const FilelistEnv *env)
 {
-    env->result = HeapCreateFilelist(env->value);
+    if (!VIsTruthy(env->work.condition) || HeapIsFutureValue(env->value))
+    {
+        return false;
+    }
+
+    HeapSetFutureValue(env->result, HeapCreateFilelist(env->value));
     return true;
 }
 
@@ -493,13 +488,14 @@ typedef struct
     vref data;
 } GetCacheEnv;
 
-static bool nativeGetCache(GetCacheEnv *env)
+static bool nativeGetCache(const GetCacheEnv *env)
 {
     char *cachePath;
     size_t cachePathLength;
     HashState hashState;
     byte hash[DIGEST_SIZE];
     bool uptodate;
+    vref value;
 
     if (!VIsTruthy(env->work.condition) ||
         HeapIsFutureValue(env->key) || HeapIsFutureValue(env->echoCachedOutput))
@@ -511,10 +507,11 @@ static bool nativeGetCache(GetCacheEnv *env)
     HeapHash(env->key, &hashState);
     HashFinal(&hashState, hash);
     CacheGet(hash, VIsTruthy(env->echoCachedOutput),
-             &uptodate, &cachePath, &cachePathLength, &env->data);
-    env->cacheFile = HeapCreatePath(HeapCreateString(cachePath,
-                                                     cachePathLength));
-    env->uptodate = uptodate ? HeapTrue : HeapFalse;
+             &uptodate, &cachePath, &cachePathLength, &value);
+    HeapSetFutureValue(env->data, value);
+    HeapSetFutureValue(env->cacheFile,
+                       HeapCreatePath(HeapCreateString(cachePath, cachePathLength)));
+    HeapSetFutureValue(env->uptodate, uptodate ? HeapTrue : HeapFalse);
     free(cachePath);
     return true;
 }
@@ -528,7 +525,7 @@ typedef struct
     vref result;
 } GetEnvEnv;
 
-static bool nativeGetEnv(GetEnvEnv *env)
+static bool nativeGetEnv(const GetEnvEnv *env)
 {
     char *buffer;
     size_t nameLength;
@@ -545,7 +542,7 @@ static bool nativeGetEnv(GetEnvEnv *env)
     *VWriteString(env->name, buffer) = 0;
     EnvGet(buffer, nameLength, &value, &valueLength);
     free(buffer);
-    env->result = value ? HeapCreateString(value, valueLength) : 0;
+    HeapSetFutureValue(env->result, value ? HeapCreateString(value, valueLength) : 0);
     return true;
 }
 
@@ -559,7 +556,7 @@ typedef struct
     vref result;
 } IndexOfEnv;
 
-static bool nativeIndexOf(IndexOfEnv *env)
+static bool nativeIndexOf(const IndexOfEnv *env)
 {
     if (HeapIsFutureValue(env->data) || HeapIsFutureValue(env->element))
     {
@@ -569,7 +566,7 @@ static bool nativeIndexOf(IndexOfEnv *env)
     /* TODO: Support collections */
     assert(HeapIsString(env->data));
     assert(HeapIsString(env->element));
-    env->result = HeapStringIndexOf(env->data, 0, env->element);
+    HeapSetFutureValue(env->result, HeapStringIndexOf(env->data, 0, env->element));
     return true;
 }
 
@@ -583,15 +580,16 @@ typedef struct
     vref result;
 } LinesEnv;
 
-static void nativePreLines(LinesEnv *env)
+static bool nativePreLines(LinesEnv *env)
 {
     if (HeapIsFutureValue(env->value) || HeapIsFile(env->value))
     {
         env->work.accessedFiles = env->value;
     }
+    return false;
 }
 
-static bool nativeLines(LinesEnv *env)
+static bool nativeLines(const LinesEnv *env)
 {
     vref content;
 
@@ -603,8 +601,8 @@ static bool nativeLines(LinesEnv *env)
 
     content = HeapIsFile(env->value) ? readFile(env->value, 0) : env->value;
     assert(HeapIsString(content));
-    env->result = HeapSplit(content, HeapNewline, false,
-                            VIsTruthy(env->trimLastIfEmpty));
+    HeapSetFutureValue(env->result, HeapSplit(content, HeapNewline, false,
+                                              VIsTruthy(env->trimLastIfEmpty)));
     return true;
 }
 
@@ -616,16 +614,17 @@ typedef struct
     vref dst;
 } MvEnv;
 
-static void nativePreMv(MvEnv *env)
+static bool nativePreMv(MvEnv *env)
 {
     vref files[2];
     files[0] = env->src;
     files[1] = env->dst;
     /* TODO: Don't reallocate array if it exists. */
     env->work.modifiedFiles = HeapCreateArrayFromData(files, 2);
+    return false;
 }
 
-static bool nativeMv(MvEnv *env)
+static bool nativeMv(const MvEnv *env)
 {
     const char *oldPath;
     const char *newPath;
@@ -650,7 +649,7 @@ typedef struct
     vref result;
 } PidEnv;
 
-static bool nativePid(PidEnv *env)
+static bool nativePrePid(PidEnv *env)
 {
     env->result = HeapBoxInteger(getpid());
     return true;
@@ -666,19 +665,20 @@ typedef struct
     vref result;
 } ReadFileEnv;
 
-static void nativePreReadFile(ReadFileEnv *env)
+static bool nativePreReadFile(ReadFileEnv *env)
 {
     env->work.accessedFiles = env->file;
+    return false;
 }
 
-static bool nativeReadFile(ReadFileEnv *env)
+static bool nativeReadFile(const ReadFileEnv *env)
 {
     if (!VIsTruthy(env->work.condition) || HeapIsFutureValue(env->file) ||
         HeapIsFutureValue(env->valueIfNotExists))
     {
         return false;
     }
-    env->result = readFile(env->file, env->valueIfNotExists);
+    HeapSetFutureValue(env->result, readFile(env->file, env->valueIfNotExists));
     return true;
 }
 
@@ -694,7 +694,7 @@ typedef struct
     vref count;
 } ReplaceEnv;
 
-static bool nativeReplace(ReplaceEnv *env)
+static bool nativeReplace(const ReplaceEnv *env)
 {
     size_t dataLength;
     size_t originalLength;
@@ -729,14 +729,13 @@ static bool nativeReplace(ReplaceEnv *env)
     }
     if (!replacements)
     {
-        env->result = env->data;
-        env->count = HeapBoxInteger(0);
+        HeapSetFutureValue(env->result, env->data);
+        HeapSetFutureValue(env->count, HeapBoxInteger(0));
         return true;
     }
-    env->result = HeapCreateUninitialisedString(
-        dataLength + replacements * (replacementLength - originalLength),
-        &p);
-    env->count = HeapBoxUint(replacements);
+    HeapSetFutureValue(env->result, HeapCreateUninitialisedString(
+                           dataLength + replacements * (replacementLength - originalLength), &p));
+    HeapSetFutureValue(env->count, HeapBoxUint(replacements));
     offset = 0;
     while (replacements--)
     {
@@ -756,12 +755,13 @@ typedef struct
     vref file;
 } RmEnv;
 
-static void nativePreRm(RmEnv *env)
+static bool nativePreRm(RmEnv *env)
 {
     env->work.modifiedFiles = env->file;
+    return false;
 }
 
-static bool nativeRm(RmEnv *env)
+static bool nativeRm(const RmEnv *env)
 {
     const char *path;
     size_t length;
@@ -787,14 +787,15 @@ typedef struct
     vref accessedFiles;
 } SetUptodateEnv;
 
-static void nativePreSetUptodate(SetUptodateEnv *env)
+static bool nativePreSetUptodate(SetUptodateEnv *env)
 {
     /* Marking the cache file as accessed should prevent the entry from being
      * marked uptodate before all previous commands on it has completed. */
     env->work.accessedFiles = env->cacheFile;
+    return false;
 }
 
-static bool nativeSetUptodate(SetUptodateEnv *env)
+static bool nativeSetUptodate(const SetUptodateEnv *env)
 {
     const char *path;
     size_t length;
@@ -821,8 +822,9 @@ typedef struct
     vref result;
 } SizeEnv;
 
-static bool nativeSize(SizeEnv *env)
+static bool nativeSize(const SizeEnv *env)
 {
+    vref result;
     if (HeapIsFutureValue(env->value))
     {
         return false;
@@ -831,13 +833,14 @@ static bool nativeSize(SizeEnv *env)
     if (HeapIsCollection(env->value))
     {
         assert(VCollectionSize(env->value) <= INT_MAX);
-        env->result = HeapBoxSize(VCollectionSize(env->value));
+        result = HeapBoxSize(VCollectionSize(env->value));
     }
     else
     {
         assert(HeapIsString(env->value));
-        env->result = HeapBoxSize(VStringLength(env->value));
+        result = HeapBoxSize(VStringLength(env->value));
     }
+    HeapSetFutureValue(env->result, result);
     return true;
 }
 
@@ -852,12 +855,13 @@ typedef struct
     vref result;
 } SplitEnv;
 
-static void nativePreSplit(SplitEnv *env)
+static bool nativePreSplit(SplitEnv *env)
 {
     env->work.accessedFiles = env->value;
+    return false;
 }
 
-static bool nativeSplit(SplitEnv *env)
+static bool nativeSplit(const SplitEnv *env)
 {
     vref data;
 
@@ -871,8 +875,8 @@ static bool nativeSplit(SplitEnv *env)
     data = HeapIsFile(env->value) ? readFile(env->value, 0) : env->value;
     assert(HeapIsString(data));
     assert(HeapIsString(env->delimiter) || HeapIsCollection(env->delimiter));
-    env->result = HeapSplit(data, env->delimiter, VIsTruthy(env->removeEmpty),
-                            false);
+    HeapSetFutureValue(env->result,
+                       HeapSplit(data, env->delimiter, VIsTruthy(env->removeEmpty), false));
     return true;
 }
 
@@ -884,12 +888,13 @@ typedef struct
     vref data;
 } WriteFileEnv;
 
-static void nativePreWriteFile(WriteFileEnv *env)
+static bool nativePreWriteFile(WriteFileEnv *env)
 {
     env->work.modifiedFiles = env->file;
+    return false;
 }
 
-static bool nativeWriteFile(WriteFileEnv *env)
+static bool nativeWriteFile(const WriteFileEnv *env)
 {
     const char *path;
     size_t pathLength;
@@ -937,7 +942,7 @@ void NativeInit(void)
 {
     addFunctionInfo("cp",          (preInvoke)nativePreCp,          (invoke)nativeCp,          2, 0);
     addFunctionInfo("echo",        null,                            (invoke)nativeEcho,        2, 0);
-    addFunctionInfo("exec",        (preInvoke)nativePreExec,        (invoke)nativeExec,        6, 3);
+    addFunctionInfo("exec",        (preInvoke)nativePreExec,        (invoke)nativeExec,        6, 4);
     addFunctionInfo("fail",        null,                            (invoke)nativeFail,        1, 0);
     addFunctionInfo("file",        null,                            (invoke)nativeFile,        3, 1);
     addFunctionInfo("filename",    null,                            (invoke)nativeFilename,    1, 1);
@@ -947,7 +952,7 @@ void NativeInit(void)
     addFunctionInfo("indexOf",     null,                            (invoke)nativeIndexOf,     2, 1);
     addFunctionInfo("lines",       (preInvoke)nativePreLines,       (invoke)nativeLines,       2, 1);
     addFunctionInfo("mv",          (preInvoke)nativePreMv,          (invoke)nativeMv,          2, 0);
-    addFunctionInfo("pid",         null,                            (invoke)nativePid,         0, 1);
+    addFunctionInfo("pid",         (preInvoke)nativePrePid,         null,                      0, 1);
     addFunctionInfo("readFile",    (preInvoke)nativePreReadFile,    (invoke)nativeReadFile,    2, 1);
     addFunctionInfo("replace",     null,                            (invoke)nativeReplace,     3, 2);
     addFunctionInfo("rm",          (preInvoke)nativePreRm,          (invoke)nativeRm,          1, 0);
@@ -957,7 +962,7 @@ void NativeInit(void)
     addFunctionInfo("writeFile",   (preInvoke)nativePreWriteFile,   (invoke)nativeWriteFile,   2, 0);
 }
 
-void NativeInvoke(VM *vm, nativefunctionref function)
+vref NativeInvoke(VM *vm, nativefunctionref function)
 {
     const FunctionInfo *info = getFunctionInfo(function);
     vref *p;
@@ -981,27 +986,27 @@ void NativeInvoke(VM *vm, nativefunctionref function)
     }
     if (info->preFunction)
     {
-        info->preFunction(&env);
-    }
-    if (env.work.accessedFiles || env.work.modifiedFiles ||
-        !info->function(&env))
-    {
-        for (i = info->returnValueCount, p = env.values + info->parameterCount;
-             i;
-             i--, p++)
+        if (info->preFunction(&env))
         {
-            if (!*p)
-            {
-                *p = HeapCreateFutureValue();
-            }
+            goto done;
         }
+    }
+    for (i = info->returnValueCount, p = env.values + info->parameterCount; i; i--, p++)
+    {
+        if (!*p)
+        {
+            *p = HeapCreateFutureValue();
+        }
+    }
+    /* if (env.work.accessedFiles || env.work.modifiedFiles || !info->function(&env)) */
+    {
         env.work.function = function;
         WorkAdd(&env.work);
     }
-    for (i = 0; i < info->returnValueCount; i++)
-    {
-        VMStoreValue(vm, *vm->ip++, env.values[info->parameterCount + i]);
-    }
+done:
+    return info->returnValueCount > 1 ?
+        HeapCreateArrayFromData(env.values + info->parameterCount, info->returnValueCount) :
+        env.values[info->parameterCount];
 }
 
 void NativeWork(Work *work)

@@ -485,10 +485,9 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
         {
             nativefunctionref nativeFunction = refFromInt(arg);
             uint argumentCount = NativeGetParameterCount(nativeFunction);
-            uint returnValueCount = NativeGetReturnValueCount(nativeFunction);
-            write = IVGetAppendPointer(&state.out, argumentCount + returnValueCount + 1);
+            write = IVGetAppendPointer(&state.out, argumentCount + 2);
             *write++ = OP_INVOKE_NATIVE | (arg << 8);
-            linkVariables(&state, &read, write, argumentCount + returnValueCount);
+            linkVariables(&state, &read, write, argumentCount + 1);
             break;
         }
 

@@ -179,8 +179,8 @@ static void execute(VM *vm)
             break;
 
         case OP_ITER_GET:
-            value = loadValue(vm, vm->bp, *ip++);
-            condition = HeapCollectionGet(loadValue(vm, vm->bp, arg), value, &value);
+            value = HeapWait(loadValue(vm, vm->bp, *ip++));
+            condition = HeapCollectionGet(HeapWait(loadValue(vm, vm->bp, arg)), value, &value);
             storeValue(vm, vm->bp, *ip++, value);
             storeValue(vm, vm->bp, *ip++, condition ? HeapTrue : HeapFalse);
             break;
@@ -304,7 +304,8 @@ static void execute(VM *vm)
         case OP_INVOKE_NATIVE:
             nativeFunction = refFromInt(arg);
             vm->ip = ip;
-            NativeInvoke(vm, nativeFunction);
+            value = NativeInvoke(vm, nativeFunction);
+            storeValue(vm, vm->bp, *vm->ip++, value);
             return;
 
         case OP_FUNCTION:

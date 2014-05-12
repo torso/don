@@ -1,9 +1,9 @@
-#define NATIVE_MAX_VALUES 9
+#define NATIVE_MAX_VALUES 10
 
 struct _Work;
 
 extern void NativeInit(void);
-extern nonnull void NativeInvoke(VM *vm, nativefunctionref function);
+extern nonnull vref NativeInvoke(VM *vm, nativefunctionref function);
 extern nonnull void NativeWork(struct _Work *work);
 extern nativefunctionref NativeFindFunction(vref name);
 extern vref NativeGetName(nativefunctionref function);
