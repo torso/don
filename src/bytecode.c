@@ -232,9 +232,7 @@ static const int *disassemble(const int *bytecode, const int *base)
         break;
 
     case OP_CONCAT_LIST:
-        fputs("concat_list ", stdout);
-        printValue(&bytecode);
-        fputs(",", stdout);
+        printf("concat_list #%d,", arg);
         printValue(&bytecode);
         fputs(" -> ", stdout);
         printValue(&bytecode);
