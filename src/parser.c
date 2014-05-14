@@ -241,7 +241,7 @@ static void storeConstant(ParseState *state, vref value, int variable)
 
 static int variableFromConstant(ParseState *state, vref value)
 {
-    IVAddRef(state->constants, value);
+    IVAdd(state->constants, intFromRef(value));
     return -(int)IVSize(state->constants);
 }
 
@@ -904,7 +904,7 @@ static int parseDollarExpressionRest(ParseState *state)
     state->current++;
     if (peekIdentifier(state))
     {
-        IVAddRef(&temp, readVariableName(state));
+        IVAdd(&temp, intFromRef(readVariableName(state)));
         return NO_ERROR;
     }
     if (likely(*state->current == '('))
@@ -1146,7 +1146,7 @@ static bool parseListRest(ParseState *state, ExpressionState *estate)
         {
             if (estate2.expressionType == EXPRESSION_CONSTANT)
             {
-                IVAddRef(&temp, estate2.constant);
+                IVAdd(&temp, intFromRef(estate2.constant));
             }
             else
             {
@@ -1429,7 +1429,7 @@ static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref
             {
                 for (;;)
                 {
-                    IVAddRef(&temp, estateArgument.identifier);
+                    IVAdd(&temp, intFromRef(estateArgument.identifier));
                     estateArgument.identifier = 0;
                     skipWhitespaceAndNewline(state);
                     value = parseRValue(state, false, true);

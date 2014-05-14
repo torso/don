@@ -101,7 +101,7 @@ int main(int argc, const char **argv)
         else
         {
             name = StringPoolAdd(argv[i]);
-            IVAddRef(&targets, name);
+            IVAdd(&targets, intFromRef(name));
         }
     }
     if (inputFilename)
@@ -151,7 +151,7 @@ int main(int argc, const char **argv)
     if (!IVSize(&targets))
     {
         name = StringPoolAdd("default");
-        IVAddRef(&targets, name);
+        IVAdd(&targets, intFromRef(name));
     }
 
     NamespaceInit();
@@ -195,7 +195,7 @@ int main(int argc, const char **argv)
     fail = false;
     for (j = 0; j < IVSize(&targets); j++)
     {
-        name = IVGetRef(&targets, j);
+        name = refFromInt(IVGet(&targets, j));
         if (NamespaceGetTarget(defaultNamespace, name) < 0)
         {
             fprintf(stderr, "'%s' is not a target.\n", HeapGetString(name));
@@ -212,7 +212,9 @@ int main(int argc, const char **argv)
     WorkInit();
     for (j = 0; j < IVSize(&targets); j++)
     {
-        InterpreterExecute(&linked, linked.functions[NamespaceGetTarget(defaultNamespace, IVGetRef(&targets, j))]);
+        InterpreterExecute(
+            &linked, linked.functions[NamespaceGetTarget(defaultNamespace,
+                                                         refFromInt(IVGet(&targets, j)))]);
     }
 
 #ifdef VALGRIND

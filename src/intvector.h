@@ -9,11 +9,6 @@
 #undef VECTOR_FUNC
 
 #define IVAddUint(v, value) IVAdd(v, (int)(value))
-#define IVAddRef(v, value) IVAdd(v, intFromRef(value))
-#define IVGetRef(v, index) refFromInt(IVGet((v), (index)))
 #define IVSetUint(v, index, value) IVSet((v), (index), (int)(value))
-#define IVSetRef(v, index, value) IVSet((v), (index), intFromRef(value))
-#define IVPeekRef(v) refFromInt(IVPeek(v))
-#define IVPopRef(v) refFromInt(IVPop(v))
 
 extern nonnull void IVAppendString(intvector *v, const char *string, size_t length);

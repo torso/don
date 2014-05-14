@@ -46,7 +46,7 @@ static vref loadValue(VM *vm, int bp, int variable)
 {
     if (variable >= 0)
     {
-        return IVGetRef(&vm->stack, (size_t)(bp + variable));
+        return refFromInt(IVGet(&vm->stack, (size_t)(bp + variable)));
     }
     if (-variable <= vm->constantCount)
     {
@@ -59,7 +59,7 @@ static void storeValue(VM *vm, int bp, int variable, vref value)
 {
     if (variable >= 0)
     {
-        IVSetRef(&vm->stack, (size_t)(bp + variable), value);
+        IVSet(&vm->stack, (size_t)(bp + variable), intFromRef(value));
         return;
     }
     assert(-variable > vm->constantCount);

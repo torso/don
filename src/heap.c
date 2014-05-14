@@ -1076,8 +1076,8 @@ continueMatching:
             {
                 if (offset != lastOffset || !removeEmpty)
                 {
-                    IVAddRef(&substrings,
-                             HeapCreateSubstring(string, lastOffset, offset - lastOffset));
+                    IVAdd(&substrings,
+                          intFromRef(HeapCreateSubstring(string, lastOffset, offset - lastOffset)));
                 }
                 offset += delimiterLength;
                 lastOffset = offset;
@@ -1089,9 +1089,8 @@ continueMatching:
     }
     if (length != lastOffset || !(removeEmpty || trimLastIfEmpty))
     {
-        IVAddRef(&substrings,
-                 HeapCreateSubstring(string, lastOffset,
-                                     length - lastOffset));
+        IVAdd(&substrings, intFromRef(HeapCreateSubstring(string, lastOffset,
+                                                          length - lastOffset)));
     }
     value = VCreateArrayFromVector(&substrings);
     IVDispose(&substrings);

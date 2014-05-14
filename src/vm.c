@@ -85,7 +85,7 @@ vref VMReadValue(VM *vm)
     int variable = *vm->ip++;
     if (variable >= 0)
     {
-        return IVGetRef(&vm->stack, (size_t)(vm->bp + variable));
+        return refFromInt(IVGet(&vm->stack, (size_t)(vm->bp + variable)));
     }
     if (-variable <= vm->constantCount)
     {
@@ -98,7 +98,7 @@ void VMStoreValue(VM *vm, int variable, vref value)
 {
     if (variable >= 0)
     {
-        IVSetRef(&vm->stack, (size_t)(vm->bp + variable), value);
+        IVSet(&vm->stack, (size_t)(vm->bp + variable), intFromRef(value));
         return;
     }
     assert(-variable > vm->constantCount);
