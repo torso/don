@@ -49,13 +49,13 @@ static bool addStringsLength(vref collection, uint *count, size_t *size)
 {
     size_t index;
     vref value;
-    for (index = 0; HeapCollectionGet(collection, HeapBoxSize(index++), &value);)
+    for (index = 0; VCollectionGet(collection, HeapBoxSize(index++), &value);)
     {
         if (HeapIsFutureValue(value))
         {
             return false;
         }
-        if (HeapIsCollection(value))
+        if (VIsCollection(value))
         {
             if (!addStringsLength(value, count, size))
             {
@@ -75,9 +75,9 @@ static void writeStrings(vref collection, char ***table, char **stringData)
 {
     size_t index;
     vref value;
-    for (index = 0; HeapCollectionGet(collection, HeapBoxSize(index++), &value);)
+    for (index = 0; VCollectionGet(collection, HeapBoxSize(index++), &value);)
     {
-        if (HeapIsCollection(value))
+        if (VIsCollection(value))
         {
             writeStrings(value, table, stringData);
         }
@@ -100,7 +100,7 @@ static char **createStringArray(vref collection)
     char **table;
     char *stringData;
 
-    assert(HeapIsCollection(collection));
+    assert(VIsCollection(collection));
     assert(VCollectionSize(collection));
 
     if (!addStringsLength(collection, &count, &size))
@@ -348,8 +348,7 @@ static bool nativeExec(const ExecEnv *env)
     }
 
     assert(!HeapIsFutureValue(env->work.modifiedFiles));
-    for (index = 0; HeapCollectionGet(env->work.modifiedFiles,
-                                      HeapBoxSize(index++), &value);)
+    for (index = 0; VCollectionGet(env->work.modifiedFiles, HeapBoxSize(index++), &value);)
     {
         assert(!HeapIsFutureValue(value));
         path = HeapGetPath(value, &length);
@@ -620,7 +619,7 @@ static bool nativePreMv(MvEnv *env)
     files[0] = env->src;
     files[1] = env->dst;
     /* TODO: Don't reallocate array if it exists. */
-    env->work.modifiedFiles = HeapCreateArrayFromData(files, 2);
+    env->work.modifiedFiles = VCreateArrayFromData(files, 2);
     return false;
 }
 
@@ -830,7 +829,7 @@ static bool nativeSize(const SizeEnv *env)
         return false;
     }
 
-    if (HeapIsCollection(env->value))
+    if (VIsCollection(env->value))
     {
         assert(VCollectionSize(env->value) <= INT_MAX);
         result = HeapBoxSize(VCollectionSize(env->value));
@@ -874,7 +873,7 @@ static bool nativeSplit(const SplitEnv *env)
 
     data = HeapIsFile(env->value) ? readFile(env->value, 0) : env->value;
     assert(HeapIsString(data));
-    assert(HeapIsString(env->delimiter) || HeapIsCollection(env->delimiter));
+    assert(HeapIsString(env->delimiter) || VIsCollection(env->delimiter));
     HeapSetFutureValue(env->result,
                        HeapSplit(data, env->delimiter, VIsTruthy(env->removeEmpty), false));
     return true;
@@ -1005,7 +1004,7 @@ vref NativeInvoke(VM *vm, nativefunctionref function)
     }
 done:
     return info->returnValueCount > 1 ?
-        HeapCreateArrayFromData(env.values + info->parameterCount, info->returnValueCount) :
+        VCreateArrayFromData(env.values + info->parameterCount, info->returnValueCount) :
         env.values[info->parameterCount];
 }
 

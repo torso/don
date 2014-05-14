@@ -147,12 +147,12 @@ static void execute(VM *vm)
             vref *array;
             vref *write;
             assert(arg);
-            array = HeapCreateArray((size_t)arg);
+            array = VCreateArray((size_t)arg);
             for (write = array; arg--; write++)
             {
                 *write = loadValue(vm, vm->bp, *ip++);
             }
-            storeValue(vm, vm->bp, *ip++, HeapFinishArray(array));
+            storeValue(vm, vm->bp, *ip++, VFinishArray(array));
             break;
         }
 
@@ -180,7 +180,7 @@ static void execute(VM *vm)
 
         case OP_ITER_GET:
             value = HeapWait(loadValue(vm, vm->bp, *ip++));
-            condition = HeapCollectionGet(HeapWait(loadValue(vm, vm->bp, arg)), value, &value);
+            condition = VCollectionGet(HeapWait(loadValue(vm, vm->bp, arg)), value, &value);
             storeValue(vm, vm->bp, *ip++, value);
             storeValue(vm, vm->bp, *ip++, condition ? HeapTrue : HeapFalse);
             break;

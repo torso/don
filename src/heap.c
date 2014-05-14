@@ -46,7 +46,7 @@ static void checkObject(vref object)
 }
 
 
-static byte *heapAlloc(VType type, size_t size)
+byte *HeapAlloc(VType type, size_t size)
 {
     uint *objectData = (uint*)HeapPageFree;
     assert(size < INT_MAX); /* TODO */
@@ -57,7 +57,7 @@ static byte *heapAlloc(VType type, size_t size)
     return (byte*)objectData;
 }
 
-static vref heapFinishAlloc(byte *objectData)
+vref HeapFinishAlloc(byte *objectData)
 {
     return refFromSize((size_t)(HeapPageOffset + objectData - OBJECT_OVERHEAD - HeapPageBase));
 }
@@ -69,7 +69,7 @@ static vref heapFinishRealloc(byte *objectData, size_t size)
     assert(HeapPageFree == objectData);
     *(uint*)(objectData - OBJECT_OVERHEAD) = (uint)size;
     HeapPageFree += size;
-    return heapFinishAlloc(objectData);
+    return HeapFinishAlloc(objectData);
 }
 
 static void heapAllocAbort(byte *objectData)
@@ -106,9 +106,9 @@ static pureconst bool isInteger(vref object)
 
 static vref boxReference(VType type, ref_t value)
 {
-    byte *objectData = heapAlloc(type, sizeof(ref_t));
+    byte *objectData = HeapAlloc(type, sizeof(ref_t));
     *(ref_t*)objectData = value;
-    return heapFinishAlloc(objectData);
+    return HeapFinishAlloc(objectData);
 }
 
 static ref_t unboxReference(VType type, vref object)
@@ -165,31 +165,6 @@ static const char *toString(vref object, bool *copy)
 }
 
 
-static bool isCollectionType(VType type)
-{
-    switch (type)
-    {
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
-    case TYPE_SUBSTRING:
-    case TYPE_FILE:
-        return false;
-
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-    case TYPE_CONCAT_LIST:
-        return true;
-
-    case TYPE_FUTURE:
-    case TYPE_INVALID:
-        break;
-    }
-    unreachable;
-}
-
 void HeapGet(vref v, HeapObject *ho)
 {
     checkObject(v);
@@ -221,14 +196,14 @@ void HeapInit(void)
     HeapPageOffset = 0;
     StringPoolInit();
     ParserAddKeywords();
-    HeapTrue = heapFinishAlloc(heapAlloc(TYPE_BOOLEAN_TRUE, 0));
-    HeapFalse = heapFinishAlloc(heapAlloc(TYPE_BOOLEAN_FALSE, 0));
-    p = heapAlloc(TYPE_STRING, 1);
+    HeapTrue = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_TRUE, 0));
+    HeapFalse = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_FALSE, 0));
+    p = HeapAlloc(TYPE_STRING, 1);
     *p = 0;
-    HeapEmptyString = heapFinishAlloc(p);
-    HeapEmptyList = heapFinishAlloc(heapAlloc(TYPE_ARRAY, 0));
+    HeapEmptyString = HeapFinishAlloc(p);
+    HeapEmptyList = HeapFinishAlloc(HeapAlloc(TYPE_ARRAY, 0));
     HeapNewline = HeapCreateString("\n", 1);
-    HeapInvalid = heapFinishAlloc(heapAlloc(TYPE_INVALID, 0));
+    HeapInvalid = HeapFinishAlloc(HeapAlloc(TYPE_INVALID, 0));
 }
 
 void HeapDispose(void)
@@ -362,7 +337,7 @@ void HeapHash(vref object, HashState *hash)
     case TYPE_CONCAT_LIST:
         value = TYPE_ARRAY;
         HashUpdate(hash, &value, 1);
-        for (index = 0; HeapCollectionGet(object, HeapBoxSize(index++), &item);)
+        for (index = 0; VCollectionGet(object, HeapBoxSize(index++), &item);)
         {
             /* TODO: Avoid recursion */
             HeapHash(item, hash);
@@ -419,7 +394,7 @@ bool HeapEquals(vref object1, vref object2)
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
-        if (!HeapIsCollection(object2))
+        if (!VIsCollection(object2))
         {
             return false;
         }
@@ -432,8 +407,8 @@ bool HeapEquals(vref object1, vref object2)
         for (index = 0; index < size1; index++)
         {
             success =
-                HeapCollectionGet(object1, HeapBoxSize(index), &item1) &&
-                HeapCollectionGet(object2, HeapBoxSize(index), &item2);
+                VCollectionGet(object1, HeapBoxSize(index), &item1) &&
+                VCollectionGet(object2, HeapBoxSize(index), &item2);
             assert(success);
             if (!HeapEquals(item1, item2))
             {
@@ -512,20 +487,20 @@ vref HeapCreateString(const char *restrict string, size_t length)
         return HeapEmptyString;
     }
 
-    objectData = heapAlloc(TYPE_STRING, length + 1);
+    objectData = HeapAlloc(TYPE_STRING, length + 1);
     memcpy(objectData, string, length);
     objectData[length] = 0;
-    return heapFinishAlloc(objectData);
+    return HeapFinishAlloc(objectData);
 }
 
 vref HeapCreateUninitialisedString(size_t length, char **data)
 {
     byte *objectData;
     assert(length);
-    objectData = heapAlloc(TYPE_STRING, length + 1);
+    objectData = HeapAlloc(TYPE_STRING, length + 1);
     objectData[length] = 0;
     *(byte**)data = objectData;
-    return heapFinishAlloc(objectData);
+    return HeapFinishAlloc(objectData);
 }
 
 vref HeapCreateWrappedString(const char *restrict string,
@@ -537,10 +512,10 @@ vref HeapCreateWrappedString(const char *restrict string,
     {
         return HeapEmptyString;
     }
-    data = heapAlloc(TYPE_STRING_WRAPPED, sizeof(char*) + sizeof(size_t));
+    data = HeapAlloc(TYPE_STRING_WRAPPED, sizeof(char*) + sizeof(size_t));
     *(const char**)data = string;
     *(size_t*)&data[sizeof(char*)] = length;
-    return heapFinishAlloc(data);
+    return HeapFinishAlloc(data);
 }
 
 vref HeapCreateSubstring(vref string, size_t offset, size_t length)
@@ -584,17 +559,17 @@ vref HeapCreateSubstring(vref string, size_t offset, size_t length)
     case TYPE_INVALID:
         unreachable;
     }
-    data = heapAlloc(TYPE_SUBSTRING, sizeof(SubString));
+    data = HeapAlloc(TYPE_SUBSTRING, sizeof(SubString));
     ss = (SubString*)data;
     ss->string = string;
     ss->offset = offset;
     ss->length = length;
-    return heapFinishAlloc(data);
+    return HeapFinishAlloc(data);
 }
 
 vref HeapCreateStringFormatted(const char *format, va_list ap)
 {
-    char *data = (char*)heapAlloc(TYPE_STRING, 0);
+    char *data = (char*)HeapAlloc(TYPE_STRING, 0);
     char *start = data;
     while (*format)
     {
@@ -860,7 +835,7 @@ static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
         {
             vref v = HeapTryWait(*src++);
             assert(!HeapIsFutureValue(v)); /* TODO */
-            if (HeapIsCollection(v))
+            if (VIsCollection(v))
             {
                 size_t s = 0;
                 *flattened = true;
@@ -917,10 +892,10 @@ vref HeapCreateFilelist(vref value)
     for (;;)
     {
         VType type = HeapGetObjectType(value);
-        if (!isCollectionType(type))
+        if (!VIsCollectionType(type))
         {
             value = HeapCreatePath(value);
-            return HeapCreateArrayFromData(&value, 1);
+            return VCreateArrayFromData(&value, 1);
         }
         size = VCollectionSize(value);
         if (!size)
@@ -931,10 +906,10 @@ vref HeapCreateFilelist(vref value)
         {
             break;
         }
-        HeapCollectionGet(value, HeapBoxInteger(0), &value);
+        VCollectionGet(value, HeapBoxInteger(0), &value);
     }
 
-    data = (vref*)heapAlloc(TYPE_ARRAY, 0);
+    data = (vref*)HeapAlloc(TYPE_ARRAY, 0);
     size = 0;
     getAllFlattened(value, data, &size, &converted);
     if (!size)
@@ -979,7 +954,7 @@ vref HeapCreateFilelistGlob(const char *pattern, size_t length)
     {
         return HeapEmptyList;
     }
-    array = HeapCreateArray(count); /* TODO: Filelist type */
+    array = VCreateArray(count); /* TODO: Filelist type */
     files = array;
     while (count--)
     {
@@ -990,7 +965,7 @@ vref HeapCreateFilelistGlob(const char *pattern, size_t length)
         object = heapNext(object);
     }
     /* TODO: Sort filelist */
-    return HeapFinishArray(array);
+    return VFinishArray(array);
 }
 
 
@@ -1003,11 +978,11 @@ vref HeapCreateRange(vref lowObject, vref highObject)
 
     assert(low <= high); /* TODO: Reverse range */
     assert(!subOverflow(high, low));
-    objectData = heapAlloc(TYPE_INTEGER_RANGE, 2 * sizeof(int));
+    objectData = HeapAlloc(TYPE_INTEGER_RANGE, 2 * sizeof(int));
     p = (int*)objectData;
     p[0] = low;
     p[1] = high;
-    return heapFinishAlloc(objectData);
+    return HeapFinishAlloc(objectData);
 }
 
 bool HeapIsRange(vref object)
@@ -1046,7 +1021,7 @@ vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
     {
         return HeapEmptyList;
     }
-    if (HeapIsCollection(delimiter))
+    if (VIsCollection(delimiter))
     {
         size_t i;
         delimiterCount = VCollectionSize(delimiter);
@@ -1054,7 +1029,7 @@ vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
         {
             vref s;
             size_t delimiterLength;
-            HeapCollectionGet(delimiter, HeapBoxSize(i), &s);
+            VCollectionGet(delimiter, HeapBoxSize(i), &s);
             delimiterLength = VStringLength(s);
             assert(delimiterLength <= INT_MAX);
             if (!delimiterLength || delimiterLength > length)
@@ -1068,7 +1043,7 @@ vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
         }
         if (IVSize(&ivtemp) == oldTempSize)
         {
-            return HeapCreateArrayFromData(&string, 1);
+            return VCreateArrayFromData(&string, 1);
         }
     }
     else
@@ -1077,7 +1052,7 @@ vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
         assert(delimiterLength <= INT_MAX);
         if (!delimiterLength || delimiterLength > length)
         {
-            return HeapCreateArrayFromData(&string, 1);
+            return VCreateArrayFromData(&string, 1);
         }
         IVAdd(&ivtemp, (int)delimiterLength);
         VWriteString(delimiter, (char*)IVGetAppendPointer(
@@ -1118,142 +1093,10 @@ continueMatching:
                  HeapCreateSubstring(string, lastOffset,
                                      length - lastOffset));
     }
-    value = HeapCreateArrayFromVector(&substrings);
+    value = VCreateArrayFromVector(&substrings);
     IVDispose(&substrings);
     IVSetSize(&ivtemp, oldTempSize);
     return value;
-}
-
-
-vref *HeapCreateArray(size_t size)
-{
-    return (vref*)heapAlloc(TYPE_ARRAY, size * sizeof(vref));
-}
-
-vref HeapFinishArray(vref *array)
-{
-    return heapFinishAlloc((byte*)array);
-}
-
-vref HeapCreateArrayFromData(const vref *values, size_t size)
-{
-    byte *data;
-    size *= sizeof(vref);
-    data = heapAlloc(TYPE_ARRAY, size);
-    memcpy(data, values, size);
-    return heapFinishAlloc(data);
-}
-
-vref HeapCreateArrayFromVector(const intvector *values)
-{
-    return HeapCreateArrayFromVectorSegment(values, 0, IVSize(values));
-}
-
-vref HeapCreateArrayFromVectorSegment(const intvector *values,
-                                      size_t start, size_t length)
-{
-    if (!length)
-    {
-        return HeapEmptyList;
-    }
-    return HeapCreateArrayFromData((const vref*)IVGetPointer(values, start), length);
-}
-
-vref HeapConcatList(vref list1, vref list2)
-{
-    byte *data;
-    vref *subLists;
-
-    assert(HeapIsCollection(list1));
-    assert(HeapIsCollection(list2));
-    if (!VCollectionSize(list1))
-    {
-        return list2;
-    }
-    if (!VCollectionSize(list2))
-    {
-        return list1;
-    }
-    data = heapAlloc(TYPE_CONCAT_LIST, sizeof(vref) * 2);
-    subLists = (vref*)data;
-    subLists[0] = list1;
-    subLists[1] = list2;
-    return heapFinishAlloc(data);
-}
-
-bool HeapIsCollection(vref object)
-{
-    return isCollectionType(HeapGetObjectType(object));
-}
-
-bool HeapCollectionGet(vref object, vref indexObject,
-                       vref *restrict value)
-{
-    const vref *restrict limit;
-    const int *restrict intData;
-    ssize_t i;
-    size_t index;
-    size_t size;
-
-    assert(!HeapIsFutureValue(object));
-    assert(!HeapIsFutureValue(indexObject));
-
-    i = HeapUnboxInteger(indexObject);
-    if (i < 0)
-    {
-        return false;
-    }
-    index = (size_t)i;
-    if (index >= VCollectionSize(object))
-    {
-        return false;
-    }
-    switch (HeapGetObjectType(object))
-    {
-    case TYPE_ARRAY:
-    {
-        vref *restrict data = (vref*)HeapGetObjectData(object);
-        *value = data[index] = HeapTryWait(data[index]);
-        return true;
-    }
-
-    case TYPE_INTEGER_RANGE:
-        intData = (const int *)HeapGetObjectData(object);
-        assert(i <= INT_MAX - 1);
-        assert(!addOverflow((int)i, intData[0]));
-        *value = HeapBoxInteger((int)i + intData[0]);
-        return true;
-
-    case TYPE_CONCAT_LIST:
-    {
-        const vref *restrict data = (const vref*)HeapGetObjectData(object);
-        limit = data + HeapGetObjectSize(object);
-        while (data < limit)
-        {
-            size = VCollectionSize(*data);
-            if (index < size)
-            {
-                assert(index <= INT_MAX);
-                return HeapCollectionGet(*data, HeapBoxSize(index), value);
-            }
-            index -= size;
-            data++;
-        }
-        return false;
-    }
-
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
-    case TYPE_SUBSTRING:
-    case TYPE_FILE:
-    case TYPE_FUTURE:
-    case TYPE_INVALID:
-        break;
-    }
-    unreachable;
 }
 
 
@@ -1459,7 +1302,7 @@ static vref executeBinary(Instruction op,
                               HeapUnboxInteger(value1));
 
     case OP_CONCAT_LIST:
-        return HeapConcatList(value2, value1);
+        return VConcatList(value2, value1);
 
     case OP_INDEXED_ACCESS:
         if (HeapIsString(value2))
@@ -1480,7 +1323,7 @@ static vref executeBinary(Instruction op,
         {
             assert(HeapUnboxInteger(value1) >= 0);
             assert((size_t)HeapUnboxInteger(value1) < VCollectionSize(value2));
-            if (!HeapCollectionGet(value2, value1, &value1))
+            if (!VCollectionGet(value2, value1, &value1))
             {
                 assert(false);
                 return 0;
@@ -1536,11 +1379,11 @@ bool HeapIsFutureValue(vref object)
 
 vref HeapCreateFutureValue(void)
 {
-    byte *data = heapAlloc(TYPE_FUTURE, sizeof(FutureValueUnary));
+    byte *data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueUnary));
     FutureValueUnary *future = (FutureValueUnary*)data;
     future->value = 0;
     future->op = OP_UNKNOWN_VALUE;
-    return heapFinishAlloc(data);
+    return HeapFinishAlloc(data);
 }
 
 void HeapSetFutureValue(vref object, vref value)
@@ -1610,11 +1453,11 @@ vref HeapApplyUnary(Instruction op, vref value)
     value = HeapTryWait(value);
     if (HeapIsFutureValue(value))
     {
-        data = heapAlloc(TYPE_FUTURE, sizeof(FutureValueUnary));
+        data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueUnary));
         future = (FutureValueUnary*)data;
         future->value = value;
         future->op = op;
-        return heapFinishAlloc(data);
+        return HeapFinishAlloc(data);
     }
     return executeUnary(op, value);
 }
@@ -1629,12 +1472,12 @@ vref HeapApplyBinary(Instruction op,
     value2 = HeapTryWait(value2);
     if (HeapIsFutureValue(value1) || HeapIsFutureValue(value2))
     {
-        data = heapAlloc(TYPE_FUTURE, sizeof(FutureValueBinary));
+        data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueBinary));
         future = (FutureValueBinary*)data;
         future->value1 = value1;
         future->value2 = value2;
         future->op = op;
-        return heapFinishAlloc(data);
+        return HeapFinishAlloc(data);
     }
     return executeBinary(op, value1, value2);
 }

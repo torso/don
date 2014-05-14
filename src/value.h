@@ -50,4 +50,21 @@ extern size_t VStringLength(vref value);
 extern nonnull char *VWriteString(vref value, char *dst);
 
 
+extern nonnull vref *VCreateArray(size_t size);
+extern nonnull vref VFinishArray(vref *array);
+extern nonnull vref VCreateArrayFromData(const vref *values, size_t size);
+extern nonnull vref VCreateArrayFromVector(const intvector *values);
+extern nonnull vref VCreateArrayFromVectorSegment(const intvector *values,
+                                                  size_t start, size_t length);
+extern nonnull vref VConcatList(vref list1, vref list2);
+extern pureconst bool VIsCollectionType(VType type);
+extern nonnull bool VIsCollection(vref object);
 extern size_t VCollectionSize(vref value);
+
+/*
+  Reads one value from the collection and returns it. The key is stored in
+  [*type, *value], and the read value will overwrite them.
+
+  Returns true if successful.
+*/
+extern nonnull bool VCollectionGet(vref object, vref indexObject, vref *value);

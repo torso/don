@@ -1181,7 +1181,7 @@ error:
     }
     if (constant)
     {
-        parsedConstant(estate, HeapCreateArrayFromVectorSegment(
+        parsedConstant(estate, VCreateArrayFromVectorSegment(
                            &temp, oldTempSize, IVSize(&temp) - oldTempSize));
     }
     else
@@ -1387,7 +1387,7 @@ itemParsed:
 done:
     if (constant)
     {
-        parsedConstant(estate, HeapCreateArrayFromVectorSegment(
+        parsedConstant(estate, VCreateArrayFromVectorSegment(
                            &temp, oldTempSize, IVSize(&temp) - oldTempSize));
     }
     else

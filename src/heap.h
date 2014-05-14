@@ -32,6 +32,9 @@ extern vref HeapInvalid;
 extern void HeapInit(void);
 extern void HeapDispose(void);
 
+extern byte *HeapAlloc(VType type, size_t size);
+extern nonnull vref HeapFinishAlloc(byte *objectData);
+
 extern nonnull void HeapGet(vref v, HeapObject *ho);
 extern nonnull char *HeapDebug(vref object, bool address);
 extern nonnull VType HeapGetObjectType(vref object);
@@ -95,23 +98,6 @@ extern nonnull vref HeapRangeHigh(vref range);
 
 
 extern nonnull vref HeapSplit(vref string, vref delimiter, bool removeEmpty, bool trimLastIfEmpty);
-
-extern nonnull vref *HeapCreateArray(size_t size);
-extern nonnull vref HeapFinishArray(vref *array);
-extern nonnull vref HeapCreateArrayFromData(const vref *values, size_t size);
-extern nonnull vref HeapCreateArrayFromVector(const intvector *values);
-extern nonnull vref HeapCreateArrayFromVectorSegment(const intvector *values,
-                                                     size_t start, size_t length);
-extern nonnull vref HeapConcatList(vref list1, vref list2);
-extern nonnull bool HeapIsCollection(vref object);
-
-/*
-  Reads one value from the collection and returns it. The key is stored in
-  [*type, *value], and the read value will overwrite them.
-
-  Returns true if successful.
-*/
-extern nonnull bool HeapCollectionGet(vref object, vref indexObject, vref *value);
 
 
 
