@@ -1605,7 +1605,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
             }
             if (likely(identifier == keywordNull))
             {
-                parsedConstant(estate, 0);
+                parsedConstant(estate, HeapNull);
                 return true;
             }
             error(state, "Unexpected keyword '%s'",

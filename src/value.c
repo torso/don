@@ -12,7 +12,7 @@ VBool VGetBool(vref value)
     {
         return TRUTHY;
     }
-    if (!value || value == HeapFalse)
+    if (value == HeapNull || value == HeapFalse)
     {
         return FALSY;
     }
@@ -55,13 +55,12 @@ size_t VStringLength(vref value)
     HeapObject ho;
 
     assert(!HeapIsFutureValue(value));
-    if (!value)
-    {
-        return 4;
-    }
     HeapGet(value, &ho);
     switch (ho.type)
     {
+    case TYPE_NULL:
+        return 4;
+
     case TYPE_BOOLEAN_TRUE:
         return 4;
 
@@ -126,18 +125,17 @@ char *VWriteString(vref value, char *dst)
     HeapObject ho;
     const SubString *subString;
 
-    if (!value)
+    assert(!HeapIsFutureValue(value));
+    HeapGet(value, &ho);
+    switch (ho.type)
     {
+    case TYPE_NULL:
         *dst++ = 'n';
         *dst++ = 'u';
         *dst++ = 'l';
         *dst++ = 'l';
         return dst;
-    }
-    assert(!HeapIsFutureValue(value));
-    HeapGet(value, &ho);
-    switch (ho.type)
-    {
+
     case TYPE_BOOLEAN_TRUE:
         *dst++ = 't';
         *dst++ = 'r';
@@ -280,6 +278,7 @@ bool VIsCollectionType(VType type)
 {
     switch (type)
     {
+    case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
@@ -338,6 +337,7 @@ size_t VCollectionSize(vref value)
         }
         return size;
 
+    case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
@@ -407,6 +407,7 @@ bool VCollectionGet(vref object, vref indexObject, vref *restrict value)
         return false;
     }
 
+    case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:

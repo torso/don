@@ -81,7 +81,7 @@ static void initStackFrame(VM *vm, const int **ip, int *bp, int functionOffset,
     assert((i & 0xff) == OP_FUNCTION);
     *ip = bytecode;
     *bp = (int)(IVSize(&vm->stack) - parameterCount);
-    IVGrowValue(&vm->stack, intFromRef(HeapInvalid), (size_t)localsCount);
+    IVGrowZero(&vm->stack, (size_t)localsCount);
 }
 
 static void popStackFrame(VM *vm, const int **ip, int *bp, uint returnValues)
@@ -127,7 +127,7 @@ static void execute(VM *vm)
         switch ((Instruction)(i & 0xff))
         {
         case OP_NULL:
-            storeValue(vm, vm->bp, arg, 0);
+            storeValue(vm, vm->bp, arg, HeapNull);
             break;
 
         case OP_TRUE:

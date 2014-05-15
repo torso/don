@@ -87,7 +87,7 @@ const char *const*EnvCreateCopy(vref overrides)
     {
         VCollectionGet(overrides, HeapBoxSize(index++), &value);
         nameLength = VStringLength(name);
-        if (value)
+        if (value != HeapNull)
         {
             dataSize += nameLength + VStringLength(value) + 2;
         }
@@ -110,7 +110,7 @@ const char *const*EnvCreateCopy(vref overrides)
         nameLength = VStringLength(name);
         VWriteString(name, data);
         p = getEnvEntry(result, data, nameLength);
-        if (value)
+        if (value != HeapNull)
         {
             pname = data;
             data += nameLength;

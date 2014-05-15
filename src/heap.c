@@ -32,12 +32,12 @@ static const byte *HeapPageLimit;
 static size_t HeapPageOffset;
 static intvector ivtemp;
 
+vref HeapNull;
 vref HeapTrue;
 vref HeapFalse;
 vref HeapEmptyString;
 vref HeapEmptyList;
 vref HeapNewline;
-vref HeapInvalid;
 
 
 static void checkObject(vref object)
@@ -135,6 +135,7 @@ static const char *getString(vref object)
         ss = (const SubString*)HeapGetObjectData(object);
         return &getString(ss->string)[ss->offset];
 
+    case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
@@ -196,6 +197,7 @@ void HeapInit(void)
     HeapPageOffset = 0;
     StringPoolInit();
     ParserAddKeywords();
+    HeapNull = HeapFinishAlloc(HeapAlloc(TYPE_NULL, 0));
     HeapTrue = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_TRUE, 0));
     HeapFalse = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_FALSE, 0));
     p = HeapAlloc(TYPE_STRING, 1);
@@ -203,7 +205,6 @@ void HeapInit(void)
     HeapEmptyString = HeapFinishAlloc(p);
     HeapEmptyList = HeapFinishAlloc(HeapAlloc(TYPE_ARRAY, 0));
     HeapNewline = HeapCreateString("\n", 1);
-    HeapInvalid = HeapFinishAlloc(HeapAlloc(TYPE_INVALID, 0));
 }
 
 void HeapDispose(void)
@@ -291,14 +292,13 @@ void HeapHash(vref object, HashState *hash)
 
     assert(!HeapIsFutureValue(object));
 
-    if (!object)
+    switch (HeapGetObjectType(object))
     {
+    case TYPE_NULL:
         value = 0;
         HashUpdate(hash, &value, 1);
         return;
-    }
-    switch (HeapGetObjectType(object))
-    {
+
     case TYPE_BOOLEAN_TRUE:
         value = TYPE_BOOLEAN_TRUE;
         HashUpdate(hash, &value, 1);
@@ -367,12 +367,9 @@ bool HeapEquals(vref object1, vref object2)
     {
         return true;
     }
-    if (!object1 || !object2)
-    {
-        return false;
-    }
     switch (HeapGetObjectType(object1))
     {
+    case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
@@ -548,6 +545,7 @@ vref HeapCreateSubstring(vref string, size_t offset, size_t length)
         offset += ss->offset;
         break;
 
+    case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
@@ -658,6 +656,7 @@ bool HeapIsString(vref object)
     case TYPE_SUBSTRING:
         return true;
 
+    case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
@@ -709,14 +708,14 @@ vref HeapStringIndexOf(vref text, size_t startOffset,
 
     if (!subLength || subLength > textLength)
     {
-        return 0;
+        return HeapNull;
     }
     while (p < plimit)
     {
         p = (const char*)memchr(p, *s, (size_t)(plimit - p));
         if (!p)
         {
-            return 0;
+            return HeapNull;
         }
         if (!memcmp(p, s, subLength))
         {
@@ -724,7 +723,7 @@ vref HeapStringIndexOf(vref text, size_t startOffset,
         }
         p++;
     }
-    return 0;
+    return HeapNull;
 }
 
 
@@ -781,18 +780,18 @@ vref HeapPathFromParts(vref path, vref name, vref extension)
     assert(!HeapIsFutureValue(path));
     assert(!HeapIsFutureValue(name));
     assert(!HeapIsFutureValue(extension));
-    assert(!path || HeapIsString(path) || HeapIsFile(path));
+    assert(path == HeapNull || HeapIsString(path) || HeapIsFile(path));
     assert(HeapIsString(name) || HeapIsFile(name));
-    assert(!extension || HeapIsString(extension));
+    assert(extension == HeapNull || HeapIsString(extension));
 
-    if (path)
+    if (path != HeapNull)
     {
         pathString = toString(path, &freePath);
         pathLength = VStringLength(path);
     }
     nameString = toString(name, &freeName);
     nameLength = VStringLength(name);
-    if (extension)
+    if (extension != HeapNull)
     {
         extensionString = toString(extension, &freeExtension);
         extensionLength = VStringLength(extension);
@@ -866,6 +865,7 @@ static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
         }
         return;
 
+    case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:

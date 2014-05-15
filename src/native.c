@@ -241,7 +241,7 @@ static bool nativeEcho(const EchoEnv *env)
     {
         return false;
     }
-    if (env->prefix)
+    if (env->prefix != HeapNull)
     {
         /* TODO: Avoid malloc */
         length = VStringLength(env->prefix);
@@ -541,7 +541,7 @@ static bool nativeGetEnv(const GetEnvEnv *env)
     *VWriteString(env->name, buffer) = 0;
     EnvGet(buffer, nameLength, &value, &valueLength);
     free(buffer);
-    HeapSetFutureValue(env->result, value ? HeapCreateString(value, valueLength) : 0);
+    HeapSetFutureValue(env->result, value ? HeapCreateString(value, valueLength) : HeapNull);
     return true;
 }
 
@@ -718,7 +718,7 @@ static bool nativeReplace(const ReplaceEnv *env)
         for (offset = 0;; offset++)
         {
             offsetRef = HeapStringIndexOf(env->data, offset, env->original);
-            if (!offsetRef)
+            if (offsetRef == HeapNull)
             {
                 break;
             }

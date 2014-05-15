@@ -16,18 +16,6 @@ typedef struct
     size_t length;
 } SubString;
 
-/*
-  These values may be reused freely, so that new objects doesn't have to be
-  allocated. Never compare to these values. Use the functions in value.h, as
-  additional processing may be needed to determine the value of a vref.
-*/
-extern vref HeapTrue;
-extern vref HeapFalse;
-extern vref HeapEmptyString;
-extern vref HeapEmptyList;
-extern vref HeapNewline;
-extern vref HeapInvalid;
-
 
 extern void HeapInit(void);
 extern void HeapDispose(void);
