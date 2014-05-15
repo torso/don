@@ -266,7 +266,7 @@ target strace
 {
     valgrind = false
     p = compile()
-    out exitcode = run(command:[strace -qvC $p -f input.don])
+    out exitcode = run(command:[strace -qvCf -b execve $p -f input.don])
     if exitcode
     {
         fail()
