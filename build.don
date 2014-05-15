@@ -26,13 +26,13 @@ fn compile(datadir:@data/, extraflags:[], linkflags:[], optimize:false)
     return link(ofiles, flags:linkflags, name:'don')
 }
 
-fn run(args..., output:true)
+fn run(command..., output:true)
 {
     if valgrind
     {
         logfile = @valgrind-log
         out exitcode = exec(command:[valgrind -q --leak-check=full --show-reachable=yes
-                                     --log-file=$logfile --num-callers=100]::args,
+                                     --log-file=$logfile --num-callers=100]::command,
                             env:list('XDG_CACHE_HOME', @tempcache),
                             fail:false, echo:output, echoStderr:output)
         log = read(logfile)
@@ -78,7 +78,7 @@ fn run(args..., output:true)
     }
     else
     {
-        out exitcode = exec(args, env:list('XDG_CACHE_HOME', @tempcache),
+        out exitcode = exec(command, env:list('XDG_CACHE_HOME', @tempcache),
                             fail:false, echo:output, echoStderr:output)
     }
     return out exitcode
@@ -139,7 +139,7 @@ fn dotest(program, debug:false)
         rm(@tempcache)
         while result && i < size(targets)
         {
-            out exitcode = run(program, '-f', f, targets[i], output:false)
+            out exitcode = run(command:[$program -f $f $(targets[i])], output:false)
             if expected ? exitcode && out[0] == '' && out[1] == expected : exitcode == 0 && out[0] == "PASS\n" && out[1] == ''
             {
                 i += 1
@@ -170,11 +170,11 @@ fn dotest(program, debug:false)
                     j = 0
                     while j < i
                     {
-                        exec(program, '-f', f, targets[j], fail:false, echo:false, echoStderr:false,
+                        exec(command:[$program -f $f $(targets[j])], fail:false, echo:false, echoStderr:false,
                              env:list('XDG_CACHE_HOME', @tempcache))
                         j += 1
                     }
-                    exec(gdb, program, '-f', f, targets[j], fail:false,
+                    exec(command:[$gdb $program -f $f $(targets[j])], fail:false,
                          env:list('XDG_CACHE_HOME', @tempcache))
                 }
             }
@@ -224,7 +224,8 @@ target covtest
 target default
 {
     valgrind = true
-    out exitcode = run(compile(), '-f', 'input')
+    p = compile()
+    out exitcode = run(command:[$p -f input.don])
     if exitcode
     {
         fail()
@@ -234,7 +235,8 @@ target default
 target gimp
 {
     valgrind = true
-    out exitcode = run(compile(), '-f', 'gimp/build.don')
+    p = compile()
+    out exitcode = run(command:[$p -f gimp/build.don])
     if exitcode
     {
         fail()
@@ -243,26 +245,28 @@ target gimp
 
 target prof
 {
+    p = compile(optimize:true, linkflags:[-static])
     exec(command:[valgrind -q --tool=callgrind --cache-sim=yes --branch-sim=yes
-                  --collect-systime=yes $(compile(optimize:true, linkflags:[-static])) -f input],
+                  --collect-systime=yes $p -f input.don],
          env:list('XDG_CACHE_HOME', @tempcache))
 }
 
 target gprof
 {
     p = compile(extraflags:[-pg], linkflags:[-pg], optimize:true)
-    out exitcode = run(p, '-f', 'input')
+    out exitcode = run(command:[$p -f input.don])
     if exitcode
     {
         fail()
     }
-    exec('gprof', p)
+    exec(command:[gprof $p])
 }
 
 target strace
 {
     valgrind = false
-    out exitcode = run('strace', '-qvC', compile(), '-f', 'input')
+    p = compile()
+    out exitcode = run(command:[strace -qvC $p -f input.don])
     if exitcode
     {
         fail()
@@ -271,23 +275,24 @@ target strace
 
 target debug
 {
-    exec(command:[gdb $(compile()) -f input], env:list('XDG_CACHE_HOME', @tempcache))
+    p = compile()
+    exec(command:[gdb $p -f input.don], env:list('XDG_CACHE_HOME', @tempcache))
 }
 
 target disasm
 {
-    program = compile(optimize:true)
-    exec([objdump -d $program])
+    p = compile(optimize:true)
+    exec(command:[objdump -d $p])
 }
 
 target install
 {
-    program = compile('/usr/local/share/don/', optimize:true)
-    exec('rm', '-f', @/usr/local/bin/don)
-    exec('rm', '-rf', @/usr/local/share/don)
-    exec('mkdir', @/usr/local/share/don/)
-    exec('cp', program, @/usr/local/bin/)
-    exec('cp', @data/don.don, @/usr/local/share/don/)
+    p = compile('/usr/local/share/don/', optimize:true)
+    exec(command:[rm -f $(@/usr/local/bin/don)])
+    exec(command:[rm -rf $(@/usr/local/share/don)])
+    exec(command:[mkdir $(@/usr/local/share/don/)])
+    exec(command:[cp $p $(@/usr/local/bin/)])
+    exec(command:[cp $(@data/don.don) $(@/usr/local/share/don/)])
 }
 
 target b
@@ -339,12 +344,12 @@ target benchmark
     p = compile(optimize:true)
     rm(@tempcache)
 #    exec(command:[cp -a tempcache2 tempcache])
-#    run('time', 'strace', p, '-f', @benchmark/build.don)
-#    run('time', p, '-f', @benchmark/build.don, 'partial')
-#    run('time', 'valgrind', '-q', p, '-f', @benchmark/build.don)
-#    run('time', 'gdb', '--args', p, '-f', @benchmark/build.don)
-    run('time', p, '-f', @benchmark/build.don)
-    run('time', p, '-f', @benchmark/build.don)
+#    run(command:[time strace $p -f benchmark/build.don])
+#    run(command:[time $p -f benchmark/build.don partial])
+#    run(command:[time valgrind -q $p -f benchmark/build.don])
+#    run(command:[time gdb --args $p -f benchmark/build.don])
+    run(command:[time $p -f benchmark/build.don])
+    run(command:[time $p -f benchmark/build.don])
 }
 
 target benchmarkprof
@@ -352,6 +357,6 @@ target benchmarkprof
     p = compile(optimize:true)
     rm(@tempcache)
 #    exec(command:[cp -a tempcache2 tempcache])
-    run(args:[time valgrind -q --tool=callgrind --cache-sim=yes --branch-sim=yes --collect-systime=yes $p -f $(@benchmark/build.don) partial])
-    run(args:[time $p -f $(@benchmark/build.don) partial])
+    run(command:[time valgrind -q --tool=callgrind --cache-sim=yes --branch-sim=yes --collect-systime=yes $p -f $(@benchmark/build.don) partial])
+    run(command:[time $p -f $(@benchmark/build.don) partial])
 }
