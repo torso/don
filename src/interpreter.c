@@ -14,8 +14,6 @@
 
 static const bool TRACE = false;
 
-static const int *vmBytecode;
-
 static VM **vmTable;
 static uint vmTableSize = 16;
 static uint vmCount;
@@ -333,7 +331,6 @@ void InterpreterExecute(const LinkedProgram *program, int target)
     uint i;
     bool idle = false;
 
-    vmBytecode = program->bytecode;
     vmTable = (VM**)malloc(vmTableSize * sizeof(*vmTable));
     vm = VMCreate(program);
     addVM(vm);

@@ -7,6 +7,9 @@
 #include "linker.h"
 #include "work.h"
 
+const int *vmBytecode;
+static const int *vmLineNumbers;
+
 static VM *VMAlloc(int fieldCount)
 {
     byte *data = (byte*)calloc(
@@ -22,6 +25,8 @@ static VM *VMAlloc(int fieldCount)
 VM *VMCreate(const LinkedProgram *program)
 {
     VM *vm = VMAlloc(program->fieldCount);
+    vmBytecode = program->bytecode;
+    vmLineNumbers = program->lineNumbers;
     vm->parent = null;
     vm->condition = HeapTrue;
     vm->constants = program->constants;
@@ -77,6 +82,25 @@ void VMDispose(VM *vm)
     IVDispose(&vm->callStack);
     IVDispose(&vm->stack);
     free(vm);
+}
+
+void VMFail(VM *vm unused, const int *ip, const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    if (ip)
+    {
+        const char *filename;
+        int line = BytecodeLineNumber(vmLineNumbers, (size_t)(ip - vmBytecode), &filename);
+        fprintf(stderr, "%s:%d: %s\n", filename, line,
+                HeapGetStringCopy(HeapCreateStringFormatted(format, args)));
+    }
+    else
+    {
+        fprintf(stderr, "%s\n", HeapGetStringCopy(HeapCreateStringFormatted(format, args)));
+    }
+    va_end(args);
+    cleanShutdown(EXIT_FAILURE);
 }
 
 

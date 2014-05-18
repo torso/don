@@ -219,6 +219,7 @@ int main(int argc, const char **argv)
 
 #ifdef VALGRIND
     free(linked.bytecode);
+    free(linked.lineNumbers);
     free(linked.functions);
     free(linked.constants);
     free(linked.fields);

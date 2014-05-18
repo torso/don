@@ -28,7 +28,7 @@ typedef struct
     int *jumpTargetTable;
 
     const char *filename;
-    uint line;
+    int line;
     namespaceref ns;
     bool hasErrors;
 } LinkState;
@@ -127,6 +127,8 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
     const int *limit = start + parsedSize;
     int *currentFunction;
     int *write;
+    intvector lineNumbers;
+    size_t lineStart;
 
     linked->functions = (int*)malloc(IVSize(&parsed->functions) * sizeof(*linked->functions));
     currentFunction = linked->functions;
@@ -134,6 +136,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
     currentUnlinkedFunction = unlinkedFunctions;
 
     IVInit(&state.out, parsedSize);
+    IVInit(&lineNumbers, parsedSize / 2);
     IntHashMapInit(&state.variables, 16);
     state.jumps = (int*)malloc(parsed->maxJumpCount * sizeof(*state.jumps));
     state.jumpTargetTable = (int*)malloc(parsed->maxJumpTargetCount *
@@ -157,17 +160,33 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
         {
         case OP_FILE:
         {
+            size_t newLineStart = IVSize(&state.out);
             int length = *read++;
             state.filename = (const char*)read;
             state.ns = refFromInt(arg);
             state.line = 1;
             read += (length + 4) >> 2;
+
+            if (IVSize(&lineNumbers))
+            {
+                IVAdd(&lineNumbers, (int)(newLineStart - lineStart));
+                IVAdd(&lineNumbers, -1);
+            }
+            IVAppendString(&lineNumbers, state.filename, (size_t)length);
+            IVAdd(&lineNumbers, 1);
+            lineStart = newLineStart;
             break;
         }
 
         case OP_LINE:
-            state.line = (uint)arg;
+        {
+            size_t newLineStart = IVSize(&state.out);
+            state.line = arg;
+            IVAdd(&lineNumbers, (int)(newLineStart - lineStart));
+            IVAdd(&lineNumbers, arg);
+            lineStart = newLineStart;
             break;
+        }
 
         case OP_ERROR:
             error(&state, HeapGetString(refFromInt(arg)));
@@ -521,6 +540,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
     }
     linked->size = (uint)IVSize(&state.out);
     linked->bytecode = IVDisposeContainer(&state.out);
+    linked->lineNumbers = IVDisposeContainer(&lineNumbers);
     linked->constantCount = (int)IVSize(&parsed->constants);
     linked->constants = (vref*)IVDisposeContainer(&parsed->constants);
     linked->fieldCount = (int)IVSize(&parsed->fields);

@@ -398,12 +398,8 @@ static bool nativeFail(const FailEnv *env)
         env->work.vm->ip = null;
         return false;
     }
-    if (env->message)
-    {
-        fputs(HeapGetStringCopy(env->message), stderr);
-        fputs("\n", stderr);
-    }
-    FailVM(env->work.vm);
+    assert(HeapIsString(env->message));
+    VMFail(env->work.vm, null, "%s", HeapGetStringCopy(env->message));
 }
 
 typedef struct

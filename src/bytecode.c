@@ -433,3 +433,28 @@ void BytecodeDisassemble(const int *bytecode, const int *bytecodeLimit)
         bytecode = disassemble(bytecode, start);
     }
 }
+
+int BytecodeLineNumber(const int *lineNumbers, size_t bytecodeOffset, const char **filename)
+{
+    size_t currentBytecodeOffset = 0;
+    for (;;)
+    {
+        int filenameLength = *lineNumbers++;
+        const char *currentFilename = (const char*)lineNumbers;
+        lineNumbers += (filenameLength + 4) >> 2;
+        for (;;)
+        {
+            int line = *lineNumbers++;
+            if (line < 0)
+            {
+                break;
+            }
+            currentBytecodeOffset += (size_t)*lineNumbers++;
+            if (currentBytecodeOffset > bytecodeOffset)
+            {
+                *filename = currentFilename;
+                return line;
+            }
+        }
+    }
+}

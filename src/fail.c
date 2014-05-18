@@ -42,9 +42,3 @@ void FailIOErrno(const char *message, const char *filename, int error)
     fprintf(stderr, "don: %s %s: %s\n", message, filename, strerror(error));
     cleanShutdown(EXIT_FAILURE);
 }
-
-void FailVM(VM *vm unused)
-{
-    /* TODO: Print stack trace. */
-    cleanShutdown(EXIT_FAILURE);
-}
