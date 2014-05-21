@@ -19,9 +19,9 @@ static void printWork(const char *prefix, const Work *work)
     vref *p;
     uint i;
 
-    assert(NativeGetParameterCount(work->function));
+    assert(work->argumentCount);
     length = 0;
-    for (i = NativeGetParameterCount(work->function), p = (vref*)(work+1);
+    for (i = work->argumentCount, p = (vref*)(work+1);
          i--;
          p++)
     {
@@ -36,7 +36,7 @@ static void printWork(const char *prefix, const Work *work)
     }
     buffer = (char*)malloc(length);
     b = buffer;
-    for (i = NativeGetParameterCount(work->function), p = (vref*)(work+1);
+    for (i = work->argumentCount, p = (vref*)(work+1);
          i--;
          p++)
     {
@@ -53,16 +53,13 @@ static void printWork(const char *prefix, const Work *work)
         *b++ = ' ';
     }
     *(b-2) = 0;
-    printf("%s[%p] %s(%s)\n", prefix, (void*)work->vm,
-           HeapGetString(NativeGetName(work->function)), buffer);
+    printf("%s[%p] (%s)\n", prefix, (void*)work->vm, buffer);
     free(buffer);
 }
 
 static size_t getWorkSize(const Work *work)
 {
-    return sizeof(*work) +
-        (NativeGetParameterCount(work->function) +
-         NativeGetReturnValueCount(work->function)) * sizeof(vref);
+    return sizeof(*work) + work->argumentCount * sizeof(vref);
 }
 
 void WorkInit(void)
@@ -75,14 +72,33 @@ void WorkDispose(void)
     BVDispose(&queue);
 }
 
-void WorkAdd(const Work *work)
+Work *WorkAdd(WorkFunction function, VM *vm, uint argumentCount, vref **arguments)
+{
+    Work *work = (Work*)BVGetAppendPointer(
+        &queue, sizeof(Work) + argumentCount * sizeof(**arguments));
+    work->function = function;
+    work->vm = vm;
+    work->ip = vm->ip;
+    work->condition = vm->condition;
+    work->accessedFiles = HeapEmptyList;
+    work->modifiedFiles = HeapEmptyList;
+    work->argumentCount = argumentCount;
+    *arguments = (vref*)(work + 1);
+    return work;
+}
+
+void WorkCommit(Work *work)
 {
     if (DEBUG_WORK)
     {
         printWork("added: ", work);
     }
-    BVAddData(&queue, (const byte*)work, getWorkSize(work));
-    WorkExecute();
+}
+
+void WorkAbort(Work *work)
+{
+    assert(BVGetPointer(&queue, BVSize(&queue)) == (byte*)work + getWorkSize(work));
+    BVSetSize(&queue, (size_t)((const byte*)work - BVGetPointer(&queue, 0)));
 }
 
 void WorkDiscard(const VM *vm)
@@ -118,33 +134,35 @@ bool WorkQueueEmpty(void)
 void WorkExecute(void)
 {
     Work *work;
-    vref *p1;
-    uint parameterCount;
-    uint i;
-    struct
-    {
-        Work work;
-        vref values[NATIVE_MAX_VALUES];
-    } env;
+    VBool b;
 
     assert(BVSize(&queue));
     work = (Work*)BVGetPointer(&queue, 0);
     assert(BVSize(&queue) >= getWorkSize(work));
-    parameterCount = NativeGetParameterCount(work->function);
 
-    work->condition = HeapTryWait(work->condition);
-    assert(work->condition == HeapTrue);
-    for (i = parameterCount, p1 = (vref*)(work+1); i--; p1++)
+    b = VGetBool(work->condition);
+    if (b == FALSY)
     {
-        *p1 = HeapTryWait(*p1);
-        assert(!HeapIsFutureValue(*p1));
+        if (DEBUG_WORK)
+        {
+            printWork("not executing: ", work);
+        }
+        BVRemoveRange(&queue, 0, getWorkSize(work));
+        return;
     }
-    memcpy(&env, work, getWorkSize(work));
+    assert(b == TRUTHY);
 
     if (DEBUG_WORK)
     {
         printWork("executing: ", work);
     }
-    NativeWork(&env.work);
-    BVRemoveRange(&queue, 0, getWorkSize(work));
+    if (work->function(work, (vref*)(work + 1)))
+    {
+        BVRemoveRange(&queue, 0, getWorkSize(work));
+    }
+    else
+    {
+        /* TODO: This will not happen until work is done in parallel. */
+        unreachable;
+    }
 }
