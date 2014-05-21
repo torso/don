@@ -263,7 +263,8 @@ static void execute(VM *vm)
                 ip += arg;
                 break;
             case FUTURE:
-                addVM(VMClone(vm, value, ip + arg));
+                addVM(VMClone(vm, value, ip));
+                ip += arg;
                 break;
             }
             vm->ip = ip;
