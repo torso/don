@@ -527,6 +527,9 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
 
     finishFunction(&state);
 
+    assert(IVSize(&lineNumbers));
+    IVAdd(&lineNumbers, (int)(IVSize(&state.out) - lineStart));
+
     IVDispose(&parsed->bytecode);
     IVDispose(&parsed->functions);
     free(state.jumps);
