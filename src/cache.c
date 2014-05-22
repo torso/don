@@ -400,7 +400,7 @@ void CacheGet(const byte *hash, bool echoCachedOutput,
                            filename, CACHE_FILENAME_LENGTH + 1,
                            null, 0,
                            pathLength);
-    *out = 0;
+    *out = HeapNull;
 
     for (i = tableIndex(hash);; i = (i + 1) & tableMask)
     {
