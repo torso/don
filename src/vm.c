@@ -2,10 +2,12 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include "vm.h"
 #include "bytecode.h"
 #include "linker.h"
+#include "heap.h"
+#include "instruction.h"
 #include "work.h"
+#include "vm.h"
 
 const int *vmBytecode;
 static const int *vmLineNumbers;
@@ -19,6 +21,8 @@ static VM *VMAlloc(int fieldCount)
     vm->fieldCount = fieldCount;
     IVInit(&vm->callStack, 128);
     IVInit(&vm->stack, 1024);
+    vm->active = true;
+    vm->failMessage = 0;
     return vm;
 }
 
@@ -40,6 +44,7 @@ VM *VMClone(VM *vm, vref condition, const int *ip)
 {
     VM *clone = VMAlloc(vm->fieldCount);
     VMBranch *parent = (VMBranch*)malloc(sizeof(VMBranch));
+    vref notCondition;
 
     parent->parent = vm->parent;
     parent->condition = vm->condition;
@@ -56,9 +61,15 @@ VM *VMClone(VM *vm, vref condition, const int *ip)
     clone->ip = ip;
     clone->bp = vm->bp;
 
-    clone->condition = HeapApplyBinary(OP_AND, vm->condition, condition);
-    vm->condition = HeapApplyBinary(OP_AND, vm->condition,
-                                    HeapApplyUnary(OP_NOT, condition));
+    assert(vm->condition);
+    assert(condition);
+    clone->condition = HeapTrue;
+    clone->condition = VAnd(clone, vm->condition, condition);
+    assert(clone->condition);
+    notCondition = VNot(vm, condition);
+    vm->condition = HeapTrue;
+    vm->condition = VAnd(vm, parent->condition, notCondition);
+    assert(vm->condition);
 
     return clone;
 }
@@ -84,23 +95,20 @@ void VMDispose(VM *vm)
     free(vm);
 }
 
-void VMFail(VM *vm unused, const int *ip, const char *format, ...)
+void VMHalt(VM *vm, vref failMessage)
+{
+    vm->active = false;
+    vm->failMessage = failMessage;
+}
+
+void VMFail(VM *vm, const int *ip, const char *format, ...)
 {
     va_list args;
+    fflush(stdout);
     va_start(args, format);
-    if (ip)
-    {
-        const char *filename;
-        int line = BytecodeLineNumber(vmLineNumbers, (size_t)(ip - vmBytecode), &filename);
-        fprintf(stderr, "%s:%d: %s\n", filename, line,
-                HeapGetStringCopy(HeapCreateStringFormatted(format, args)));
-    }
-    else
-    {
-        fprintf(stderr, "%s\n", HeapGetStringCopy(HeapCreateStringFormatted(format, args)));
-    }
+    vm->ip = ip;
+    VMHalt(vm, HeapCreateStringFormatted(format, args));
     va_end(args);
-    cleanShutdown(EXIT_FAILURE);
 }
 
 

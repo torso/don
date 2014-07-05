@@ -1,18 +1,41 @@
+#define DEBUG_FUTURE 0
+
+#define TYPE_FLAG_FUTURE 0x100
+
 typedef enum
 {
-    TYPE_NULL,
-    TYPE_BOOLEAN_TRUE,
-    TYPE_BOOLEAN_FALSE,
-    TYPE_INTEGER,
-    TYPE_STRING,
-    TYPE_STRING_WRAPPED,
-    TYPE_SUBSTRING,
-    TYPE_FILE,
-    TYPE_ARRAY,
-    TYPE_INTEGER_RANGE,
-    TYPE_CONCAT_LIST,
-    TYPE_FUTURE,
-    TYPE_INVALID
+    TYPE_INVALID               = 0,
+    TYPE_VALUE                 = 1,
+    TYPE_NULL                  = 2,
+    TYPE_BOOLEAN_TRUE          = 3,
+    TYPE_BOOLEAN_FALSE         = 4,
+    TYPE_INTEGER               = 5,
+    TYPE_STRING                = 6,
+    TYPE_STRING_WRAPPED        = 7,
+    TYPE_SUBSTRING             = 8,
+    TYPE_FILE                  = 9,
+    TYPE_ARRAY                 = 10,
+    TYPE_INTEGER_RANGE         = 11,
+    TYPE_CONCAT_LIST           = 12,
+    TYPE_FUTURE                = 13 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_NOT            = 14 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_NEG            = 15 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_INV            = 16 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_EQUALS         = 17 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_NOT_EQUALS     = 18 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_LESS           = 19 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_LESS_EQUALS    = 20 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_AND            = 21 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_ADD            = 22 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_SUB            = 23 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_MUL            = 24 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_DIV            = 25 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_REM            = 26 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_VALID_INDEX    = 27 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_INDEXED_ACCESS = 28 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_RANGE          = 29 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_CONCAT         = 30 | TYPE_FLAG_FUTURE,
+    TYPE_FUTURE_CONCAT_STRING  = 31 | TYPE_FLAG_FUTURE
 } VType;
 
 typedef enum
@@ -35,6 +58,8 @@ extern vref HeapEmptyList;
 extern vref HeapNewline;
 
 
+extern bool VWait(vref *value);
+
 extern VBool VGetBool(vref value);
 
 /*
@@ -49,6 +74,28 @@ extern bool VIsTruthy(vref value);
 */
 extern bool VIsFalsy(vref value);
 
+
+extern vref VEquals(VM *vm, vref value1, vref value2);
+extern vref VNotEquals(VM *vm, vref value1, vref value2);
+extern vref VLess(VM *vm, vref value1, vref value2);
+extern vref VLessEquals(VM *vm, vref value1, vref value2);
+extern vref VAdd(VM *vm, vref value1, vref value2);
+extern vref VSub(VM *vm, vref value1, vref value2);
+extern vref VMul(VM *vm, vref value1, vref value2);
+extern vref VDiv(VM *vm, vref value1, vref value2);
+extern vref VRem(VM *vm, vref value1, vref value2);
+extern vref VAnd(VM *vm, vref value1, vref value2);
+extern vref VNot(VM *vm, vref value);
+extern vref VNeg(VM *vm, vref value);
+extern vref VInv(VM *vm, vref value);
+extern vref VValidIndex(VM *vm, vref collection, vref index);
+extern vref VIndexedAccess(VM *vm, vref value1, vref value2);
+extern vref VRange(VM *vm, vref value1, vref value2);
+extern vref VConcat(VM *vm, vref value1, vref value2);
+extern vref VConcatString(VM *vm, size_t count, vref *values);
+
+
+extern pureconst bool VIsStringType(VType type);
 
 /*
   Returns the size of the string in bytes. If the value isn't a string, the

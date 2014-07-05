@@ -1,12 +1,10 @@
 #include "common.h"
-#include <stdarg.h>
 #include <stdio.h>
 #include "bytecode.h"
-#include "bytevector.h"
 #include "heap.h"
+#include "instruction.h"
 #include "namespace.h"
 #include "native.h"
-#include "stringpool.h"
 
 #define MAX(a, b) (a > b ? a : b)
 
@@ -121,7 +119,7 @@ static const int *disassemble(const int *bytecode, const int *base)
 
     case OP_STORE_CONSTANT:
     {
-        char *string = HeapDebug(refFromInt(*bytecode++), false);
+        char *string = HeapDebug(refFromInt(*bytecode++));
         printf("store_constant %s -> #%d\n", string, arg);
         free(string);
         break;
@@ -159,14 +157,28 @@ static const int *disassemble(const int *bytecode, const int *base)
         printf("inv #%d -> #%d\n", arg, *bytecode++);
         break;
 
-    case OP_ITER_GET:
-        printf("iter_get #%d[", arg);
+    case OP_ITER_NEXT:
+        fputs("iter_next ", stdout);
+        printValue(&bytecode);
+        fputs("[", stdout);
+        printValue(&bytecode);
+        fputs("+=", stdout);
         printValue(&bytecode);
         fputs("] -> ", stdout);
         printValue(&bytecode);
-        fputs(",", stdout);
+        printf(", %d\n", ip + 2 + arg);
+        break;
+
+    case OP_ITER_NEXT_INDEXED:
+        fputs("iter_next ", stdout);
         printValue(&bytecode);
-        puts("");
+        fputs("[", stdout);
+        printValue(&bytecode);
+        fputs("+=", stdout);
+        printValue(&bytecode);
+        fputs("] -> ", stdout);
+        printValue(&bytecode);
+        printf(", %d\n", arg);
         break;
 
     case OP_EQUALS:

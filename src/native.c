@@ -1,24 +1,25 @@
 #include "common.h"
+#if USE_POSIX_SPAWN
 #include <spawn.h>
+#endif
 #include <stdarg.h>
-#include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include "vm.h"
-#include "bytecode.h"
+#include "bytevector.h"
 #include "cache.h"
 #include "env.h"
 #include "fail.h"
 #include "file.h"
 #include "hash.h"
+#include "heap.h"
 #include "log.h"
-#include "namespace.h"
 #include "native.h"
 #include "pipe.h"
 #include "stringpool.h"
 #include "work.h"
+#include "vm.h"
 
 #define NATIVE_FUNCTION_COUNT 21
 
@@ -201,10 +202,7 @@ static bool workCp(Work *work, vref *values)
     size_t srcLength;
     size_t dstLength;
 
-    env->src = HeapTryWait(env->src);
-    env->dst = HeapTryWait(env->dst);
-    if (!VIsTruthy(work->condition) ||
-        HeapIsFutureValue(env->src) || HeapIsFutureValue(env->dst))
+    if (!VIsTruthy(work->condition) || !VWait(&env->src) || !VWait(&env->dst))
     {
         return false;
     }
@@ -246,10 +244,8 @@ static bool workEcho(Work *work, vref *values)
 {
     EchoEnv *env = (EchoEnv*)values;
 
-    env->message = HeapTryWait(env->message);
-    env->prefix = HeapTryWait(env->prefix);
     if (!VIsTruthy(work->condition) ||
-        HeapIsFutureValue(env->message) || HeapIsFutureValue(env->prefix))
+        !VWait(&env->message) || !VWait(&env->prefix))
     {
         return false;
     }
@@ -322,16 +318,10 @@ static bool workExec(Work *work, vref *values)
     Pipe err;
     size_t length;
 
-    env->command = HeapTryWait(env->command);
-    env->env = HeapTryWait(env->env);
-    env->echoOut = HeapTryWait(env->echoOut);
-    env->echoErr = HeapTryWait(env->echoErr);
-    env->access = HeapTryWait(env->access);
-    env->modify = HeapTryWait(env->modify);
-    if (HeapIsFutureValue(work->condition) || HeapIsFutureValue(env->command) ||
-        HeapIsFutureValue(env->env) || HeapIsFutureValue(env->echoOut) ||
-        HeapIsFutureValue(env->echoErr) || HeapIsFutureValue(env->access) ||
-        HeapIsFutureValue(env->modify))
+    if (!VIsTruthy(work->condition) || !VWait(&env->command) ||
+        !VWait(&env->env) || !VWait(&env->echoOut) ||
+        !VWait(&env->echoErr) || !VWait(&env->access) ||
+        !VWait(&env->modify))
     {
         return false;
     }
@@ -451,41 +441,9 @@ static vref nativeExec(VM *vm)
     return VCreateArrayFromData(&env->outputStd, 4);
 }
 
-typedef struct
-{
-    vref message;
-} FailEnv;
-
-static bool workFail(Work *work, vref *values)
-{
-    FailEnv *env = (FailEnv*)values;
-
-    env->message = HeapTryWait(env->message);
-    if (HeapIsFutureValue(env->message))
-    {
-        return false;
-    }
-    assert(HeapIsString(env->message));
-    VMFail(work->vm, null, "%s", HeapGetStringCopy(env->message));
-    return true;
-}
-
 static vref nativeFail(VM *vm)
 {
-    vref *values;
-    Work *work = WorkAdd(workFail, vm, sizeof(FailEnv) / sizeof(vref), &values);
-    FailEnv *env = (FailEnv*)values;
-
-    env->message = VMReadValue(vm);
-    vm->ip = null;
-    if (!workFail(work, values))
-    {
-        WorkCommit(work);
-    }
-    else
-    {
-        WorkAbort(work);
-    }
+    VMHalt(vm, VMReadValue(vm));
     return 0;
 }
 
@@ -502,11 +460,7 @@ static bool workFile(Work *work unused, vref *values)
 {
     FileEnv *env = (FileEnv*)values;
 
-    env->path = HeapTryWait(env->path);
-    env->name = HeapTryWait(env->name);
-    env->extension = HeapTryWait(env->extension);
-    if (HeapIsFutureValue(env->path) || HeapIsFutureValue(env->name) ||
-        HeapIsFutureValue(env->extension))
+    if (!VWait(&env->path) || !VWait(&env->name) || !VWait(&env->extension))
     {
         return false;
     }
@@ -549,8 +503,7 @@ static bool workFilename(Work *work unused, vref *values)
     const char *s;
     size_t length;
 
-    env->path = HeapTryWait(env->path);
-    if (HeapIsFutureValue(env->path))
+    if (!VWait(&env->path))
     {
         return false;
     }
@@ -592,8 +545,7 @@ static bool workFilelist(Work *work, vref *values)
 {
     FilelistEnv *env = (FilelistEnv*)values;
 
-    env->value = HeapTryWait(env->value);
-    if (!VIsTruthy(work->condition) || HeapIsFutureValue(env->value))
+    if (!VIsTruthy(work->condition) || !VWait(&env->value))
     {
         return false;
     }
@@ -641,10 +593,7 @@ static bool workGetCache(Work *work, vref *values)
     bool uptodate;
     vref value;
 
-    env->key = HeapTryWait(env->key);
-    env->echoCachedOutput = HeapTryWait(env->echoCachedOutput);
-    if (!VIsTruthy(work->condition) ||
-        HeapIsFutureValue(env->key) || HeapIsFutureValue(env->echoCachedOutput))
+    if (!VIsTruthy(work->condition) || !VWait(&env->key) || !VWait(&env->echoCachedOutput))
     {
         return false;
     }
@@ -700,8 +649,7 @@ static bool workGetEnv(Work *work unused, vref *values)
     const char *value;
     size_t valueLength;
 
-    env->name = HeapTryWait(env->name);
-    if (HeapIsFutureValue(env->name))
+    if (!VWait(&env->name))
     {
         return false;
     }
@@ -746,9 +694,7 @@ static bool workIndexOf(Work *work unused, vref *values)
 {
     IndexOfEnv *env = (IndexOfEnv*)values;
 
-    env->data = HeapTryWait(env->data);
-    env->element = HeapTryWait(env->element);
-    if (HeapIsFutureValue(env->data) || HeapIsFutureValue(env->element))
+    if (!VWait(&env->data) || !VWait(&env->element))
     {
         return false;
     }
@@ -793,10 +739,7 @@ static bool workLines(Work *work unused, vref *values)
     LinesEnv *env = (LinesEnv*)values;
     vref content;
 
-    env->value = HeapTryWait(env->value);
-    env->trimLastIfEmpty = HeapTryWait(env->trimLastIfEmpty);
-    if (HeapIsFutureValue(env->value) ||
-        HeapIsFutureValue(env->trimLastIfEmpty))
+    if (!VWait(&env->value) || !VWait(&env->trimLastIfEmpty))
     {
         return false;
     }
@@ -846,10 +789,7 @@ static bool workMv(Work *work, vref *values)
     size_t oldLength;
     size_t newLength;
 
-    env->src = HeapTryWait(env->src);
-    env->dst = HeapTryWait(env->dst);
-    if (!VIsTruthy(work->condition) ||
-        HeapIsFutureValue(env->src) || HeapIsFutureValue(env->dst))
+    if (!VIsTruthy(work->condition) || !VWait(&env->src) || !VWait(&env->dst))
     {
         return false;
     }
@@ -901,10 +841,7 @@ static bool workReadFile(Work *work, vref *values)
 {
     ReadFileEnv *env = (ReadFileEnv*)values;
 
-    env->file = HeapTryWait(env->file);
-    env->valueIfNotExists = HeapTryWait(env->valueIfNotExists);
-    if (!VIsTruthy(work->condition) || HeapIsFutureValue(env->file) ||
-        HeapIsFutureValue(env->valueIfNotExists))
+    if (!VIsTruthy(work->condition) || !VWait(&env->file) || !VWait(&env->valueIfNotExists))
     {
         return false;
     }
@@ -955,11 +892,7 @@ static bool workReplace(Work *work unused, vref *values)
     char *p;
     uint replacements = 0;
 
-    env->data = HeapTryWait(env->data);
-    env->original = HeapTryWait(env->original);
-    env->replacement = HeapTryWait(env->replacement);
-    if (HeapIsFutureValue(env->data) || HeapIsFutureValue(env->original) ||
-        HeapIsFutureValue(env->replacement))
+    if (!VWait(&env->data) || !VWait(&env->original) || !VWait(&env->replacement))
     {
         return false;
     }
@@ -1034,8 +967,7 @@ static bool workRm(Work *work, vref *values)
     const char *path;
     size_t length;
 
-    env->file = HeapTryWait(env->file);
-    if (!VIsTruthy(work->condition) || HeapIsFutureValue(env->file))
+    if (!VIsTruthy(work->condition) || !VWait(&env->file))
     {
         return false;
     }
@@ -1079,15 +1011,8 @@ static bool workSetUptodate(Work *work, vref *values)
     const char *path;
     size_t length;
 
-    env->cacheFile = HeapTryWait(env->cacheFile);
-    env->out = HeapTryWait(env->out);
-    env->err = HeapTryWait(env->err);
-    env->data = HeapTryWait(env->data);
-    env->accessedFiles = HeapTryWait(env->accessedFiles);
-    if (!VIsTruthy(work->condition) ||
-        HeapIsFutureValue(env->cacheFile) || HeapIsFutureValue(env->out) ||
-        HeapIsFutureValue(env->err) || HeapIsFutureValue(env->data) ||
-        HeapIsFutureValue(env->accessedFiles))
+    if (!VIsTruthy(work->condition) || !VWait(&env->cacheFile) || !VWait(&env->out) ||
+        !VWait(&env->err) || !VWait(&env->data) || !VWait(&env->accessedFiles))
     {
         return false;
     }
@@ -1134,8 +1059,7 @@ static bool workSize(Work *work, vref *values)
     SizeEnv *env = (SizeEnv*)values;
     vref result;
 
-    env->value = HeapTryWait(env->value);
-    if (HeapIsFutureValue(env->value))
+    if (!VWait(&env->value))
     {
         return false;
     }
@@ -1191,12 +1115,7 @@ static bool workSplit(Work *work unused, vref *values)
     SplitEnv *env = (SplitEnv*)values;
     vref data;
 
-    env->value = HeapTryWait(env->value);
-    env->delimiter = HeapTryWait(env->delimiter);
-    env->removeEmpty = HeapTryWait(env->removeEmpty);
-    if (HeapIsFutureValue(env->value) ||
-        HeapIsFutureValue(env->delimiter) ||
-        HeapIsFutureValue(env->removeEmpty))
+    if (!VWait(&env->value) || !VWait(&env->delimiter) || !VWait(&env->removeEmpty))
     {
         return false;
     }
@@ -1247,10 +1166,7 @@ static bool workWriteFile(Work *work, vref *values)
     size_t offset = 0;
     size_t size;
 
-    env->file = HeapTryWait(env->file);
-    env->data = HeapTryWait(env->data);
-    if (!VIsTruthy(work->condition) || HeapIsFutureValue(env->file) ||
-        HeapIsFutureValue(env->data))
+    if (!VIsTruthy(work->condition) || !VWait(&env->file) || !VWait(&env->data))
     {
          return false;
     }

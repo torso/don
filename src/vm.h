@@ -1,4 +1,3 @@
-#include "bytevector.h"
 #include "intvector.h"
 
 struct _LinkedProgram;
@@ -27,9 +26,9 @@ struct VM
 
     const int *ip;
     int bp;
+    bool active;
+    vref failMessage;
 };
-
-#include "heap.h"
 
 
 extern const int *vmBytecode;
@@ -37,7 +36,8 @@ extern const int *vmBytecode;
 extern nonnull VM *VMCreate(const struct _LinkedProgram *program);
 extern nonnull VM *VMClone(VM *vm, vref condition, const int *ip);
 extern nonnull void VMDispose(VM *vm);
-extern noreturn attrprintf(3, 4) void VMFail(VM *vm, const int *ip, const char *format, ...);
+extern nonnull void VMHalt(VM *vm, vref failMessage);
+extern attrprintf(3, 4) void VMFail(VM *vm, const int *ip, const char *format, ...);
 
 extern nonnull vref VMReadValue(VM *vm);
 extern nonnull void VMStoreValue(VM *vm, int variable, vref value);

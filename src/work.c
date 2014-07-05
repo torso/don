@@ -1,11 +1,11 @@
 #include "common.h"
-#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include "vm.h"
+#include "bytevector.h"
+#include "heap.h"
 #include "native.h"
-#include "stringpool.h"
 #include "work.h"
+#include "vm.h"
 
 static const bool DEBUG_WORK = false;
 
@@ -13,48 +13,27 @@ static bytevector queue;
 
 static void printWork(const char *prefix, const Work *work)
 {
-    char *buffer;
-    char *b;
-    size_t length;
+    bytevector buffer;
+    char *condition = HeapDebug(work->condition);
     vref *p;
     uint i;
 
     assert(work->argumentCount);
-    length = 0;
-    for (i = work->argumentCount, p = (vref*)(work+1);
-         i--;
-         p++)
+    BVInit(&buffer, work->argumentCount * 16);
+    for (i = work->argumentCount, p = (vref*)(work+1); i--; p++)
     {
-        if (HeapIsFutureValue(*p))
-        {
-            length += 8;
-        }
-        else
-        {
-            length += VStringLength(*p) + 2;
-        }
+        char *value = HeapDebug(*p);
+        BVAddData(&buffer, (const byte*)value, strlen(value));
+        BVAddData(&buffer, (const byte*)", ", 2);
+        free(value);
     }
-    buffer = (char*)malloc(length);
-    b = buffer;
-    for (i = work->argumentCount, p = (vref*)(work+1);
-         i--;
-         p++)
-    {
-        if (HeapIsFutureValue(*p))
-        {
-            memcpy(b, "future", 6);
-            b += 6;
-        }
-        else
-        {
-            b = VWriteString(*p, b);
-        }
-        *b++ = ',';
-        *b++ = ' ';
-    }
-    *(b-2) = 0;
-    printf("%s[%p] (%s)\n", prefix, (void*)work->vm, buffer);
-    free(buffer);
+    BVPop(&buffer);
+    BVPop(&buffer);
+    BVAdd(&buffer, 0);
+    printf("%s[%p] (%s) condition:%s\n", prefix, (void*)work->vm,
+           BVGetPointer(&buffer, 0), condition);
+    BVDispose(&buffer);
+    free(condition);
 }
 
 static size_t getWorkSize(const Work *work)
@@ -76,6 +55,7 @@ Work *WorkAdd(WorkFunction function, VM *vm, uint argumentCount, vref **argument
 {
     Work *work = (Work*)BVGetAppendPointer(
         &queue, sizeof(Work) + argumentCount * sizeof(**arguments));
+    assert(vm->condition);
     work->function = function;
     work->vm = vm;
     work->ip = vm->ip;
@@ -131,38 +111,53 @@ bool WorkQueueEmpty(void)
     return BVSize(&queue) == 0;
 }
 
-void WorkExecute(void)
+bool WorkExecute(void)
 {
-    Work *work;
-    VBool b;
-
+    size_t offset = 0;
     assert(BVSize(&queue));
-    work = (Work*)BVGetPointer(&queue, 0);
-    assert(BVSize(&queue) >= getWorkSize(work));
-
-    b = VGetBool(work->condition);
-    if (b == FALSY)
+    do
     {
+        Work *work = (Work*)BVGetPointer(&queue, offset);
+        size_t size = getWorkSize(work);
+        VBool b;
+        assert(BVSize(&queue) - offset >= size);
+
+        b = VGetBool(work->condition);
+        if (b == FALSY)
+        {
+            if (DEBUG_WORK)
+            {
+                printWork("never executing: ", work);
+            }
+            BVRemoveRange(&queue, offset, size);
+            continue;
+        }
+
+        if (b == TRUTHY)
+        {
+            if (DEBUG_WORK)
+            {
+                printWork("executing: ", work);
+            }
+
+            if (work->function(work, (vref*)(work + 1)))
+            {
+                BVRemoveRange(&queue, offset, size);
+                return true;
+            }
+            else
+            {
+                /* TODO: This will not happen until work is done in parallel. */
+                unreachable;
+            }
+        }
+
         if (DEBUG_WORK)
         {
             printWork("not executing: ", work);
         }
-        BVRemoveRange(&queue, 0, getWorkSize(work));
-        return;
+        offset += size;
     }
-    assert(b == TRUTHY);
-
-    if (DEBUG_WORK)
-    {
-        printWork("executing: ", work);
-    }
-    if (work->function(work, (vref*)(work + 1)))
-    {
-        BVRemoveRange(&queue, 0, getWorkSize(work));
-    }
-    else
-    {
-        /* TODO: This will not happen until work is done in parallel. */
-        unreachable;
-    }
+    while (offset < BVSize(&queue));
+    return false;
 }

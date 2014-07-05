@@ -1,9 +1,8 @@
 #include "common.h"
 #include <stdarg.h>
 #include <string.h>
-#include "vm.h"
 #include "env.h"
-#include "stringpool.h"
+#include "heap.h"
 
 static const char **env;
 static size_t envCount;

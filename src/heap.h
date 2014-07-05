@@ -1,4 +1,3 @@
-#include "instruction.h"
 #include "value.h"
 
 typedef struct
@@ -24,7 +23,7 @@ extern byte *HeapAlloc(VType type, size_t size);
 extern nonnull vref HeapFinishAlloc(byte *objectData);
 
 extern nonnull void HeapGet(vref v, HeapObject *ho);
-extern nonnull char *HeapDebug(vref object, bool address);
+extern nonnull char *HeapDebug(vref object);
 extern nonnull VType HeapGetObjectType(vref object);
 extern nonnull size_t HeapGetObjectSize(vref object);
 extern nonnull const byte *HeapGetObjectData(vref object);
@@ -92,11 +91,3 @@ extern nonnull vref HeapSplit(vref string, vref delimiter, bool removeEmpty, boo
 extern bool HeapIsFutureValue(vref object);
 extern vref HeapCreateFutureValue(void);
 extern void HeapSetFutureValue(vref object, vref value);
-extern vref HeapTryWait(vref object);
-extern vref HeapWait(vref object);
-
-
-
-extern vref HeapApplyUnary(Instruction op, vref value);
-extern vref HeapApplyBinary(Instruction op, vref value1, vref value2);
-extern vref HeapApplyMany(Instruction op, const vref *values, size_t count);

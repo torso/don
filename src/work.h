@@ -21,4 +21,4 @@ extern nonnull void WorkCommit(Work *work);
 extern nonnull void WorkAbort(Work *work);
 extern nonnull void WorkDiscard(const VM *vm);
 extern bool WorkQueueEmpty(void);
-extern void WorkExecute(void);
+extern bool WorkExecute(void);

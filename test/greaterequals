@@ -1,0 +1,11 @@
+target default
+{
+    if 2 >= 3
+    {
+        echo("FAIL")
+    }
+    if 3 >= 3 && 3 >= 2
+    {
+        echo("PASS")
+    }
+}

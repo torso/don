@@ -1,19 +1,18 @@
 #include "common.h"
-#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include "vm.h"
 #include "bytecode.h"
+#include "heap.h"
 #include "interpreter.h"
+#include "instruction.h"
 #include "linker.h"
-#include "log.h"
-#include "math.h"
 #include "native.h"
-#include "stringpool.h"
 #include "work.h"
+#include "vm.h"
 
 static const bool TRACE = false;
 
+static intvector temp;
 static VM **vmTable;
 static uint vmTableSize = 16;
 static uint vmCount;
@@ -104,24 +103,22 @@ static void popStackFrame(VM *vm, const int **ip, int *bp, uint returnValues)
 
 static void execute(VM *vm)
 {
-    const int *ip = vm->ip;
     vref value;
     vref string;
     int function;
     nativefunctionref nativeFunction;
-    bool condition;
 
     for (;;)
     {
-        int i = *ip;
+        int i = *vm->ip;
         int arg = i >> 8;
         if (TRACE)
         {
-            printf("[%p] %u: ", (void*)vm, (uint)(ip - vmBytecode));
-            BytecodeDisassembleInstruction(ip, vmBytecode);
+            printf("[%p] %u: ", (void*)vm, (uint)(vm->ip - vmBytecode));
+            BytecodeDisassembleInstruction(vm->ip, vmBytecode);
             fflush(stdout);
         }
-        ip++;
+        vm->ip++;
         switch ((Instruction)(i & 0xff))
         {
         case OP_NULL:
@@ -148,161 +145,238 @@ static void execute(VM *vm)
             array = VCreateArray((size_t)arg);
             for (write = array; arg--; write++)
             {
-                *write = loadValue(vm, vm->bp, *ip++);
+                *write = loadValue(vm, vm->bp, *vm->ip++);
             }
-            storeValue(vm, vm->bp, *ip++, VFinishArray(array));
+            storeValue(vm, vm->bp, *vm->ip++, VFinishArray(array));
             break;
         }
 
         case OP_FILELIST:
             string = refFromInt(arg);
-            storeValue(vm, vm->bp, *ip++,
+            storeValue(vm, vm->bp, *vm->ip++,
                        HeapCreateFilelistGlob(HeapGetString(string), VStringLength(string)));
             break;
 
         case OP_STORE_CONSTANT:
-            storeValue(vm, vm->bp, arg, refFromInt(*ip++));
+            storeValue(vm, vm->bp, arg, refFromInt(*vm->ip++));
             break;
 
         case OP_COPY:
-            storeValue(vm, vm->bp, *ip++, loadValue(vm, vm->bp, arg));
+            storeValue(vm, vm->bp, *vm->ip++, loadValue(vm, vm->bp, arg));
             break;
 
         case OP_NOT:
-        case OP_NEG:
-        case OP_INV:
-            storeValue(vm, vm->bp, *ip++,
-                       HeapApplyUnary((Instruction)(i & 0xff),
-                                      loadValue(vm, vm->bp, arg)));
+            storeValue(vm, vm->bp, *vm->ip++,
+                       VNot(vm, loadValue(vm, vm->bp, arg)));
             break;
 
-        case OP_ITER_GET:
-            value = HeapWait(loadValue(vm, vm->bp, *ip++));
-            condition = VCollectionGet(HeapWait(loadValue(vm, vm->bp, arg)), value, &value);
-            storeValue(vm, vm->bp, *ip++, value);
-            storeValue(vm, vm->bp, *ip++, condition ? HeapTrue : HeapFalse);
+        case OP_NEG:
+            storeValue(vm, vm->bp, *vm->ip++,
+                       VNeg(vm, loadValue(vm, vm->bp, arg)));
             break;
+
+        case OP_INV:
+            storeValue(vm, vm->bp, *vm->ip++,
+                       VInv(vm, loadValue(vm, vm->bp, arg)));
+            break;
+
+        case OP_ITER_NEXT:
+        {
+            vref collection = loadValue(vm, vm->bp, *vm->ip++);
+            int indexVariable = *vm->ip++;
+            vref index = VAdd(vm, loadValue(vm, vm->bp, indexVariable),
+                              loadValue(vm, vm->bp, *vm->ip++));
+            storeValue(vm, vm->bp, indexVariable, index);
+            value = VValidIndex(vm, collection, index);
+            switch (VGetBool(value))
+            {
+            case TRUTHY:
+                storeValue(vm, vm->bp, *vm->ip++, VIndexedAccess(vm, collection, index));
+                break;
+            case FALSY:
+                vm->ip += arg - 2;
+                break;
+            case FUTURE:
+            {
+                VM *clone = VMClone(vm, value, vm->ip);
+                addVM(clone);
+                vm->ip += arg - 2;
+                storeValue(clone, clone->bp, *clone->ip++,
+                           VIndexedAccess(clone, collection, index));
+                break;
+            }
+            }
+            return;
+        }
 
         case OP_EQUALS:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VEquals(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_NOT_EQUALS:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VNotEquals(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_LESS_EQUALS:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VLessEquals(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_GREATER_EQUALS:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VNot(vm, VLess(vm, loadValue(vm, vm->bp, arg), value));
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_LESS:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VLess(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_GREATER:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value =
+                VNot(vm, VLessEquals(vm, loadValue(vm, vm->bp, arg), value));
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_AND:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VAnd(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_ADD:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VAdd(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_SUB:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VSub(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_MUL:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VMul(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_DIV:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VDiv(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_REM:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VRem(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
         case OP_CONCAT_LIST:
-        case OP_INDEXED_ACCESS:
-        case OP_RANGE:
-            value = loadValue(vm, vm->bp, *ip++);
-            storeValue(vm, vm->bp, *ip++,
-                       HeapApplyBinary((Instruction)(i & 0xff), value,
-                                       loadValue(vm, vm->bp, arg)));
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VConcat(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
             break;
 
         case OP_CONCAT_STRING:
-        {
-            /* TODO: Handle future values */
-            size_t length = 0;
-            char *data;
+            assert(!IVSize(&temp));
             for (i = 0; i < arg; i++)
             {
-                length += VStringLength(HeapWait(loadValue(vm, vm->bp, ip[i])));
+                IVAdd(&temp, intFromRef(loadValue(vm, vm->bp, *vm->ip++)));
             }
-            if (length)
-            {
-                string = HeapCreateUninitialisedString(length, &data);
-                for (i = 0; i < arg; i++)
-                {
-                    value = HeapWait(loadValue(vm, vm->bp, *ip++));
-                    length = VStringLength(value);
-                    VWriteString(value, data);
-                    data += length;
-                }
-            }
-            else
-            {
-                string = HeapEmptyString;
-                ip += arg;
-            }
-            storeValue(vm, vm->bp, *ip++, string);
+            value = VConcatString(vm, (size_t)arg, (vref*)IVGetWritePointer(&temp, 0));
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            IVSetSize(&temp, 0);
             break;
-        }
+
+        case OP_INDEXED_ACCESS:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VIndexedAccess(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
+
+        case OP_RANGE:
+            value = loadValue(vm, vm->bp, *vm->ip++);
+            value = VRange(vm, loadValue(vm, vm->bp, arg), value);
+            storeValue(vm, vm->bp, *vm->ip++, value);
+            break;
 
         case OP_JUMP:
-            vm->ip = ip + arg + 1;
+            vm->ip += arg + 1;
             return;
 
         case OP_BRANCH_TRUE:
-            value = loadValue(vm, vm->bp, *ip++);
+            value = loadValue(vm, vm->bp, *vm->ip++);
             switch (VGetBool(value))
             {
             case TRUTHY:
-                ip += arg;
+                vm->ip += arg;
                 break;
             case FALSY:
                 break;
             case FUTURE:
-                addVM(VMClone(vm, value, ip + arg));
+                addVM(VMClone(vm, value, vm->ip + arg));
                 break;
             }
-            vm->ip = ip;
             return;
 
         case OP_BRANCH_FALSE:
-            value = loadValue(vm, vm->bp, *ip++);
+            value = loadValue(vm, vm->bp, *vm->ip++);
             switch (VGetBool(value))
             {
             case TRUTHY:
                 break;
             case FALSY:
-                ip += arg;
+                vm->ip += arg;
                 break;
             case FUTURE:
-                addVM(VMClone(vm, value, ip));
-                ip += arg;
+                addVM(VMClone(vm, value, vm->ip));
+                vm->ip += arg;
                 break;
             }
-            vm->ip = ip;
             return;
 
         case OP_RETURN:
             assert(IVSize(&vm->callStack));
-            popStackFrame(vm, &ip, &vm->bp, (uint)arg);
+            popStackFrame(vm, &vm->ip, &vm->bp, (uint)arg);
             break;
 
         case OP_RETURN_VOID:
             if (!IVSize(&vm->callStack))
             {
-                vm->ip = null;
+                VMHalt(vm, 0);
                 return;
             }
-            popStackFrame(vm, &ip, &vm->bp, 0);
+            popStackFrame(vm, &vm->ip, &vm->bp, 0);
             break;
 
         case OP_INVOKE:
         {
             vref *values;
-            function = *ip++;
+            function = *vm->ip++;
             values = (vref*)IVGetAppendPointer(&vm->stack, (size_t)arg);
             for (i = 0; i < arg; i++)
             {
-                *values++ = loadValue(vm, vm->bp, *ip++);
+                *values++ = loadValue(vm, vm->bp, *vm->ip++);
             }
-            IVAdd(&vm->callStack, (int)(ip - vmBytecode));
+            IVAdd(&vm->callStack, (int)(vm->ip - vmBytecode));
             IVAdd(&vm->callStack, vm->bp);
-            initStackFrame(vm, &ip, &vm->bp, function, (uint)arg);
-            vm->ip = ip;
+            initStackFrame(vm, &vm->ip, &vm->bp, function, (uint)arg);
             break;
         }
 
         case OP_INVOKE_NATIVE:
             nativeFunction = refFromInt(arg);
-            vm->ip = ip;
             value = NativeInvoke(vm, nativeFunction);
             storeValue(vm, vm->bp, *vm->ip++, value);
             return;
@@ -311,6 +385,7 @@ static void execute(VM *vm)
         case OP_FUNCTION_UNLINKED:
         case OP_LOAD_FIELD:
         case OP_STORE_FIELD:
+        case OP_ITER_NEXT_INDEXED:
         case OP_JUMPTARGET:
         case OP_JUMP_INDEXED:
         case OP_BRANCH_TRUE_INDEXED:
@@ -332,6 +407,7 @@ void InterpreterExecute(const LinkedProgram *program, int target)
     uint i;
     bool idle = false;
 
+    IVInit(&temp, 16);
     vmTable = (VM**)malloc(vmTableSize * sizeof(*vmTable));
     vm = VMCreate(program);
     addVM(vm);
@@ -349,25 +425,36 @@ void InterpreterExecute(const LinkedProgram *program, int target)
         for (i = 0; i < vmCount; i++)
         {
             vm = vmTable[i];
-            vm->condition = HeapTryWait(vm->condition);
-            if (VIsFalsy(vm->condition))
+            if (VWait(&vm->condition) && VIsFalsy(vm->condition))
             {
                 removeVM(i--);
             }
-            else if (vm->ip)
+            else if (vm->active)
             {
                 execute(vm);
                 idle = false;
             }
         }
     }
-    while (vmCount > 1 || vmTable[0]->ip);
+    while (vmCount > 1 || vmTable[0]->active);
 
-    while (!WorkQueueEmpty())
+    while (!WorkQueueEmpty() && WorkExecute());
+
+    vm = vmTable[0];
+    if (vm->failMessage)
     {
-        WorkExecute();
+        const char *filename;
+        int line = BytecodeLineNumber(program->lineNumbers, (size_t)(vm->ip - vmBytecode), &filename);
+        char *msg = HeapGetStringCopy(vm->failMessage);
+        printf("%s:%d: %s\n", filename, line, msg);
+#ifdef VALGRIND
+        free(msg);
+#endif
     }
 
+#ifdef VALGRIND
     removeVM(0);
     free(vmTable);
+    IVDispose(&temp);
+#endif
 }

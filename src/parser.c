@@ -2,12 +2,11 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/types.h>
-#include <time.h>
 #include "bytevector.h"
 #include "fail.h"
 #include "file.h"
 #include "heap.h"
+#include "instruction.h"
 #include "intvector.h"
 #include "namespace.h"
 #include "native.h"
@@ -118,6 +117,17 @@ static void writeOp3(ParseState *state, Instruction op, int param1, int param2, 
     *write++ = param3;
 }
 
+static void writeOp5(ParseState *state, Instruction op, int param1, int param2,
+                     int param3, int param4, int param5)
+{
+    int *restrict write = IVGetAppendPointer(state->bytecode, 5);
+    *write++ = encodeOp(op, param1);
+    *write++ = param2;
+    *write++ = param3;
+    *write++ = param4;
+    *write++ = param5;
+}
+
 static void writeOpFromTemp(ParseState *state, Instruction op, size_t oldTempSize)
 {
     uint count = (uint)(IVSize(&temp) - oldTempSize);
@@ -195,6 +205,13 @@ static void writeBranch(ParseState *state, int target, Instruction instruction, 
 {
     state->jumpCount++;
     writeOp2(state, instruction, target, variable);
+}
+
+static void writeBranch4(ParseState *state, int target, Instruction instruction,
+                         int param1, int param2, int param3, int param4)
+{
+    state->jumpCount++;
+    writeOp5(state, instruction, target, param1, param2, param3, param4);
 }
 
 static int createJumpTarget(ParseState *state)
@@ -1839,7 +1856,7 @@ static bool parseExpression8(ParseState *state, ExpressionState *estate)
                 return true;
             }
             if (unlikely(!parseBinaryOperationRest(
-                             state, estate, parseExpression9, OP_REM)))
+                             state, estate, parseExpression9, OP_AND)))
             {
                 return false;
             }
@@ -2385,7 +2402,6 @@ static void parseBlock(ParseState *state)
                     int iterCollection;
                     int iterIndex;
                     int iterStep;
-                    int iterCondition;
                     identifier = readVariableName(state);
                     if (unlikely(!identifier))
                     {
@@ -2408,12 +2424,8 @@ static void parseBlock(ParseState *state)
                     storeConstant(state, HeapBoxInteger(1), iterStep);
                     loopTop = createJumpTargetHere(state);
                     afterLoop = createJumpTarget(state);
-
-                    writeOp3(state, OP_ADD, iterIndex, iterStep, iterIndex);
-                    writeOp3(state, OP_ITER_GET, iterCollection, iterIndex, intFromRef(identifier));
-                    iterCondition = createVariable(state);
-                    IVAdd(state->bytecode, iterCondition);
-                    writeBranch(state, afterLoop, OP_BRANCH_FALSE_INDEXED, iterCondition);
+                    writeBranch4(state, afterLoop, OP_ITER_NEXT_INDEXED, iterCollection,
+                                 iterIndex, iterStep, intFromRef(identifier));
                     parseBlock(state);
                     writeJump(state, loopTop);
                     placeJumpTargetHere(state, afterLoop);

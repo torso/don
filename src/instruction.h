@@ -25,7 +25,8 @@ typedef enum
     OP_NOT,
     OP_NEG,
     OP_INV,
-    OP_ITER_GET,
+    OP_ITER_NEXT,
+    OP_ITER_NEXT_INDEXED,
 
     OP_EQUALS,
     OP_NOT_EQUALS,

@@ -1,14 +1,13 @@
 #include "common.h"
 #include <stdarg.h>
 #include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include "vm.h"
 #include "bytecode.h"
 #include "fail.h"
+#include "heap.h"
+#include "instruction.h"
 #include "inthashmap.h"
+#include "intvector.h"
 #include "linker.h"
-#include "log.h"
 #include "namespace.h"
 #include "native.h"
 #include "parser.h"
@@ -301,9 +300,11 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
             *write++ = state.smallestConstant - field - 1;
             break;
         }
-        case OP_ITER_GET:
-            write = IVGetAppendPointer(&state.out, 4);
-            *write++ = op | (linkVariable(&state, arg) << 8);
+        case OP_ITER_NEXT_INDEXED:
+            state.jumps[state.jumpCount++] = (int)IVSize(&state.out);
+            write = IVGetAppendPointer(&state.out, 5);
+            *write++ = i - 1;
+            *write++ = linkVariable(&state, *read++);
             *write++ = linkVariable(&state, *read++);
             *write++ = linkVariable(&state, *read++);
             *write++ = linkVariable(&state, *read++);
@@ -511,6 +512,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
         }
 
         case OP_FUNCTION:
+        case OP_ITER_NEXT:
         case OP_JUMP:
         case OP_BRANCH_TRUE:
         case OP_BRANCH_FALSE:

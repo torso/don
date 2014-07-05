@@ -1,15 +1,15 @@
 #include "common.h"
-#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "vm.h"
 #include "bytecode.h"
 #include "cache.h"
 #include "env.h"
 #include "fail.h"
 #include "file.h"
+#include "heap.h"
 #include "interpreter.h"
+#include "intvector.h"
 #include "linker.h"
 #include "log.h"
 #include "namespace.h"

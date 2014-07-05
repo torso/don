@@ -2,15 +2,16 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include "vm.h"
+#include "bytevector.h"
 #include "fail.h"
 #include "file.h"
 #include "hash.h"
+#include "heap.h"
+#include "instruction.h"
+#include "intvector.h"
 #include "math.h"
 #include "parser.h"
 #include "stringpool.h"
-#include "util.h"
 #include "work.h"
 
 #define INITIAL_HEAP_INDEX_SIZE 1
@@ -120,10 +121,13 @@ static ref_t unboxReference(VType type, vref object)
 static const char *getString(vref object)
 {
     const SubString *ss;
+    VType type;
 
+start:
     assert(!HeapIsFutureValue(object));
 
-    switch (HeapGetObjectType(object))
+    type = HeapGetObjectType(object);
+    switch ((int)type)
     {
     case TYPE_STRING:
         return (const char*)HeapGetObjectData(object);
@@ -135,17 +139,9 @@ static const char *getString(vref object)
         ss = (const SubString*)HeapGetObjectData(object);
         return &getString(ss->string)[ss->offset];
 
-    case TYPE_NULL:
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_FILE:
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-    case TYPE_CONCAT_LIST:
-    case TYPE_FUTURE:
-    case TYPE_INVALID:
-        break;
+    case TYPE_VALUE:
+        object = *(vref*)HeapGetObjectData(object);
+        goto start;
     }
     unreachable;
 }
@@ -221,46 +217,121 @@ void HeapDispose(void)
 }
 
 
-char *HeapDebug(vref object, bool address)
+char *HeapDebug(vref value)
 {
-    size_t length = VStringLength(object);
-    char *buffer = (char*)malloc(length + 16); /* 16 ought to be enough */
-    char *p;
-    if (address)
+    HeapObject ho;
+    bytevector buffer;
+    size_t length;
+    const char *type;
+    bool string = true;
+
+    BVInit(&buffer, 64);
+
+    if (isInteger(value))
     {
-        snprintf(buffer, 12, "%u:", object);
-        p = buffer + strlen(buffer);
+        length = BVGetReservedAppendSize(&buffer);
+        snprintf((char*)BVGetAppendPointer(&buffer, length), length,
+                 "[int=%d]", HeapUnboxInteger(value));
+        BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)));
+        return (char*)BVDisposeContainer(&buffer);
     }
-    else
+
+    length = BVGetReservedAppendSize(&buffer);
+    snprintf((char*)BVGetAppendPointer(&buffer, length), length, "[%u:", value);
+    BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)));
+
+    if (!value)
     {
-        p = buffer;
+        const char s[] = "invalid]";
+        BVAddData(&buffer, (const byte*)s, sizeof(s));
+        return (char*)BVDisposeContainer(&buffer);
     }
-    if (!object)
+    HeapGet(value, &ho);
+    switch (ho.type)
     {
-        *p++ = 'n';
-        *p++ = 'u';
-        *p++ = 'l';
-        *p++ = 'l';
+    case TYPE_VALUE:                 type = "value";          string = false; break;
+    case TYPE_NULL:                  type = "null";           string = false; break;
+    case TYPE_BOOLEAN_TRUE:          type = "true";           string = false; break;
+    case TYPE_BOOLEAN_FALSE:         type = "false";          string = false; break;
+    case TYPE_STRING:                type = "string";                         break;
+    case TYPE_STRING_WRAPPED:        type = "string_wrapped";                 break;
+    case TYPE_SUBSTRING:             type = "substring";                      break;
+    case TYPE_FILE:                  type = "file";                           break;
+    case TYPE_ARRAY:                 type = "array";                          break;
+    case TYPE_INTEGER_RANGE:         type = "range";                          break;
+    case TYPE_CONCAT_LIST:           type = "concat_list";                    break;
+    case TYPE_FUTURE:                type = "future";                         break;
+    case TYPE_FUTURE_NOT:            type = "future_not";                     break;
+    case TYPE_FUTURE_NEG:            type = "future_neg";                     break;
+    case TYPE_FUTURE_INV:            type = "future_inv";                     break;
+    case TYPE_FUTURE_EQUALS:         type = "future_equals";                  break;
+    case TYPE_FUTURE_NOT_EQUALS:     type = "future_not_equals";              break;
+    case TYPE_FUTURE_LESS:           type = "future_less";                    break;
+    case TYPE_FUTURE_LESS_EQUALS:    type = "future_less_equals";             break;
+    case TYPE_FUTURE_AND:            type = "future_and";                     break;
+    case TYPE_FUTURE_ADD:            type = "future_add";                     break;
+    case TYPE_FUTURE_SUB:            type = "future_sub";                     break;
+    case TYPE_FUTURE_MUL:            type = "future_mul";                     break;
+    case TYPE_FUTURE_DIV:            type = "future_div";                     break;
+    case TYPE_FUTURE_REM:            type = "future_rem";                     break;
+    case TYPE_FUTURE_VALID_INDEX:    type = "future_valid_index";             break;
+    case TYPE_FUTURE_INDEXED_ACCESS: type = "future_indexed_access";          break;
+    case TYPE_FUTURE_RANGE:          type = "future_range";                   break;
+    case TYPE_FUTURE_CONCAT:         type = "future_concat";                  break;
+    case TYPE_FUTURE_CONCAT_STRING:  type = "future_concat_string";           break;
+
+    case TYPE_INVALID:
+    case TYPE_INTEGER:
+    default:
+        printf("%d type:%d\n", value, ho.type);
+        unreachable;
     }
-    else
+    BVAddData(&buffer, (const byte*)type, strlen(type));
+
+    if (HeapIsFutureValue(value))
     {
-        if (HeapIsString(object))
+        size_t i;
+        const vref *data = (const vref*)ho.data;
+        BVAdd(&buffer, ':');
+        for (i = 0; i < ho.size / sizeof(vref); i++)
         {
-            *p++ = '\"';
-        }
-        else if (HeapIsFile(object))
-        {
-            *p++ = '@';
-            *p++ = '\"';
-        }
-        p = VWriteString(object, p);
-        if (HeapIsString(object) || HeapIsFile(object))
-        {
-            *p++ = '\"';
+            if (i != 0)
+            {
+                BVAdd(&buffer, ',');
+            }
+            length = BVGetReservedAppendSize(&buffer);
+            if (isInteger(data[i]))
+            {
+                snprintf((char*)BVGetAppendPointer(&buffer, length), length,
+                         "int=%d", HeapUnboxInteger(data[i]));
+            }
+            else
+            {
+                snprintf((char*)BVGetAppendPointer(&buffer, length), length, "%u", data[i]);
+            }
+            BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)));
         }
     }
-    *p++ = 0;
-    return buffer;
+    else if (string)
+    {
+        BVAdd(&buffer, ':');
+        length = VStringLength(value);
+        if (HeapIsString(value))
+        {
+            BVAdd(&buffer, '\"');
+        }
+        else if (HeapIsFile(value))
+        {
+            BVAddData(&buffer, (const byte*)"@\"", 2);
+        }
+        VWriteString(value, (char*)BVGetAppendPointer(&buffer, length));
+        if (HeapIsString(value) || HeapIsFile(value))
+        {
+            BVAdd(&buffer, '\"');
+        }
+    }
+    BVAddData(&buffer, (const byte*)"]", 2);
+    return (char*)BVDisposeContainer(&buffer);
 }
 
 VType HeapGetObjectType(vref object)
@@ -289,10 +360,13 @@ void HeapHash(vref object, HashState *hash)
     size_t pathLength;
     size_t index;
     vref item;
+    VType type;
 
+start:
     assert(!HeapIsFutureValue(object));
 
-    switch (HeapGetObjectType(object))
+    type = HeapGetObjectType(object);
+    switch ((int)type)
     {
     case TYPE_NULL:
         value = 0;
@@ -344,9 +418,9 @@ void HeapHash(vref object, HashState *hash)
         }
         return;
 
-    case TYPE_FUTURE:
-    case TYPE_INVALID:
-        break;
+    case TYPE_VALUE:
+        object = *(vref*)HeapGetObjectData(object);
+        goto start;
     }
     unreachable;
 }
@@ -359,7 +433,9 @@ bool HeapEquals(vref object1, vref object2)
     vref item1;
     vref item2;
     bool success;
+    VType type;
 
+start:
     assert(!HeapIsFutureValue(object1));
     assert(!HeapIsFutureValue(object2));
 
@@ -367,7 +443,8 @@ bool HeapEquals(vref object1, vref object2)
     {
         return true;
     }
-    switch (HeapGetObjectType(object1))
+    type = HeapGetObjectType(object1);
+    switch ((int)type)
     {
     case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
@@ -414,9 +491,9 @@ bool HeapEquals(vref object1, vref object2)
         }
         return true;
 
-    case TYPE_FUTURE:
-    case TYPE_INVALID:
-        break;
+    case TYPE_VALUE:
+        object1 = *(vref*)HeapGetObjectData(object1);
+        goto start;
     }
     unreachable;
 }
@@ -519,6 +596,7 @@ vref HeapCreateSubstring(vref string, size_t offset, size_t length)
 {
     SubString *ss;
     byte *data;
+    VType type;
 
     assert(!HeapIsFutureValue(string));
     assert(HeapIsString(string));
@@ -531,7 +609,9 @@ vref HeapCreateSubstring(vref string, size_t offset, size_t length)
     {
         return string;
     }
-    switch (HeapGetObjectType(string))
+start:
+    type = HeapGetObjectType(string);
+    switch ((int)type)
     {
     case TYPE_STRING:
         break;
@@ -545,16 +625,11 @@ vref HeapCreateSubstring(vref string, size_t offset, size_t length)
         offset += ss->offset;
         break;
 
-    case TYPE_NULL:
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_FILE:
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-    case TYPE_CONCAT_LIST:
-    case TYPE_FUTURE:
-    case TYPE_INVALID:
+    case TYPE_VALUE:
+        string = *(vref*)HeapGetObjectData(string);
+        goto start;
+
+    default:
         unreachable;
     }
     data = HeapAlloc(TYPE_SUBSTRING, sizeof(SubString));
@@ -648,8 +723,11 @@ vref HeapCreateStringFormatted(const char *format, va_list ap)
 
 bool HeapIsString(vref object)
 {
+    VType type;
+start:
     assert(!HeapIsFutureValue(object));
-    switch (HeapGetObjectType(object))
+    type = HeapGetObjectType(object);
+    switch ((int)type)
     {
     case TYPE_STRING:
     case TYPE_STRING_WRAPPED:
@@ -666,9 +744,9 @@ bool HeapIsString(vref object)
     case TYPE_CONCAT_LIST:
         return false;
 
-    case TYPE_FUTURE:
-    case TYPE_INVALID:
-        break;
+    case TYPE_VALUE:
+        object = *(vref*)HeapGetObjectData(object);
+        goto start;
     }
     unreachable;
 }
@@ -825,15 +903,23 @@ static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
     size_t i;
     size_t size2;
     const vref *restrict src;
-    switch (HeapGetObjectType(list))
+    VType type;
+
+start:
+    type = HeapGetObjectType(list);
+    switch ((int)type)
     {
     case TYPE_ARRAY:
         src = (const vref*)HeapGetObjectData(list);
         size2 = HeapGetObjectSize(list) / sizeof(vref);
         for (i = 0; i < size2; i++)
         {
-            vref v = HeapTryWait(*src++);
-            assert(!HeapIsFutureValue(v)); /* TODO */
+            vref v = *src++;
+            while (HeapGetObjectType(v) == TYPE_VALUE)
+            {
+                v = *(vref*)HeapGetObjectData(v);
+            }
+            assert(!HeapIsFutureValue(v));
             if (VIsCollection(v))
             {
                 size_t s = 0;
@@ -865,17 +951,9 @@ static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
         }
         return;
 
-    case TYPE_NULL:
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
-    case TYPE_SUBSTRING:
-    case TYPE_FILE:
-    case TYPE_FUTURE:
-    case TYPE_INVALID:
-        break;
+    case TYPE_VALUE:
+        list = *(vref*)HeapGetObjectData(list);
+        goto start;
     }
     unreachable;
 }
@@ -1105,275 +1183,9 @@ typedef struct
     Instruction op;
 } FutureValueUnary;
 
-typedef struct
-{
-    vref value1;
-    vref value2;
-    Instruction op;
-} FutureValueBinary;
-
-static vref executeUnary(Instruction op, vref value)
-{
-    switch (op)
-    {
-    case OP_STORE_CONSTANT:
-        return value;
-
-    case OP_NOT:
-        assert(value == HeapTrue || value == HeapFalse);
-        return value == HeapFalse ? HeapTrue : HeapFalse;
-
-    case OP_NEG:
-        assert(HeapUnboxInteger(value) != INT_MIN);
-        return HeapBoxInteger(-HeapUnboxInteger(value));
-        break;
-
-    case OP_INV:
-        return HeapBoxInteger(~HeapUnboxInteger(value));
-
-    case OP_FUNCTION:
-    case OP_FUNCTION_UNLINKED:
-    case OP_ITER_GET:
-    case OP_NULL:
-    case OP_TRUE:
-    case OP_FALSE:
-    case OP_EMPTY_LIST:
-    case OP_LIST:
-    case OP_FILELIST:
-    case OP_COPY:
-    case OP_LOAD_FIELD:
-    case OP_STORE_FIELD:
-    case OP_EQUALS:
-    case OP_NOT_EQUALS:
-    case OP_LESS_EQUALS:
-    case OP_GREATER_EQUALS:
-    case OP_LESS:
-    case OP_GREATER:
-    case OP_AND:
-    case OP_ADD:
-    case OP_SUB:
-    case OP_MUL:
-    case OP_DIV:
-    case OP_REM:
-    case OP_CONCAT_LIST:
-    case OP_CONCAT_STRING:
-    case OP_INDEXED_ACCESS:
-    case OP_RANGE:
-    case OP_JUMPTARGET:
-    case OP_JUMP:
-    case OP_JUMP_INDEXED:
-    case OP_BRANCH_TRUE:
-    case OP_BRANCH_TRUE_INDEXED:
-    case OP_BRANCH_FALSE:
-    case OP_BRANCH_FALSE_INDEXED:
-    case OP_RETURN:
-    case OP_RETURN_VOID:
-    case OP_INVOKE:
-    case OP_INVOKE_UNLINKED:
-    case OP_INVOKE_NATIVE:
-    case OP_UNKNOWN_VALUE:
-    case OP_FILE:
-    case OP_LINE:
-    case OP_ERROR:
-        break;
-    }
-    unreachable;
-}
-
-static vref executeBinaryPartial(Instruction op, vref object,
-                                 vref value1, vref value2)
-{
-    switch (op)
-    {
-    case OP_EQUALS:
-    case OP_LESS_EQUALS:
-    case OP_GREATER_EQUALS:
-        if (value1 == value2)
-        {
-            return HeapTrue;
-        }
-        return object;
-    case OP_NOT_EQUALS:
-    case OP_LESS:
-    case OP_GREATER:
-        if (value1 == value2)
-        {
-            return HeapFalse;
-        }
-        return object;
-
-    case OP_AND:
-        if ((!HeapIsFutureValue(value1) && !VIsTruthy(value1)) ||
-            (!HeapIsFutureValue(value2) && !VIsTruthy(value2)))
-        {
-            return HeapFalse;
-        }
-        return object;
-    case OP_ADD:
-    case OP_SUB:
-    case OP_MUL:
-    case OP_DIV:
-    case OP_REM:
-    case OP_CONCAT_LIST:
-    case OP_INDEXED_ACCESS:
-    case OP_RANGE:
-        return object;
-
-    case OP_FUNCTION:
-    case OP_FUNCTION_UNLINKED:
-    case OP_NULL:
-    case OP_TRUE:
-    case OP_FALSE:
-    case OP_EMPTY_LIST:
-    case OP_LIST:
-    case OP_FILELIST:
-    case OP_STORE_CONSTANT:
-    case OP_COPY:
-    case OP_LOAD_FIELD:
-    case OP_STORE_FIELD:
-    case OP_NOT:
-    case OP_NEG:
-    case OP_INV:
-    case OP_ITER_GET:
-    case OP_CONCAT_STRING:
-    case OP_JUMPTARGET:
-    case OP_JUMP:
-    case OP_JUMP_INDEXED:
-    case OP_BRANCH_TRUE:
-    case OP_BRANCH_TRUE_INDEXED:
-    case OP_BRANCH_FALSE:
-    case OP_BRANCH_FALSE_INDEXED:
-    case OP_RETURN:
-    case OP_RETURN_VOID:
-    case OP_INVOKE:
-    case OP_INVOKE_UNLINKED:
-    case OP_INVOKE_NATIVE:
-    case OP_UNKNOWN_VALUE:
-    case OP_FILE:
-    case OP_LINE:
-    case OP_ERROR:
-        break;
-    }
-    unreachable;
-}
-
-static vref executeBinary(Instruction op,
-                          vref value1, vref value2)
-{
-    size_t size1;
-    size_t size2;
-
-    switch (op)
-    {
-    case OP_EQUALS:
-        return HeapEquals(value1, value2) ? HeapTrue : HeapFalse;
-    case OP_NOT_EQUALS:
-        return HeapEquals(value1, value2) ? HeapFalse : HeapTrue;
-    case OP_LESS_EQUALS:
-        return HeapCompare(value2, value1) <= 0 ? HeapTrue : HeapFalse;
-    case OP_GREATER_EQUALS:
-        return HeapCompare(value2, value1) >= 0 ? HeapTrue : HeapFalse;
-    case OP_LESS:
-        return HeapCompare(value2, value1) < 0 ? HeapTrue : HeapFalse;
-    case OP_GREATER:
-        return HeapCompare(value2, value1) > 0 ? HeapTrue : HeapFalse;
-
-    case OP_AND:
-        return VIsTruthy(value1) && VIsTruthy(value2) ? HeapTrue : HeapFalse;
-    case OP_ADD:
-        return HeapBoxInteger(HeapUnboxInteger(value2) +
-                              HeapUnboxInteger(value1));
-    case OP_SUB:
-        return HeapBoxInteger(HeapUnboxInteger(value2) -
-                              HeapUnboxInteger(value1));
-    case OP_MUL:
-        return HeapBoxInteger(HeapUnboxInteger(value2) *
-                              HeapUnboxInteger(value1));
-    case OP_DIV:
-        assert((HeapUnboxInteger(value2) /
-                HeapUnboxInteger(value1)) *
-               HeapUnboxInteger(value1) ==
-               HeapUnboxInteger(value2)); /* TODO: fraction */
-        return HeapBoxInteger(HeapUnboxInteger(value2) /
-                              HeapUnboxInteger(value1));
-    case OP_REM:
-        return HeapBoxInteger(HeapUnboxInteger(value2) %
-                              HeapUnboxInteger(value1));
-
-    case OP_CONCAT_LIST:
-        return VConcatList(value2, value1);
-
-    case OP_INDEXED_ACCESS:
-        if (HeapIsString(value2))
-        {
-            if (HeapIsRange(value1))
-            {
-                size1 = HeapUnboxSize(HeapRangeLow(value1));
-                size2 = HeapUnboxSize(HeapRangeHigh(value1));
-                assert(size2 >= size1); /* TODO: Support inverted ranges. */
-                value1 = HeapCreateSubstring(value2, size1, size2 - size1 + 1);
-            }
-            else
-            {
-                value1 = HeapCreateSubstring(value2, HeapUnboxSize(value1), 1);
-            }
-        }
-        else
-        {
-            assert(HeapUnboxInteger(value1) >= 0);
-            assert((size_t)HeapUnboxInteger(value1) < VCollectionSize(value2));
-            if (!VCollectionGet(value2, value1, &value1))
-            {
-                assert(false);
-                return 0;
-            }
-        }
-        return value1;
-
-    case OP_RANGE:
-        return HeapCreateRange(value2, value1);
-
-    case OP_FUNCTION:
-    case OP_FUNCTION_UNLINKED:
-    case OP_STORE_CONSTANT:
-    case OP_NULL:
-    case OP_TRUE:
-    case OP_FALSE:
-    case OP_EMPTY_LIST:
-    case OP_LIST:
-    case OP_FILELIST:
-    case OP_COPY:
-    case OP_LOAD_FIELD:
-    case OP_STORE_FIELD:
-    case OP_NOT:
-    case OP_NEG:
-    case OP_INV:
-    case OP_ITER_GET:
-    case OP_CONCAT_STRING:
-    case OP_JUMPTARGET:
-    case OP_JUMP:
-    case OP_JUMP_INDEXED:
-    case OP_BRANCH_TRUE:
-    case OP_BRANCH_TRUE_INDEXED:
-    case OP_BRANCH_FALSE:
-    case OP_BRANCH_FALSE_INDEXED:
-    case OP_RETURN:
-    case OP_RETURN_VOID:
-    case OP_INVOKE:
-    case OP_INVOKE_UNLINKED:
-    case OP_INVOKE_NATIVE:
-    case OP_UNKNOWN_VALUE:
-    case OP_FILE:
-    case OP_LINE:
-    case OP_ERROR:
-        break;
-    }
-    unreachable;
-}
-
 bool HeapIsFutureValue(vref object)
 {
-    return object && HeapGetObjectType(object) == TYPE_FUTURE;
+    return (HeapGetObjectType(object) & TYPE_FLAG_FUTURE) != 0;
 }
 
 vref HeapCreateFutureValue(void)
@@ -1387,96 +1199,16 @@ vref HeapCreateFutureValue(void)
 
 void HeapSetFutureValue(vref object, vref value)
 {
-    FutureValueUnary *future = (FutureValueUnary*)HeapGetObjectData(object);
-    assert(HeapGetObjectSize(object) == sizeof(FutureValueUnary));
-    assert(!future->value);
-    assert(future->op == OP_UNKNOWN_VALUE);
-    future->value = value;
-    future->op = OP_STORE_CONSTANT;
-}
-
-vref HeapTryWait(vref object)
-{
-    FutureValueUnary *future1;
-    FutureValueBinary *future2;
-
-    if (!HeapIsFutureValue(object))
+    byte *data = HeapPageBase + sizeFromRef(object);
+    if (DEBUG_FUTURE)
     {
-        return object;
+        char *value1 = HeapDebug(object);
+        char *value2 = HeapDebug(value);
+        printf("set %s = %s\n", value1, value2);
+        free(value1);
+        free(value2);
     }
-    if (HeapGetObjectSize(object) == sizeof(FutureValueUnary))
-    {
-        future1 = (FutureValueUnary*)HeapGetObjectData(object);
-        if (future1->op == OP_UNKNOWN_VALUE)
-        {
-            return object;
-        }
-        future1->value = HeapTryWait(future1->value);
-        return HeapIsFutureValue(future1->value) ?
-            object : executeUnary(future1->op, future1->value);
-    }
-    else
-    {
-        future2 = (FutureValueBinary*)HeapGetObjectData(object);
-        if (future2->op == OP_UNKNOWN_VALUE)
-        {
-            return object;
-        }
-        future2->value1 = HeapTryWait(future2->value1);
-        future2->value2 = HeapTryWait(future2->value2);
-        return (HeapIsFutureValue(future2->value1) ||
-                HeapIsFutureValue(future2->value2)) ?
-            executeBinaryPartial(future2->op, object,
-                                 future2->value1, future2->value2) :
-            executeBinary(future2->op, future2->value1, future2->value2);
-    }
-}
-
-vref HeapWait(vref object)
-{
-    object = HeapTryWait(object);
-    while (HeapIsFutureValue(object))
-    {
-        WorkExecute();
-        object = HeapTryWait(object);
-    }
-    return object;
-}
-
-
-vref HeapApplyUnary(Instruction op, vref value)
-{
-    byte *data;
-    FutureValueUnary *future;
-
-    value = HeapTryWait(value);
-    if (HeapIsFutureValue(value))
-    {
-        data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueUnary));
-        future = (FutureValueUnary*)data;
-        future->value = value;
-        future->op = op;
-        return HeapFinishAlloc(data);
-    }
-    return executeUnary(op, value);
-}
-
-vref HeapApplyBinary(Instruction op,
-                     vref value1, vref value2)
-{
-    byte *data;
-    FutureValueBinary *future;
-
-    value1 = HeapTryWait(value1);
-    value2 = HeapTryWait(value2);
-    if (HeapIsFutureValue(value1) || HeapIsFutureValue(value2))
-    {
-        data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueBinary));
-        future = (FutureValueBinary*)data;
-        future->value1 = value1;
-        future->value2 = value2;
-        future->op = op;
-        return HeapFinishAlloc(data);
-    }
-    return executeBinary(op, value1, value2);
+    assert(HeapIsFutureValue(object));
+    *(VType*)(data + HEADER_TYPE) = TYPE_VALUE;
+    *(vref*)(data + OBJECT_OVERHEAD) = value;
 }
