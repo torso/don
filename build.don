@@ -8,7 +8,7 @@ fn compile(datadir:@data/, extraflags:[], linkflags:[], optimize:false)
                        $(valgrind ? '-DVALGRIND' : '-DNVALGRIND')
                        -ggdb3 -rdynamic -std=c89 -pedantic
                        -Wno-error=unused-parameter -Wno-error=unused-variable
-                       -Wno-error=unused-function -Wall -Wextra -Wformat=2
+                       -Wno-error=unused-function -Wall -Wextra -Wformat-security
                        -Winit-self -Wmissing-include-dirs -Wswitch-enum
                        -Wsync-nand -Wunused -Wstrict-overflow=5 -Wfloat-equal
                        -Wundef -Wshadow -Wunsafe-loop-optimizations
