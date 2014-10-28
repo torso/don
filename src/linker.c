@@ -127,7 +127,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
     int *currentFunction;
     int *write;
     intvector lineNumbers;
-    size_t lineStart;
+    size_t lineStart = 0;
 
     linked->functions = (int*)malloc(IVSize(&parsed->functions) * sizeof(*linked->functions));
     currentFunction = linked->functions;
