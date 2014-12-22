@@ -3,5 +3,5 @@ extern nonnull const int *BytecodeDisassembleInstruction(const int *bytecode, co
 
 extern nonnull void BytecodeDisassemble(const int *bytecode, const int *bytecodeLimit);
 
-extern nonnull int BytecodeLineNumber(const int *lineNumbers, size_t bytecodeOffset,
+extern nonnull int BytecodeLineNumber(const int *lineNumbers, int bytecodeOffset,
                                       const char **filename);

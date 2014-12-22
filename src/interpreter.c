@@ -468,7 +468,7 @@ void InterpreterExecute(const LinkedProgram *program, int target)
     if (vm->failMessage)
     {
         const char *filename;
-        int line = BytecodeLineNumber(program->lineNumbers, (size_t)(vm->ip - vmBytecode), &filename);
+        int line = BytecodeLineNumber(program->lineNumbers, (int)(vm->ip - vmBytecode), &filename);
         char *msg = HeapGetStringCopy(vm->failMessage);
         printf("%s:%d: %s\n", filename, line, msg);
 #ifdef VALGRIND
