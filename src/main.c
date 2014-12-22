@@ -76,6 +76,10 @@ int main(int argc, const char **argv)
                 case 'd':
                     disassemble = true;
                     break;
+
+                case 't':
+                    trace = true;
+                    break;
 #endif
 
                 case 'f':

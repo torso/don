@@ -32,6 +32,7 @@ struct VM
 
 
 extern const int *vmBytecode;
+extern const int *vmLineNumbers;
 
 extern nonnull VM *VMCreate(const struct _LinkedProgram *program);
 extern nonnull VM *VMClone(VM *vm, vref condition, const int *ip);

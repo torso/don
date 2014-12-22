@@ -10,7 +10,7 @@
 #include "vm.h"
 
 const int *vmBytecode;
-static const int *vmLineNumbers;
+const int *vmLineNumbers;
 
 static VM *VMAlloc(int fieldCount)
 {

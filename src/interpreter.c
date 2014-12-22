@@ -10,7 +10,25 @@
 #include "work.h"
 #include "vm.h"
 
-static const bool TRACE = false;
+#ifdef DEBUG
+bool trace;
+static const char *lastFilename;
+static int lastLine;
+
+static void traceLine(int bytecodeOffset)
+{
+    const char *filename;
+    int line;
+
+    line = BytecodeLineNumber(vmLineNumbers, bytecodeOffset, &filename);
+    if (filename != lastFilename || line != lastLine)
+    {
+        printf("%s:%d\n", filename, line);
+        lastFilename = filename;
+        lastLine = line;
+    }
+}
+#endif
 
 static intvector temp;
 static VM **vmTable;
@@ -70,11 +88,14 @@ static void initStackFrame(VM *vm, const int **ip, int *bp, int functionOffset,
     const int *bytecode = vmBytecode + functionOffset;
     int i = *bytecode++;
     int localsCount = i >> 8;
-    if (TRACE)
+#ifdef DEBUG
+    if (trace)
     {
+        traceLine(functionOffset);
         printf("[%p] %u: ", (void*)vm, functionOffset);
         BytecodeDisassembleInstruction(vmBytecode + functionOffset, vmBytecode);
     }
+#endif
     assert((i & 0xff) == OP_FUNCTION);
     *ip = bytecode;
     *bp = (int)(IVSize(&vm->stack) - parameterCount);
@@ -112,12 +133,15 @@ static void execute(VM *vm)
     {
         int i = *vm->ip;
         int arg = i >> 8;
-        if (TRACE)
+#ifdef DEBUG
+        if (trace)
         {
+            traceLine((int)(vm->ip - vmBytecode));
             printf("[%p] %u: ", (void*)vm, (uint)(vm->ip - vmBytecode));
             BytecodeDisassembleInstruction(vm->ip, vmBytecode);
             fflush(stdout);
         }
+#endif
         vm->ip++;
         switch ((Instruction)(i & 0xff))
         {
