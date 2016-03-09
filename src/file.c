@@ -113,7 +113,7 @@ static FileEntry *feEntryAt(const char *path, size_t length, int fdParent, const
     memset(&fe->status, 0, sizeof(fe->status));
     fe->status.size = -1;
     if (
-#ifdef HAVE_OPENAT
+#if HAVE_OPENAT
         fstatat(fdParent, relPath, &s, AT_SYMLINK_NOFOLLOW)
 #else
         lstat(fe->path, &s)
@@ -130,7 +130,7 @@ static FileEntry *feEntryAt(const char *path, size_t length, int fdParent, const
     {
         /* TODO: Maybe do something more clever with symlinks. */
         if (
-#ifdef HAVE_OPENAT
+#if HAVE_OPENAT
             fstatat(fdParent, relPath, &s2, 0)
 #else
             stat(fe->path, &s2)
