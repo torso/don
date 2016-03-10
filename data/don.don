@@ -25,23 +25,10 @@ fn env(name)
 
 fn exec(command..., env:[], fail:true, echo:true, echoStderr:true, access:@/, modify:@/)
 {
-    result = native.exec(command, env, echo, echoStderr, filelist(access), filelist(modify))
+    result = native.exec(command, env, echo, echoStderr, fail, filelist(access), filelist(modify))
     stdout = result[0]
     stderr = result[1]
     exitcode = result[2]
-    if fail && exitcode != 0
-    {
-        internalError = result[3]
-        if internalError == 1
-        {
-            fail("Command not found: $(command[0])")
-        }
-        if internalError == 2
-        {
-            fail("File is not executable: $(command[0])")
-        }
-        fail("Process exited with status $exitcode")
-    }
     return list(stdout, stderr) exitcode
 }
 

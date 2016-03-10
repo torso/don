@@ -292,13 +292,13 @@ typedef struct
     vref env;
     vref echoOut;
     vref echoErr;
+    vref fail;
     vref access;
     vref modify;
 
     vref outputStd;
     vref outputErr;
     vref exitcode;
-    vref internalError;
 } ExecEnv;
 
 static bool workExec(Work *work, vref *values)
@@ -307,6 +307,7 @@ static bool workExec(Work *work, vref *values)
     char *executable;
     vref value;
     char **argv;
+    size_t arg0Length;
     const char *const*envp;
     size_t index;
     const char *path;
@@ -319,9 +320,8 @@ static bool workExec(Work *work, vref *values)
     size_t length;
 
     if (!VIsTruthy(work->condition) || !VWait(&env->command) ||
-        !VWait(&env->env) || !VWait(&env->echoOut) ||
-        !VWait(&env->echoErr) || !VWait(&env->access) ||
-        !VWait(&env->modify))
+        !VWait(&env->env) || !VWait(&env->echoOut) || !VWait(&env->echoErr) ||
+        !VWait(&env->fail) || !VWait(&env->access) || !VWait(&env->modify))
     {
         return false;
     }
@@ -334,24 +334,21 @@ static bool workExec(Work *work, vref *values)
         return false;
     }
 
-    executable = FileSearchPath(argv[0], strlen(argv[0]), &length, true);
+    arg0Length = strlen(argv[0]);
+    executable = FileSearchPath(argv[0], arg0Length, &length, true);
     if (!executable)
     {
-        executable = FileSearchPath(argv[0], strlen(argv[0]), &length, false);
+        executable = FileSearchPath(argv[0], arg0Length, &length, false);
         if (executable)
         {
+            VMFail(work->vm, work->ip, "File is not executable: %s", executable);
             free(executable);
-            HeapSetFutureValue(env->exitcode, HeapBoxInteger(126));
-            HeapSetFutureValue(env->internalError, HeapBoxInteger(2));
         }
         else
         {
-            HeapSetFutureValue(env->exitcode, HeapBoxInteger(127));
-            HeapSetFutureValue(env->internalError, HeapBoxInteger(1));
+            VMFail(work->vm, work->ip, "Command not found: %s", argv[0]);
         }
         free(argv);
-        HeapSetFutureValue(env->outputStd, HeapEmptyString);
-        HeapSetFutureValue(env->outputErr, HeapEmptyString);
         return true;
     }
 
@@ -396,7 +393,13 @@ static bool workExec(Work *work, vref *values)
     {
         FailErrno(false);
     }
-    HeapSetFutureValue(env->internalError, HeapBoxInteger(0));
+    if (WEXITSTATUS(status) && VIsTruthy(env->fail))
+    {
+        PipeDispose(&out);
+        PipeDispose(&err);
+        VMFail(work->vm, work->ip, "Process exited with status %d", WEXITSTATUS(status));
+        return true;
+    }
     HeapSetFutureValue(env->exitcode, HeapBoxInteger(WEXITSTATUS(status)));
     HeapSetFutureValue(env->outputStd, HeapCreateString(
                            (const char*)BVGetPointer(&out.buffer, 0),
@@ -420,13 +423,13 @@ static vref nativeExec(VM *vm)
     env->env = VMReadValue(vm);
     env->echoOut = VMReadValue(vm);
     env->echoErr = VMReadValue(vm);
+    env->fail = VMReadValue(vm);
     env->access = VMReadValue(vm);
     env->modify = VMReadValue(vm);
 
     env->outputStd = HeapCreateFutureValue();
     env->outputErr = HeapCreateFutureValue();
     env->exitcode = HeapCreateFutureValue();
-    env->internalError = HeapCreateFutureValue();
 
     if (!workExec(work, values))
     {
@@ -1222,7 +1225,7 @@ void NativeInit(void)
 {
     addFunctionInfo("cp",          nativeCp,          2, 0);
     addFunctionInfo("echo",        nativeEcho,        2, 0);
-    addFunctionInfo("exec",        nativeExec,        6, 4);
+    addFunctionInfo("exec",        nativeExec,        7, 3);
     addFunctionInfo("fail",        nativeFail,        1, 0);
     addFunctionInfo("file",        nativeFile,        3, 1);
     addFunctionInfo("filename",    nativeFilename,    1, 1);
