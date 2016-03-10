@@ -7,6 +7,13 @@
 #include "work.h"
 #include "vm.h"
 
+vref VNull;
+vref VTrue;
+vref VFalse;
+vref VEmptyString;
+vref VEmptyList;
+vref VNewline;
+
 static const char *getString(vref object)
 {
     const SubString *ss;
@@ -180,7 +187,7 @@ static vref doEquals(vref value1, vref value2)
 
     if (value1 == value2)
     {
-        return HeapTrue;
+        return VTrue;
     }
     HeapGet(value1, &ho1);
     HeapGet(value2, &ho2);
@@ -189,7 +196,7 @@ static vref doEquals(vref value1, vref value2)
         value1 = *(vref*)ho1.data;
         if (value1 == value2)
         {
-            return HeapTrue;
+            return VTrue;
         }
         HeapGet(value1, &ho1);
     }
@@ -203,7 +210,7 @@ static vref doEquals(vref value1, vref value2)
         while (ho2.type == TYPE_VALUE);
         if (value1 == value2)
         {
-            return HeapTrue;
+            return VTrue;
         }
     }
 
@@ -218,31 +225,31 @@ static vref doEquals(vref value1, vref value2)
     case TYPE_BOOLEAN_TRUE:
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
-        return HeapFalse;
+        return VFalse;
 
     case TYPE_STRING:
     case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         if (!VIsStringType(ho2.type))
         {
-            return HeapFalse;
+            return VFalse;
         }
         {
             size_t size1 = VStringLength(value1);
             size_t size2 = VStringLength(value2);
             return size1 == size2 &&
-                !memcmp(getString(value1), getString(value2), size1) ? HeapTrue : HeapFalse;
+                !memcmp(getString(value1), getString(value2), size1) ? VTrue : VFalse;
         }
 
     case TYPE_FILE:
-        return HeapFalse;
+        return VFalse;
 
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
         if (!VIsCollectionType(ho2.type))
         {
-            return HeapFalse;
+            return VFalse;
         }
         {
             size_t size1 = VCollectionSize(value1);
@@ -250,7 +257,7 @@ static vref doEquals(vref value1, vref value2)
             size_t index;
             if (size1 != size2)
             {
-                return HeapFalse;
+                return VFalse;
             }
             for (index = 0; index < size1; index++)
             {
@@ -262,13 +269,13 @@ static vref doEquals(vref value1, vref value2)
                     VCollectionGet(value2, HeapBoxSize(index), &item2);
                 assert(success);
                 result = doEquals(item1, item2);
-                if (result != HeapTrue)
+                if (result != VTrue)
                 {
                     return result;
                 }
             }
         }
-        return HeapTrue;
+        return VTrue;
 
     default:
         unreachable;
@@ -305,7 +312,7 @@ static bool workNotEquals(Work *work unused, vref *values)
     vref result = doEquals(operands[0], operands[1]);
     if (result)
     {
-        HeapSetFutureValue(value, result == HeapTrue ? HeapFalse : HeapTrue);
+        HeapSetFutureValue(value, result == VTrue ? VFalse : VTrue);
         return true;
     }
     return false;
@@ -318,7 +325,7 @@ vref VNotEquals(VM *vm, vref value1, vref value2)
     {
         return delayBinary(vm, workNotEquals, TYPE_FUTURE_NOT_EQUALS, value1, value2);
     }
-    return value == HeapTrue ? HeapFalse : HeapTrue;
+    return value == VTrue ? VFalse : VTrue;
 }
 
 static vref doLess(VM *vm, const int *ip, vref value1, vref value2)
@@ -354,11 +361,11 @@ checkType2:
         goto error;
     }
     return HeapUnboxInteger(value1) < HeapUnboxInteger(value2) ?
-        HeapTrue : HeapFalse;
+        VTrue : VFalse;
 
 error:
     VMFail(vm, ip, "Cannot compare non-numbers");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workLess(Work *work, vref *values)
@@ -417,11 +424,11 @@ checkType2:
         goto error;
     }
     return HeapUnboxInteger(value1) <= HeapUnboxInteger(value2) ?
-        HeapTrue : HeapFalse;
+        VTrue : VFalse;
 
 error:
     VMFail(vm, ip, "Cannot compare non-numbers");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workLessEquals(Work *work, vref *values)
@@ -490,7 +497,7 @@ checkType2:
 
 error:
     VMFail(vm, ip, "Cannot add non-numbers. Use \"$a$b\" to concatenate strings");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workAdd(Work *work, vref *values)
@@ -552,7 +559,7 @@ checkType2:
 
 error:
     VMFail(vm, ip, "Cannot subtract non-numbers");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workSub(Work *work, vref *values)
@@ -618,7 +625,7 @@ checkType2:
 
 error:
     VMFail(vm, ip, "Cannot multiply non-numbers");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workMul(Work *work, vref *values)
@@ -686,7 +693,7 @@ checkType2:
 
 error:
     VMFail(vm, ip, "Cannot divide non-numbers");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workDiv(Work *work, vref *values)
@@ -752,7 +759,7 @@ checkType2:
 
 error:
     VMFail(vm, ip, "Cannot divide non-numbers");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workRem(Work *work, vref *values)
@@ -785,11 +792,11 @@ static vref doAnd(vref value1, vref value2)
 
     if (b1 == FALSY || b2 == FALSY)
     {
-        return HeapFalse;
+        return VFalse;
     }
     if (b1 == TRUTHY && b2 == TRUTHY)
     {
-        return HeapTrue;
+        return VTrue;
     }
 
     assert(b1 == FUTURE || b2 == FUTURE);
@@ -824,9 +831,9 @@ static vref doNot(vref value)
     switch (VGetBool(value))
     {
     case TRUTHY:
-        return HeapFalse;
+        return VFalse;
     case FALSY:
-        return HeapTrue;
+        return VTrue;
     case FUTURE:
         return 0;
     }
@@ -874,7 +881,7 @@ checkType:
     }
 
     VMFail(vm, ip, "Cannot negate non-number.");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workNeg(Work *work, vref *values)
@@ -918,7 +925,7 @@ checkType:
     }
 
     VMFail(vm, ip, "Cannot invert non-number.");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workInv(Work *work, vref *values)
@@ -971,7 +978,7 @@ checkCollection:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
-        return HeapUnboxSize(index) < VCollectionSize(collection) ? HeapTrue : HeapFalse;
+        return HeapUnboxSize(index) < VCollectionSize(collection) ? VTrue : VFalse;
 
     case TYPE_VALUE:
         collection = *(vref*)ho.data;
@@ -983,7 +990,7 @@ checkCollection:
             return 0;
         }
         VMFail(vm, ip, "Can't iterate over non-collection type");
-        return HeapNull;
+        return VNull;
     }
     unreachable;
 }
@@ -1033,7 +1040,7 @@ checkType2:
         goto checkType2;
     default:
         VMFail(vm, ip, "Index must be an integer");
-        return HeapNull;
+        return VNull;
     }
 checkType1:
     HeapGet(value1, &ho);
@@ -1049,12 +1056,12 @@ checkType1:
         if (hoIndex.type != TYPE_INTEGER)
         {
             VMFail(vm, ip, "Index must be an integer"); /* TODO: Range */
-            return HeapNull;
+            return VNull;
         }
         if (!VCollectionGet(value1, value2, &value))
         {
             VMFail(vm, ip, "Array index out of bounds");
-            return HeapNull;
+            return VNull;
         }
         return value;
 
@@ -1080,7 +1087,7 @@ checkType1:
 
     default:
         VMFail(vm, ip, "Can't do indexed access on non-collection and non-string type");
-        return HeapNull;
+        return VNull;
     }
     unreachable;
 }
@@ -1148,7 +1155,7 @@ checkType2:
 
 error:
     VMFail(vm, ip, "Range operands must be numbers");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workRange(Work *work, vref *values)
@@ -1214,7 +1221,7 @@ checkType2:
 
 error:
     VMFail(vm, ip, "Concat operands must be lists");
-    return HeapNull;
+    return VNull;
 }
 
 static bool workConcat(Work *work, vref *values)
@@ -1267,7 +1274,7 @@ static vref doConcatString(size_t valueCount, vref *values)
     }
     if (!length)
     {
-        return HeapEmptyString;
+        return VEmptyString;
     }
     string = HeapCreateUninitialisedString(length, &data);
     for (i = 0; i < valueCount; i++)
@@ -1528,7 +1535,7 @@ vref VCreateArrayFromVectorSegment(const intvector *values,
 {
     if (!length)
     {
-        return HeapEmptyList;
+        return VEmptyList;
     }
     return VCreateArrayFromData((const vref*)IVGetPointer(values, start), length);
 }

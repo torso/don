@@ -33,13 +33,6 @@ static const byte *HeapPageLimit;
 static size_t HeapPageOffset;
 static intvector ivtemp;
 
-vref HeapNull;
-vref HeapTrue;
-vref HeapFalse;
-vref HeapEmptyString;
-vref HeapEmptyList;
-vref HeapNewline;
-
 
 static void checkObject(vref object)
 {
@@ -193,14 +186,14 @@ void HeapInit(void)
     HeapPageOffset = 0;
     StringPoolInit();
     ParserAddKeywords();
-    HeapNull = HeapFinishAlloc(HeapAlloc(TYPE_NULL, 0));
-    HeapTrue = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_TRUE, 0));
-    HeapFalse = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_FALSE, 0));
+    VNull = HeapFinishAlloc(HeapAlloc(TYPE_NULL, 0));
+    VTrue = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_TRUE, 0));
+    VFalse = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_FALSE, 0));
     p = HeapAlloc(TYPE_STRING, 1);
     *p = 0;
-    HeapEmptyString = HeapFinishAlloc(p);
-    HeapEmptyList = HeapFinishAlloc(HeapAlloc(TYPE_ARRAY, 0));
-    HeapNewline = HeapCreateString("\n", 1);
+    VEmptyString = HeapFinishAlloc(p);
+    VEmptyList = HeapFinishAlloc(HeapAlloc(TYPE_ARRAY, 0));
+    VNewline = HeapCreateString("\n", 1);
 }
 
 void HeapDispose(void)
@@ -558,7 +551,7 @@ vref HeapCreateString(const char *restrict string, size_t length)
 
     if (!length)
     {
-        return HeapEmptyString;
+        return VEmptyString;
     }
 
     objectData = HeapAlloc(TYPE_STRING, length + 1);
@@ -584,7 +577,7 @@ vref HeapCreateWrappedString(const char *restrict string,
 
     if (!length)
     {
-        return HeapEmptyString;
+        return VEmptyString;
     }
     data = HeapAlloc(TYPE_STRING_WRAPPED, sizeof(char*) + sizeof(size_t));
     *(const char**)data = string;
@@ -603,7 +596,7 @@ vref HeapCreateSubstring(vref string, size_t offset, size_t length)
     assert(VStringLength(string) >= offset + length);
     if (!length)
     {
-        return HeapEmptyString;
+        return VEmptyString;
     }
     if (length == VStringLength(string))
     {
@@ -786,14 +779,14 @@ vref HeapStringIndexOf(vref text, size_t startOffset,
 
     if (!subLength || subLength > textLength)
     {
-        return HeapNull;
+        return VNull;
     }
     while (p < plimit)
     {
         p = (const char*)memchr(p, *s, (size_t)(plimit - p));
         if (!p)
         {
-            return HeapNull;
+            return VNull;
         }
         if (!memcmp(p, s, subLength))
         {
@@ -801,7 +794,7 @@ vref HeapStringIndexOf(vref text, size_t startOffset,
         }
         p++;
     }
-    return HeapNull;
+    return VNull;
 }
 
 
@@ -858,18 +851,18 @@ vref HeapPathFromParts(vref path, vref name, vref extension)
     assert(!HeapIsFutureValue(path));
     assert(!HeapIsFutureValue(name));
     assert(!HeapIsFutureValue(extension));
-    assert(path == HeapNull || HeapIsString(path) || HeapIsFile(path));
+    assert(path == VNull || HeapIsString(path) || HeapIsFile(path));
     assert(HeapIsString(name) || HeapIsFile(name));
-    assert(extension == HeapNull || HeapIsString(extension));
+    assert(extension == VNull || HeapIsString(extension));
 
-    if (path != HeapNull)
+    if (path != VNull)
     {
         pathString = toString(path, &freePath);
         pathLength = VStringLength(path);
     }
     nameString = toString(name, &freeName);
     nameLength = VStringLength(name);
-    if (extension != HeapNull)
+    if (extension != VNull)
     {
         extensionString = toString(extension, &freeExtension);
         extensionLength = VStringLength(extension);
@@ -978,7 +971,7 @@ vref HeapCreateFilelist(vref value)
         size = VCollectionSize(value);
         if (!size)
         {
-            return HeapEmptyList;
+            return VEmptyList;
         }
         if (size != 1)
         {
@@ -993,7 +986,7 @@ vref HeapCreateFilelist(vref value)
     if (!size)
     {
         heapAllocAbort((byte*)data);
-        return HeapEmptyList;
+        return VEmptyList;
     }
     newValue = heapFinishRealloc((byte*)data, size * sizeof(vref));
     for (i = 0; i < size; i++)
@@ -1030,7 +1023,7 @@ vref HeapCreateFilelistGlob(const char *pattern, size_t length)
     FileTraverseGlob(pattern, length, createPath, &count);
     if (!count)
     {
-        return HeapEmptyList;
+        return VEmptyList;
     }
     array = VCreateArray(count); /* TODO: Filelist type */
     files = array;
@@ -1097,7 +1090,7 @@ vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
     length = VStringLength(string);
     if (!length)
     {
-        return HeapEmptyList;
+        return VEmptyList;
     }
     if (VIsCollection(delimiter))
     {

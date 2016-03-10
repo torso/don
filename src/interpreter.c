@@ -146,19 +146,19 @@ static void execute(VM *vm)
         switch ((Instruction)(i & 0xff))
         {
         case OP_NULL:
-            storeValue(vm, vm->bp, arg, HeapNull);
+            storeValue(vm, vm->bp, arg, VNull);
             break;
 
         case OP_TRUE:
-            storeValue(vm, vm->bp, arg, HeapTrue);
+            storeValue(vm, vm->bp, arg, VTrue);
             break;
 
         case OP_FALSE:
-            storeValue(vm, vm->bp, arg, HeapFalse);
+            storeValue(vm, vm->bp, arg, VFalse);
             break;
 
         case OP_EMPTY_LIST:
-            storeValue(vm, vm->bp, arg, HeapEmptyList);
+            storeValue(vm, vm->bp, arg, VEmptyList);
             break;
 
         case OP_LIST:

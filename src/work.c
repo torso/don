@@ -60,8 +60,8 @@ Work *WorkAdd(WorkFunction function, VM *vm, uint argumentCount, vref **argument
     work->vm = vm;
     work->ip = vm->ip;
     work->condition = vm->condition;
-    work->accessedFiles = HeapEmptyList;
-    work->modifiedFiles = HeapEmptyList;
+    work->accessedFiles = VEmptyList;
+    work->modifiedFiles = VEmptyList;
     work->argumentCount = argumentCount;
     *arguments = (vref*)(work + 1);
     return work;

@@ -141,7 +141,7 @@ static vref readFile(vref object, vref valueIfNotExists)
     if (!size)
     {
         FileClose(&file);
-        return HeapEmptyString;
+        return VEmptyString;
     }
     string = HeapCreateUninitialisedString(size, &data);
     FileRead(&file, (byte*)data, size);
@@ -249,7 +249,7 @@ static bool workEcho(Work *work, vref *values)
     {
         return false;
     }
-    if (env->prefix != HeapNull)
+    if (env->prefix != VNull)
     {
         /* TODO: Avoid malloc */
         size_t length = VStringLength(env->prefix);
@@ -609,7 +609,7 @@ static bool workGetCache(Work *work, vref *values)
     HeapSetFutureValue(env->data, value);
     HeapSetFutureValue(env->cacheFile,
                        HeapCreatePath(HeapCreateString(cachePath, cachePathLength)));
-    HeapSetFutureValue(env->uptodate, uptodate ? HeapTrue : HeapFalse);
+    HeapSetFutureValue(env->uptodate, uptodate ? VTrue : VFalse);
     free(cachePath);
     return true;
 }
@@ -662,7 +662,7 @@ static bool workGetEnv(Work *work unused, vref *values)
     *VWriteString(env->name, buffer) = 0;
     EnvGet(buffer, nameLength, &value, &valueLength);
     free(buffer);
-    HeapSetFutureValue(env->result, value ? HeapCreateString(value, valueLength) : HeapNull);
+    HeapSetFutureValue(env->result, value ? HeapCreateString(value, valueLength) : VNull);
     return true;
 }
 
@@ -749,7 +749,7 @@ static bool workLines(Work *work unused, vref *values)
 
     content = HeapIsFile(env->value) ? readFile(env->value, 0) : env->value;
     assert(HeapIsString(content));
-    HeapSetFutureValue(env->result, HeapSplit(content, HeapNewline, false,
+    HeapSetFutureValue(env->result, HeapSplit(content, VNewline, false,
                                               VIsTruthy(env->trimLastIfEmpty)));
     return true;
 }
@@ -908,7 +908,7 @@ static bool workReplace(Work *work unused, vref *values)
         for (offset = 0;; offset++)
         {
             offsetRef = HeapStringIndexOf(env->data, offset, env->original);
-            if (offsetRef == HeapNull)
+            if (offsetRef == VNull)
             {
                 break;
             }

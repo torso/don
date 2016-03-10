@@ -32,7 +32,7 @@ VM *VMCreate(const LinkedProgram *program)
     vmBytecode = program->bytecode;
     vmLineNumbers = program->lineNumbers;
     vm->parent = null;
-    vm->condition = HeapTrue;
+    vm->condition = VTrue;
     vm->constants = program->constants;
     vm->constantCount = program->constantCount;
     vm->bp = 0;
@@ -63,11 +63,11 @@ VM *VMClone(VM *vm, vref condition, const int *ip)
 
     assert(vm->condition);
     assert(condition);
-    clone->condition = HeapTrue;
+    clone->condition = VTrue;
     clone->condition = VAnd(clone, vm->condition, condition);
     assert(clone->condition);
     notCondition = VNot(vm, condition);
-    vm->condition = HeapTrue;
+    vm->condition = VTrue;
     vm->condition = VAnd(vm, parent->condition, notCondition);
     assert(vm->condition);
 

@@ -238,15 +238,15 @@ static void storeConstant(ParseState *state, vref value, int variable)
     {
         writeOp(state, OP_NULL, variable);
     }
-    else if (value == HeapTrue)
+    else if (value == VTrue)
     {
         writeOp(state, OP_TRUE, variable);
     }
-    else if (value == HeapFalse)
+    else if (value == VFalse)
     {
         writeOp(state, OP_FALSE, variable);
     }
-    else if (value == HeapEmptyList)
+    else if (value == VEmptyList)
     {
         writeOp(state, OP_EMPTY_LIST, variable);
     }
@@ -1096,13 +1096,13 @@ finishString:
         else if (unlikely(estate->parseConstant))
         {
             error(state, "Expected constant");
-            parsedConstant(estate, HeapEmptyString);
+            parsedConstant(estate, VEmptyString);
             IVSetSize(&temp, oldTempSize);
         }
         else
         {
             int variable = createVariable(state);
-            if (s != HeapEmptyString)
+            if (s != VEmptyString)
             {
                 IVAdd(&temp, variableFromConstant(state, s));
             }
@@ -1147,7 +1147,7 @@ static bool parseListRest(ParseState *state, ExpressionState *estate)
     skipWhitespaceAndNewline(state);
     if (readOperator(state, ')'))
     {
-        parsedConstant(estate, HeapEmptyList);
+        parsedConstant(estate, VEmptyList);
         return true;
     }
     constant = true;
@@ -1603,12 +1603,12 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         {
             if (identifier == keywordTrue)
             {
-                parsedConstant(estate, HeapTrue);
+                parsedConstant(estate, VTrue);
                 return true;
             }
             if (identifier == keywordFalse)
             {
-                parsedConstant(estate, HeapFalse);
+                parsedConstant(estate, VFalse);
                 return true;
             }
             if (identifier == keywordList)
@@ -1622,7 +1622,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
             }
             if (likely(identifier == keywordNull))
             {
-                parsedConstant(estate, HeapNull);
+                parsedConstant(estate, VNull);
                 return true;
             }
             error(state, "Unexpected keyword '%s'",
@@ -2564,7 +2564,7 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
                 varargIndex = (int)(IVSize(&temp) - oldTempSize) / 2;
                 requireDefaultValues = true;
                 skipWhitespace(state);
-                value = variableFromConstant(state, HeapEmptyList);
+                value = variableFromConstant(state, VEmptyList);
             }
             IVAdd(&temp, intFromRef(parameterName));
             IVAdd(&temp, value);

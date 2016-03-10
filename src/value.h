@@ -50,12 +50,12 @@ typedef enum
   allocated. Never compare to these values. Use the functions in value.h, as
   additional processing may be needed to determine the value of a vref.
 */
-extern vref HeapNull;
-extern vref HeapTrue;
-extern vref HeapFalse;
-extern vref HeapEmptyString;
-extern vref HeapEmptyList;
-extern vref HeapNewline;
+extern vref VNull;
+extern vref VTrue;
+extern vref VFalse;
+extern vref VEmptyString;
+extern vref VEmptyList;
+extern vref VNewline;
 
 
 extern bool VWait(vref *value);
