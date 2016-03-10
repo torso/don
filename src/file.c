@@ -399,7 +399,8 @@ char *FileSearchPath(const char *name, size_t length, size_t *resultLength,
     assert(length);
     if (*name == '/')
     {
-        return FileCreatePath(null, 0, name, length, null, 0, resultLength);
+        return !executable || FileIsExecutable(name, length) ?
+            FileCreatePath(null, 0, name, length, null, 0, resultLength) : null;
     }
     EnvGet("PATH", 4, &path, &pathLength);
     if (!path)
