@@ -28,9 +28,6 @@ start:
     case TYPE_STRING:
         return (const char*)HeapGetObjectData(object);
 
-    case TYPE_STRING_WRAPPED:
-        return *(const char**)HeapGetObjectData(object);
-
     case TYPE_SUBSTRING:
         ss = (const SubString*)HeapGetObjectData(object);
         return &getString(ss->string)[ss->offset];
@@ -84,7 +81,6 @@ start:
         return VUnboxInteger(value) ? TRUTHY : FALSY;
 
     case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         return VStringLength(value) ? TRUTHY : FALSY;
 
@@ -171,7 +167,6 @@ bool VIsStringType(VType type)
         return false;
 
     case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         return true;
     }
@@ -187,7 +182,6 @@ start:
     switch ((int)type)
     {
     case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         return true;
 
@@ -248,9 +242,6 @@ start:
     case TYPE_STRING:
         return ho.size - 1;
 
-    case TYPE_STRING_WRAPPED:
-        return *(size_t*)&ho.data[sizeof(const char**)];
-
     case TYPE_SUBSTRING:
         return ((const SubString*)ho.data)->length;
 
@@ -304,21 +295,6 @@ vref VCreateUninitialisedString(size_t length, char **data)
     return HeapFinishAlloc(objectData);
 }
 
-vref VCreateWrappedString(const char *restrict string,
-                          size_t length)
-{
-    byte *restrict data;
-
-    if (!length)
-    {
-        return VEmptyString;
-    }
-    data = HeapAlloc(TYPE_STRING_WRAPPED, sizeof(char*) + sizeof(size_t));
-    *(const char**)data = string;
-    *(size_t*)&data[sizeof(char*)] = length;
-    return HeapFinishAlloc(data);
-}
-
 vref VCreateSubstring(vref string, size_t offset, size_t length)
 {
     SubString *ss;
@@ -342,9 +318,6 @@ start:
     {
     case TYPE_STRING:
         break;
-
-    case TYPE_STRING_WRAPPED:
-        return VCreateWrappedString(&getString(string)[offset], length);
 
     case TYPE_SUBSTRING:
         ss = (SubString*)HeapGetObjectData(string);
@@ -526,11 +499,6 @@ start:
         memcpy(dst, ho.data, ho.size - 1);
         return dst + ho.size - 1;
 
-    case TYPE_STRING_WRAPPED:
-        size = *(size_t*)&ho.data[sizeof(const char**)];
-        memcpy(dst, *(const char**)ho.data, size);
-        return dst + size;
-
     case TYPE_SUBSTRING:
         subString = (const SubString*)ho.data;
         return VWriteSubstring(subString->string, subString->offset, subString->length, dst);
@@ -668,7 +636,6 @@ bool VIsCollectionType(VType type)
     case TYPE_BOOLEAN_FALSE:
     case TYPE_INTEGER:
     case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
     case TYPE_FILE:
         return false;
@@ -910,7 +877,6 @@ static vref doEquals(vref value1, vref value2)
         return VFalse;
 
     case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         if (!VIsStringType(ho2.type))
         {
@@ -1748,7 +1714,6 @@ checkType1:
         return value;
 
     case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         if (hoIndex.type == TYPE_INTEGER_RANGE)
         {

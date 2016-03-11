@@ -11,7 +11,6 @@ typedef enum
     TYPE_BOOLEAN_FALSE,
     TYPE_INTEGER,
     TYPE_STRING,
-    TYPE_STRING_WRAPPED,
     TYPE_SUBSTRING,
     TYPE_FILE,
     TYPE_ARRAY,
@@ -95,7 +94,6 @@ extern size_t VStringLength(vref value);
 
 extern nonnull vref VCreateString(const char *string, size_t length);
 extern nonnull vref VCreateUninitialisedString(size_t length, char **data);
-extern nonnull vref VCreateWrappedString(const char *string, size_t length);
 extern nonnull vref VCreateSubstring(vref string, size_t offset, size_t length);
 extern nonnull vref VCreateStringFormatted(const char *format, va_list ap);
 

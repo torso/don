@@ -116,9 +116,6 @@ start:
     case TYPE_STRING:
         return (const char*)HeapGetObjectData(object);
 
-    case TYPE_STRING_WRAPPED:
-        return *(const char**)HeapGetObjectData(object);
-
     case TYPE_SUBSTRING:
         ss = (const SubString*)HeapGetObjectData(object);
         return &getString(ss->string)[ss->offset];
@@ -238,7 +235,6 @@ char *HeapDebug(vref value)
     case TYPE_BOOLEAN_TRUE:          type = "true";           string = false; break;
     case TYPE_BOOLEAN_FALSE:         type = "false";          string = false; break;
     case TYPE_STRING:                type = "string";                         break;
-    case TYPE_STRING_WRAPPED:        type = "string_wrapped";                 break;
     case TYPE_SUBSTRING:             type = "substring";                      break;
     case TYPE_FILE:                  type = "file";                           break;
     case TYPE_ARRAY:                 type = "array";                          break;
@@ -375,7 +371,6 @@ start:
         return;
 
     case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
     case TYPE_SUBSTRING:
         value = TYPE_STRING;
         HashUpdate(hash, &value, 1);
