@@ -28,8 +28,6 @@ extern nonnull VType HeapGetObjectType(vref object);
 extern nonnull size_t HeapGetObjectSize(vref object);
 extern nonnull const byte *HeapGetObjectData(vref object);
 extern nonnull void HeapHash(vref object, HashState *hash);
-extern nonnull bool HeapEquals(vref object1, vref object2);
-extern nonnull int HeapCompare(vref object1, vref object2);
 
 
 
