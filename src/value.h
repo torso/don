@@ -83,26 +83,6 @@ extern int VUnboxInteger(vref object);
 extern size_t VUnboxSize(vref object);
 
 
-extern vref VEquals(VM *vm, vref value1, vref value2);
-extern vref VNotEquals(VM *vm, vref value1, vref value2);
-extern vref VLess(VM *vm, vref value1, vref value2);
-extern vref VLessEquals(VM *vm, vref value1, vref value2);
-extern vref VAdd(VM *vm, vref value1, vref value2);
-extern vref VSub(VM *vm, vref value1, vref value2);
-extern vref VMul(VM *vm, vref value1, vref value2);
-extern vref VDiv(VM *vm, vref value1, vref value2);
-extern vref VRem(VM *vm, vref value1, vref value2);
-extern vref VAnd(VM *vm, vref value1, vref value2);
-extern vref VNot(VM *vm, vref value);
-extern vref VNeg(VM *vm, vref value);
-extern vref VInv(VM *vm, vref value);
-extern vref VValidIndex(VM *vm, vref collection, vref index);
-extern vref VIndexedAccess(VM *vm, vref value1, vref value2);
-extern vref VRange(VM *vm, vref value1, vref value2);
-extern vref VConcat(VM *vm, vref value1, vref value2);
-extern vref VConcatString(VM *vm, size_t count, vref *values);
-
-
 extern pureconst bool VIsStringType(VType type);
 
 /*
@@ -137,3 +117,23 @@ extern size_t VCollectionSize(vref value);
   Returns true if successful.
 */
 extern nonnull bool VCollectionGet(vref object, vref indexObject, vref *value);
+
+
+extern vref VEquals(VM *vm, vref value1, vref value2);
+extern vref VNotEquals(VM *vm, vref value1, vref value2);
+extern vref VLess(VM *vm, vref value1, vref value2);
+extern vref VLessEquals(VM *vm, vref value1, vref value2);
+extern vref VAdd(VM *vm, vref value1, vref value2);
+extern vref VSub(VM *vm, vref value1, vref value2);
+extern vref VMul(VM *vm, vref value1, vref value2);
+extern vref VDiv(VM *vm, vref value1, vref value2);
+extern vref VRem(VM *vm, vref value1, vref value2);
+extern vref VAnd(VM *vm, vref value1, vref value2);
+extern vref VNot(VM *vm, vref value);
+extern vref VNeg(VM *vm, vref value);
+extern vref VInv(VM *vm, vref value);
+extern vref VValidIndex(VM *vm, vref collection, vref index);
+extern vref VIndexedAccess(VM *vm, vref value1, vref value2);
+extern vref VRange(VM *vm, vref value1, vref value2);
+extern vref VConcat(VM *vm, vref value1, vref value2);
+extern vref VConcatString(VM *vm, size_t count, vref *values);
