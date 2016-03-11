@@ -33,7 +33,7 @@ static const int *disassemble(const int *bytecode, const int *base)
         vref ns = NamespaceGetName(refFromInt(arg));
         int length = *bytecode++;
         printf("file %s namespace:%s\n", (const char*)bytecode,
-               ns ? HeapGetString(ns) : "<unnamed>");
+               ns ? VGetString(ns) : "<unnamed>");
         bytecode += (length + 4) >> 2;
         break;
     }
@@ -43,7 +43,7 @@ static const int *disassemble(const int *bytecode, const int *base)
         break;
 
     case OP_ERROR:
-        printf("error: %s\n", HeapGetString(refFromInt(arg)));
+        printf("error: %s\n", VGetString(refFromInt(arg)));
         break;
 
     case OP_FUNCTION:
@@ -56,12 +56,12 @@ static const int *disassemble(const int *bytecode, const int *base)
         int vararg = *bytecode++;
         int param;
         printf("function %s parameters:%u(",
-               arg ? HeapGetString(refFromInt(arg)) : "unknown",
+               arg ? VGetString(refFromInt(arg)) : "unknown",
                parameterCount);
         assert(parameterCount >= 0);
         for (param = 0; param < parameterCount; param++)
         {
-            const char *name = HeapGetString(refFromInt(*bytecode++));
+            const char *name = VGetString(refFromInt(*bytecode++));
             int value = *bytecode++;
             printf("%s", name);
             if (param == vararg)
@@ -112,7 +112,7 @@ static const int *disassemble(const int *bytecode, const int *base)
         break;
 
     case OP_FILELIST:
-        printf("filelist %s -> ", HeapGetString(refFromInt(arg)));
+        printf("filelist %s -> ", VGetString(refFromInt(arg)));
         printValue(&bytecode);
         puts("");
         break;
@@ -132,16 +132,16 @@ static const int *disassemble(const int *bytecode, const int *base)
     case OP_LOAD_FIELD:
     {
         namespaceref ns = refFromInt(*bytecode++);
-        printf("load_field %s.%s -> #%d\n", HeapGetString(ns),
-               HeapGetString(refFromInt(arg)), *bytecode++);
+        printf("load_field %s.%s -> #%d\n", VGetString(ns),
+               VGetString(refFromInt(arg)), *bytecode++);
         break;
     }
 
     case OP_STORE_FIELD:
     {
         namespaceref ns = refFromInt(*bytecode++);
-        printf("store_field #%d -> %s.%s\n", *bytecode++, HeapGetString(ns),
-               HeapGetString(refFromInt(arg)));
+        printf("store_field #%d -> %s.%s\n", *bytecode++, VGetString(ns),
+               VGetString(refFromInt(arg)));
         break;
     }
 
@@ -365,16 +365,16 @@ static const int *disassemble(const int *bytecode, const int *base)
         fputs("invoke_unlinked ", stdout);
         if (ns)
         {
-            printf("%s.", HeapGetString(ns));
+            printf("%s.", VGetString(ns));
         }
-        printf("%s(", HeapGetString(functionName));
+        printf("%s(", VGetString(functionName));
         assert(argumentCount >= 0);
         assert(returnCount >= 0);
         while (argumentCount--)
         {
             if (*bytecode)
             {
-                printf("%s:", HeapGetString(refFromInt(*bytecode)));
+                printf("%s:", VGetString(refFromInt(*bytecode)));
             }
             bytecode++;
             printValue(&bytecode);
@@ -405,7 +405,7 @@ static const int *disassemble(const int *bytecode, const int *base)
     {
         nativefunctionref nativeFunction = refFromInt(arg);
         uint count = NativeGetParameterCount(nativeFunction);
-        printf("invoke native %s(", HeapGetString(NativeGetName(nativeFunction)));
+        printf("invoke native %s(", VGetString(NativeGetName(nativeFunction)));
         if (count)
         {
             printValue(&bytecode);

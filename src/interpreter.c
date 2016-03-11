@@ -178,7 +178,7 @@ static void execute(VM *vm)
         case OP_FILELIST:
             string = refFromInt(arg);
             storeValue(vm, vm->bp, *vm->ip++,
-                       HeapCreateFilelistGlob(HeapGetString(string), VStringLength(string)));
+                       HeapCreateFilelistGlob(VGetString(string), VStringLength(string)));
             break;
 
         case OP_STORE_CONSTANT:
@@ -469,7 +469,7 @@ void InterpreterExecute(const LinkedProgram *program, int target)
     {
         const char *filename;
         int line = BytecodeLineNumber(program->lineNumbers, (int)(vm->ip - vmBytecode), &filename);
-        char *msg = HeapGetStringCopy(vm->failMessage);
+        char *msg = VGetStringCopy(vm->failMessage);
         printf("%s:%d: %s\n", filename, line, msg);
 #ifdef VALGRIND
         free(msg);

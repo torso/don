@@ -143,7 +143,7 @@ static vref readFile(vref object, vref valueIfNotExists)
         FileClose(&file);
         return VEmptyString;
     }
-    string = HeapCreateUninitialisedString(size, &data);
+    string = VCreateUninitialisedString(size, &data);
     FileRead(&file, (byte*)data, size);
     FileClose(&file);
     return string;
@@ -401,11 +401,11 @@ static bool workExec(Work *work, vref *values)
         return true;
     }
     HeapSetFutureValue(env->exitcode, VBoxInteger(WEXITSTATUS(status)));
-    HeapSetFutureValue(env->outputStd, HeapCreateString(
+    HeapSetFutureValue(env->outputStd, VCreateString(
                            (const char*)BVGetPointer(&out.buffer, 0),
                            BVSize(&out.buffer)));
     PipeDispose(&out);
-    HeapSetFutureValue(env->outputErr, HeapCreateString(
+    HeapSetFutureValue(env->outputErr, VCreateString(
                            (const char*)BVGetPointer(&err.buffer, 0),
                            BVSize(&err.buffer)));
     PipeDispose(&err);
@@ -513,7 +513,7 @@ static bool workFilename(Work *work unused, vref *values)
 
     s = HeapGetPath(env->path, &length);
     s = FileStripPath(s, &length);
-    HeapSetFutureValue(env->result, HeapCreateString(s, length));
+    HeapSetFutureValue(env->result, VCreateString(s, length));
     return true;
 }
 
@@ -608,7 +608,7 @@ static bool workGetCache(Work *work, vref *values)
              &uptodate, &cachePath, &cachePathLength, &value);
     HeapSetFutureValue(env->data, value);
     HeapSetFutureValue(env->cacheFile,
-                       HeapCreatePath(HeapCreateString(cachePath, cachePathLength)));
+                       HeapCreatePath(VCreateString(cachePath, cachePathLength)));
     HeapSetFutureValue(env->uptodate, uptodate ? VTrue : VFalse);
     free(cachePath);
     return true;
@@ -662,7 +662,7 @@ static bool workGetEnv(Work *work unused, vref *values)
     *VWriteString(env->name, buffer) = 0;
     EnvGet(buffer, nameLength, &value, &valueLength);
     free(buffer);
-    HeapSetFutureValue(env->result, value ? HeapCreateString(value, valueLength) : VNull);
+    HeapSetFutureValue(env->result, value ? VCreateString(value, valueLength) : VNull);
     return true;
 }
 
@@ -703,9 +703,9 @@ static bool workIndexOf(Work *work unused, vref *values)
     }
 
     /* TODO: Support collections */
-    assert(HeapIsString(env->data));
-    assert(HeapIsString(env->element));
-    HeapSetFutureValue(env->result, HeapStringIndexOf(env->data, 0, env->element));
+    assert(VIsString(env->data));
+    assert(VIsString(env->element));
+    HeapSetFutureValue(env->result, VStringIndexOf(env->data, 0, env->element));
     return true;
 }
 
@@ -748,7 +748,7 @@ static bool workLines(Work *work unused, vref *values)
     }
 
     content = HeapIsFile(env->value) ? readFile(env->value, 0) : env->value;
-    assert(HeapIsString(content));
+    assert(VIsString(content));
     HeapSetFutureValue(env->result, HeapSplit(content, VNewline, false,
                                               VIsTruthy(env->trimLastIfEmpty)));
     return true;
@@ -907,7 +907,7 @@ static bool workReplace(Work *work unused, vref *values)
     {
         for (offset = 0;; offset++)
         {
-            offsetRef = HeapStringIndexOf(env->data, offset, env->original);
+            offsetRef = VStringIndexOf(env->data, offset, env->original);
             if (offsetRef == VNull)
             {
                 break;
@@ -922,18 +922,18 @@ static bool workReplace(Work *work unused, vref *values)
         HeapSetFutureValue(env->count, VBoxInteger(0));
         return true;
     }
-    HeapSetFutureValue(env->result, HeapCreateUninitialisedString(
+    HeapSetFutureValue(env->result, VCreateUninitialisedString(
                            dataLength + replacements * (replacementLength - originalLength), &p));
     HeapSetFutureValue(env->count, VBoxUint(replacements));
     offset = 0;
     while (replacements--)
     {
-        newOffset = VUnboxSize(HeapStringIndexOf(env->data, offset, env->original));
-        p = HeapWriteSubstring(env->data, offset, newOffset - offset, p);
+        newOffset = VUnboxSize(VStringIndexOf(env->data, offset, env->original));
+        p = VWriteSubstring(env->data, offset, newOffset - offset, p);
         p = VWriteString(env->replacement, p);
         offset = newOffset + originalLength;
     }
-    HeapWriteSubstring(env->data, offset, dataLength - offset, p);
+    VWriteSubstring(env->data, offset, dataLength - offset, p);
     return true;
 }
 
@@ -1072,7 +1072,7 @@ static bool workSize(Work *work, vref *values)
         assert(VCollectionSize(env->value) <= INT_MAX);
         result = VBoxSize(VCollectionSize(env->value));
     }
-    else if (likely(HeapIsString(env->value)))
+    else if (likely(VIsString(env->value)))
     {
         result = VBoxSize(VStringLength(env->value));
     }
@@ -1124,8 +1124,8 @@ static bool workSplit(Work *work unused, vref *values)
     }
 
     data = HeapIsFile(env->value) ? readFile(env->value, 0) : env->value;
-    assert(HeapIsString(data));
-    assert(HeapIsString(env->delimiter) || VIsCollection(env->delimiter));
+    assert(VIsString(data));
+    assert(VIsString(env->delimiter) || VIsCollection(env->delimiter));
     HeapSetFutureValue(env->result,
                        HeapSplit(data, env->delimiter, VIsTruthy(env->removeEmpty), false));
     return true;
@@ -1180,7 +1180,7 @@ static bool workWriteFile(Work *work, vref *values)
     while (size)
     {
         size_t chunkSize = min(size, sizeof(buffer));
-        HeapWriteSubstring(env->data, offset, chunkSize, (char*)buffer);
+        VWriteSubstring(env->data, offset, chunkSize, (char*)buffer);
         FileWrite(&file, buffer, chunkSize);
         offset += chunkSize;
         size -= chunkSize;

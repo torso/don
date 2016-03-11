@@ -85,11 +85,27 @@ extern size_t VUnboxSize(vref object);
 
 extern pureconst bool VIsStringType(VType type);
 
+extern nonnull bool VIsString(vref object);
+
 /*
   Returns the size of the string in bytes. If the value isn't a string, the
   length of the value converted to a string (of the default form) is returned.
 */
 extern size_t VStringLength(vref value);
+
+extern nonnull vref VCreateString(const char *string, size_t length);
+extern nonnull vref VCreateUninitialisedString(size_t length, char **data);
+extern nonnull vref VCreateWrappedString(const char *string, size_t length);
+extern nonnull vref VCreateSubstring(vref string, size_t offset, size_t length);
+extern nonnull vref VCreateStringFormatted(const char *format, va_list ap);
+
+/*
+  Returns a null-terminated string. This function must only be used when the
+  string was added through the string pool. (This should be true for all code
+  running before the VM starts.)
+*/
+extern nonnull const char *VGetString(vref object);
+extern nonnull char *VGetStringCopy(vref object);
 
 /*
   Converts the object to a string and writes it to dst. The written string will
@@ -97,6 +113,10 @@ extern size_t VStringLength(vref value);
   terminated. A pointer just past the end of the written string is returned.
 */
 extern nonnull char *VWriteString(vref value, char *dst);
+extern nonnull char *VWriteSubstring(vref object, size_t offset,
+                                     size_t length, char *dst);
+
+extern nonnull vref VStringIndexOf(vref text, size_t startOffset, vref substring);
 
 
 extern nonnull vref *VCreateArray(size_t size);

@@ -188,7 +188,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
         }
 
         case OP_ERROR:
-            error(&state, HeapGetString(refFromInt(arg)));
+            error(&state, VGetString(refFromInt(arg)));
             break;
 
         case OP_FUNCTION_UNLINKED:
@@ -213,12 +213,12 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
 
                 if (unlikely(NamespaceGetField(state.ns, refFromInt(name)) >= 0))
                 {
-                    errorf(&state, "'%s' is a global variable", HeapGetString(refFromInt(name)));
+                    errorf(&state, "'%s' is a global variable", VGetString(refFromInt(name)));
                 }
                 else if (unlikely(IntHashMapSet(&state.variables, name, param + 1)))
                 {
                     errorf(&state, "Multiple uses of parameter name '%s'",
-                           HeapGetString(refFromInt(name)));
+                           VGetString(refFromInt(name)));
                 }
             }
             break;
@@ -261,14 +261,14 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
             ns = NamespaceGetNamespace(state.ns, nsName);
             if (unlikely(!ns))
             {
-                errorf(&state, "Unknown namespace '%s'", HeapGetString(nsName));
+                errorf(&state, "Unknown namespace '%s'", VGetString(nsName));
                 break;
             }
             field = NamespaceLookupField(ns, refFromInt(arg));
             if (unlikely(field < 0))
             {
-                errorf(&state, "Unknown field '%s.%s'", HeapGetString(nsName),
-                       HeapGetString(refFromInt(arg)));
+                errorf(&state, "Unknown field '%s.%s'", VGetString(nsName),
+                       VGetString(refFromInt(arg)));
                 break;
             }
             write = IVGetAppendPointer(&state.out, 2);
@@ -285,14 +285,14 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
             ns = NamespaceGetNamespace(state.ns, nsName);
             if (unlikely(!ns))
             {
-                errorf(&state, "Unknown namespace '%s'", HeapGetString(nsName));
+                errorf(&state, "Unknown namespace '%s'", VGetString(nsName));
                 break;
             }
             field = NamespaceLookupField(ns, refFromInt(arg));
             if (unlikely(field < 0))
             {
-                errorf(&state, "Unknown field '%s.%s'", HeapGetString(nsName),
-                       HeapGetString(refFromInt(arg)));
+                errorf(&state, "Unknown field '%s.%s'", VGetString(nsName),
+                       VGetString(refFromInt(arg)));
                 break;
             }
             write = IVGetAppendPointer(&state.out, 2);
@@ -381,7 +381,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
                 ns = NamespaceGetNamespace(state.ns, nsName);
                 if (unlikely(!ns))
                 {
-                    errorf(&state, "Unknown namespace '%s'", HeapGetString(nsName));
+                    errorf(&state, "Unknown namespace '%s'", VGetString(nsName));
                     read += argumentCount * 2 + returnValueCount;
                     break;
                 }
@@ -389,7 +389,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
                 if (unlikely(function < 0))
                 {
                     errorf(&state, "Unknown function '%s.%s'",
-                           HeapGetString(nsName), HeapGetString(refFromInt(arg)));
+                           VGetString(nsName), VGetString(refFromInt(arg)));
                 }
             }
             else
@@ -397,7 +397,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
                 function = NamespaceLookupFunction(state.ns, refFromInt(arg));
                 if (unlikely(function < 0))
                 {
-                    errorf(&state, "Unknown function '%s'", HeapGetString(refFromInt(arg)));
+                    errorf(&state, "Unknown function '%s'", VGetString(refFromInt(arg)));
                     read += argumentCount * 2 + returnValueCount;
                     break;
                 }
@@ -477,12 +477,12 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
                         else
                         {
                             errorf(&state, "Parameter '%s' already has a value",
-                                   HeapGetString(refFromInt(name)));
+                                   VGetString(refFromInt(name)));
                         }
                         goto found;
                     }
                 }
-                errorf(&state, "No parameter with name '%s'", HeapGetString(refFromInt(name)));
+                errorf(&state, "No parameter with name '%s'", VGetString(refFromInt(name)));
             }
             for (index = 0; index < parameterCount; index++)
             {
@@ -492,7 +492,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
                     if (unlikely(refFromInt(value) == INT_MAX))
                     {
                         errorf(&state, "No value for parameter '%s'",
-                               HeapGetString(refFromInt(parameters[index * 2])));
+                               VGetString(refFromInt(parameters[index * 2])));
                     }
                     argWriteStart[index] = value;
                 }

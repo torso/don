@@ -178,6 +178,36 @@ bool VIsStringType(VType type)
     unreachable;
 }
 
+bool VIsString(vref object)
+{
+    VType type;
+start:
+    assert(!HeapIsFutureValue(object));
+    type = HeapGetObjectType(object);
+    switch ((int)type)
+    {
+    case TYPE_STRING:
+    case TYPE_STRING_WRAPPED:
+    case TYPE_SUBSTRING:
+        return true;
+
+    case TYPE_NULL:
+    case TYPE_BOOLEAN_TRUE:
+    case TYPE_BOOLEAN_FALSE:
+    case TYPE_INTEGER:
+    case TYPE_FILE:
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
+        return false;
+
+    case TYPE_VALUE:
+        object = *(vref*)HeapGetObjectData(object);
+        goto start;
+    }
+    unreachable;
+}
+
 size_t VStringLength(vref value)
 {
     uint i;
@@ -249,6 +279,191 @@ start:
     unreachable;
 }
 
+vref VCreateString(const char *restrict string, size_t length)
+{
+    byte *restrict objectData;
+
+    if (!length)
+    {
+        return VEmptyString;
+    }
+
+    objectData = HeapAlloc(TYPE_STRING, length + 1);
+    memcpy(objectData, string, length);
+    objectData[length] = 0;
+    return HeapFinishAlloc(objectData);
+}
+
+vref VCreateUninitialisedString(size_t length, char **data)
+{
+    byte *objectData;
+    assert(length);
+    objectData = HeapAlloc(TYPE_STRING, length + 1);
+    objectData[length] = 0;
+    *(byte**)data = objectData;
+    return HeapFinishAlloc(objectData);
+}
+
+vref VCreateWrappedString(const char *restrict string,
+                          size_t length)
+{
+    byte *restrict data;
+
+    if (!length)
+    {
+        return VEmptyString;
+    }
+    data = HeapAlloc(TYPE_STRING_WRAPPED, sizeof(char*) + sizeof(size_t));
+    *(const char**)data = string;
+    *(size_t*)&data[sizeof(char*)] = length;
+    return HeapFinishAlloc(data);
+}
+
+vref VCreateSubstring(vref string, size_t offset, size_t length)
+{
+    SubString *ss;
+    byte *data;
+    VType type;
+
+    assert(!HeapIsFutureValue(string));
+    assert(VIsString(string));
+    assert(VStringLength(string) >= offset + length);
+    if (!length)
+    {
+        return VEmptyString;
+    }
+    if (length == VStringLength(string))
+    {
+        return string;
+    }
+start:
+    type = HeapGetObjectType(string);
+    switch ((int)type)
+    {
+    case TYPE_STRING:
+        break;
+
+    case TYPE_STRING_WRAPPED:
+        return VCreateWrappedString(&getString(string)[offset], length);
+
+    case TYPE_SUBSTRING:
+        ss = (SubString*)HeapGetObjectData(string);
+        string = ss->string;
+        offset += ss->offset;
+        break;
+
+    case TYPE_VALUE:
+        string = *(vref*)HeapGetObjectData(string);
+        goto start;
+
+    default:
+        unreachable;
+    }
+    data = HeapAlloc(TYPE_SUBSTRING, sizeof(SubString));
+    ss = (SubString*)data;
+    ss->string = string;
+    ss->offset = offset;
+    ss->length = length;
+    return HeapFinishAlloc(data);
+}
+
+vref VCreateStringFormatted(const char *format, va_list ap)
+{
+    /* TODO: Calculate size first - make sure it fits on heap. */
+    char *data = (char*)HeapAlloc(TYPE_STRING, 0);
+    char *start = data;
+    while (*format)
+    {
+        const char *stop = format;
+        while (*stop && *stop != '%')
+        {
+            stop++;
+        }
+        memcpy(data, format, (size_t)(stop - format));
+        data += stop - format;
+        format = stop;
+        if (*format == '%')
+        {
+            format++;
+            switch (*format++)
+            {
+            case 'c':
+            {
+                int c = va_arg(ap, int);
+                if (c >= ' ' && c <= '~')
+                {
+                    *data++ = (char)c;
+                }
+                else if (c == '\n')
+                {
+                    *data++ = '\\';
+                    *data++ = 'n';
+                }
+                else
+                {
+                    *data++ = '?';
+                }
+                break;
+            }
+
+            case 'd':
+            {
+                int value = va_arg(ap, int);
+                char *numberStart;
+                int i;
+                if (value < 0)
+                {
+                    *data++ = '-';
+                }
+                numberStart = data;
+                do
+                {
+                    *data++ = (char)('0' + (value < 0 ? -(value % 10) : value % 10));
+                    value /= 10;
+                }
+                while (value);
+                for (i = 0; numberStart + i < data - i - 1; i++)
+                {
+                    char tmp = numberStart[i];
+                    numberStart[i] = data[-i - 1];
+                    data[-i - 1] = tmp;
+                }
+                break;
+            }
+
+            case 's':
+            {
+                const char *string = va_arg(ap, const char*);
+                size_t length = strlen(string);
+                memcpy(data, string, length);
+                data += length;
+                break;
+            }
+
+            default:
+                format--;
+            }
+        }
+    }
+    *data++ = 0;
+    return HeapFinishRealloc((byte*)start, (size_t)(data - start));
+}
+
+const char *VGetString(vref object)
+{
+    assert(HeapGetObjectType(object) == TYPE_STRING);
+    return (const char*)HeapGetObjectData(object);
+}
+
+char *VGetStringCopy(vref object)
+{
+    size_t length = VStringLength(object);
+    char *copy = (char*)malloc(length + 1);
+    VWriteString(object, copy);
+    copy[length] = 0;
+    return copy;
+}
+
 char *VWriteString(vref value, char *dst)
 {
     size_t size;
@@ -318,7 +533,7 @@ start:
 
     case TYPE_SUBSTRING:
         subString = (const SubString*)ho.data;
-        return HeapWriteSubstring(subString->string, subString->offset, subString->length, dst);
+        return VWriteSubstring(subString->string, subString->offset, subString->length, dst);
 
     case TYPE_FILE:
         return VWriteString(*(vref*)ho.data, dst);
@@ -348,6 +563,42 @@ start:
         goto start;
     }
     unreachable;
+}
+
+char *VWriteSubstring(vref object, size_t offset, size_t length, char *dst)
+{
+    assert(VStringLength(object) >= offset + length);
+    memcpy(dst, getString(object) + offset, length);
+    return dst + length;
+}
+
+vref VStringIndexOf(vref text, size_t startOffset, vref substring)
+{
+    size_t textLength = VStringLength(text);
+    size_t subLength = VStringLength(substring);
+    const char *pstart = getString(text);
+    const char *p = pstart + startOffset;
+    const char *plimit = pstart + textLength - subLength + 1;
+    const char *s = getString(substring);
+
+    if (!subLength || subLength > textLength)
+    {
+        return VNull;
+    }
+    while (p < plimit)
+    {
+        p = (const char*)memchr(p, *s, (size_t)(plimit - p));
+        if (!p)
+        {
+            return VNull;
+        }
+        if (!memcmp(p, s, subLength))
+        {
+            return VBoxSize((size_t)(p - pstart));
+        }
+        p++;
+    }
+    return VNull;
 }
 
 
@@ -1504,12 +1755,12 @@ checkType1:
             size_t size1 = VUnboxSize(HeapRangeLow(value2));
             size_t size2 = VUnboxSize(HeapRangeHigh(value2));
             assert(size2 >= size1); /* TODO: Support inverted ranges. */
-            return HeapCreateSubstring(value1, size1, size2 - size1 + 1);
+            return VCreateSubstring(value1, size1, size2 - size1 + 1);
         }
         else
         {
             assert(hoIndex.type == TYPE_INTEGER);
-            return HeapCreateSubstring(value1, VUnboxSize(value2), 1);
+            return VCreateSubstring(value1, VUnboxSize(value2), 1);
         }
 
     case TYPE_VALUE:
@@ -1707,7 +1958,7 @@ static vref doConcatString(size_t valueCount, vref *values)
     {
         return VEmptyString;
     }
-    string = HeapCreateUninitialisedString(length, &data);
+    string = VCreateUninitialisedString(length, &data);
     for (i = 0; i < valueCount; i++)
     {
         data = VWriteString(values[i], data);

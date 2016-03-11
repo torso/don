@@ -62,7 +62,7 @@ static bool slotContainsString(const uint *t, uint slot, uint hash,
 {
     checkTable(t);
     return getSlotHash(t, slot) == hash &&
-        memcmp(HeapGetString(getSlotValue(t, slot)), string, length) == 0;
+        memcmp(VGetString(getSlotValue(t, slot)), string, length) == 0;
 }
 
 void StringPoolInit(void)
@@ -109,7 +109,7 @@ vref StringPoolAdd2(const char *token, size_t length)
             slot = 0;
         }
     }
-    ref = HeapCreateString(token, length);
+    ref = VCreateString(token, length);
     table[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_VALUE] = uintFromRef(ref);
     table[TABLE_DATA_BEGIN + slot * TABLE_ENTRY_SIZE + TABLE_ENTRY_HASH] = hash;
     return ref;

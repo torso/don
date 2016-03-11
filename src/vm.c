@@ -107,7 +107,7 @@ void VMFail(VM *vm, const int *ip, const char *format, ...)
     fflush(stdout);
     va_start(args, format);
     vm->ip = ip;
-    VMHalt(vm, HeapCreateStringFormatted(format, args));
+    VMHalt(vm, VCreateStringFormatted(format, args));
     va_end(args);
 }
 

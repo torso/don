@@ -202,7 +202,7 @@ int main(int argc, const char **argv)
         name = refFromInt(IVGet(&targets, j));
         if (NamespaceGetTarget(defaultNamespace, name) < 0)
         {
-            fprintf(stderr, "'%s' is not a target.\n", HeapGetString(name));
+            fprintf(stderr, "'%s' is not a target.\n", VGetString(name));
             fail = true;
         }
     }

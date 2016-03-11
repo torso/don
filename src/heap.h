@@ -21,6 +21,7 @@ extern void HeapDispose(void);
 
 extern byte *HeapAlloc(VType type, size_t size);
 extern nonnull vref HeapFinishAlloc(byte *objectData);
+extern nonnull vref HeapFinishRealloc(byte *objectData, size_t size);
 
 extern nonnull void HeapGet(vref v, HeapObject *ho);
 extern nonnull char *HeapDebug(vref object);
@@ -28,29 +29,6 @@ extern nonnull VType HeapGetObjectType(vref object);
 extern nonnull size_t HeapGetObjectSize(vref object);
 extern nonnull const byte *HeapGetObjectData(vref object);
 extern nonnull void HeapHash(vref object, HashState *hash);
-
-
-
-extern nonnull vref HeapCreateString(const char *string, size_t length);
-extern nonnull vref HeapCreateUninitialisedString(size_t length, char **data);
-extern nonnull vref HeapCreateWrappedString(const char *string, size_t length);
-extern nonnull vref HeapCreateSubstring(vref string, size_t offset, size_t length);
-extern nonnull vref HeapCreateStringFormatted(const char *format, va_list ap);
-extern nonnull bool HeapIsString(vref object);
-
-/*
-  Returns a null-terminated string. This function must only be used when the
-  string was added through the string pool. (This should be true for all code
-  running before the VM starts.)
-*/
-extern nonnull const char *HeapGetString(vref object);
-extern nonnull char *HeapGetStringCopy(vref object);
-
-extern nonnull char *HeapWriteSubstring(vref object, size_t offset,
-                                        size_t length, char *restrict dst);
-
-extern nonnull vref HeapStringIndexOf(vref text, size_t startOffset, vref substring);
-
 
 
 /*

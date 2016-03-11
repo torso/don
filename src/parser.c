@@ -165,7 +165,7 @@ static attrprintf(2, 3) void error(ParseState *state, const char *format, ...)
         va_end(args);
     }
     va_start(args, format);
-    writeOp(state, OP_ERROR, intFromRef(HeapCreateStringFormatted(format, args)));
+    writeOp(state, OP_ERROR, intFromRef(VCreateStringFormatted(format, args)));
     va_end(args);
 }
 
@@ -182,7 +182,7 @@ static attrprintf(3, 4) void errorOnLine(ParseState *state, int line, const char
     }
     writeOp(state, OP_LINE, line);
     va_start(args, format);
-    writeOp(state, OP_ERROR, intFromRef(HeapCreateStringFormatted(format, args)));
+    writeOp(state, OP_ERROR, intFromRef(VCreateStringFormatted(format, args)));
     va_end(args);
     writeOp(state, OP_LINE, state->line);
 }
@@ -671,7 +671,7 @@ static bool readExpectedKeyword(ParseState *state, vref keyword)
     {
         return true;
     }
-    error(state, "Expected keyword '%s'", HeapGetString(keyword));
+    error(state, "Expected keyword '%s'", VGetString(keyword));
     return false;
 }
 
@@ -703,7 +703,7 @@ static vref readFilename(ParseState *state)
         error(state, "Expected filename");
         return 0;
     }
-    return HeapCreateString((const char*)begin, getOffset(state, begin));
+    return VCreateString((const char*)begin, getOffset(state, begin));
 }
 
 
@@ -738,7 +738,7 @@ static bool readExpectedOperator(ParseState *state, byte op)
     {
         ParseState stateCopy = *state;
         vref identifier = readIdentifier(&stateCopy);
-        error(state, "Expected operator '%c'. Got '%s'", op, HeapGetString(identifier));
+        error(state, "Expected operator '%c'. Got '%s'", op, VGetString(identifier));
     }
     else if (peekNumber(state))
     {
@@ -1008,7 +1008,7 @@ static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
             {
                 IVAdd(&temp, variableFromConstant(
                           state,
-                          HeapCreateString((const char*)BVGetPointer(&btemp, oldBTempSize), length)));
+                          VCreateString((const char*)BVGetPointer(&btemp, oldBTempSize), length)));
                 BVSetSize(&btemp, oldBTempSize);
             }
             switch (expect(parseDollarExpressionRest(state), NO_ERROR))
@@ -1086,7 +1086,7 @@ static bool parseDoubleQuotedString(ParseState *state, ExpressionState *estate)
 finishString:
     BVAddData(&btemp, begin, (size_t)(end - begin));
     {
-        vref s = HeapCreateString((const char*)BVGetPointer(&btemp, oldBTempSize),
+        vref s = VCreateString((const char*)BVGetPointer(&btemp, oldBTempSize),
                                   BVSize(&btemp) - oldBTempSize);
         BVSetSize(&btemp, oldBTempSize);
         if (IVSize(&temp) == oldTempSize)
@@ -1134,7 +1134,7 @@ static bool parseSingleQuotedString(ParseState *state, ExpressionState *estate)
         }
         state->current++;
     }
-    parsedConstant(estate, HeapCreateString((const char*)begin, (size_t)(state->current - begin)));
+    parsedConstant(estate, VCreateString((const char*)begin, (size_t)(state->current - begin)));
     state->current++;
     return true;
 }
@@ -1224,7 +1224,7 @@ static void finishBracketListItem(ParseState *state, const byte *begin, const by
     if (length)
     {
         concatCount++;
-        s = HeapCreateString((const char*)BVGetPointer(&btemp, oldBTempSize), length);
+        s = VCreateString((const char*)BVGetPointer(&btemp, oldBTempSize), length);
         BVSetSize(&btemp, oldBTempSize);
         if (constant)
         {
@@ -1518,7 +1518,7 @@ static bool parseNativeInvocationRest(ParseState *state, ExpressionState *estate
     if (unlikely(!function))
     {
         error(state, "Unknown native function '%s'",
-              HeapGetString(name));
+              VGetString(name));
         return false;
     }
     if (unlikely((uint)estate->valueCount != (NativeGetReturnValueCount(function) ? 1 : 0)))
@@ -1625,8 +1625,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
                 parsedConstant(estate, VNull);
                 return true;
             }
-            error(state, "Unexpected keyword '%s'",
-                  HeapGetString(identifier));
+            error(state, "Unexpected keyword '%s'", VGetString(identifier));
             return false;
         }
         if (unlikely(estate->parseConstant))
@@ -1707,7 +1706,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         {
             return false;
         }
-        if (!strchr(HeapGetString(string), '*'))
+        if (!strchr(VGetString(string), '*'))
         {
             parsedConstant(estate, HeapCreatePath(string));
             return true;
@@ -2555,7 +2554,7 @@ static bool parseFunctionDeclarationRest(ParseState *state, vref functionName)
             else if (unlikely(requireDefaultValues))
             {
                 error(state, "Default value for parameter '%s' required",
-                      HeapGetString(parameterName));
+                      VGetString(parameterName));
                 goto error;
             }
             else if (readOperator3(state, '.', '.', '.'))
@@ -2700,7 +2699,7 @@ void ParseFile(ParsedProgram *program, const char *filename, size_t filenameLeng
                 {
                     /* TODO: blacklist function */
                     error(&state, "Multiple functions or targets with name '%s'",
-                          HeapGetString(name));
+                          VGetString(name));
                 }
                 if (unlikely(!readOperator(&state, '(')))
                 {
@@ -2724,7 +2723,7 @@ void ParseFile(ParsedProgram *program, const char *filename, size_t filenameLeng
                 {
                     /* TODO: blacklist function */
                     error(&state, "Multiple functions or targets with name '%s'",
-                          HeapGetString(name));
+                          VGetString(name));
                 }
                 IVAdd(&program->functions, (int)IVSize(state.bytecode));
                 writeOp3(&state, OP_FUNCTION_UNLINKED, intFromRef(name), 0, 0);
@@ -2756,7 +2755,7 @@ void ParseFile(ParsedProgram *program, const char *filename, size_t filenameLeng
                                          ns, identifier, (int)IVSize(&program->fields)) >= 0))
                         {
                             error(&state, "Multiple fields with name '%s'",
-                                  HeapGetString(identifier));
+                                  VGetString(identifier));
                         }
                         IVAdd(&program->fields, intFromRef(estate.constant));
                     }

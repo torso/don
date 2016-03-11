@@ -52,7 +52,7 @@ vref HeapFinishAlloc(byte *objectData)
     return refFromSize((size_t)(HeapPageOffset + objectData - OBJECT_OVERHEAD - HeapPageBase));
 }
 
-static vref heapFinishRealloc(byte *objectData, size_t size)
+vref HeapFinishRealloc(byte *objectData, size_t size)
 {
     assert(size);
     assert(size <= UINT_MAX - 1);
@@ -133,7 +133,7 @@ start:
 static const char *toString(vref object, bool *copy)
 {
     *copy = false;
-    if (HeapIsString(object))
+    if (VIsString(object))
     {
         return getString(object);
     }
@@ -184,7 +184,7 @@ void HeapInit(void)
     *p = 0;
     VEmptyString = HeapFinishAlloc(p);
     VEmptyList = HeapFinishAlloc(HeapAlloc(TYPE_ARRAY, 0));
-    VNewline = HeapCreateString("\n", 1);
+    VNewline = VCreateString("\n", 1);
 }
 
 void HeapDispose(void)
@@ -300,7 +300,7 @@ char *HeapDebug(vref value)
     {
         BVAdd(&buffer, ':');
         length = VStringLength(value);
-        if (HeapIsString(value))
+        if (VIsString(value))
         {
             BVAdd(&buffer, '\"');
         }
@@ -309,7 +309,7 @@ char *HeapDebug(vref value)
             BVAddData(&buffer, (const byte*)"@\"", 2);
         }
         VWriteString(value, (char*)BVGetAppendPointer(&buffer, length));
-        if (HeapIsString(value) || HeapIsFile(value))
+        if (VIsString(value) || HeapIsFile(value))
         {
             BVAdd(&buffer, '\"');
         }
@@ -410,259 +410,6 @@ start:
 }
 
 
-vref HeapCreateString(const char *restrict string, size_t length)
-{
-    byte *restrict objectData;
-
-    if (!length)
-    {
-        return VEmptyString;
-    }
-
-    objectData = HeapAlloc(TYPE_STRING, length + 1);
-    memcpy(objectData, string, length);
-    objectData[length] = 0;
-    return HeapFinishAlloc(objectData);
-}
-
-vref HeapCreateUninitialisedString(size_t length, char **data)
-{
-    byte *objectData;
-    assert(length);
-    objectData = HeapAlloc(TYPE_STRING, length + 1);
-    objectData[length] = 0;
-    *(byte**)data = objectData;
-    return HeapFinishAlloc(objectData);
-}
-
-vref HeapCreateWrappedString(const char *restrict string,
-                             size_t length)
-{
-    byte *restrict data;
-
-    if (!length)
-    {
-        return VEmptyString;
-    }
-    data = HeapAlloc(TYPE_STRING_WRAPPED, sizeof(char*) + sizeof(size_t));
-    *(const char**)data = string;
-    *(size_t*)&data[sizeof(char*)] = length;
-    return HeapFinishAlloc(data);
-}
-
-vref HeapCreateSubstring(vref string, size_t offset, size_t length)
-{
-    SubString *ss;
-    byte *data;
-    VType type;
-
-    assert(!HeapIsFutureValue(string));
-    assert(HeapIsString(string));
-    assert(VStringLength(string) >= offset + length);
-    if (!length)
-    {
-        return VEmptyString;
-    }
-    if (length == VStringLength(string))
-    {
-        return string;
-    }
-start:
-    type = HeapGetObjectType(string);
-    switch ((int)type)
-    {
-    case TYPE_STRING:
-        break;
-
-    case TYPE_STRING_WRAPPED:
-        return HeapCreateWrappedString(&getString(string)[offset], length);
-
-    case TYPE_SUBSTRING:
-        ss = (SubString*)HeapGetObjectData(string);
-        string = ss->string;
-        offset += ss->offset;
-        break;
-
-    case TYPE_VALUE:
-        string = *(vref*)HeapGetObjectData(string);
-        goto start;
-
-    default:
-        unreachable;
-    }
-    data = HeapAlloc(TYPE_SUBSTRING, sizeof(SubString));
-    ss = (SubString*)data;
-    ss->string = string;
-    ss->offset = offset;
-    ss->length = length;
-    return HeapFinishAlloc(data);
-}
-
-vref HeapCreateStringFormatted(const char *format, va_list ap)
-{
-    char *data = (char*)HeapAlloc(TYPE_STRING, 0);
-    char *start = data;
-    while (*format)
-    {
-        const char *stop = format;
-        while (*stop && *stop != '%')
-        {
-            stop++;
-        }
-        memcpy(data, format, (size_t)(stop - format));
-        data += stop - format;
-        format = stop;
-        if (*format == '%')
-        {
-            format++;
-            switch (*format++)
-            {
-            case 'c':
-            {
-                int c = va_arg(ap, int);
-                if (c >= ' ' && c <= '~')
-                {
-                    *data++ = (char)c;
-                }
-                else if (c == '\n')
-                {
-                    *data++ = '\\';
-                    *data++ = 'n';
-                }
-                else
-                {
-                    *data++ = '?';
-                }
-                break;
-            }
-
-            case 'd':
-            {
-                int value = va_arg(ap, int);
-                char *numberStart;
-                int i;
-                if (value < 0)
-                {
-                    *data++ = '-';
-                }
-                numberStart = data;
-                do
-                {
-                    *data++ = (char)('0' + (value < 0 ? -(value % 10) : value % 10));
-                    value /= 10;
-                }
-                while (value);
-                for (i = 0; numberStart + i < data - i - 1; i++)
-                {
-                    char tmp = numberStart[i];
-                    numberStart[i] = data[-i - 1];
-                    data[-i - 1] = tmp;
-                }
-                break;
-            }
-
-            case 's':
-            {
-                const char *string = va_arg(ap, const char*);
-                size_t length = strlen(string);
-                memcpy(data, string, length);
-                data += length;
-                break;
-            }
-
-            default:
-                format--;
-            }
-        }
-    }
-    *data++ = 0;
-    return heapFinishRealloc((byte*)start, (size_t)(data - start));
-}
-
-bool HeapIsString(vref object)
-{
-    VType type;
-start:
-    assert(!HeapIsFutureValue(object));
-    type = HeapGetObjectType(object);
-    switch ((int)type)
-    {
-    case TYPE_STRING:
-    case TYPE_STRING_WRAPPED:
-    case TYPE_SUBSTRING:
-        return true;
-
-    case TYPE_NULL:
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_FILE:
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-    case TYPE_CONCAT_LIST:
-        return false;
-
-    case TYPE_VALUE:
-        object = *(vref*)HeapGetObjectData(object);
-        goto start;
-    }
-    unreachable;
-}
-
-const char *HeapGetString(vref object)
-{
-    assert(HeapGetObjectType(object) == TYPE_STRING);
-    return (const char*)HeapGetObjectData(object);
-}
-
-char *HeapGetStringCopy(vref object)
-{
-    size_t length = VStringLength(object);
-    char *copy = (char*)malloc(length + 1);
-    VWriteString(object, copy);
-    copy[length] = 0;
-    return copy;
-}
-
-char *HeapWriteSubstring(vref object, size_t offset, size_t length,
-                         char *dst)
-{
-    assert(VStringLength(object) >= offset + length);
-    memcpy(dst, getString(object) + offset, length);
-    return dst + length;
-}
-
-vref HeapStringIndexOf(vref text, size_t startOffset,
-                       vref substring)
-{
-    size_t textLength = VStringLength(text);
-    size_t subLength = VStringLength(substring);
-    const char *pstart = getString(text);
-    const char *p = pstart + startOffset;
-    const char *plimit = pstart + textLength - subLength + 1;
-    const char *s = getString(substring);
-
-    if (!subLength || subLength > textLength)
-    {
-        return VNull;
-    }
-    while (p < plimit)
-    {
-        p = (const char*)memchr(p, *s, (size_t)(plimit - p));
-        if (!p)
-        {
-            return VNull;
-        }
-        if (!memcmp(p, s, subLength))
-        {
-            return VBoxSize((size_t)(p - pstart));
-        }
-        p++;
-    }
-    return VNull;
-}
-
-
 vref HeapCreatePath(vref path)
 {
     const char *src;
@@ -680,7 +427,7 @@ vref HeapCreatePath(vref path)
     temp = FileCreatePath(null, 0, src, srcLength, null, 0, &tempLength);
     if (tempLength != srcLength && memcmp(src, temp, srcLength))
     {
-        path = HeapCreateString(temp, tempLength);
+        path = VCreateString(temp, tempLength);
     }
     free(temp);
     return boxReference(TYPE_FILE, path);
@@ -716,9 +463,9 @@ vref HeapPathFromParts(vref path, vref name, vref extension)
     assert(!HeapIsFutureValue(path));
     assert(!HeapIsFutureValue(name));
     assert(!HeapIsFutureValue(extension));
-    assert(path == VNull || HeapIsString(path) || HeapIsFile(path));
-    assert(HeapIsString(name) || HeapIsFile(name));
-    assert(extension == VNull || HeapIsString(extension));
+    assert(path == VNull || VIsString(path) || HeapIsFile(path));
+    assert(VIsString(name) || HeapIsFile(name));
+    assert(extension == VNull || VIsString(extension));
 
     if (path != VNull)
     {
@@ -748,7 +495,7 @@ vref HeapPathFromParts(vref path, vref name, vref extension)
     {
         free((void*)extensionString);
     }
-    result = HeapCreatePath(HeapCreateString(resultPath, resultPathLength));
+    result = HeapCreatePath(VCreateString(resultPath, resultPathLength));
     free(resultPath);
     return result;
 }
@@ -853,7 +600,7 @@ vref HeapCreateFilelist(vref value)
         heapAllocAbort((byte*)data);
         return VEmptyList;
     }
-    newValue = heapFinishRealloc((byte*)data, size * sizeof(vref));
+    newValue = HeapFinishRealloc((byte*)data, size * sizeof(vref));
     for (i = 0; i < size; i++)
     {
         if (!HeapIsFile(data[i]))
@@ -874,7 +621,7 @@ vref HeapCreateFilelist(vref value)
 
 static void createPath(const char *path, size_t length, void *userdata)
 {
-    HeapCreatePath(HeapCreateString(path, length));
+    HeapCreatePath(VCreateString(path, length));
     (*(size_t*)userdata)++;
 }
 
@@ -894,7 +641,7 @@ vref HeapCreateFilelistGlob(const char *pattern, size_t length)
     files = array;
     while (count--)
     {
-        assert(HeapIsString(object));
+        assert(VIsString(object));
         object = heapNext(object);
         assert(HeapIsFile(object));
         *files++ = object;
@@ -951,7 +698,7 @@ vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
     const int *delimiterVector;
     const int *delimiterVectorLimit;
 
-    assert(HeapIsString(string));
+    assert(VIsString(string));
     length = VStringLength(string);
     if (!length)
     {
@@ -1013,7 +760,7 @@ continueMatching:
                 if (offset != lastOffset || !removeEmpty)
                 {
                     IVAdd(&substrings,
-                          intFromRef(HeapCreateSubstring(string, lastOffset, offset - lastOffset)));
+                          intFromRef(VCreateSubstring(string, lastOffset, offset - lastOffset)));
                 }
                 offset += delimiterLength;
                 lastOffset = offset;
@@ -1025,8 +772,8 @@ continueMatching:
     }
     if (length != lastOffset || !(removeEmpty || trimLastIfEmpty))
     {
-        IVAdd(&substrings, intFromRef(HeapCreateSubstring(string, lastOffset,
-                                                          length - lastOffset)));
+        IVAdd(&substrings, intFromRef(VCreateSubstring(string, lastOffset,
+                                                       length - lastOffset)));
     }
     value = VCreateArrayFromVector(&substrings);
     IVDispose(&substrings);

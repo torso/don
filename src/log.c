@@ -1,4 +1,5 @@
 #include "common.h"
+#include <stdarg.h>
 #include <unistd.h>
 #include "bytevector.h"
 #include "fail.h"

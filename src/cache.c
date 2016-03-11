@@ -432,7 +432,7 @@ void CacheGet(const byte *hash, bool echoCachedOutput,
     }
 
     *uptodate = true;
-    *out = HeapCreateString(p, entry->dataLength);
+    *out = VCreateString(p, entry->dataLength);
     p += entry->dataLength;
     if (echoCachedOutput)
     {
