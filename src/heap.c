@@ -1090,12 +1090,6 @@ continueMatching:
 }
 
 
-typedef struct
-{
-    vref value;
-    Instruction op;
-} FutureValueUnary;
-
 bool HeapIsFutureValue(vref object)
 {
     return (HeapGetObjectType(object) & TYPE_FLAG_FUTURE) != 0;
@@ -1103,10 +1097,8 @@ bool HeapIsFutureValue(vref object)
 
 vref HeapCreateFutureValue(void)
 {
-    byte *data = HeapAlloc(TYPE_FUTURE, sizeof(FutureValueUnary));
-    FutureValueUnary *future = (FutureValueUnary*)data;
-    future->value = 0;
-    future->op = OP_UNKNOWN_VALUE;
+    byte *data = HeapAlloc(TYPE_FUTURE, sizeof(vref));
+    *(vref*)data = 0;
     return HeapFinishAlloc(data);
 }
 
