@@ -17,10 +17,6 @@
 #define INITIAL_HEAP_INDEX_SIZE 1
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))
 
-#define INTEGER_LITERAL_MARK (((uint)1 << (sizeof(vref) * 8 - 1)))
-#define INTEGER_LITERAL_MASK (~INTEGER_LITERAL_MARK)
-#define INTEGER_LITERAL_SHIFT 1
-
 #define OBJECT_OVERHEAD (sizeof(int) * 2)
 #define HEADER_SIZE 0
 #define HEADER_TYPE sizeof(int)
@@ -93,11 +89,6 @@ static vref heapNext(vref object)
 }
 
 
-static pureconst bool isInteger(vref object)
-{
-    return (uintFromRef(object) & INTEGER_LITERAL_MARK) != 0;
-}
-
 static vref boxReference(VType type, ref_t value)
 {
     byte *objectData = HeapAlloc(type, sizeof(ref_t));
@@ -158,7 +149,7 @@ static const char *toString(vref object, bool *copy)
 void HeapGet(vref v, HeapObject *ho)
 {
     checkObject(v);
-    if (isInteger(v))
+    if (VIsInteger(v))
     {
         ho->type = TYPE_INTEGER;
         ho->size = 0;
@@ -220,11 +211,11 @@ char *HeapDebug(vref value)
 
     BVInit(&buffer, 64);
 
-    if (isInteger(value))
+    if (VIsInteger(value))
     {
         length = BVGetReservedAppendSize(&buffer);
         snprintf((char*)BVGetAppendPointer(&buffer, length), length,
-                 "[int=%d]", HeapUnboxInteger(value));
+                 "[int=%d]", VUnboxInteger(value));
         BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)));
         return (char*)BVDisposeContainer(&buffer);
     }
@@ -293,10 +284,10 @@ char *HeapDebug(vref value)
                 BVAdd(&buffer, ',');
             }
             length = BVGetReservedAppendSize(&buffer);
-            if (isInteger(data[i]))
+            if (VIsInteger(data[i]))
             {
                 snprintf((char*)BVGetAppendPointer(&buffer, length), length,
-                         "int=%d", HeapUnboxInteger(data[i]));
+                         "int=%d", VUnboxInteger(data[i]));
             }
             else
             {
@@ -330,7 +321,7 @@ char *HeapDebug(vref value)
 VType HeapGetObjectType(vref object)
 {
     checkObject(object);
-    return isInteger(object) ? TYPE_INTEGER :
+    return VIsInteger(object) ? TYPE_INTEGER :
         (VType)*(uint*)(HeapPageBase + sizeFromRef(object) + HEADER_TYPE);
 }
 
@@ -404,7 +395,7 @@ start:
     case TYPE_CONCAT_LIST:
         value = TYPE_ARRAY;
         HashUpdate(hash, &value, 1);
-        for (index = 0; VCollectionGet(object, HeapBoxSize(index++), &item);)
+        for (index = 0; VCollectionGet(object, VBoxSize(index++), &item);)
         {
             /* TODO: Avoid recursion */
             HeapHash(item, hash);
@@ -416,52 +407,6 @@ start:
         goto start;
     }
     unreachable;
-}
-
-
-vref HeapBoxInteger(int value)
-{
-    assert(value == HeapUnboxInteger(
-               refFromUint(((uint)value & INTEGER_LITERAL_MASK) |
-                           INTEGER_LITERAL_MARK)));
-    return refFromUint(((uint)value & INTEGER_LITERAL_MASK) |
-                       INTEGER_LITERAL_MARK);
-}
-
-vref HeapBoxUint(uint value)
-{
-    assert(value <= INT_MAX);
-    return HeapBoxInteger((int)value);
-}
-
-vref HeapBoxSize(size_t value)
-{
-    assert(value <= INT_MAX);
-    return HeapBoxInteger((int)value);
-}
-
-int HeapUnboxInteger(vref object)
-{
-    assert(isInteger(object));
-    return ((signed)uintFromRef(object) << INTEGER_LITERAL_SHIFT) >>
-        INTEGER_LITERAL_SHIFT;
-}
-
-size_t HeapUnboxSize(vref object)
-{
-    assert(isInteger(object));
-    assert(HeapUnboxInteger(object) >= 0);
-    return (size_t)HeapUnboxInteger(object);
-}
-
-int HeapIntegerSign(vref object)
-{
-    int i = HeapUnboxInteger(object);
-    if (i > 0)
-    {
-        return 1;
-    }
-    return i >> (sizeof(int) * 8 - 1);
 }
 
 
@@ -710,7 +655,7 @@ vref HeapStringIndexOf(vref text, size_t startOffset,
         }
         if (!memcmp(p, s, subLength))
         {
-            return HeapBoxSize((size_t)(p - pstart));
+            return VBoxSize((size_t)(p - pstart));
         }
         p++;
     }
@@ -897,7 +842,7 @@ vref HeapCreateFilelist(vref value)
         {
             break;
         }
-        VCollectionGet(value, HeapBoxInteger(0), &value);
+        VCollectionGet(value, VBoxInteger(0), &value);
     }
 
     data = (vref*)HeapAlloc(TYPE_ARRAY, 0);
@@ -964,8 +909,8 @@ vref HeapCreateRange(vref lowObject, vref highObject)
 {
     byte *objectData;
     int *p;
-    int low = HeapUnboxInteger(lowObject);
-    int high = HeapUnboxInteger(highObject);
+    int low = VUnboxInteger(lowObject);
+    int high = VUnboxInteger(highObject);
 
     assert(low <= high); /* TODO: Reverse range */
     assert(!subOverflow(high, low));
@@ -983,12 +928,12 @@ bool HeapIsRange(vref object)
 
 vref HeapRangeLow(vref range)
 {
-    return HeapBoxInteger(((int*)HeapGetObjectData(range))[0]);
+    return VBoxInteger(((int*)HeapGetObjectData(range))[0]);
 }
 
 vref HeapRangeHigh(vref range)
 {
-    return HeapBoxInteger(((int*)HeapGetObjectData(range))[1]);
+    return VBoxInteger(((int*)HeapGetObjectData(range))[1]);
 }
 
 
@@ -1020,7 +965,7 @@ vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
         {
             vref s;
             size_t delimiterLength;
-            VCollectionGet(delimiter, HeapBoxSize(i), &s);
+            VCollectionGet(delimiter, VBoxSize(i), &s);
             delimiterLength = VStringLength(s);
             assert(delimiterLength <= INT_MAX);
             if (!delimiterLength || delimiterLength > length)

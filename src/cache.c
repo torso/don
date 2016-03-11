@@ -510,7 +510,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
         vref value;
         uint length;
         char *pathStart;
-        if (!VCollectionGet(dependencies, HeapBoxSize(i), &value))
+        if (!VCollectionGet(dependencies, VBoxSize(i), &value))
         {
             assert(false); /* TODO: Error handling. */
         }

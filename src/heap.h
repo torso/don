@@ -31,15 +31,6 @@ extern nonnull void HeapHash(vref object, HashState *hash);
 
 
 
-extern nonnull vref HeapBoxInteger(int value);
-extern nonnull vref HeapBoxUint(uint value);
-extern nonnull vref HeapBoxSize(size_t value);
-extern nonnull int HeapUnboxInteger(vref object);
-extern nonnull size_t HeapUnboxSize(vref object);
-extern nonnull int HeapIntegerSign(vref object);
-
-
-
 extern nonnull vref HeapCreateString(const char *string, size_t length);
 extern nonnull vref HeapCreateUninitialisedString(size_t length, char **data);
 extern nonnull vref HeapCreateWrappedString(const char *string, size_t length);

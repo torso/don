@@ -82,9 +82,9 @@ const char *const*EnvCreateCopy(vref overrides)
     size_t tempSize = 0;
     size_t index;
 
-    for (index = 0; VCollectionGet(overrides, HeapBoxSize(index++), &name);)
+    for (index = 0; VCollectionGet(overrides, VBoxSize(index++), &name);)
     {
-        VCollectionGet(overrides, HeapBoxSize(index++), &value);
+        VCollectionGet(overrides, VBoxSize(index++), &value);
         nameLength = VStringLength(name);
         if (value != VNull)
         {
@@ -103,9 +103,9 @@ const char *const*EnvCreateCopy(vref overrides)
     memcpy(result, env, (envCount + 1) * sizeof(*env));
     count = envCount;
 
-    for (index = 0; VCollectionGet(overrides, HeapBoxSize(index++), &name);)
+    for (index = 0; VCollectionGet(overrides, VBoxSize(index++), &name);)
     {
-        VCollectionGet(overrides, HeapBoxSize(index++), &value);
+        VCollectionGet(overrides, VBoxSize(index++), &value);
         nameLength = VStringLength(name);
         VWriteString(name, data);
         p = getEnvEntry(result, data, nameLength);

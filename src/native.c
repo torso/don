@@ -48,7 +48,7 @@ static bool addStringsLength(vref collection, uint *count, size_t *size)
 {
     size_t index;
     vref value;
-    for (index = 0; VCollectionGet(collection, HeapBoxSize(index++), &value);)
+    for (index = 0; VCollectionGet(collection, VBoxSize(index++), &value);)
     {
         if (HeapIsFutureValue(value))
         {
@@ -74,7 +74,7 @@ static void writeStrings(vref collection, char ***table, char **stringData)
 {
     size_t index;
     vref value;
-    for (index = 0; VCollectionGet(collection, HeapBoxSize(index++), &value);)
+    for (index = 0; VCollectionGet(collection, VBoxSize(index++), &value);)
     {
         if (VIsCollection(value))
         {
@@ -371,7 +371,7 @@ static bool workExec(Work *work, vref *values)
         FailOOM();
     }
 
-    for (index = 0; VCollectionGet(env->modify, HeapBoxSize(index++), &value);)
+    for (index = 0; VCollectionGet(env->modify, VBoxSize(index++), &value);)
     {
         assert(!HeapIsFutureValue(value));
         path = HeapGetPath(value, &length);
@@ -400,7 +400,7 @@ static bool workExec(Work *work, vref *values)
         VMFail(work->vm, work->ip, "Process exited with status %d", WEXITSTATUS(status));
         return true;
     }
-    HeapSetFutureValue(env->exitcode, HeapBoxInteger(WEXITSTATUS(status)));
+    HeapSetFutureValue(env->exitcode, VBoxInteger(WEXITSTATUS(status)));
     HeapSetFutureValue(env->outputStd, HeapCreateString(
                            (const char*)BVGetPointer(&out.buffer, 0),
                            BVSize(&out.buffer)));
@@ -829,7 +829,7 @@ static vref nativeMv(VM *vm)
 
 static vref nativePid(VM *vm unused)
 {
-    return HeapBoxInteger(getpid());
+    return VBoxInteger(getpid());
 }
 
 typedef struct
@@ -913,22 +913,22 @@ static bool workReplace(Work *work unused, vref *values)
                 break;
             }
             replacements++;
-            offset = HeapUnboxSize(offsetRef);
+            offset = VUnboxSize(offsetRef);
         }
     }
     if (!replacements)
     {
         HeapSetFutureValue(env->result, env->data);
-        HeapSetFutureValue(env->count, HeapBoxInteger(0));
+        HeapSetFutureValue(env->count, VBoxInteger(0));
         return true;
     }
     HeapSetFutureValue(env->result, HeapCreateUninitialisedString(
                            dataLength + replacements * (replacementLength - originalLength), &p));
-    HeapSetFutureValue(env->count, HeapBoxUint(replacements));
+    HeapSetFutureValue(env->count, VBoxUint(replacements));
     offset = 0;
     while (replacements--)
     {
-        newOffset = HeapUnboxSize(HeapStringIndexOf(env->data, offset, env->original));
+        newOffset = VUnboxSize(HeapStringIndexOf(env->data, offset, env->original));
         p = HeapWriteSubstring(env->data, offset, newOffset - offset, p);
         p = VWriteString(env->replacement, p);
         offset = newOffset + originalLength;
@@ -1070,11 +1070,11 @@ static bool workSize(Work *work, vref *values)
     if (VIsCollection(env->value))
     {
         assert(VCollectionSize(env->value) <= INT_MAX);
-        result = HeapBoxSize(VCollectionSize(env->value));
+        result = VBoxSize(VCollectionSize(env->value));
     }
     else if (likely(HeapIsString(env->value)))
     {
-        result = HeapBoxSize(VStringLength(env->value));
+        result = VBoxSize(VStringLength(env->value));
     }
     else
     {

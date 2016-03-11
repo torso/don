@@ -81,7 +81,7 @@ start:
         return FALSY;
 
     case TYPE_INTEGER:
-        return HeapUnboxInteger(value) ? TRUTHY : FALSY;
+        return VUnboxInteger(value) ? TRUTHY : FALSY;
 
     case TYPE_STRING:
     case TYPE_STRING_WRAPPED:
@@ -108,6 +108,51 @@ bool VIsTruthy(vref value)
 bool VIsFalsy(vref value)
 {
     return VGetBool(value) == FALSY;
+}
+
+
+#define INTEGER_LITERAL_MARK (((uint)1 << (sizeof(vref) * 8 - 1)))
+#define INTEGER_LITERAL_MASK (~INTEGER_LITERAL_MARK)
+#define INTEGER_LITERAL_SHIFT 1
+
+pureconst bool VIsInteger(vref object)
+{
+    return (uintFromRef(object) & INTEGER_LITERAL_MARK) != 0;
+}
+
+vref VBoxInteger(int value)
+{
+    assert(value == VUnboxInteger(
+               refFromUint(((uint)value & INTEGER_LITERAL_MASK) |
+                           INTEGER_LITERAL_MARK)));
+    return refFromUint(((uint)value & INTEGER_LITERAL_MASK) |
+                       INTEGER_LITERAL_MARK);
+}
+
+vref VBoxUint(uint value)
+{
+    assert(value <= INT_MAX);
+    return VBoxInteger((int)value);
+}
+
+vref VBoxSize(size_t value)
+{
+    assert(value <= INT_MAX);
+    return VBoxInteger((int)value);
+}
+
+int VUnboxInteger(vref object)
+{
+    assert(VIsInteger(object));
+    return ((signed)uintFromRef(object) << INTEGER_LITERAL_SHIFT) >>
+        INTEGER_LITERAL_SHIFT;
+}
+
+size_t VUnboxSize(vref object)
+{
+    assert(VIsInteger(object));
+    assert(VUnboxInteger(object) >= 0);
+    return (size_t)VUnboxInteger(object);
 }
 
 
@@ -265,8 +310,8 @@ static vref doEquals(vref value1, vref value2)
                 vref item2;
                 vref result;
                 bool success =
-                    VCollectionGet(value1, HeapBoxSize(index), &item1) &&
-                    VCollectionGet(value2, HeapBoxSize(index), &item2);
+                    VCollectionGet(value1, VBoxSize(index), &item1) &&
+                    VCollectionGet(value2, VBoxSize(index), &item2);
                 assert(success);
                 result = doEquals(item1, item2);
                 if (result != VTrue)
@@ -360,7 +405,7 @@ checkType2:
     default:
         goto error;
     }
-    return HeapUnboxInteger(value1) < HeapUnboxInteger(value2) ?
+    return VUnboxInteger(value1) < VUnboxInteger(value2) ?
         VTrue : VFalse;
 
 error:
@@ -423,7 +468,7 @@ checkType2:
     default:
         goto error;
     }
-    return HeapUnboxInteger(value1) <= HeapUnboxInteger(value2) ?
+    return VUnboxInteger(value1) <= VUnboxInteger(value2) ?
         VTrue : VFalse;
 
 error:
@@ -481,7 +526,7 @@ checkType2:
     HeapGet(value2, &ho);
     if (ho.type & TYPE_FLAG_FUTURE)
     {
-        return HeapUnboxInteger(value1) ? 0 : value2;
+        return VUnboxInteger(value1) ? 0 : value2;
     }
     switch ((int)ho.type)
     {
@@ -493,7 +538,7 @@ checkType2:
     default:
         goto error;
     }
-    return HeapBoxInteger(HeapUnboxInteger(value1) + HeapUnboxInteger(value2));
+    return VBoxInteger(VUnboxInteger(value1) + VUnboxInteger(value2));
 
 error:
     VMFail(vm, ip, "Cannot add non-numbers. Use \"$a$b\" to concatenate strings");
@@ -555,7 +600,7 @@ checkType2:
     default:
         goto error;
     }
-    return HeapBoxInteger(HeapUnboxInteger(value1) - HeapUnboxInteger(value2));
+    return VBoxInteger(VUnboxInteger(value1) - VUnboxInteger(value2));
 
 error:
     VMFail(vm, ip, "Cannot subtract non-numbers");
@@ -621,7 +666,7 @@ checkType2:
     default:
         goto error;
     }
-    return HeapBoxInteger(HeapUnboxInteger(value1) * HeapUnboxInteger(value2));
+    return VBoxInteger(VUnboxInteger(value1) * VUnboxInteger(value2));
 
 error:
     VMFail(vm, ip, "Cannot multiply non-numbers");
@@ -687,9 +732,9 @@ checkType2:
     default:
         goto error;
     }
-    assert((HeapUnboxInteger(value1) / HeapUnboxInteger(value2)) * HeapUnboxInteger(value2) ==
-           HeapUnboxInteger(value1)); /* TODO: fraction */
-    return HeapBoxInteger(HeapUnboxInteger(value1) / HeapUnboxInteger(value2));
+    assert((VUnboxInteger(value1) / VUnboxInteger(value2)) * VUnboxInteger(value2) ==
+           VUnboxInteger(value1)); /* TODO: fraction */
+    return VBoxInteger(VUnboxInteger(value1) / VUnboxInteger(value2));
 
 error:
     VMFail(vm, ip, "Cannot divide non-numbers");
@@ -755,7 +800,7 @@ checkType2:
     default:
         goto error;
     }
-    return HeapBoxInteger(HeapUnboxInteger(value1) % HeapUnboxInteger(value2));
+    return VBoxInteger(VUnboxInteger(value1) % VUnboxInteger(value2));
 
 error:
     VMFail(vm, ip, "Cannot divide non-numbers");
@@ -872,7 +917,7 @@ checkType:
     switch ((int)ho.type)
     {
     case TYPE_INTEGER:
-        return HeapBoxInteger(-HeapUnboxInteger(value));
+        return VBoxInteger(-VUnboxInteger(value));
     case TYPE_VALUE:
         value = *(vref*)ho.data;
         goto checkType;
@@ -916,7 +961,7 @@ checkType:
     switch ((int)ho.type)
     {
     case TYPE_INTEGER:
-        return HeapBoxInteger(~HeapUnboxInteger(value));
+        return VBoxInteger(~VUnboxInteger(value));
     case TYPE_VALUE:
         value = *(vref*)ho.data;
         goto checkType;
@@ -978,7 +1023,7 @@ checkCollection:
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
-        return HeapUnboxSize(index) < VCollectionSize(collection) ? VTrue : VFalse;
+        return VUnboxSize(index) < VCollectionSize(collection) ? VTrue : VFalse;
 
     case TYPE_VALUE:
         collection = *(vref*)ho.data;
@@ -1070,15 +1115,15 @@ checkType1:
     case TYPE_SUBSTRING:
         if (hoIndex.type == TYPE_INTEGER_RANGE)
         {
-            size_t size1 = HeapUnboxSize(HeapRangeLow(value2));
-            size_t size2 = HeapUnboxSize(HeapRangeHigh(value2));
+            size_t size1 = VUnboxSize(HeapRangeLow(value2));
+            size_t size2 = VUnboxSize(HeapRangeHigh(value2));
             assert(size2 >= size1); /* TODO: Support inverted ranges. */
             return HeapCreateSubstring(value1, size1, size2 - size1 + 1);
         }
         else
         {
             assert(hoIndex.type == TYPE_INTEGER);
-            return HeapCreateSubstring(value1, HeapUnboxSize(value2), 1);
+            return HeapCreateSubstring(value1, VUnboxSize(value2), 1);
         }
 
     case TYPE_VALUE:
@@ -1355,7 +1400,7 @@ start:
         return 5;
 
     case TYPE_INTEGER:
-        i = (uint)HeapUnboxInteger(value);
+        i = (uint)VUnboxInteger(value);
         size = 1;
         if ((int)i < 0)
         {
@@ -1390,7 +1435,7 @@ start:
             size--;
         }
         size = size + 6;
-        for (index = 0; VCollectionGet(value, HeapBoxSize(index++), &item);)
+        for (index = 0; VCollectionGet(value, VBoxSize(index++), &item);)
         {
             size += VStringLength(item);
         }
@@ -1440,7 +1485,7 @@ start:
         return dst;
 
     case TYPE_INTEGER:
-        i = (uint)HeapUnboxInteger(value);
+        i = (uint)VUnboxInteger(value);
         if (!i)
         {
             *dst++ = '0';
@@ -1485,7 +1530,7 @@ start:
         *dst++ = 's';
         *dst++ = 't';
         *dst++ = '(';
-        for (index = 0; VCollectionGet(value, HeapBoxSize(index), &item);
+        for (index = 0; VCollectionGet(value, VBoxSize(index), &item);
              index++)
         {
             if (index)
@@ -1641,7 +1686,7 @@ bool VCollectionGet(vref object, vref indexObject, vref *restrict value)
     assert(!HeapIsFutureValue(object));
     assert(!HeapIsFutureValue(indexObject));
 
-    i = HeapUnboxInteger(indexObject);
+    i = VUnboxInteger(indexObject);
     if (i < 0)
     {
         return false;
@@ -1667,7 +1712,7 @@ start:
         intData = (const int *)HeapGetObjectData(object);
         assert(i <= INT_MAX - 1);
         assert(!addOverflow((int)i, intData[0]));
-        *value = HeapBoxInteger((int)i + intData[0]);
+        *value = VBoxInteger((int)i + intData[0]);
         return true;
 
     case TYPE_CONCAT_LIST:
@@ -1680,7 +1725,7 @@ start:
             if (index < size)
             {
                 assert(index <= INT_MAX);
-                return VCollectionGet(*data, HeapBoxSize(index), value);
+                return VCollectionGet(*data, VBoxSize(index), value);
             }
             index -= size;
             data++;

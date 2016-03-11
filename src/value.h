@@ -75,6 +75,14 @@ extern bool VIsTruthy(vref value);
 extern bool VIsFalsy(vref value);
 
 
+extern pureconst bool VIsInteger(vref object);
+extern vref VBoxInteger(int value);
+extern vref VBoxUint(uint value);
+extern vref VBoxSize(size_t value);
+extern int VUnboxInteger(vref object);
+extern size_t VUnboxSize(vref object);
+
+
 extern vref VEquals(VM *vm, vref value1, vref value2);
 extern vref VNotEquals(VM *vm, vref value1, vref value2);
 extern vref VLess(VM *vm, vref value1, vref value2);

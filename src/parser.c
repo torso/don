@@ -724,7 +724,7 @@ static void parseNumber(ParseState *state, ExpressionState *estate)
     }
     while (isDigit(*state->current));
 
-    parsedConstant(estate, HeapBoxInteger(value));
+    parsedConstant(estate, VBoxInteger(value));
 }
 
 static bool readExpectedOperator(ParseState *state, byte op)
@@ -745,7 +745,7 @@ static bool readExpectedOperator(ParseState *state, byte op)
         ParseState stateCopy = *state;
         ExpressionState estate;
         parseNumber(&stateCopy, &estate);
-        error(state, "Expected operator '%c'. Got '%d'", op, HeapUnboxInteger(estate.constant));
+        error(state, "Expected operator '%c'. Got '%d'", op, VUnboxInteger(estate.constant));
     }
     else if (*state->current == '"')
     {
@@ -2420,8 +2420,8 @@ static void parseBlock(ParseState *state)
                     }
                     iterIndex = createVariable(state);
                     iterStep = createVariable(state);
-                    storeConstant(state, HeapBoxInteger(-1), iterIndex);
-                    storeConstant(state, HeapBoxInteger(1), iterStep);
+                    storeConstant(state, VBoxInteger(-1), iterIndex);
+                    storeConstant(state, VBoxInteger(1), iterStep);
                     loopTop = createJumpTargetHere(state);
                     afterLoop = createJumpTarget(state);
                     writeBranch4(state, afterLoop, OP_ITER_NEXT_INDEXED, iterCollection,
