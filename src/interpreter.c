@@ -120,8 +120,9 @@ static void execute(VM *vm)
     vref string;
     int function;
     nativefunctionref nativeFunction;
+    int maxInstructions = 100;
 
-    for (;;)
+    while (maxInstructions--)
     {
         int i = *vm->ip;
         int arg = i >> 8;
@@ -220,7 +221,7 @@ static void execute(VM *vm)
                 break;
             }
             }
-            return;
+            break;
         }
 
         case OP_EQUALS:
@@ -327,7 +328,7 @@ static void execute(VM *vm)
 
         case OP_JUMP:
             vm->ip += arg + 1;
-            return;
+            break;
 
         case OP_BRANCH_TRUE:
             value = loadValue(vm, vm->bp, *vm->ip++);
@@ -342,7 +343,7 @@ static void execute(VM *vm)
                 addVM(VMClone(vm, value, vm->ip + arg));
                 break;
             }
-            return;
+            break;
 
         case OP_BRANCH_FALSE:
             value = loadValue(vm, vm->bp, *vm->ip++);
@@ -358,7 +359,7 @@ static void execute(VM *vm)
                 vm->ip += arg;
                 break;
             }
-            return;
+            break;
 
         case OP_RETURN:
             assert(IVSize(&vm->callStack));
@@ -393,7 +394,7 @@ static void execute(VM *vm)
             nativeFunction = refFromInt(arg);
             value = NativeInvoke(vm, nativeFunction);
             storeValue(vm, vm->bp, *vm->ip++, value);
-            return;
+            break;
 
         case OP_FUNCTION:
         case OP_FUNCTION_UNLINKED:
