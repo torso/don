@@ -12,21 +12,15 @@
 
 #ifdef DEBUG
 bool trace;
-static const char *lastFilename;
-static int lastLine;
 
-static void traceLine(int bytecodeOffset)
+static void traceLine(const VM* vm, int bytecodeOffset)
 {
     const char *filename;
     int line;
 
     line = BytecodeLineNumber(vmLineNumbers, bytecodeOffset, &filename);
-    if (filename != lastFilename || line != lastLine)
-    {
-        printf("%s:%d\n", filename, line);
-        lastFilename = filename;
-        lastLine = line;
-    }
+    printf("[%p] %s:%d: %d: ", (void*)vm, filename, line, bytecodeOffset);
+    BytecodeDisassembleInstruction(vmBytecode + bytecodeOffset, vmBytecode);
 }
 #endif
 
@@ -91,9 +85,7 @@ static void initStackFrame(VM *vm, const int **ip, int *bp, int functionOffset,
 #ifdef DEBUG
     if (trace)
     {
-        traceLine(functionOffset);
-        printf("[%p] %u: ", (void*)vm, functionOffset);
-        BytecodeDisassembleInstruction(vmBytecode + functionOffset, vmBytecode);
+        traceLine(vm, functionOffset);
     }
 #endif
     assert((i & 0xff) == OP_FUNCTION);
@@ -136,9 +128,7 @@ static void execute(VM *vm)
 #ifdef DEBUG
         if (trace)
         {
-            traceLine((int)(vm->ip - vmBytecode));
-            printf("[%p] %u: ", (void*)vm, (uint)(vm->ip - vmBytecode));
-            BytecodeDisassembleInstruction(vm->ip, vmBytecode);
+            traceLine(vm, (int)(vm->ip - vmBytecode));
             fflush(stdout);
         }
 #endif
