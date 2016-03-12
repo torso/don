@@ -136,7 +136,7 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
 
     IVInit(&state.out, parsedSize);
     IVInit(&lineNumbers, parsedSize / 2);
-    IntHashMapInit(&state.variables, 16);
+    IntHashMapInit(&state.variables, 128);
     state.jumps = (int*)malloc(parsed->maxJumpCount * sizeof(*state.jumps));
     state.jumpTargetTable = (int*)malloc(parsed->maxJumpTargetCount *
                                          sizeof(*state.jumpTargetTable));
