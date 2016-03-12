@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "bytecode.h"
+#include "debug.h"
 #include "heap.h"
 #include "interpreter.h"
 #include "instruction.h"
@@ -10,8 +11,10 @@
 #include "work.h"
 #include "vm.h"
 
-#ifdef DEBUG
-bool trace;
+static intvector temp;
+static VM **vmTable;
+static uint vmTableSize = 16;
+static uint vmCount;
 
 static void traceLine(const VM* vm, int bytecodeOffset)
 {
@@ -22,12 +25,6 @@ static void traceLine(const VM* vm, int bytecodeOffset)
     printf("[%p] %s:%d: %d: ", (void*)vm, filename, line, bytecodeOffset);
     BytecodeDisassembleInstruction(vmBytecode + bytecodeOffset, vmBytecode);
 }
-#endif
-
-static intvector temp;
-static VM **vmTable;
-static uint vmTableSize = 16;
-static uint vmCount;
 
 
 static void addVM(VM *vm)
@@ -82,12 +79,10 @@ static void initStackFrame(VM *vm, const int **ip, int *bp, int functionOffset,
     const int *bytecode = vmBytecode + functionOffset;
     int i = *bytecode++;
     int localsCount = i >> 8;
-#ifdef DEBUG
-    if (trace)
+    if (DEBUG_TRACE)
     {
         traceLine(vm, functionOffset);
     }
-#endif
     assert((i & 0xff) == OP_FUNCTION);
     *ip = bytecode;
     *bp = (int)(IVSize(&vm->stack) - parameterCount);
@@ -126,13 +121,11 @@ static void execute(VM *vm)
     {
         int i = *vm->ip;
         int arg = i >> 8;
-#ifdef DEBUG
-        if (trace)
+        if (DEBUG_TRACE)
         {
             traceLine(vm, (int)(vm->ip - vmBytecode));
             fflush(stdout);
         }
-#endif
         vm->ip++;
         switch ((Instruction)(i & 0xff))
         {

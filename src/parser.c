@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "bytevector.h"
+#include "debug.h"
 #include "fail.h"
 #include "file.h"
 #include "heap.h"
@@ -12,8 +13,6 @@
 #include "native.h"
 #include "parser.h"
 #include "stringpool.h"
-
-static const bool DEBUG_PARSER = false;
 
 typedef struct
 {

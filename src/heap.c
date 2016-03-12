@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "bytevector.h"
+#include "debug.h"
 #include "fail.h"
 #include "file.h"
 #include "hash.h"

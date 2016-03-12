@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include "bytecode.h"
 #include "cache.h"
+#include "debug.h"
 #include "env.h"
 #include "fail.h"
 #include "file.h"
@@ -36,7 +37,6 @@ int main(int argc, const char **argv)
     namespaceref defaultNamespace;
     vref name;
     bool parseOptions = true;
-    bool disassemble = false;
     size_t size;
     bool fail;
     ParsedProgram parsed;
@@ -72,16 +72,6 @@ int main(int argc, const char **argv)
             {
                 switch (*options)
                 {
-#ifdef DEBUG
-                case 'd':
-                    disassemble = true;
-                    break;
-
-                case 't':
-                    trace = true;
-                    break;
-#endif
-
                 case 'f':
                     if (inputFilename)
                     {
@@ -180,9 +170,10 @@ int main(int argc, const char **argv)
     ParseDispose();
 
 
-    if (disassemble)
+    if (DEBUG_DISASSEMBLE)
     {
-        BytecodeDisassemble(IVGetPointer(&parsed.bytecode, 0), IVGetPointer(&parsed.bytecode, 0) + IVSize(&parsed.bytecode));
+        BytecodeDisassemble(IVGetPointer(&parsed.bytecode, 0),
+                            IVGetPointer(&parsed.bytecode, 0) + IVSize(&parsed.bytecode));
         fflush(stdout);
     }
     if (!Link(&parsed, &linked))
@@ -190,7 +181,7 @@ int main(int argc, const char **argv)
         return 1;
     }
 
-    if (disassemble)
+    if (DEBUG_DISASSEMBLE)
     {
         BytecodeDisassemble(linked.bytecode, linked.bytecode + linked.size);
         fflush(stdout);

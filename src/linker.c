@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "bytecode.h"
+#include "debug.h"
 #include "fail.h"
 #include "heap.h"
 #include "instruction.h"
@@ -11,8 +12,6 @@
 #include "namespace.h"
 #include "native.h"
 #include "parser.h"
-
-static const bool DEBUG_LINKER = false;
 
 typedef struct
 {

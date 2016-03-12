@@ -1,5 +1,3 @@
-#define DEBUG_FUTURE 0
-
 #define TYPE_FLAG_FUTURE 0x80
 
 typedef enum

@@ -2,12 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 #include "bytevector.h"
+#include "debug.h"
 #include "heap.h"
 #include "native.h"
 #include "work.h"
 #include "vm.h"
-
-static const bool DEBUG_WORK = false;
 
 static bytevector queue;
 
