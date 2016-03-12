@@ -247,7 +247,7 @@ target prof
 {
     p = compile(optimize:true, linkflags:[-static])
     exec(command:[valgrind -q --tool=callgrind --cache-sim=yes --branch-sim=yes
-                  --collect-systime=yes $p -f input.don],
+                  --collect-systime=yes --dump-instr=yes --collect-jumps=yes $p -f input.don],
          env:list('XDG_CACHE_HOME', @tempcache))
 }
 
