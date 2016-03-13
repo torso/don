@@ -13,7 +13,7 @@ static bytevector queue;
 static void printWork(const char *prefix, const Work *work)
 {
     bytevector buffer;
-    char *condition = HeapDebug(work->condition);
+    char *condition = HeapDebug(work->branch->condition);
     vref *p;
     uint i;
 
@@ -54,11 +54,9 @@ Work *WorkAdd(WorkFunction function, VM *vm, uint argumentCount, vref **argument
 {
     Work *work = (Work*)BVGetAppendPointer(
         &queue, sizeof(Work) + argumentCount * sizeof(**arguments));
-    assert(vm->branch->condition);
     work->function = function;
     work->branch = vm->branch;
     work->ip = vm->ip;
-    work->condition = vm->branch->condition;
     work->accessedFiles = VEmptyList;
     work->modifiedFiles = VEmptyList;
     work->argumentCount = argumentCount;
@@ -121,7 +119,7 @@ bool WorkExecute(void)
         VBool b;
         assert(BVSize(&queue) - offset >= size);
 
-        b = VGetBool(work->condition);
+        b = VGetBool(work->branch->condition);
         if (b == FALSY)
         {
             if (DEBUG_WORK)

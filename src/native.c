@@ -202,7 +202,7 @@ static bool workCp(Work *work, vref *values)
     size_t srcLength;
     size_t dstLength;
 
-    if (!VIsTruthy(work->condition) || !VWait(&env->src) || !VWait(&env->dst))
+    if (!VIsTruthy(work->branch->condition) || !VWait(&env->src) || !VWait(&env->dst))
     {
         return false;
     }
@@ -244,7 +244,7 @@ static bool workEcho(Work *work, vref *values)
 {
     EchoEnv *env = (EchoEnv*)values;
 
-    if (!VIsTruthy(work->condition) ||
+    if (!VIsTruthy(work->branch->condition) ||
         !VWait(&env->message) || !VWait(&env->prefix))
     {
         return false;
@@ -319,7 +319,7 @@ static bool workExec(Work *work, vref *values)
     Pipe err;
     size_t length;
 
-    if (!VIsTruthy(work->condition) || !VWait(&env->command) ||
+    if (!VIsTruthy(work->branch->condition) || !VWait(&env->command) ||
         !VWait(&env->env) || !VWait(&env->echoOut) || !VWait(&env->echoErr) ||
         !VWait(&env->fail) || !VWait(&env->access) || !VWait(&env->modify))
     {
@@ -548,7 +548,7 @@ static bool workFilelist(Work *work, vref *values)
 {
     FilelistEnv *env = (FilelistEnv*)values;
 
-    if (!VIsTruthy(work->condition) || !VWait(&env->value))
+    if (!VIsTruthy(work->branch->condition) || !VWait(&env->value))
     {
         return false;
     }
@@ -596,7 +596,7 @@ static bool workGetCache(Work *work, vref *values)
     bool uptodate;
     vref value;
 
-    if (!VIsTruthy(work->condition) || !VWait(&env->key) || !VWait(&env->echoCachedOutput))
+    if (!VIsTruthy(work->branch->condition) || !VWait(&env->key) || !VWait(&env->echoCachedOutput))
     {
         return false;
     }
@@ -792,7 +792,7 @@ static bool workMv(Work *work, vref *values)
     size_t oldLength;
     size_t newLength;
 
-    if (!VIsTruthy(work->condition) || !VWait(&env->src) || !VWait(&env->dst))
+    if (!VIsTruthy(work->branch->condition) || !VWait(&env->src) || !VWait(&env->dst))
     {
         return false;
     }
@@ -844,7 +844,7 @@ static bool workReadFile(Work *work, vref *values)
 {
     ReadFileEnv *env = (ReadFileEnv*)values;
 
-    if (!VIsTruthy(work->condition) || !VWait(&env->file) || !VWait(&env->valueIfNotExists))
+    if (!VIsTruthy(work->branch->condition) || !VWait(&env->file) || !VWait(&env->valueIfNotExists))
     {
         return false;
     }
@@ -970,7 +970,7 @@ static bool workRm(Work *work, vref *values)
     const char *path;
     size_t length;
 
-    if (!VIsTruthy(work->condition) || !VWait(&env->file))
+    if (!VIsTruthy(work->branch->condition) || !VWait(&env->file))
     {
         return false;
     }
@@ -1014,7 +1014,7 @@ static bool workSetUptodate(Work *work, vref *values)
     const char *path;
     size_t length;
 
-    if (!VIsTruthy(work->condition) || !VWait(&env->cacheFile) || !VWait(&env->out) ||
+    if (!VIsTruthy(work->branch->condition) || !VWait(&env->cacheFile) || !VWait(&env->out) ||
         !VWait(&env->err) || !VWait(&env->data) || !VWait(&env->accessedFiles))
     {
         return false;
@@ -1170,7 +1170,7 @@ static bool workWriteFile(Work *work, vref *values)
     size_t offset = 0;
     size_t size;
 
-    if (!VIsTruthy(work->condition) || !VWait(&env->file) || !VWait(&env->data))
+    if (!VIsTruthy(work->branch->condition) || !VWait(&env->file) || !VWait(&env->data))
     {
          return false;
     }

@@ -7,7 +7,6 @@ typedef struct _Work
     WorkFunction function;
     VMBranch *branch;
     const int *ip;
-    vref condition;
     vref accessedFiles;
     vref modifiedFiles;
     uint argumentCount;
