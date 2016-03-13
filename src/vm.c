@@ -69,10 +69,11 @@ VM *VMCreate(const LinkedProgram *program)
 */
 VM *VMClone(VM *vm, vref condition, const int *ip)
 {
+    vref parentCondition = vm->branch->condition;
+    vref condition1 = VAnd(vm, parentCondition, condition);
+    vref condition2 = VAnd(vm, parentCondition, VNot(vm, condition));
     VM *clone = VMAlloc(vm->branch, vm->fieldCount);
     VMBranch *newBranch = (VMBranch*)malloc(sizeof(VMBranch));
-    vref parentCondition = vm->branch->condition;
-    vref notCondition;
 
     if (DEBUG_VM)
     {
@@ -94,13 +95,8 @@ VM *VMClone(VM *vm, vref condition, const int *ip)
     newBranch->parent->leaf = false;
     vm->branch = newBranch;
 
-    assert(condition);
-    assert(newBranch->parent->condition);
-    clone->branch->condition = VTrue;
-    clone->branch->condition = VAnd(clone, parentCondition, condition);
-    vm->branch->condition = VTrue;
-    notCondition = VNot(vm, condition);
-    vm->branch->condition = VAnd(vm, parentCondition, notCondition);
+    clone->branch->condition = condition1;
+    vm->branch->condition = condition2;
 
     clone->constants = vm->constants;
     clone->constantCount = vm->constantCount;
