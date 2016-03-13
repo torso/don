@@ -16,3 +16,6 @@
 #ifndef DEBUG_WORK
 #define DEBUG_WORK 0
 #endif
+#ifndef DEBUG_VM
+#define DEBUG_VM 0
+#endif

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "bytecode.h"
+#include "debug.h"
 #include "linker.h"
 #include "heap.h"
 #include "instruction.h"
@@ -36,6 +37,10 @@ static VM *VMAlloc(VMBranch *parent, int fieldCount)
 VM *VMCreate(const LinkedProgram *program)
 {
     VM *vm = VMAlloc(null, program->fieldCount);
+    if (DEBUG_VM)
+    {
+        printf("Created VM:%p branch:%p\n", (void*)vm, (void*)vm->branch);
+    }
     vmBytecode = program->bytecode;
     vmLineNumbers = program->lineNumbers;
     vm->constants = program->constants;
@@ -69,6 +74,14 @@ VM *VMClone(VM *vm, vref condition, const int *ip)
     vref parentCondition = vm->branch->condition;
     vref notCondition;
 
+    if (DEBUG_VM)
+    {
+        char *conditionString = HeapDebug(condition);
+        printf("Clone VM:%p branch:%p -> %p clone:%p branch:%p condition:%s\n",
+               (void*)vm, (void*)vm->branch, (void*)newBranch, (void*)clone,
+               (void*)clone->branch, conditionString);
+        free(conditionString);
+    }
     newBranch->parent = vm->branch;
     newBranch->childCount = 1;
     newBranch->children = (void**)malloc(2 * sizeof(void*));
@@ -106,6 +119,10 @@ void VMDispose(VM *vm)
     VMBranch *parent = vm->branch;
     VMBranch *child = null;
 
+    if (DEBUG_VM)
+    {
+        printf("Dispose VM:%p\n", (void*)vm);
+    }
     while (parent)
     {
         if (--parent->childCount)
@@ -122,6 +139,10 @@ void VMDispose(VM *vm)
             }
             break;
         }
+        if (DEBUG_VM)
+        {
+            printf("Dispose branch:%p\n", (void*)parent);
+        }
         WorkDiscard(parent);
         child = parent;
         parent = parent->parent;
@@ -135,6 +156,10 @@ void VMDispose(VM *vm)
 
 void VMHalt(VM *vm, vref failMessage)
 {
+    if (DEBUG_VM)
+    {
+        printf("Halt VM:%p\n", (void*)vm);
+    }
     vm->active = false;
     vm->failMessage = failMessage;
 }
@@ -151,6 +176,10 @@ void VMFail(VM *vm, const int *ip, const char *format, ...)
 void VMBranchFail(VMBranch *branch, const int *ip, vref failMessage)
 {
     uint i;
+    if (DEBUG_VM)
+    {
+        printf("Halt branch:%p\n", (void*)branch);
+    }
     for (i = 0; i < branch->childCount; i++)
     {
         if (branch->leaf)
