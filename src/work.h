@@ -5,7 +5,7 @@ typedef bool (*WorkFunction)(struct _Work*, vref*);
 typedef struct _Work
 {
     WorkFunction function;
-    VM *vm;
+    VMBranch *branch;
     const int *ip;
     vref condition;
     vref accessedFiles;
@@ -19,6 +19,6 @@ extern void WorkDispose(void);
 extern nonnull Work *WorkAdd(WorkFunction function, VM *vm, uint argumentCount, vref **arguments);
 extern nonnull void WorkCommit(Work *work);
 extern nonnull void WorkAbort(Work *work);
-extern nonnull void WorkDiscard(const VM *vm);
+extern nonnull void WorkDiscard(const VMBranch *branch);
 extern bool WorkQueueEmpty(void);
 extern bool WorkExecute(void);

@@ -433,7 +433,7 @@ void InterpreterExecute(const LinkedProgram *program, int target)
         for (i = 0; i < vmCount; i++)
         {
             vm = vmTable[i];
-            if (VWait(&vm->condition) && VIsFalsy(vm->condition))
+            if (VWait(&vm->branch->condition) && VIsFalsy(vm->branch->condition))
             {
                 removeVM(i--);
             }

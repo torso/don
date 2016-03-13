@@ -29,7 +29,7 @@ static void printWork(const char *prefix, const Work *work)
     BVPop(&buffer);
     BVPop(&buffer);
     BVAdd(&buffer, 0);
-    printf("%s[%p] (%s) condition:%s\n", prefix, (void*)work->vm,
+    printf("%s[%p] (%s) condition:%s\n", prefix, (void*)work->branch,
            BVGetPointer(&buffer, 0), condition);
     BVDispose(&buffer);
     free(condition);
@@ -54,11 +54,11 @@ Work *WorkAdd(WorkFunction function, VM *vm, uint argumentCount, vref **argument
 {
     Work *work = (Work*)BVGetAppendPointer(
         &queue, sizeof(Work) + argumentCount * sizeof(**arguments));
-    assert(vm->condition);
+    assert(vm->branch->condition);
     work->function = function;
-    work->vm = vm;
+    work->branch = vm->branch;
     work->ip = vm->ip;
-    work->condition = vm->condition;
+    work->condition = vm->branch->condition;
     work->accessedFiles = VEmptyList;
     work->modifiedFiles = VEmptyList;
     work->argumentCount = argumentCount;
@@ -80,7 +80,7 @@ void WorkAbort(Work *work)
     BVSetSize(&queue, (size_t)((const byte*)work - BVGetPointer(&queue, 0)));
 }
 
-void WorkDiscard(const VM *vm)
+void WorkDiscard(const VMBranch *branch)
 {
     Work *work;
     size_t i = 0;
@@ -88,13 +88,13 @@ void WorkDiscard(const VM *vm)
 
     if (DEBUG_WORK)
     {
-        printf("remove work for: %p\n", (const void*)vm);
+        printf("remove work for: %p\n", (const void*)branch);
     }
     while (i < BVSize(&queue))
     {
         work = (Work*)BVGetPointer(&queue, i);
         size = getWorkSize(work);
-        if (work->vm == vm)
+        if (work->branch == branch)
         {
             BVRemoveRange(&queue, i, size);
         }

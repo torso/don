@@ -87,6 +87,7 @@ typedef struct inthashmap inthashmap;
 typedef struct intvector intvector;
 typedef struct HashState HashState;
 typedef struct VM VM;
+typedef struct VMBranch VMBranch;
 
 typedef uint ref_t;
 typedef ref_t namespaceref;

@@ -341,12 +341,12 @@ static bool workExec(Work *work, vref *values)
         executable = FileSearchPath(argv[0], arg0Length, &length, false);
         if (executable)
         {
-            VMFail(work->vm, work->ip, "File is not executable: %s", executable);
+            VMBranchFailf(work->branch, work->ip, "File is not executable: %s", executable);
             free(executable);
         }
         else
         {
-            VMFail(work->vm, work->ip, "Command not found: %s", argv[0]);
+            VMBranchFailf(work->branch, work->ip, "Command not found: %s", argv[0]);
         }
         free(argv);
         return true;
@@ -397,7 +397,7 @@ static bool workExec(Work *work, vref *values)
     {
         PipeDispose(&out);
         PipeDispose(&err);
-        VMFail(work->vm, work->ip, "Process exited with status %d", WEXITSTATUS(status));
+        VMBranchFailf(work->branch, work->ip, "Process exited with status %d", WEXITSTATUS(status));
         return true;
     }
     HeapSetFutureValue(env->exitcode, VBoxInteger(WEXITSTATUS(status)));
@@ -1078,7 +1078,8 @@ static bool workSize(Work *work, vref *values)
     }
     else
     {
-        VMFail(work->vm, work->ip, "Argument to size must be an array or string");
+        const char msg[] = "Argument to size must be an array or string";
+        VMBranchFail(work->branch, work->ip, VCreateString(msg, sizeof(msg) - 1));
         return false;
     }
     HeapSetFutureValue(env->result, result);
