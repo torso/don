@@ -43,7 +43,7 @@ extern nonnull VM *VMClone(VM *vmState, vref condition, const int *ip);
 extern nonnull void VMDispose(VM *vm);
 extern nonnull void VMHalt(VM *vm, vref failMessage);
 extern attrprintf(3, 4) void VMFail(VM *vm, const int *ip, const char *format, ...);
-extern nonnull void VMBranchFail(VMBranch *branch, const int *ip, vref failMessage);
+extern void VMBranchFail(VMBranch *branch, const int *ip, vref failMessage);
 extern attrprintf(3, 4) void VMBranchFailf(VMBranch *branch, const int *ip, const char *format, ...);
 
 extern nonnull vref VMReadValue(VM *vmState);

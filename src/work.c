@@ -115,11 +115,12 @@ bool WorkExecute(void)
     do
     {
         Work *work = (Work*)BVGetPointer(&queue, offset);
+        VMBranch *branch = work->branch;
         size_t size = getWorkSize(work);
         VBool b;
         assert(BVSize(&queue) - offset >= size);
 
-        b = VGetBool(work->branch->condition);
+        b = VGetBool(branch->condition);
         if (b == FALSY)
         {
             if (DEBUG_WORK)
@@ -127,6 +128,7 @@ bool WorkExecute(void)
                 printWork("never executing: ", work);
             }
             BVRemoveRange(&queue, offset, size);
+            VMBranchFail(branch, null, 0);
             continue;
         }
 
