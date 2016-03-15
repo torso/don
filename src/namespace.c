@@ -1,3 +1,4 @@
+#include "config.h"
 #include "common.h"
 #include "bytevector.h"
 #include "inthashmap.h"

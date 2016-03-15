@@ -1,7 +1,8 @@
-#include "common.h"
+#include "config.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include "common.h"
 #include "bytecode.h"
 #include "cache.h"
 #include "debug.h"

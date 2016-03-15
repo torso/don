@@ -1,4 +1,4 @@
-#include "common.h"
+#include "config.h"
 #if USE_POSIX_SPAWN
 #include <spawn.h>
 #endif
@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "common.h"
 #include "bytevector.h"
 #include "cache.h"
 #include "env.h"

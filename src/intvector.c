@@ -1,5 +1,6 @@
-#include "common.h"
+#include "config.h"
 #include <string.h>
+#include "common.h"
 #include "intvector.h"
 
 #define VECTOR_NAME intvector

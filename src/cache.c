@@ -1,4 +1,4 @@
-#include "common.h"
+#include "config.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -8,6 +8,7 @@
 #ifdef VALGRIND
 #include <valgrind/memcheck.h>
 #endif
+#include "common.h"
 #include "bytevector.h"
 #include "cache.h"
 #include "fail.h"

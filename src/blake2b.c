@@ -11,8 +11,9 @@
    this software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
 */
 
-#include "common.h"
+#include "config.h"
 #include <string.h>
+#include "common.h"
 #include "blake2.h"
 #include "blake2-config.h"
 

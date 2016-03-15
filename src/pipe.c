@@ -1,8 +1,9 @@
-#include "common.h"
+#include "config.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/select.h>
 #include <unistd.h>
+#include "common.h"
 #include "bytevector.h"
 #include "fail.h"
 #include "pipe.h"

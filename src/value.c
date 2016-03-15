@@ -1,7 +1,8 @@
-#include "common.h"
+#include "config.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include "common.h"
 #include "debug.h"
 #include "heap.h"
 #include "math.h"

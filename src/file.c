@@ -1,4 +1,4 @@
-#include "common.h"
+#include "config.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "common.h"
 #include "bytevector.h"
 #include "env.h"
 #include "fail.h"
