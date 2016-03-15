@@ -680,6 +680,41 @@ vref HeapRangeHigh(vref range)
 }
 
 
+static vref HeapSplitOnCharacter(vref string, size_t length, char c,
+                                 bool removeEmpty, bool trimLastIfEmpty)
+{
+    intvector substrings;
+    const char *pstring = getString(string);
+    const char *current = pstring;
+    const char *limit = pstring + length;
+    vref value;
+
+    IVInit(&substrings, 64);
+    while (true)
+    {
+        const char *next = (const char*)memchr(current, c, (size_t)(limit - current));
+        if (!next)
+        {
+            break;
+        }
+        if (next != current || !removeEmpty)
+        {
+            IVAdd(&substrings,
+                  intFromRef(VCreateSubstring(string, (size_t)(current - pstring),
+                                              (size_t)(next - current))));
+        }
+        current = next + 1;
+    }
+    if (current != pstring + length || !(removeEmpty || trimLastIfEmpty))
+    {
+        IVAdd(&substrings, intFromRef(VCreateSubstring(string, (size_t)(current - pstring),
+                                                       (size_t)(pstring + length - current))));
+    }
+    value = VCreateArrayFromVector(&substrings);
+    IVDispose(&substrings);
+    return value;
+}
+
 vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
                bool trimLastIfEmpty)
 {
@@ -729,6 +764,12 @@ vref HeapSplit(vref string, vref delimiter, bool removeEmpty,
     {
         size_t delimiterLength = VStringLength(delimiter);
         assert(delimiterLength <= INT_MAX);
+        if (delimiterLength == 1)
+        {
+            char c;
+            VWriteString(delimiter, &c);
+            return HeapSplitOnCharacter(string, length, c, removeEmpty, trimLastIfEmpty);
+        }
         if (!delimiterLength || delimiterLength > length)
         {
             return VCreateArrayFromData(&string, 1);
