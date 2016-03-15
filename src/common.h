@@ -53,8 +53,6 @@ noreturn void _assert(const char *expression, const char *file, int line);
 #define assert(e) do { (void)sizeof(e); } while (false)
 #endif
 
-noreturn void cleanShutdown(int exitcode);
-
 typedef struct bytevector bytevector;
 typedef struct inthashmap inthashmap;
 typedef struct intvector intvector;

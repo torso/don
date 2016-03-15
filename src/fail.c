@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include "common.h"
 #include "fail.h"
+#include "main.h"
 
 void Fail(const char *format, ...)
 {

@@ -14,6 +14,7 @@
 #include "intvector.h"
 #include "linker.h"
 #include "log.h"
+#include "main.h"
 #include "namespace.h"
 #include "native.h"
 #include "parser.h"
