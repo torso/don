@@ -2,9 +2,9 @@
 
 struct _Work;
 
-extern void NativeInit(void);
-extern nonnull vref NativeInvoke(VM *vm, nativefunctionref function);
-extern nativefunctionref NativeFindFunction(vref name);
-extern vref NativeGetName(nativefunctionref function);
-extern uint NativeGetParameterCount(nativefunctionref function);
-extern uint NativeGetReturnValueCount(nativefunctionref function);
+void NativeInit(void);
+nonnull vref NativeInvoke(VM *vm, nativefunctionref function);
+nativefunctionref NativeFindFunction(vref name);
+vref NativeGetName(nativefunctionref function);
+uint NativeGetParameterCount(nativefunctionref function);
+uint NativeGetReturnValueCount(nativefunctionref function);

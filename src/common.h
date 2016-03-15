@@ -69,18 +69,18 @@ typedef unsigned char byte;
 #define calloc mycalloc
 #define malloc mymalloc
 #define realloc myrealloc
-extern void *nonnull mycalloc(size_t count, size_t eltsize);
-extern void *nonnull mymalloc(size_t size);
-extern void *nonnull myrealloc(void *ptr, size_t size);
+void *nonnull mycalloc(size_t count, size_t eltsize);
+void *nonnull mymalloc(size_t size);
+void *nonnull myrealloc(void *ptr, size_t size);
 
 #ifdef DEBUG
-extern noreturn void _assert(const char *expression, const char *file, int line);
+noreturn void _assert(const char *expression, const char *file, int line);
 #define assert(e) do { if (!(e)) { _assert(#e, __FILE__, __LINE__); } } while (false)
 #else
 #define assert(e) do { (void)sizeof(e); } while (false)
 #endif
 
-extern noreturn void cleanShutdown(int exitcode);
+noreturn void cleanShutdown(int exitcode);
 
 typedef struct bytevector bytevector;
 typedef struct inthashmap inthashmap;

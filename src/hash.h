@@ -7,12 +7,10 @@ struct HashState
     blake2b_state state;
 };
 
-extern nonnull void HashInit(HashState *state);
-extern nonnull void HashUpdate(HashState *restrict state,
-                               const byte *restrict data, size_t size);
-extern nonnull void HashFinal(HashState *restrict state, byte *restrict hash);
-extern nonnull void Hash(const byte *restrict data, size_t size,
-                         byte *restrict hash);
+nonnull void HashInit(HashState *state);
+nonnull void HashUpdate(HashState *restrict state, const byte *restrict data, size_t size);
+nonnull void HashFinal(HashState *restrict state, byte *restrict hash);
+nonnull void Hash(const byte *restrict data, size_t size, byte *restrict hash);
 
 static unused uint HashString(const char *key, size_t length)
 {

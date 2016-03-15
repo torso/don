@@ -38,13 +38,13 @@ struct VM
 extern const int *vmBytecode;
 extern const int *vmLineNumbers;
 
-extern nonnull VM *VMCreate(const struct _LinkedProgram *program);
-extern nonnull VM *VMClone(VM *vmState, vref condition, const int *ip);
-extern nonnull void VMDispose(VM *vm);
-extern nonnull void VMHalt(VM *vm, vref failMessage);
-extern attrprintf(3, 4) void VMFail(VM *vm, const int *ip, const char *format, ...);
-extern void VMBranchFail(VMBranch *branch, const int *ip, vref failMessage);
-extern attrprintf(3, 4) void VMBranchFailf(VMBranch *branch, const int *ip, const char *format, ...);
+nonnull VM *VMCreate(const struct _LinkedProgram *program);
+nonnull VM *VMClone(VM *vmState, vref condition, const int *ip);
+nonnull void VMDispose(VM *vm);
+nonnull void VMHalt(VM *vm, vref failMessage);
+attrprintf(3, 4) void VMFail(VM *vm, const int *ip, const char *format, ...);
+void VMBranchFail(VMBranch *branch, const int *ip, vref failMessage);
+attrprintf(3, 4) void VMBranchFailf(VMBranch *branch, const int *ip, const char *format, ...);
 
-extern nonnull vref VMReadValue(VM *vmState);
-extern nonnull void VMStoreValue(VM *vmState, int variable, vref value);
+nonnull vref VMReadValue(VM *vmState);
+nonnull void VMStoreValue(VM *vmState, int variable, vref value);

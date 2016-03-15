@@ -9,8 +9,8 @@ typedef struct _ParsedProgram
     uint maxJumpTargetCount;
 } ParsedProgram;
 
-extern void ParserAddKeywords(void);
-extern nonnull void ParseInit(ParsedProgram *program);
-extern void ParseDispose(void);
-extern nonnull void ParseFile(ParsedProgram *program, const char *filename,
-                              size_t filenameLength, namespaceref ns);
+void ParserAddKeywords(void);
+nonnull void ParseInit(ParsedProgram *program);
+void ParseDispose(void);
+nonnull void ParseFile(ParsedProgram *program, const char *filename,
+                       size_t filenameLength, namespaceref ns);

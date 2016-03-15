@@ -15,8 +15,8 @@ typedef struct
     int fd;
 } Pipe;
 
-extern nonnull int PipeInit(Pipe *p);
-extern nonnull void PipeDispose(Pipe *p);
+nonnull int PipeInit(Pipe *p);
+nonnull void PipeDispose(Pipe *p);
 
-extern nonnull void PipeAddListener(Pipe *p, PipeListener *listener);
-extern nonnull void PipeConsume2(Pipe *restrict p1, Pipe *restrict p2);
+nonnull void PipeAddListener(Pipe *p, PipeListener *listener);
+nonnull void PipeConsume2(Pipe *restrict p1, Pipe *restrict p2);

@@ -11,4 +11,4 @@
 #define IVAddUint(v, value) IVAdd(v, (int)(value))
 #define IVSetUint(v, index, value) IVSet((v), (index), (int)(value))
 
-extern nonnull void IVAppendString(intvector *v, const char *string, size_t length);
+nonnull void IVAppendString(intvector *v, const char *string, size_t length);

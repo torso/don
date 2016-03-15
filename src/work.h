@@ -12,12 +12,12 @@ typedef struct _Work
     uint argumentCount;
 } Work;
 
-extern void WorkInit(void);
-extern void WorkDispose(void);
+void WorkInit(void);
+void WorkDispose(void);
 
-extern nonnull Work *WorkAdd(WorkFunction function, VM *vm, uint argumentCount, vref **arguments);
-extern nonnull void WorkCommit(Work *work);
-extern nonnull void WorkAbort(Work *work);
-extern nonnull void WorkDiscard(const VMBranch *branch);
-extern bool WorkQueueEmpty(void);
-extern bool WorkExecute(void);
+nonnull Work *WorkAdd(WorkFunction function, VM *vm, uint argumentCount, vref **arguments);
+nonnull void WorkCommit(Work *work);
+nonnull void WorkAbort(Work *work);
+nonnull void WorkDiscard(const VMBranch *branch);
+bool WorkQueueEmpty(void);
+bool WorkExecute(void);

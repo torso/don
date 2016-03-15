@@ -55,76 +55,74 @@ extern vref VEmptyList;
 extern vref VNewline;
 
 
-extern bool VWait(vref *value);
+bool VWait(vref *value);
 
-extern VBool VGetBool(vref value);
+VBool VGetBool(vref value);
 
 /*
   Returns true if the value is truthy.
   Returns false if true value if falsy or not yet known.
 */
-extern bool VIsTruthy(vref value);
+bool VIsTruthy(vref value);
 
 /*
   Returns true if the value is falsy.
   Returns false if true value if truthy or not yet known.
 */
-extern bool VIsFalsy(vref value);
+bool VIsFalsy(vref value);
 
 
-extern pureconst bool VIsInteger(vref object);
-extern vref VBoxInteger(int value);
-extern vref VBoxUint(uint value);
-extern vref VBoxSize(size_t value);
-extern int VUnboxInteger(vref object);
-extern size_t VUnboxSize(vref object);
+pureconst bool VIsInteger(vref object);
+vref VBoxInteger(int value);
+vref VBoxUint(uint value);
+vref VBoxSize(size_t value);
+int VUnboxInteger(vref object);
+size_t VUnboxSize(vref object);
 
 
-extern pureconst bool VIsStringType(VType type);
+pureconst bool VIsStringType(VType type);
 
-extern nonnull bool VIsString(vref object);
+nonnull bool VIsString(vref object);
 
 /*
   Returns the size of the string in bytes. If the value isn't a string, the
   length of the value converted to a string (of the default form) is returned.
 */
-extern size_t VStringLength(vref value);
+size_t VStringLength(vref value);
 
-extern nonnull vref VCreateString(const char *string, size_t length);
-extern nonnull vref VCreateUninitialisedString(size_t length, char **data);
-extern nonnull vref VCreateSubstring(vref string, size_t offset, size_t length);
-extern nonnull vref VCreateStringFormatted(const char *format, va_list ap);
+nonnull vref VCreateString(const char *string, size_t length);
+nonnull vref VCreateUninitialisedString(size_t length, char **data);
+nonnull vref VCreateSubstring(vref string, size_t offset, size_t length);
+nonnull vref VCreateStringFormatted(const char *format, va_list ap);
 
 /*
   Returns a null-terminated string. This function must only be used when the
   string was added through the string pool. (This should be true for all code
   running before the VM starts.)
 */
-extern nonnull const char *VGetString(vref object);
-extern nonnull char *VGetStringCopy(vref object);
+nonnull const char *VGetString(vref object);
+nonnull char *VGetStringCopy(vref object);
 
 /*
   Converts the object to a string and writes it to dst. The written string will
   be exactly as long as HeapStringLength returned. The string will not be zero
   terminated. A pointer just past the end of the written string is returned.
 */
-extern nonnull char *VWriteString(vref value, char *dst);
-extern nonnull char *VWriteSubstring(vref object, size_t offset,
-                                     size_t length, char *dst);
+nonnull char *VWriteString(vref value, char *dst);
+nonnull char *VWriteSubstring(vref object, size_t offset, size_t length, char *dst);
 
-extern nonnull vref VStringIndexOf(vref text, size_t startOffset, vref substring);
+nonnull vref VStringIndexOf(vref text, size_t startOffset, vref substring);
 
 
-extern nonnull vref *VCreateArray(size_t size);
-extern nonnull vref VFinishArray(vref *array);
-extern nonnull vref VCreateArrayFromData(const vref *values, size_t size);
-extern nonnull vref VCreateArrayFromVector(const intvector *values);
-extern nonnull vref VCreateArrayFromVectorSegment(const intvector *values,
-                                                  size_t start, size_t length);
-extern nonnull vref VConcatList(vref list1, vref list2);
-extern pureconst bool VIsCollectionType(VType type);
-extern nonnull bool VIsCollection(vref object);
-extern size_t VCollectionSize(vref value);
+nonnull vref *VCreateArray(size_t size);
+nonnull vref VFinishArray(vref *array);
+nonnull vref VCreateArrayFromData(const vref *values, size_t size);
+nonnull vref VCreateArrayFromVector(const intvector *values);
+nonnull vref VCreateArrayFromVectorSegment(const intvector *values, size_t start, size_t length);
+nonnull vref VConcatList(vref list1, vref list2);
+pureconst bool VIsCollectionType(VType type);
+nonnull bool VIsCollection(vref object);
+size_t VCollectionSize(vref value);
 
 /*
   Reads one value from the collection and returns it. The key is stored in
@@ -132,24 +130,24 @@ extern size_t VCollectionSize(vref value);
 
   Returns true if successful.
 */
-extern nonnull bool VCollectionGet(vref object, vref indexObject, vref *value);
+nonnull bool VCollectionGet(vref object, vref indexObject, vref *value);
 
 
-extern vref VEquals(VM *vm, vref value1, vref value2);
-extern vref VNotEquals(VM *vm, vref value1, vref value2);
-extern vref VLess(VM *vm, vref value1, vref value2);
-extern vref VLessEquals(VM *vm, vref value1, vref value2);
-extern vref VAdd(VM *vm, vref value1, vref value2);
-extern vref VSub(VM *vm, vref value1, vref value2);
-extern vref VMul(VM *vm, vref value1, vref value2);
-extern vref VDiv(VM *vm, vref value1, vref value2);
-extern vref VRem(VM *vm, vref value1, vref value2);
-extern vref VAnd(VM *vm, vref value1, vref value2);
-extern vref VNot(VM *vm, vref value);
-extern vref VNeg(VM *vm, vref value);
-extern vref VInv(VM *vm, vref value);
-extern vref VValidIndex(VM *vm, vref collection, vref index);
-extern vref VIndexedAccess(VM *vm, vref value1, vref value2);
-extern vref VRange(VM *vm, vref value1, vref value2);
-extern vref VConcat(VM *vm, vref value1, vref value2);
-extern vref VConcatString(VM *vm, size_t count, vref *values);
+vref VEquals(VM *vm, vref value1, vref value2);
+vref VNotEquals(VM *vm, vref value1, vref value2);
+vref VLess(VM *vm, vref value1, vref value2);
+vref VLessEquals(VM *vm, vref value1, vref value2);
+vref VAdd(VM *vm, vref value1, vref value2);
+vref VSub(VM *vm, vref value1, vref value2);
+vref VMul(VM *vm, vref value1, vref value2);
+vref VDiv(VM *vm, vref value1, vref value2);
+vref VRem(VM *vm, vref value1, vref value2);
+vref VAnd(VM *vm, vref value1, vref value2);
+vref VNot(VM *vm, vref value);
+vref VNeg(VM *vm, vref value);
+vref VInv(VM *vm, vref value);
+vref VValidIndex(VM *vm, vref collection, vref index);
+vref VIndexedAccess(VM *vm, vref value1, vref value2);
+vref VRange(VM *vm, vref value1, vref value2);
+vref VConcat(VM *vm, vref value1, vref value2);
+vref VConcatString(VM *vm, size_t count, vref *values);

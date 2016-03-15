@@ -1,8 +1,7 @@
-extern void EnvInit(char **environ);
-extern void EnvDispose(void);
+void EnvInit(char **environ);
+void EnvDispose(void);
 
-extern void EnvGet(const char *name, size_t length,
-                   const char **value, size_t *valueLength);
+void EnvGet(const char *name, size_t length, const char **value, size_t *valueLength);
 
-extern const char *const*EnvGetEnv(void);
-extern const char *const*EnvCreateCopy(vref overrides);
+const char *const*EnvGetEnv(void);
+const char *const*EnvCreateCopy(vref overrides);

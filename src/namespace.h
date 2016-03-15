@@ -1,19 +1,19 @@
 #define NAMESPACE_DON 1
 
-extern void NamespaceInit(void);
-extern void NamespaceDispose(void);
+void NamespaceInit(void);
+void NamespaceDispose(void);
 
-extern namespaceref NamespaceCreate(vref name);
+namespaceref NamespaceCreate(vref name);
 
-extern int NamespaceAddField(namespaceref ns, vref name, int index);
-extern int NamespaceAddFunction(namespaceref ns, vref name, int index);
-extern int NamespaceAddTarget(namespaceref ns, vref name, int index);
+int NamespaceAddField(namespaceref ns, vref name, int index);
+int NamespaceAddFunction(namespaceref ns, vref name, int index);
+int NamespaceAddTarget(namespaceref ns, vref name, int index);
 
-extern vref NamespaceGetName(namespaceref ns);
-extern namespaceref NamespaceGetNamespace(namespaceref ns, vref name);
-extern int NamespaceGetField(namespaceref ns, vref name);
-extern int NamespaceGetFunction(namespaceref ns, vref name);
-extern int NamespaceGetTarget(namespaceref ns, vref name);
+vref NamespaceGetName(namespaceref ns);
+namespaceref NamespaceGetNamespace(namespaceref ns, vref name);
+int NamespaceGetField(namespaceref ns, vref name);
+int NamespaceGetFunction(namespaceref ns, vref name);
+int NamespaceGetTarget(namespaceref ns, vref name);
 
-extern int NamespaceLookupField(namespaceref ns, vref name);
-extern int NamespaceLookupFunction(namespaceref ns, vref name);
+int NamespaceLookupField(namespaceref ns, vref name);
+int NamespaceLookupFunction(namespaceref ns, vref name);

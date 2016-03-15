@@ -12,4 +12,4 @@ typedef struct _LinkedProgram
     int fieldCount;
 } LinkedProgram;
 
-extern nonnull bool Link(struct _ParsedProgram *parsed, LinkedProgram *linked);
+nonnull bool Link(struct _ParsedProgram *parsed, LinkedProgram *linked);
