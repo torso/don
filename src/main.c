@@ -116,8 +116,8 @@ int main(int argc, const char **argv)
         inputFilename = "build.don";
     }
 
-    FileInit();
     EnvInit(environ);
+    FileInit();
 
     EnvGet("XDG_CACHE_HOME", 14, &env, &envLength);
     if (envLength)

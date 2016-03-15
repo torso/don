@@ -28,6 +28,8 @@ static FileEntry table[0x400];
 static const uint tableMask = sizeof(table) / sizeof(*table) - 1;
 static char *cwd;
 static size_t cwdLength;
+static const char *envPath;
+static size_t envPathLength;
 static int currentTimeStamp;
 
 
@@ -197,6 +199,12 @@ void FileInit(void)
         buffer[cwdLength + 1] = 0;
         cwd = buffer;
         cwdLength++;
+    }
+    EnvGet("PATH", 4, &envPath, &envPathLength);
+    if (!envPath)
+    {
+        envPath = cwd;
+        envPathLength = cwdLength;
     }
 }
 
@@ -390,8 +398,8 @@ char *FileSearchPath(const char *name, size_t length, size_t *resultLength,
                      bool executable)
 {
     char *candidate;
-    const char *path;
-    size_t pathLength;
+    const char *path = envPath;
+    size_t pathLength = envPathLength;
     const char *stop;
     const char *p;
 
@@ -401,12 +409,6 @@ char *FileSearchPath(const char *name, size_t length, size_t *resultLength,
     {
         return !executable || FileIsExecutable(name, length) ?
             FileCreatePath(null, 0, name, length, null, 0, resultLength) : null;
-    }
-    EnvGet("PATH", 4, &path, &pathLength);
-    if (!path)
-    {
-        path = cwd;
-        pathLength = cwdLength;
     }
     for (stop = path + pathLength; path < stop; path = p + 1)
     {
