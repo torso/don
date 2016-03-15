@@ -586,7 +586,7 @@ static bool skipToComma(ParseState *state, char expectedTerminator)
         {
             state->current--;
             state->current = skipDoubleQuotedString(state);
-            if (*state->current != '"')
+            if (unlikely(*state->current != '"'))
             {
                 state->structuralError = true;
                 return false;
@@ -596,7 +596,7 @@ static bool skipToComma(ParseState *state, char expectedTerminator)
         {
             state->current--;
             state->current = skipSingleQuotedString(state);
-            if (*state->current != '\'')
+            if (unlikely(*state->current != '\''))
             {
                 state->structuralError = true;
                 return false;
@@ -1461,7 +1461,7 @@ static bool parseInvocationRest(ParseState *state, ExpressionState *estate, vref
                     }
                     skipWhitespaceAndNewline(state);
                     estateArgument.identifier = peekReadIdentifier(state);
-                    if (!estateArgument.identifier)
+                    if (unlikely(!estateArgument.identifier))
                     {
                         error(state, "Expected parameter name"); /* TODO: Nicer error message */
                         goto error;
@@ -2356,7 +2356,7 @@ static void parseBlock(ParseState *state)
                     {
                         writeJump(state, afterIfTarget);
                         placeJumpTargetHere(state, conditionTarget);
-                        if (skipBlockWhitespace(state))
+                        if (unlikely(skipBlockWhitespace(state)))
                         {
                             error(state, "Expected block after else");
                             return;
@@ -2495,7 +2495,7 @@ static void parseFunctionBody(ParseState *state)
     if (!eof(state))
     {
         skipWhitespace(state);
-        if (!peekNewline(state))
+        if (unlikely(!peekNewline(state)))
         {
             uint indent;
             if (!state->structuralError)
