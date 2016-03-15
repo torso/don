@@ -70,12 +70,6 @@ typedef ref_t nativefunctionref;
 */
 typedef ref_t vref;
 
-typedef struct
-{
-    vref name;
-    vref value;
-} ParameterInfo;
-
 unused static ref_t refFromInt(int i)
 {
     return (ref_t)i;
