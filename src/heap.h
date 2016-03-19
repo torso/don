@@ -57,4 +57,3 @@ nonnull vref HeapSplit(vref string, vref delimiter, bool removeEmpty, bool trimL
 
 bool HeapIsFutureValue(vref object);
 vref HeapCreateFutureValue(void);
-void HeapSetFutureValue(vref object, vref value);

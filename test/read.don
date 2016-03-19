@@ -1,0 +1,9 @@
+target default
+{
+    a = read(@read.don)
+    b = 2
+    if contains(a, "string1") && !contains(a, "string$b")
+    {
+        echo("PASS")
+    }
+}

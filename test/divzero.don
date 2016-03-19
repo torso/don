@@ -1,0 +1,7 @@
+#fail:
+#+4: Division by zero
+
+target default
+{
+    a = 1 / 0
+}

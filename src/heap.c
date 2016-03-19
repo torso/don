@@ -109,8 +109,7 @@ static const char *getString(vref object)
     const SubString *ss;
     VType type;
 
-start:
-    assert(!HeapIsFutureValue(object));
+    assert(object != VFuture);
 
     type = HeapGetObjectType(object);
     switch ((int)type)
@@ -121,10 +120,6 @@ start:
     case TYPE_SUBSTRING:
         ss = (const SubString*)HeapGetObjectData(object);
         return &getString(ss->string)[ss->offset];
-
-    case TYPE_VALUE:
-        object = *(vref*)HeapGetObjectData(object);
-        goto start;
     }
     unreachable;
 }
@@ -184,6 +179,7 @@ void HeapInit(void)
     VEmptyString = HeapFinishAlloc(p);
     VEmptyList = HeapFinishAlloc(HeapAlloc(TYPE_ARRAY, 0));
     VNewline = VCreateString("\n", 1);
+    VFuture = HeapFinishAlloc(HeapAlloc(TYPE_FUTURE, 0));
 }
 
 void HeapDispose(void)
@@ -232,7 +228,6 @@ char *HeapDebug(vref value)
     HeapGet(value, &ho);
     switch (ho.type)
     {
-    case TYPE_VALUE:                 type = "value";          string = false; break;
     case TYPE_NULL:                  type = "null";           string = false; break;
     case TYPE_BOOLEAN_TRUE:          type = "true";           string = false; break;
     case TYPE_BOOLEAN_FALSE:         type = "false";          string = false; break;
@@ -243,24 +238,6 @@ char *HeapDebug(vref value)
     case TYPE_INTEGER_RANGE:         type = "range";                          break;
     case TYPE_CONCAT_LIST:           type = "concat_list";                    break;
     case TYPE_FUTURE:                type = "future";                         break;
-    case TYPE_FUTURE_NOT:            type = "future_not";                     break;
-    case TYPE_FUTURE_NEG:            type = "future_neg";                     break;
-    case TYPE_FUTURE_INV:            type = "future_inv";                     break;
-    case TYPE_FUTURE_EQUALS:         type = "future_equals";                  break;
-    case TYPE_FUTURE_NOT_EQUALS:     type = "future_not_equals";              break;
-    case TYPE_FUTURE_LESS:           type = "future_less";                    break;
-    case TYPE_FUTURE_LESS_EQUALS:    type = "future_less_equals";             break;
-    case TYPE_FUTURE_AND:            type = "future_and";                     break;
-    case TYPE_FUTURE_ADD:            type = "future_add";                     break;
-    case TYPE_FUTURE_SUB:            type = "future_sub";                     break;
-    case TYPE_FUTURE_MUL:            type = "future_mul";                     break;
-    case TYPE_FUTURE_DIV:            type = "future_div";                     break;
-    case TYPE_FUTURE_REM:            type = "future_rem";                     break;
-    case TYPE_FUTURE_VALID_INDEX:    type = "future_valid_index";             break;
-    case TYPE_FUTURE_INDEXED_ACCESS: type = "future_indexed_access";          break;
-    case TYPE_FUTURE_RANGE:          type = "future_range";                   break;
-    case TYPE_FUTURE_CONCAT:         type = "future_concat";                  break;
-    case TYPE_FUTURE_CONCAT_STRING:  type = "future_concat_string";           break;
 
     case TYPE_INVALID:
     case TYPE_INTEGER:
@@ -270,7 +247,7 @@ char *HeapDebug(vref value)
     }
     BVAddData(&buffer, (const byte*)type, strlen(type));
 
-    if (HeapIsFutureValue(value))
+    if (value == VFuture)
     {
         size_t i;
         const vref *data = (const vref*)ho.data;
@@ -344,11 +321,10 @@ void HeapHash(vref object, HashState *hash)
     vref item;
     VType type;
 
-start:
-    assert(!HeapIsFutureValue(object));
+    assert(object != VFuture);
 
     type = HeapGetObjectType(object);
-    switch ((int)type)
+    switch (type)
     {
     case TYPE_NULL:
         value = 0;
@@ -399,9 +375,9 @@ start:
         }
         return;
 
-    case TYPE_VALUE:
-        object = *(vref*)HeapGetObjectData(object);
-        goto start;
+    case TYPE_INVALID:
+    case TYPE_FUTURE:
+        break;
     }
     unreachable;
 }
@@ -457,9 +433,9 @@ vref HeapPathFromParts(vref path, vref name, vref extension)
     size_t resultPathLength;
     vref result;
 
-    assert(!HeapIsFutureValue(path));
-    assert(!HeapIsFutureValue(name));
-    assert(!HeapIsFutureValue(extension));
+    assert(path != VFuture);
+    assert(name != VFuture);
+    assert(extension != VFuture);
     assert(path == VNull || VIsString(path) || HeapIsFile(path));
     assert(VIsString(name) || HeapIsFile(name));
     assert(extension == VNull || VIsString(extension));
@@ -507,7 +483,6 @@ static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
     const vref *restrict src;
     VType type;
 
-start:
     type = HeapGetObjectType(list);
     switch ((int)type)
     {
@@ -517,11 +492,7 @@ start:
         for (i = 0; i < size2; i++)
         {
             vref v = *src++;
-            while (HeapGetObjectType(v) == TYPE_VALUE)
-            {
-                v = *(vref*)HeapGetObjectData(v);
-            }
-            assert(!HeapIsFutureValue(v));
+            assert(v != VFuture);
             if (VIsCollection(v))
             {
                 size_t s = 0;
@@ -552,10 +523,6 @@ start:
             dst += s;
         }
         return;
-
-    case TYPE_VALUE:
-        list = *(vref*)HeapGetObjectData(list);
-        goto start;
     }
     unreachable;
 }
@@ -568,7 +535,7 @@ vref HeapCreateFilelist(vref value)
     vref newValue;
     vref *data;
     bool converted = false;
-    assert(!HeapIsFutureValue(value)); /* TODO */
+    assert(value != VFuture); /* TODO */
     for (;;)
     {
         VType type = HeapGetObjectType(value);
@@ -817,33 +784,4 @@ continueMatching:
     IVDispose(&substrings);
     IVSetSize(&ivtemp, oldTempSize);
     return value;
-}
-
-
-bool HeapIsFutureValue(vref object)
-{
-    return (HeapGetObjectType(object) & TYPE_FLAG_FUTURE) != 0;
-}
-
-vref HeapCreateFutureValue(void)
-{
-    byte *data = HeapAlloc(TYPE_FUTURE, sizeof(vref));
-    *(vref*)data = 0;
-    return HeapFinishAlloc(data);
-}
-
-void HeapSetFutureValue(vref object, vref value)
-{
-    byte *data = HeapPageBase + sizeFromRef(object);
-    if (DEBUG_FUTURE)
-    {
-        char *value1 = HeapDebug(object);
-        char *value2 = HeapDebug(value);
-        printf("set %s = %s\n", value1, value2);
-        free(value1);
-        free(value2);
-    }
-    assert(HeapIsFutureValue(object));
-    *(VType*)(data + HEADER_TYPE) = TYPE_VALUE;
-    *(vref*)(data + OBJECT_OVERHEAD) = value;
 }

@@ -34,7 +34,6 @@ typedef enum
     OP_GREATER_EQUALS,
     OP_LESS,
     OP_GREATER,
-    OP_AND,
     OP_ADD,
     OP_SUB,
     OP_MUL,

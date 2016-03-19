@@ -14,36 +14,24 @@
 const int *vmBytecode;
 const int *vmLineNumbers;
 
-static VM *VMAlloc(VMBranch *parent, int fieldCount)
+static VM *VMAlloc(int fieldCount)
 {
-    byte *data = (byte*)calloc(
-        sizeof(VM) + (uint)fieldCount * sizeof(vref), 1);
-    VM *vm = (VM*)data;
-    vm->branch = (VMBranch*)malloc(sizeof(VMBranch));
-    vm->branch->parent = parent;
-    vm->branch->condition = VTrue;
-    vm->branch->childCount = 1;
-    vm->branch->children = (void**)malloc(2 * sizeof(void*));
-    vm->branch->children[0] = vm;
-    vm->branch->leaf = true;
-    vm->fields = (vref*)(data + sizeof(VM));
+    VM *vm = (VM*)calloc(sizeof(VM) + (uint)fieldCount * sizeof(vref), 1);
+    vm->base.fullVM = true;
+    vm->fields = (vref*)(vm + 1);
     vm->fieldCount = fieldCount;
     IVInit(&vm->callStack, 128);
     IVInit(&vm->stack, 1024);
-    vm->active = true;
-    vm->failMessage = 0;
     return vm;
 }
 
 VM *VMCreate(const LinkedProgram *program)
 {
-    VM *vm = VMAlloc(null, program->fieldCount);
+    VM *vm = VMAlloc(program->fieldCount);
     if (DEBUG_VM)
     {
-        printf("Created VM:%p branch:%p\n", (void*)vm, (void*)vm->branch);
+        printf("Created VM:%p\n", (void*)vm);
     }
-    vmBytecode = program->bytecode;
-    vmLineNumbers = program->lineNumbers;
     vm->constants = program->constants;
     vm->constantCount = program->constantCount;
     vm->bp = 0;
@@ -51,54 +39,8 @@ VM *VMCreate(const LinkedProgram *program)
     return vm;
 }
 
-/*
-  Before:
-    vm->branch->parent (VMBranch 1)
-     |
-    vm->branch (VMBranch 2)
-     |
-    vm
-
-  After:
-    (vm/clone)->branch->parent (VMBranch 1)
-                 |
-    (vm/clone)->branch->parent (VMBranch 2)
-     |                 |
-    vm->branch (new)  clone->branch (new)
-     |                 |
-    vm                clone (new)
-*/
-VM *VMClone(VM *vm, vref condition, const int *ip)
+static void VMCloneInit(const VM *vm, VM *clone, const int *ip)
 {
-    vref parentCondition = vm->branch->condition;
-    vref condition1 = VAnd(vm, parentCondition, condition);
-    vref condition2 = VAnd(vm, parentCondition, VNot(vm, condition));
-    VM *clone = VMAlloc(vm->branch, vm->fieldCount);
-    VMBranch *newBranch = (VMBranch*)malloc(sizeof(VMBranch));
-
-    if (DEBUG_VM)
-    {
-        char *conditionString = HeapDebug(condition);
-        printf("Clone VM:%p branch:%p -> %p clone:%p branch:%p condition:%s\n",
-               (void*)vm, (void*)vm->branch, (void*)newBranch, (void*)clone,
-               (void*)clone->branch, conditionString);
-        free(conditionString);
-    }
-    newBranch->parent = vm->branch;
-    newBranch->childCount = 1;
-    newBranch->children = (void**)malloc(2 * sizeof(void*));
-    newBranch->children[0] = vm;
-    newBranch->leaf = true;
-    assert(newBranch->parent->childCount == 1); /* TODO */
-    newBranch->parent->childCount = 2;
-    newBranch->parent->children[0] = newBranch;
-    newBranch->parent->children[1] = clone->branch;
-    newBranch->parent->leaf = false;
-    vm->branch = newBranch;
-
-    clone->branch->condition = condition1;
-    vm->branch->condition = condition2;
-
     clone->constants = vm->constants;
     clone->constantCount = vm->constantCount;
     memcpy(clone->fields, vm->fields, (uint)vm->fieldCount * sizeof(*vm->fields));
@@ -107,48 +49,183 @@ VM *VMClone(VM *vm, vref condition, const int *ip)
     IVAppendAll(&vm->stack, &clone->stack);
     clone->ip = ip;
     clone->bp = vm->bp;
-
-    return clone;
+    clone->base.clonePoints = vm->base.clonePoints;
 }
 
-void VMDispose(VM *vm)
+VM *VMClone(VM *vm, const int *ip)
 {
-    VMBranch *parent = vm->branch;
-    VMBranch *child = null;
+    VM *clone = VMAlloc(vm->fieldCount);
 
     if (DEBUG_VM)
     {
-        printf("Dispose VM:%p\n", (void*)vm);
+        printf("Clone VM:%p clone:%p\n", (void*)vm, (void*)clone);
     }
-    while (parent)
+    if (vm->child)
     {
-        if (--parent->childCount)
-        {
-            int i;
-            for (i = (int)parent->childCount; i >= 0; i--)
-            {
-                if (parent->children[i] == child)
-                {
-                    memmove(parent->children + i, parent->children + i + 1,
-                            (parent->childCount - (uint)i) * sizeof(void*));
-                    break;
-                }
-            }
-            break;
-        }
-        if (DEBUG_VM)
-        {
-            printf("Dispose branch:%p\n", (void*)parent);
-        }
-        WorkDiscard(parent);
-        child = parent;
-        parent = parent->parent;
-        free(child->children);
-        free(child);
+        clone->child = vm->child;
+        clone->child->parent = &clone->base;
     }
-    IVDispose(&vm->callStack);
-    IVDispose(&vm->stack);
-    free(vm);
+    vm->child = &clone->base;
+    clone->base.parent = &vm->base;
+
+    VMCloneInit(vm, clone, ip);
+    return clone;
+}
+
+void VMCloneBranch(VM *vm, const int *ip)
+{
+    VMBranch *branch = (VMBranch*)calloc(sizeof(VMBranch), 1);
+    VM *clone = VMAlloc(vm->fieldCount);
+    VMBase *parent = vm->base.parent;
+
+    if (DEBUG_VM)
+    {
+        printf("Clone VM:%p clone:%p branch:%p\n", (void*)vm, (void*)clone, (void*)branch);
+    }
+
+    assert(parent);
+    assert(!vm->child);
+    if (parent->fullVM)
+    {
+        VM *vmParent = (VM*)parent;
+        assert(vmParent->child == &vm->base);
+        vmParent->child = &branch->base;
+    }
+    else
+    {
+        VMBranch *vmParent = (VMBranch*)parent;
+        VMBase **children = vmParent->children;
+        while (*children != &vm->base)
+        {
+            children++;
+            assert(children < vmParent->children + vmParent->childCount);
+        }
+        *children = &branch->base;
+    }
+    branch->base.parent = vm->base.parent;
+    branch->childCount = 2;
+    branch->children[0] = &vm->base;
+    branch->children[1] = &clone->base;
+    branch->base.clonePoints = vm->base.clonePoints;
+    vm->base.parent = &branch->base;
+    clone->base.parent = &branch->base;
+
+    VMCloneInit(vm, clone, ip);
+}
+
+void VMReplaceCloneBranch(VM *vm, const int *ip)
+{
+    VMBranch *branch = (VMBranch*)vm->child;
+    VM *clone = VMAlloc(vm->fieldCount);
+
+    if (DEBUG_VM)
+    {
+        printf("Clone VM:%p clone:%p branch:%p\n", (void*)vm, (void*)clone, (void*)branch);
+    }
+
+    assert(branch);
+    assert(!branch->base.fullVM);
+    assert(branch->childCount == 2);
+    assert(vm->base.parent);
+    if (vm->base.parent->fullVM)
+    {
+        VM *parent = (VM*)vm->base.parent;
+        parent->child = &branch->base;
+    }
+    else
+    {
+        VMBranch *parent = (VMBranch*)vm->base.parent;
+        VMBase **children = parent->children;
+        while (*children != &vm->base)
+        {
+            children++;
+            assert(children < parent->children + parent->childCount);
+        }
+        *children = &branch->base;
+    }
+    branch->base.parent = vm->base.parent;
+    vm->child = branch->children[0];
+    clone->child = branch->children[1];
+    vm->base.parent = &branch->base;
+    clone->base.parent = &branch->base;
+    branch->children[0]->parent = &vm->base;
+    branch->children[1]->parent = &clone->base;
+    branch->children[0] = &vm->base;
+    branch->children[1] = &clone->base;
+
+    VMCloneInit(vm, clone, ip);
+}
+
+void VMDispose(VMBase *base)
+{
+    if (DEBUG_VM)
+    {
+        printf("Dispose VM:%p\n", (void*)base);
+    }
+    if (base->fullVM)
+    {
+        VM *vm = (VM*)base;
+        if (vm->work)
+        {
+            WorkDiscard(vm->work);
+        }
+        base = vm->child;
+        IVDispose(&vm->callStack);
+        IVDispose(&vm->stack);
+        free(vm);
+        if (base)
+        {
+            VMDispose(base);
+        }
+    }
+    else
+    {
+        VMBranch *branch = (VMBranch*)base;
+        uint i;
+        for (i = 0; i < branch->childCount; i++)
+        {
+            VMDispose(branch->children[i]);
+        }
+        free(base);
+    }
+}
+
+VMBase *VMDisposeBranch(VMBranch *branch, uint keepBranch)
+{
+    VMBase *child = branch->children[keepBranch];
+    uint i;
+    for (i = 0; i < branch->childCount; i++)
+    {
+        if (i != keepBranch)
+        {
+            VMDispose(branch->children[i]);
+        }
+    }
+    child->parent = branch->base.parent;
+    free(branch);
+    return child;
+}
+
+void VMReplaceChild(VM *vm, VM *child)
+{
+    if (DEBUG_VM)
+    {
+        printf("Replace child VM:%p child:%p\n", (void*)vm, (void*)child);
+    }
+    assert(child->base.parent == &vm->base);
+    if (child->work)
+    {
+        vm->work = child->work;
+        vm->work->vm = vm;
+        child->work = null;
+    }
+    vm->child = child->child;
+    if (vm->child)
+    {
+        vm->child->parent = &vm->base;
+    }
+    child->child = null;
+    VMDispose(&child->base);
 }
 
 void VMHalt(VM *vm, vref failMessage)
@@ -157,48 +234,26 @@ void VMHalt(VM *vm, vref failMessage)
     {
         printf("Halt VM:%p\n", (void*)vm);
     }
-    vm->active = false;
+    if (vm->child)
+    {
+        assert(vm->child->fullVM);
+        VMDispose(vm->child);
+        vm->child = null;
+    }
+    vm->idle = true;
     vm->failMessage = failMessage;
 }
 
-void VMFail(VM *vm, const int *ip, const char *format, ...)
+void VMFail(VM *vm, const char *msg, size_t msgSize)
+{
+    VMHalt(vm, VCreateString(msg, msgSize));
+}
+
+void VMFailf(VM *vm, const char *format, ...)
 {
     va_list args;
     va_start(args, format);
-    vm->ip = ip;
     VMHalt(vm, VCreateStringFormatted(format, args));
-    va_end(args);
-}
-
-void VMBranchFail(VMBranch *branch, const int *ip, vref failMessage)
-{
-    uint i;
-    if (DEBUG_VM)
-    {
-        printf("Halt branch:%p\n", (void*)branch);
-    }
-    for (i = 0; i < branch->childCount; i++)
-    {
-        if (branch->leaf)
-        {
-            VM *vm = (VM*)branch->children[i];
-            vm->ip = ip;
-            VMHalt(vm, failMessage);
-        }
-        else
-        {
-            VMBranch *child = (VMBranch*)branch->children[i];
-            child->condition = VFalse;
-            VMBranchFail(child, ip, failMessage);
-        }
-    }
-}
-
-void VMBranchFailf(VMBranch *branch, const int *ip, const char *format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    VMBranchFail(branch, ip, VCreateStringFormatted(format, args));
     va_end(args);
 }
 

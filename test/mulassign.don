@@ -1,0 +1,13 @@
+target default
+{
+    a = 2
+    a *= 3
+    if a == 6
+    {
+        a *= 4 * 5
+        if a == 120
+        {
+            echo("PASS")
+        }
+    }
+}

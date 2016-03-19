@@ -1,9 +1,6 @@
-#define TYPE_FLAG_FUTURE 0x80
-
 typedef enum
 {
     TYPE_INVALID = 0,
-    TYPE_VALUE,
     TYPE_NULL,
     TYPE_BOOLEAN_TRUE,
     TYPE_BOOLEAN_FALSE,
@@ -14,25 +11,7 @@ typedef enum
     TYPE_ARRAY,
     TYPE_INTEGER_RANGE,
     TYPE_CONCAT_LIST,
-    TYPE_FUTURE = TYPE_FLAG_FUTURE,
-    TYPE_FUTURE_NOT,
-    TYPE_FUTURE_NEG,
-    TYPE_FUTURE_INV,
-    TYPE_FUTURE_EQUALS,
-    TYPE_FUTURE_NOT_EQUALS,
-    TYPE_FUTURE_LESS,
-    TYPE_FUTURE_LESS_EQUALS,
-    TYPE_FUTURE_AND,
-    TYPE_FUTURE_ADD,
-    TYPE_FUTURE_SUB,
-    TYPE_FUTURE_MUL,
-    TYPE_FUTURE_DIV,
-    TYPE_FUTURE_REM,
-    TYPE_FUTURE_VALID_INDEX,
-    TYPE_FUTURE_INDEXED_ACCESS,
-    TYPE_FUTURE_RANGE,
-    TYPE_FUTURE_CONCAT,
-    TYPE_FUTURE_CONCAT_STRING
+    TYPE_FUTURE
 } VType;
 
 typedef enum
@@ -53,6 +32,7 @@ extern vref VFalse;
 extern vref VEmptyString;
 extern vref VEmptyList;
 extern vref VNewline;
+extern vref VFuture;
 
 
 bool VWait(vref *value);
@@ -133,8 +113,7 @@ size_t VCollectionSize(vref value);
 nonnull bool VCollectionGet(vref object, vref indexObject, vref *value);
 
 
-vref VEquals(VM *vm, vref value1, vref value2);
-vref VNotEquals(VM *vm, vref value1, vref value2);
+vref VEquals(vref value1, vref value2);
 vref VLess(VM *vm, vref value1, vref value2);
 vref VLessEquals(VM *vm, vref value1, vref value2);
 vref VAdd(VM *vm, vref value1, vref value2);
@@ -143,11 +122,11 @@ vref VMul(VM *vm, vref value1, vref value2);
 vref VDiv(VM *vm, vref value1, vref value2);
 vref VRem(VM *vm, vref value1, vref value2);
 vref VAnd(VM *vm, vref value1, vref value2);
-vref VNot(VM *vm, vref value);
+vref VNot(vref value);
 vref VNeg(VM *vm, vref value);
 vref VInv(VM *vm, vref value);
 vref VValidIndex(VM *vm, vref collection, vref index);
 vref VIndexedAccess(VM *vm, vref value1, vref value2);
 vref VRange(VM *vm, vref value1, vref value2);
 vref VConcat(VM *vm, vref value1, vref value2);
-vref VConcatString(VM *vm, size_t count, vref *values);
+vref VConcatString(size_t count, vref *values);

@@ -315,7 +315,6 @@ bool Link(ParsedProgram *parsed, LinkedProgram *linked)
         case OP_GREATER_EQUALS:
         case OP_LESS:
         case OP_GREATER:
-        case OP_AND:
         case OP_ADD:
         case OP_SUB:
         case OP_MUL:

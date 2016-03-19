@@ -1,25 +1,25 @@
 #include "intvector.h"
 
 struct _LinkedProgram;
+struct VMBase;
+
+typedef struct VMBase
+{
+    struct VMBase *parent;
+    uint clonePoints;
+    bool fullVM;
+} VMBase;
 
 struct VMBranch
 {
-    VMBranch *parent;
-
-    /* When true, this VM branch will actually run. */
-    vref condition;
-
+    VMBase base;
     uint childCount;
-    void **children;
-
-    /* When true, children is an array of VM*.
-       When false, children in an array of VMBranch*. */
-    bool leaf;
+    VMBase *children[2];
 };
 
 struct VM
 {
-    VMBranch *branch;
+    VMBase base;
 
     const vref *constants;
     int constantCount;
@@ -30,7 +30,9 @@ struct VM
 
     const int *ip;
     int bp;
-    bool active;
+    bool idle;
+    Work *work;
+    VMBase *child;
     vref failMessage;
 };
 
@@ -39,12 +41,15 @@ extern const int *vmBytecode;
 extern const int *vmLineNumbers;
 
 nonnull VM *VMCreate(const struct _LinkedProgram *program);
-nonnull VM *VMClone(VM *vmState, vref condition, const int *ip);
-nonnull void VMDispose(VM *vm);
+nonnull VM *VMClone(VM *vmState, const int *ip);
+nonnull void VMCloneBranch(VM *vmState, const int *ip);
+nonnull void VMReplaceCloneBranch(VM *vmState, const int *ip);
+nonnull void VMDispose(VMBase *base);
+nonnull VMBase *VMDisposeBranch(VMBranch *branch, uint keepBranch);
+nonnull void VMReplaceChild(VM *vm, VM *child);
 nonnull void VMHalt(VM *vm, vref failMessage);
-attrprintf(3, 4) void VMFail(VM *vm, const int *ip, const char *format, ...);
-void VMBranchFail(VMBranch *branch, const int *ip, vref failMessage);
-attrprintf(3, 4) void VMBranchFailf(VMBranch *branch, const int *ip, const char *format, ...);
+nonnull void VMFail(VM *vm, const char *msg, size_t msgSize);
+attrprintf(2, 3) void VMFailf(VM *vm, const char *format, ...);
 
 nonnull vref VMReadValue(VM *vmState);
 nonnull void VMStoreValue(VM *vmState, int variable, vref value);

@@ -1,0 +1,10 @@
+target default
+{
+    if 6 / 3 == 2
+    {
+        if 24 / 2 / 3 == 4
+        {
+            echo("PASS")
+        }
+    }
+}

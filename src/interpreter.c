@@ -8,46 +8,21 @@
 #include "interpreter.h"
 #include "instruction.h"
 #include "linker.h"
+#include "main.h"
 #include "native.h"
 #include "work.h"
 #include "vm.h"
 
 static intvector temp;
-static VM **vmTable;
-static uint vmTableSize = 16;
-static uint vmCount;
 
 static void traceLine(const VM* vm, int bytecodeOffset)
 {
     const char *filename;
-    int line;
-
-    line = BytecodeLineNumber(vmLineNumbers, bytecodeOffset, &filename);
+    int line = BytecodeLineNumber(vmLineNumbers, bytecodeOffset, &filename);
     printf("[%p] %s:%d: %d: ", (void*)vm, filename, line, bytecodeOffset);
     BytecodeDisassembleInstruction(vmBytecode + bytecodeOffset, vmBytecode);
 }
 
-
-static void addVM(VM *vm)
-{
-    VM **newTable;
-
-    if (vmCount == vmTableSize)
-    {
-        vmTableSize *= 2;
-        newTable = (VM**)malloc(vmTableSize * sizeof(*vmTable));
-        memcpy(newTable, vmTable, vmCount * sizeof(*vmTable));
-        free(vmTable);
-        vmTable = newTable;
-    }
-    vmTable[vmCount++] = vm;
-}
-
-static void removeVM(uint index)
-{
-    VMDispose(vmTable[index]);
-    vmTable[index] = vmTable[--vmCount];
-}
 
 static vref loadValue(VM *vm, int bp, int variable)
 {
@@ -110,12 +85,8 @@ static void popStackFrame(VM *vm, const int **ip, int *bp, uint returnValues)
 }
 
 
-static void execute(VM *vm)
+static VM *execute(VM *vm)
 {
-    vref value;
-    vref string;
-    int function;
-    nativefunctionref nativeFunction;
     int maxInstructions = 100;
 
     while (maxInstructions--)
@@ -161,10 +132,20 @@ static void execute(VM *vm)
         }
 
         case OP_FILELIST:
-            string = refFromInt(arg);
-            storeValue(vm, vm->bp, *vm->ip++,
-                       HeapCreateFilelistGlob(VGetString(string), VStringLength(string)));
+        {
+            vref string = refFromInt(arg);
+            vref result;
+            if (string == VFuture)
+            {
+                result = VFuture;
+            }
+            else
+            {
+                result = HeapCreateFilelistGlob(VGetString(string), VStringLength(string));
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_STORE_CONSTANT:
             storeValue(vm, vm->bp, arg, refFromInt(*vm->ip++));
@@ -176,28 +157,54 @@ static void execute(VM *vm)
 
         case OP_NOT:
             storeValue(vm, vm->bp, *vm->ip++,
-                       VNot(vm, loadValue(vm, vm->bp, arg)));
+                       VNot(loadValue(vm, vm->bp, arg)));
             break;
 
         case OP_NEG:
-            storeValue(vm, vm->bp, *vm->ip++,
-                       VNeg(vm, loadValue(vm, vm->bp, arg)));
+        {
+            vref result = VNeg(vm, loadValue(vm, vm->bp, arg));
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_INV:
-            storeValue(vm, vm->bp, *vm->ip++,
-                       VInv(vm, loadValue(vm, vm->bp, arg)));
+        {
+            vref result = VInv(vm, loadValue(vm, vm->bp, arg));
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_ITER_NEXT:
         {
             vref collection = loadValue(vm, vm->bp, *vm->ip++);
             int indexVariable = *vm->ip++;
-            vref index = VAdd(vm, loadValue(vm, vm->bp, indexVariable),
-                              loadValue(vm, vm->bp, *vm->ip++));
-            storeValue(vm, vm->bp, indexVariable, index);
-            value = VValidIndex(vm, collection, index);
-            switch (VGetBool(value))
+            vref index = loadValue(vm, vm->bp, indexVariable);
+            vref step = loadValue(vm, vm->bp, *vm->ip++);
+            if (index == VFuture || step == VFuture)
+            {
+                index = VFuture;
+                storeValue(vm, vm->bp, indexVariable, index);
+                goto iterNextFuture;
+            }
+            else
+            {
+                index = VAdd(vm, index, step);
+                storeValue(vm, vm->bp, indexVariable, index);
+            }
+            if (collection == VFuture)
+            {
+        iterNextFuture:
+                assert(0);
+            }
+            switch (VGetBool(VValidIndex(vm, collection, index)))
             {
             case TRUTHY:
                 storeValue(vm, vm->bp, *vm->ip++, VIndexedAccess(vm, collection, index));
@@ -206,154 +213,321 @@ static void execute(VM *vm)
                 vm->ip += arg - 2;
                 break;
             case FUTURE:
-            {
-                VM *clone = VMClone(vm, value, vm->ip);
-                addVM(clone);
-                vm->ip += arg - 2;
-                storeValue(clone, clone->bp, *clone->ip++,
-                           VIndexedAccess(clone, collection, index));
-                break;
-            }
+                unreachable;
             }
             break;
         }
 
         case OP_EQUALS:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VEquals(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VEquals(value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_NOT_EQUALS:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VNotEquals(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VEquals(value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            switch (VGetBool(result))
+            {
+            case TRUTHY: result = VFalse; break;
+            case FALSY: result = VTrue; break;
+            case FUTURE: break;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_LESS_EQUALS:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VLessEquals(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VLessEquals(vm, value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_GREATER_EQUALS:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VNot(vm, VLess(vm, loadValue(vm, vm->bp, arg), value));
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VLessEquals(vm, value2, value1);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_LESS:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VLess(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VLess(vm, value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_GREATER:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value =
-                VNot(vm, VLessEquals(vm, loadValue(vm, vm->bp, arg), value));
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VLess(vm, value2, value1);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
-
-        case OP_AND:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VAnd(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
-            break;
+        }
 
         case OP_ADD:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VAdd(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VAdd(vm, value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_SUB:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VSub(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VSub(vm, value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_MUL:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VMul(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VMul(vm, value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_DIV:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VDiv(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VDiv(vm, value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_REM:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VRem(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VRem(vm, value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_CONCAT_LIST:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VConcat(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VConcat(vm, value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_CONCAT_STRING:
+        {
+            vref result;
             assert(!IVSize(&temp));
             for (i = 0; i < arg; i++)
             {
                 IVAdd(&temp, intFromRef(loadValue(vm, vm->bp, *vm->ip++)));
             }
-            value = VConcatString(vm, (size_t)arg, (vref*)IVGetWritePointer(&temp, 0));
-            storeValue(vm, vm->bp, *vm->ip++, value);
+            result = VConcatString((size_t)arg, (vref*)IVGetWritePointer(&temp, 0));
+            storeValue(vm, vm->bp, *vm->ip++, result);
             IVSetSize(&temp, 0);
             break;
+        }
 
         case OP_INDEXED_ACCESS:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VIndexedAccess(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref collection = loadValue(vm, vm->bp, arg);
+            vref index = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VIndexedAccess(vm, collection, index);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_RANGE:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            value = VRange(vm, loadValue(vm, vm->bp, arg), value);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+        {
+            vref value1 = loadValue(vm, vm->bp, arg);
+            vref value2 = loadValue(vm, vm->bp, *vm->ip++);
+            vref result = VRange(vm, value1, value2);
+            if (!result)
+            {
+                return vm;
+            }
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
+        }
 
         case OP_JUMP:
             vm->ip += arg + 1;
             break;
 
         case OP_BRANCH_TRUE:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            switch (VGetBool(value))
+        {
+            vref value = loadValue(vm, vm->bp, *vm->ip++);
+            VBool b = VGetBool(value);
+            vm->base.clonePoints++;
+            if (vm->child && vm->base.clonePoints >= vm->child->clonePoints)
             {
-            case TRUTHY:
-                vm->ip += arg;
-                break;
-            case FALSY:
-                break;
-            case FUTURE:
-                addVM(VMClone(vm, value, vm->ip + arg));
-                break;
+                if (vm->base.clonePoints > vm->child->clonePoints)
+                {
+                    VMDispose(vm->child);
+                    vm->child = null;
+                    goto branchTrueNoChild;
+                }
+                assert(!vm->child->fullVM);
+                if (b == FUTURE)
+                {
+                    VMReplaceCloneBranch(vm, vm->ip + arg);
+                }
+                else
+                {
+                    uint keepChild;
+                    if (b == FALSY)
+                    {
+                        keepChild = 0;
+                    }
+                    else
+                    {
+                        vm->ip += arg;
+                        keepChild = 1;
+                    }
+                    vm->child = VMDisposeBranch((VMBranch*)vm->child, keepChild);
+                }
+            }
+            else
+            {
+        branchTrueNoChild:
+                switch (b)
+                {
+                case FALSY:
+                    break;
+                case FUTURE:
+                    assert(!vm->child);
+                    VMCloneBranch(vm, vm->ip);
+                    /* fallthrough */
+                case TRUTHY:
+                    vm->ip += arg;
+                    break;
+                }
             }
             break;
+        }
 
         case OP_BRANCH_FALSE:
-            value = loadValue(vm, vm->bp, *vm->ip++);
-            switch (VGetBool(value))
+        {
+            vref value = loadValue(vm, vm->bp, *vm->ip++);
+            VBool b = VGetBool(value);
+            vm->base.clonePoints++;
+            if (vm->child && vm->base.clonePoints >= vm->child->clonePoints)
             {
-            case TRUTHY:
-                break;
-            case FALSY:
-                vm->ip += arg;
-                break;
-            case FUTURE:
-                addVM(VMClone(vm, value, vm->ip));
-                vm->ip += arg;
-                break;
+                if (vm->base.clonePoints > vm->child->clonePoints)
+                {
+                    VMDispose(vm->child);
+                    vm->child = null;
+                    goto branchFalseNoChild;
+                }
+                assert(!vm->child->fullVM);
+                if (b == FUTURE)
+                {
+                    VMReplaceCloneBranch(vm, vm->ip);
+                    vm->ip += arg;
+                }
+                else
+                {
+                    uint keepChild;
+                    if (b == FALSY)
+                    {
+                        vm->ip += arg;
+                        keepChild = 0;
+                    }
+                    else
+                    {
+                        keepChild = 1;
+                    }
+                    vm->child = VMDisposeBranch((VMBranch*)vm->child, keepChild);
+                }
+            }
+            else
+            {
+        branchFalseNoChild:
+                switch (b)
+                {
+                case TRUTHY:
+                    break;
+                case FUTURE:
+                    assert(!vm->child);
+                    VMCloneBranch(vm, vm->ip);
+                    /* fallthrough */
+                case FALSY:
+                    vm->ip += arg;
+                    break;
+                }
             }
             break;
+        }
 
         case OP_RETURN:
             assert(IVSize(&vm->callStack));
@@ -363,8 +537,9 @@ static void execute(VM *vm)
         case OP_RETURN_VOID:
             if (!IVSize(&vm->callStack))
             {
+                vm->base.clonePoints++;
                 VMHalt(vm, 0);
-                return;
+                return vm;
             }
             popStackFrame(vm, &vm->ip, &vm->bp, 0);
             break;
@@ -372,7 +547,7 @@ static void execute(VM *vm)
         case OP_INVOKE:
         {
             vref *values;
-            function = *vm->ip++;
+            int function = *vm->ip++;
             values = (vref*)IVGetAppendPointer(&vm->stack, (size_t)arg);
             for (i = 0; i < arg; i++)
             {
@@ -385,10 +560,36 @@ static void execute(VM *vm)
         }
 
         case OP_INVOKE_NATIVE:
-            nativeFunction = refFromInt(arg);
+        {
+            nativefunctionref nativeFunction = refFromInt(arg);
+            vref value;
+            int storeAt;
+            assert(!vm->work);
+            vm->base.clonePoints++;
+            if (vm->child && vm->base.clonePoints >= vm->child->clonePoints)
+            {
+                VM *child = (VM*)vm->child;
+                assert(vm->child->fullVM);
+                VMReplaceChild(vm, child);
+            }
             value = NativeInvoke(vm, nativeFunction);
-            storeValue(vm, vm->bp, *vm->ip++, value);
+            if (vm->idle)
+            {
+                return vm;
+            }
+            storeAt = *vm->ip++;
+            storeValue(vm, vm->bp, storeAt, value);
+            if (vm->work)
+            {
+                vm->work->storeAt = storeAt;
+                vm->idle = true;
+
+                /* TODO: Activate speculative execution */
+                WorkExecute(vm->work);
+                /* vm = VMClone(vm, vm->ip); */
+            }
             break;
+        }
 
         case OP_FUNCTION:
         case OP_FUNCTION_UNLINKED:
@@ -408,62 +609,105 @@ static void execute(VM *vm)
             unreachable;
         }
     }
+    return vm;
 }
 
 void InterpreterExecute(const LinkedProgram *program, int target)
 {
-    VM *vm;
-    uint i;
-    bool idle = false;
+    VM *masterVM;
 
     IVInit(&temp, 16);
-    vmTable = (VM**)malloc(vmTableSize * sizeof(*vmTable));
-    vm = VMCreate(program);
-    addVM(vm);
-    initStackFrame(vm, &vm->ip, &vm->bp, target, 0);
+    vmBytecode = program->bytecode;
+    vmLineNumbers = program->lineNumbers;
+    masterVM = VMCreate(program);
+    initStackFrame(masterVM, &masterVM->ip, &masterVM->bp, target, 0);
 
-    do
+    for (;;)
     {
+        VMBase *vmBase = &masterVM->base;
+        bool idle = true;
+
+        /* Traverse VMs, letting all non-idle execute for a while. Note that the tree can change as
+           a result of executing. */
+        for (;;)
+        {
+            if (vmBase->fullVM)
+            {
+                VM *vm = (VM*)vmBase;
+                if (!vm->idle)
+                {
+                    /* TODO: Cloning new VMs can cause infinite traversal. */
+                    vm = execute(vm);
+                    idle = false;
+                }
+                else if (vm->child)
+                {
+                    vmBase = vm->child;
+                    continue;
+                }
+                {
+                    VMBase *parent = vm->base.parent;
+                    VMBase *child = &vm->base;
+                    VMBase **p;
+                    if (!parent)
+                    {
+                        break;
+                    }
+                    while (parent->fullVM ||
+                           ((VMBranch*)parent)->children[
+                               ((VMBranch*)parent)->childCount - 1] == child)
+                    {
+                        child = parent;
+                        parent = parent->parent;
+                        if (!parent)
+                        {
+                            goto done;
+                        }
+                    }
+                    for (p = ((VMBranch*)parent)->children; *p != child; p++)
+                    {
+                        assert(p < ((VMBranch*)parent)->children + ((VMBranch*)parent)->childCount);
+                    }
+                    vmBase = *(p + 1);
+                }
+            }
+            else
+            {
+                VMBranch *vmBranch = (VMBranch*)vmBase;
+                assert(vmBranch->childCount);
+                vmBase = vmBranch->children[0];
+            }
+        }
+done:
+
         if (idle)
         {
-            assert(!WorkQueueEmpty());
-            WorkExecute();
-        }
-
-        idle = true;
-        for (i = 0; i < vmCount; i++)
-        {
-            vm = vmTable[i];
-            if (VWait(&vm->branch->condition) && VIsFalsy(vm->branch->condition))
+            if (masterVM->work)
             {
-                removeVM(i--);
+                WorkExecute(masterVM->work);
             }
-            else if (vm->active)
+            else if (masterVM->idle)
             {
-                execute(vm);
-                idle = false;
+                break;
             }
         }
     }
-    while (vmCount > 1 || vmTable[0]->active);
 
-    while (!WorkQueueEmpty() && WorkExecute());
-
-    vm = vmTable[0];
-    if (vm->failMessage)
+    if (masterVM->failMessage)
     {
         const char *filename;
-        int line = BytecodeLineNumber(program->lineNumbers, (int)(vm->ip - vmBytecode), &filename);
-        char *msg = VGetStringCopy(vm->failMessage);
-        printf("%s:%d: %s\n", filename, line, msg);
+        int line = BytecodeLineNumber(program->lineNumbers,
+                                      (int)(masterVM->ip - vmBytecode), &filename);
+        char *msg = VGetStringCopy(masterVM->failMessage);
+        fprintf(stderr, "%s:%d: %s\n", filename, line, msg);
 #ifdef VALGRIND
         free(msg);
 #endif
+        cleanShutdown(EXIT_FAILURE);
     }
 
 #ifdef VALGRIND
-    removeVM(0);
-    free(vmTable);
+    VMDispose(&masterVM->base);
     IVDispose(&temp);
 #endif
 }

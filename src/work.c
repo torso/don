@@ -9,12 +9,9 @@
 #include "work.h"
 #include "vm.h"
 
-static bytevector queue;
-
 static void printWork(const char *prefix, const Work *work)
 {
     bytevector buffer;
-    char *condition = HeapDebug(work->branch->condition);
     vref *p;
     uint i;
 
@@ -30,134 +27,71 @@ static void printWork(const char *prefix, const Work *work)
     BVPop(&buffer);
     BVPop(&buffer);
     BVAdd(&buffer, 0);
-    printf("%s[%p] (%s) condition:%s\n", prefix, (void*)work->branch,
-           BVGetPointer(&buffer, 0), condition);
+    printf("%s%p[vm:%p] (%s)\n", prefix, (void*)work, (void*)work->vm,
+           BVGetPointer(&buffer, 0));
     BVDispose(&buffer);
-    free(condition);
 }
 
-static size_t getWorkSize(const Work *work)
+Work *WorkAdd(WorkFunction function, VM *vm, const vref *arguments, uint argumentCount,
+              vref accessedFiles, vref modifiedFiles)
 {
-    return sizeof(*work) + work->argumentCount * sizeof(vref);
-}
-
-void WorkInit(void)
-{
-    BVInit(&queue, 1024);
-}
-
-void WorkDispose(void)
-{
-    BVDispose(&queue);
-}
-
-Work *WorkAdd(WorkFunction function, VM *vm, uint argumentCount, vref **arguments)
-{
-    Work *work = (Work*)BVGetAppendPointer(
-        &queue, sizeof(Work) + argumentCount * sizeof(**arguments));
+    Work *work = vm->work ? vm->work : (Work*)malloc(sizeof(Work) + argumentCount * sizeof(vref));
+    assert(!vm->work || work->argumentCount == argumentCount);
     work->function = function;
-    work->branch = vm->branch;
-    work->ip = vm->ip;
-    work->accessedFiles = VEmptyList;
-    work->modifiedFiles = VEmptyList;
+    work->vm = vm;
+    work->accessedFiles = accessedFiles;
+    work->modifiedFiles = modifiedFiles;
     work->argumentCount = argumentCount;
-    *arguments = (vref*)(work + 1);
-    return work;
-}
-
-void WorkCommit(Work *work)
-{
+    memcpy(work + 1, arguments, argumentCount * sizeof(vref));
     if (DEBUG_WORK)
     {
-        printWork("added: ", work);
-    }
-}
-
-void WorkAbort(Work *work)
-{
-    assert(BVGetPointer(&queue, BVSize(&queue)) == (byte*)work + getWorkSize(work));
-    BVSetSize(&queue, (size_t)((const byte*)work - BVGetPointer(&queue, 0)));
-}
-
-void WorkDiscard(const VMBranch *branch)
-{
-    Work *work;
-    size_t i = 0;
-    size_t size;
-
-    if (DEBUG_WORK)
-    {
-        printf("remove work for: %p\n", (const void*)branch);
-    }
-    while (i < BVSize(&queue))
-    {
-        work = (Work*)BVGetPointer(&queue, i);
-        size = getWorkSize(work);
-        if (work->branch == branch)
+        if (vm->work)
         {
-            BVRemoveRange(&queue, i, size);
+            printWork("update work: ", work);
         }
         else
         {
-            i += size;
+            printWork("add work: ", work);
         }
     }
+    return work;
 }
 
-bool WorkQueueEmpty(void)
+void WorkDiscard(Work *work)
 {
-    return BVSize(&queue) == 0;
-}
-
-bool WorkExecute(void)
-{
-    size_t offset = 0;
-    assert(BVSize(&queue));
-    do
+    if (DEBUG_WORK)
     {
-        Work *work = (Work*)BVGetPointer(&queue, offset);
-        VMBranch *branch = work->branch;
-        size_t size = getWorkSize(work);
-        VBool b;
-        assert(BVSize(&queue) - offset >= size);
-
-        b = VGetBool(branch->condition);
-        if (b == FALSY)
-        {
-            if (DEBUG_WORK)
-            {
-                printWork("never executing: ", work);
-            }
-            BVRemoveRange(&queue, offset, size);
-            VMBranchFail(branch, null, 0);
-            continue;
-        }
-
-        if (b == TRUTHY)
-        {
-            if (DEBUG_WORK)
-            {
-                printWork("executing: ", work);
-            }
-
-            if (work->function(work, (vref*)(work + 1)))
-            {
-                BVRemoveRange(&queue, offset, size);
-                return true;
-            }
-            else
-            {
-                /* TODO: This will not happen until work is done in parallel. */
-                unreachable;
-            }
-        }
-
-        if (DEBUG_WORK)
-        {
-            printWork("not executing: ", work);
-        }
-        offset += size;
+        printWork("remove work: ", work);
     }
-    while (offset < BVSize(&queue));
-    return false;
+    free(work);
+}
+
+void WorkExecute(Work *work)
+{
+    vref value;
+
+    if (DEBUG_WORK)
+    {
+        printWork("execute work: ", work);
+    }
+
+    assert(work->vm->work == work);
+    value = work->function(work, (vref*)(work + 1));
+    if (value)
+    {
+        VMStoreValue(work->vm, work->storeAt, value);
+        work->vm->idle = false;
+        work->vm->work = null;
+        free(work);
+    }
+    else if (work->vm->failMessage)
+    {
+        work->vm->work = null;
+        free(work);
+    }
+    else
+    {
+        /* TODO: This will not happen until work is done in parallel. */
+        unreachable;
+    }
 }

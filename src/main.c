@@ -19,7 +19,6 @@
 #include "native.h"
 #include "parser.h"
 #include "stringpool.h"
-#include "work.h"
 
 
 static intvector targets;
@@ -206,7 +205,6 @@ int main(int argc, const char **argv)
     StringPoolDispose();
 
     CacheInit(cacheDirectory, cacheDirectoryLength);
-    WorkInit();
     for (j = 0; j < IVSize(&targets); j++)
     {
         InterpreterExecute(
@@ -235,7 +233,6 @@ void cleanShutdown(int exitcode)
     CacheDispose();
 #ifdef VALGRIND
     IVDispose(&targets);
-    WorkDispose();
     HeapDispose();
     NamespaceDispose();
     FileDisposeAll();

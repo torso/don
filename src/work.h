@@ -1,23 +1,18 @@
 struct _Work;
 
-typedef bool (*WorkFunction)(struct _Work*, vref*);
+typedef vref (*WorkFunction)(struct _Work*, vref*);
 
 typedef struct _Work
 {
     WorkFunction function;
-    VMBranch *branch;
-    const int *ip;
+    VM *vm;
     vref accessedFiles;
     vref modifiedFiles;
     uint argumentCount;
+    int storeAt;
 } Work;
 
-void WorkInit(void);
-void WorkDispose(void);
-
-nonnull Work *WorkAdd(WorkFunction function, VM *vm, uint argumentCount, vref **arguments);
-nonnull void WorkCommit(Work *work);
-nonnull void WorkAbort(Work *work);
-nonnull void WorkDiscard(const VMBranch *branch);
-bool WorkQueueEmpty(void);
-bool WorkExecute(void);
+nonnull Work *WorkAdd(WorkFunction function, VM *vm, const vref *arguments, uint argumentCount,
+                      vref accessedFiles, vref modifiedFiles);
+nonnull void WorkDiscard(Work *work);
+void WorkExecute(Work *work);

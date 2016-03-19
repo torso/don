@@ -206,10 +206,6 @@ static const int *disassemble(const int *bytecode, const int *base)
         printBinaryOperation(&bytecode, ">", arg);
         break;
 
-    case OP_AND:
-        printBinaryOperation(&bytecode, "and", arg);
-        break;
-
     case OP_ADD:
         printBinaryOperation(&bytecode, "+", arg);
         break;

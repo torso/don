@@ -1,0 +1,13 @@
+target default
+{
+    a = 24
+    a /= 3
+    if a == 8
+    {
+        a /= 12 / 3
+        if a == 2
+        {
+            echo("PASS")
+        }
+    }
+}

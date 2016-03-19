@@ -15,14 +15,14 @@ vref VFalse;
 vref VEmptyString;
 vref VEmptyList;
 vref VNewline;
+vref VFuture;
 
 static const char *getString(vref object)
 {
     const SubString *ss;
     VType type;
 
-start:
-    assert(!HeapIsFutureValue(object));
+    assert(object != VFuture);
 
     type = HeapGetObjectType(object);
     switch ((int)type)
@@ -33,44 +33,13 @@ start:
     case TYPE_SUBSTRING:
         ss = (const SubString*)HeapGetObjectData(object);
         return &getString(ss->string)[ss->offset];
-
-    case TYPE_VALUE:
-        object = *(vref*)HeapGetObjectData(object);
-        goto start;
     }
     unreachable;
 }
 
-bool VWait(vref *value)
-{
-    HeapObject ho;
-
-    for (;;)
-    {
-        HeapGet(*value, &ho);
-        if (ho.type & TYPE_FLAG_FUTURE)
-        {
-            return false;
-        }
-        if (ho.type != TYPE_VALUE)
-        {
-            return true;
-        }
-        *value = *(vref*)ho.data;
-    }
-}
-
 VBool VGetBool(vref value)
 {
-    HeapObject ho;
-
-start:
-    HeapGet(value, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
-    {
-        return FUTURE;
-    }
-    switch ((int)ho.type)
+    switch (HeapGetObjectType(value))
     {
     case TYPE_BOOLEAN_TRUE:
     case TYPE_FILE:
@@ -91,9 +60,11 @@ start:
     case TYPE_CONCAT_LIST:
         return VCollectionSize(value) ? TRUTHY : FALSY;
 
-    case TYPE_VALUE:
-        value = *(vref*)ho.data;
-        goto start;
+    case TYPE_FUTURE:
+        return FUTURE;
+
+    case TYPE_INVALID:
+        break;
     }
     unreachable;
 }
@@ -156,7 +127,7 @@ size_t VUnboxSize(vref object)
 
 bool VIsStringType(VType type)
 {
-    switch ((int)type)
+    switch (type)
     {
     case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
@@ -171,37 +142,18 @@ bool VIsStringType(VType type)
     case TYPE_STRING:
     case TYPE_SUBSTRING:
         return true;
+
+    case TYPE_INVALID:
+    case TYPE_FUTURE:
+        break;
     }
     unreachable;
 }
 
 bool VIsString(vref object)
 {
-    VType type;
-start:
-    assert(!HeapIsFutureValue(object));
-    type = HeapGetObjectType(object);
-    switch ((int)type)
-    {
-    case TYPE_STRING:
-    case TYPE_SUBSTRING:
-        return true;
-
-    case TYPE_NULL:
-    case TYPE_BOOLEAN_TRUE:
-    case TYPE_BOOLEAN_FALSE:
-    case TYPE_INTEGER:
-    case TYPE_FILE:
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-    case TYPE_CONCAT_LIST:
-        return false;
-
-    case TYPE_VALUE:
-        object = *(vref*)HeapGetObjectData(object);
-        goto start;
-    }
-    unreachable;
+    assert(object != VFuture);
+    return VIsStringType(HeapGetObjectType(object));
 }
 
 size_t VStringLength(vref value)
@@ -212,10 +164,8 @@ size_t VStringLength(vref value)
     vref item;
     HeapObject ho;
 
-start:
-    assert(!HeapIsFutureValue(value));
     HeapGet(value, &ho);
-    switch ((int)ho.type)
+    switch (ho.type)
     {
     case TYPE_NULL:
         return 4;
@@ -265,9 +215,9 @@ start:
         }
         return size;
 
-    case TYPE_VALUE:
-        value = *(vref*)ho.data;
-        goto start;
+    case TYPE_INVALID:
+    case TYPE_FUTURE:
+        break;
     }
     unreachable;
 }
@@ -303,7 +253,7 @@ vref VCreateSubstring(vref string, size_t offset, size_t length)
     byte *data;
     VType type;
 
-    assert(!HeapIsFutureValue(string));
+    assert(string != VFuture);
     assert(VIsString(string));
     assert(VStringLength(string) >= offset + length);
     if (!length)
@@ -314,7 +264,7 @@ vref VCreateSubstring(vref string, size_t offset, size_t length)
     {
         return string;
     }
-start:
+
     type = HeapGetObjectType(string);
     switch ((int)type)
     {
@@ -326,10 +276,6 @@ start:
         string = ss->string;
         offset += ss->offset;
         break;
-
-    case TYPE_VALUE:
-        string = *(vref*)HeapGetObjectData(string);
-        goto start;
 
     default:
         unreachable;
@@ -448,10 +394,9 @@ char *VWriteString(vref value, char *dst)
     HeapObject ho;
     const SubString *subString;
 
-start:
-    assert(!HeapIsFutureValue(value));
+    assert(value != VFuture);
     HeapGet(value, &ho);
-    switch ((int)ho.type)
+    switch (ho.type)
     {
     case TYPE_NULL:
         *dst++ = 'n';
@@ -528,9 +473,9 @@ start:
         *dst++ = ')';
         return dst;
 
-    case TYPE_VALUE:
-        value = *(vref*)ho.data;
-        goto start;
+    case TYPE_INVALID:
+    case TYPE_FUTURE:
+        break;
     }
     unreachable;
 }
@@ -664,8 +609,7 @@ size_t VCollectionSize(vref value)
     size_t size;
     HeapObject ho;
 
-start:
-    assert(!HeapIsFutureValue(value));
+    assert(value != VFuture);
     HeapGet(value, &ho);
     switch ((int)ho.type)
     {
@@ -687,10 +631,6 @@ start:
             size += VCollectionSize(*values++);
         }
         return size;
-
-    case TYPE_VALUE:
-        value = *(vref*)ho.data;
-        goto start;
     }
     unreachable;
 }
@@ -704,8 +644,8 @@ bool VCollectionGet(vref object, vref indexObject, vref *restrict value)
     size_t size;
     VType type;
 
-    assert(!HeapIsFutureValue(object));
-    assert(!HeapIsFutureValue(indexObject));
+    assert(object != VFuture);
+    assert(indexObject != VFuture);
 
     i = VUnboxInteger(indexObject);
     if (i < 0)
@@ -717,7 +657,6 @@ bool VCollectionGet(vref object, vref indexObject, vref *restrict value)
     {
         return false;
     }
-start:
     type = HeapGetObjectType(object);
     switch ((int)type)
     {
@@ -725,7 +664,6 @@ start:
     {
         vref *restrict data = (vref*)HeapGetObjectData(object);
         *value = data[index];
-        VWait(value);
         return true;
     }
 
@@ -753,124 +691,27 @@ start:
         }
         return false;
     }
-
-    case TYPE_VALUE:
-        object = *(vref*)HeapGetObjectData(object);
-        goto start;
     }
     unreachable;
 }
 
 
-static vref delay(VM *vm, WorkFunction function, VType type, size_t valueCount, const vref *values)
+vref VEquals(vref value1, vref value2)
 {
-    byte *objectData = HeapAlloc(type, valueCount * sizeof(vref));
-    assert(valueCount);
-    memcpy(objectData, values, valueCount * sizeof(vref));
+    VType type1, type2;
+
+    if (value1 == VFuture || value2 == VFuture)
     {
-        vref result = HeapFinishAlloc(objectData);
-        vref *p;
-        Work *work = WorkAdd(function, vm, 1, &p);
-        if (DEBUG_FUTURE)
-        {
-            char *strResult = HeapDebug(result);
-            printf("future %s = %ld(...)\n", strResult, valueCount);
-            free(strResult);
-        }
-        *p = result;
-        WorkCommit(work);
-        return result;
+        return VFuture;
     }
-}
-
-static vref delayBinary(VM *vm, WorkFunction function, VType type, vref value1, vref value2)
-{
-    byte *objectData = HeapAlloc(type, 2 * sizeof(vref));
-    vref *values = (vref*)objectData;
-    values[0] = value1;
-    values[1] = value2;
-    {
-        vref result = HeapFinishAlloc(objectData);
-        vref *p;
-        Work *work = WorkAdd(function, vm, 1, &p);
-        if (DEBUG_FUTURE)
-        {
-            char *strResult = HeapDebug(result);
-            char *strValue1 = HeapDebug(value1);
-            char *strValue2 = HeapDebug(value2);
-            printf("future %s = %s %s\n", strResult, strValue1, strValue2);
-            free(strResult);
-            free(strValue1);
-            free(strValue2);
-        }
-        *p = result;
-        WorkCommit(work);
-        return result;
-    }
-}
-
-static vref delayUnary(VM *vm, WorkFunction function, VType type, vref value)
-{
-    byte *objectData = HeapAlloc(type, sizeof(vref));
-    *(vref*)objectData = value;
-    {
-        vref result = HeapFinishAlloc(objectData);
-        vref *p;
-        Work *work = WorkAdd(function, vm, 1, &p);
-        if (DEBUG_FUTURE)
-        {
-            char *strResult = HeapDebug(result);
-            char *strValue = HeapDebug(value);
-            printf("future %s = %s\n", strResult, strValue);
-            free(strResult);
-            free(strValue);
-        }
-        *p = result;
-        WorkCommit(work);
-        return result;
-    }
-}
-
-static vref doEquals(vref value1, vref value2)
-{
-    HeapObject ho1;
-    HeapObject ho2;
-
     if (value1 == value2)
     {
         return VTrue;
     }
-    HeapGet(value1, &ho1);
-    HeapGet(value2, &ho2);
-    while (ho1.type == TYPE_VALUE)
-    {
-        value1 = *(vref*)ho1.data;
-        if (value1 == value2)
-        {
-            return VTrue;
-        }
-        HeapGet(value1, &ho1);
-    }
-    if (ho2.type == TYPE_VALUE)
-    {
-        do
-        {
-            value2 = *(vref*)ho2.data;
-            HeapGet(value2, &ho2);
-        }
-        while (ho2.type == TYPE_VALUE);
-        if (value1 == value2)
-        {
-            return VTrue;
-        }
-    }
+    type1 = HeapGetObjectType(value1);
+    type2 = HeapGetObjectType(value2);
 
-    if ((ho1.type | ho2.type) & TYPE_FLAG_FUTURE)
-    {
-        return 0;
-    }
-
-    switch ((int)ho1.type)
+    switch (type1)
     {
     case TYPE_NULL:
     case TYPE_BOOLEAN_TRUE:
@@ -880,7 +721,7 @@ static vref doEquals(vref value1, vref value2)
 
     case TYPE_STRING:
     case TYPE_SUBSTRING:
-        if (!VIsStringType(ho2.type))
+        if (!VIsStringType(type2))
         {
             return VFalse;
         }
@@ -897,7 +738,7 @@ static vref doEquals(vref value1, vref value2)
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
-        if (!VIsCollectionType(ho2.type))
+        if (!VIsCollectionType(type2))
         {
             return VFalse;
         }
@@ -918,7 +759,7 @@ static vref doEquals(vref value1, vref value2)
                     VCollectionGet(value1, VBoxSize(index), &item1) &&
                     VCollectionGet(value2, VBoxSize(index), &item2);
                 assert(success);
-                result = doEquals(item1, item2);
+                result = VEquals(item1, item2);
                 if (result != VTrue)
                 {
                     return result;
@@ -927,577 +768,157 @@ static vref doEquals(vref value1, vref value2)
         }
         return VTrue;
 
+    case TYPE_FUTURE:
+    case TYPE_INVALID:
     default:
         unreachable;
     }
 }
 
-static bool workEquals(Work *work unused, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doEquals(operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
-}
-
-vref VEquals(VM *vm, vref value1, vref value2)
-{
-    vref value = doEquals(value1, value2);
-    if (!value)
-    {
-        return delayBinary(vm, workEquals, TYPE_FUTURE_EQUALS, value1, value2);
-    }
-    return value;
-}
-
-static bool workNotEquals(Work *work unused, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doEquals(operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result == VTrue ? VFalse : VTrue);
-        return true;
-    }
-    return false;
-}
-
-vref VNotEquals(VM *vm, vref value1, vref value2)
-{
-    vref value = doEquals(value1, value2);
-    if (!value)
-    {
-        return delayBinary(vm, workNotEquals, TYPE_FUTURE_NOT_EQUALS, value1, value2);
-    }
-    return value == VTrue ? VFalse : VTrue;
-}
-
-static vref doLess(VMBranch *branch, const int *ip, vref value1, vref value2)
-{
-    HeapObject ho;
-
-checkType1:
-    HeapGet(value1, &ho);
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value1 = *(vref*)ho.data;
-        goto checkType1;
-    case TYPE_FUTURE:
-        return 0;
-    default:
-        goto error;
-    }
-checkType2:
-    HeapGet(value2, &ho);
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value2 = *(vref*)ho.data;
-        goto checkType2;
-    case TYPE_FUTURE:
-        return 0;
-    default:
-        goto error;
-    }
-    return VUnboxInteger(value1) < VUnboxInteger(value2) ?
-        VTrue : VFalse;
-
-error:
-    {
-        const char msg[] = "Cannot compare non-numbers";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-    }
-    return VNull;
-}
-
-static bool workLess(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doLess(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
-}
-
 vref VLess(VM *vm, vref value1, vref value2)
 {
-    vref value = doLess(vm->branch, vm->ip, value1, value2);
-    if (!value)
+    if (VIsInteger(value1) && VIsInteger(value2))
     {
-        return delayBinary(vm, workLess, TYPE_FUTURE_LESS, value1, value2);
+        return VUnboxInteger(value1) < VUnboxInteger(value2) ?
+            VTrue : VFalse;
     }
-    return value;
-}
-
-static vref doLessEquals(VMBranch *branch, const int *ip, vref value1, vref value2)
-{
-    HeapObject ho;
-
-checkType1:
-    HeapGet(value1, &ho);
-    switch ((int)ho.type)
+    if (value1 == VFuture || value2 == VFuture)
     {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value1 = *(vref*)ho.data;
-        goto checkType1;
-    case TYPE_FUTURE:
-        return 0;
-    default:
-        goto error;
+        return VFuture;
     }
-checkType2:
-    HeapGet(value2, &ho);
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value2 = *(vref*)ho.data;
-        goto checkType2;
-    case TYPE_FUTURE:
-        return 0;
-    default:
-        goto error;
-    }
-    return VUnboxInteger(value1) <= VUnboxInteger(value2) ?
-        VTrue : VFalse;
 
-error:
     {
         const char msg[] = "Cannot compare non-numbers";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
+        VMFail(vm, msg, sizeof(msg) - 1);
     }
-    return VNull;
-}
-
-static bool workLessEquals(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doLessEquals(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
+    return 0;
 }
 
 vref VLessEquals(VM *vm, vref value1, vref value2)
 {
-    vref value = doLessEquals(vm->branch, vm->ip, value1, value2);
-    if (!value)
+    if (VIsInteger(value1) && VIsInteger(value2))
     {
-        return delayBinary(vm, workLessEquals, TYPE_FUTURE_LESS_EQUALS, value1, value2);
+        return VUnboxInteger(value1) <= VUnboxInteger(value2) ?
+            VTrue : VFalse;
     }
-    return value;
-}
+    if (value1 == VFuture || value2 == VFuture)
+    {
+        return VFuture;
+    }
 
-static vref doAdd(VMBranch *branch, const int *ip, vref value1, vref value2)
-{
-    HeapObject ho;
-
-checkType1:
-    HeapGet(value1, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
     {
-        /* TODO: Check if value2 is zero */
-        return 0;
+        const char msg[] = "Cannot compare non-numbers";
+        VMFail(vm, msg, sizeof(msg) - 1);
     }
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value1 = *(vref*)ho.data;
-        goto checkType1;
-    case TYPE_FUTURE:
-        return 0;
-    default:
-        goto error;
-    }
-checkType2:
-    HeapGet(value2, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
-    {
-        return VUnboxInteger(value1) ? 0 : value2;
-    }
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value2 = *(vref*)ho.data;
-        goto checkType2;
-    default:
-        goto error;
-    }
-    return VBoxInteger(VUnboxInteger(value1) + VUnboxInteger(value2));
-
-error:
-    {
-        const char msg[] = "Cannot add non-numbers. Use \"$a$b\" to concatenate strings";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-    }
-    return VNull;
-}
-
-static bool workAdd(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doAdd(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
+    return 0;
 }
 
 vref VAdd(VM *vm, vref value1, vref value2)
 {
-    vref value = doAdd(vm->branch, vm->ip, value1, value2);
-    if (!value)
+    if (VIsInteger(value1) && VIsInteger(value2))
     {
-        return delayBinary(vm, workAdd, TYPE_FUTURE_ADD, value1, value2);
+        return VBoxInteger(VUnboxInteger(value1) + VUnboxInteger(value2));
     }
-    return value;
-}
+    if (value1 == VFuture || value2 == VFuture)
+    {
+        return VFuture;
+    }
 
-static vref doSub(VMBranch *branch, const int *ip, vref value1, vref value2)
-{
-    HeapObject ho;
-
-checkType1:
-    HeapGet(value1, &ho);
-    switch ((int)ho.type)
     {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value1 = *(vref*)ho.data;
-        goto checkType1;
-    case TYPE_FUTURE:
-        return 0;
-    default:
-        goto error;
+        const char msg[] = "Cannot add non-numbers. Use \"$a$b\" to concatenate strings";
+        VMFail(vm, msg, sizeof(msg) - 1);
     }
-checkType2:
-    HeapGet(value2, &ho);
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value2 = *(vref*)ho.data;
-        goto checkType2;
-    case TYPE_FUTURE:
-        return 0;
-    default:
-        goto error;
-    }
-    return VBoxInteger(VUnboxInteger(value1) - VUnboxInteger(value2));
-
-error:
-    {
-        const char msg[] = "Cannot subtract non-numbers";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-    }
-    return VNull;
-}
-
-static bool workSub(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doSub(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
+    return 0;
 }
 
 vref VSub(VM *vm, vref value1, vref value2)
 {
-    vref value = doSub(vm->branch, vm->ip, value1, value2);
-    if (!value)
+    if (VIsInteger(value1) && VIsInteger(value2))
     {
-        return delayBinary(vm, workSub, TYPE_FUTURE_SUB, value1, value2);
+        return VBoxInteger(VUnboxInteger(value1) - VUnboxInteger(value2));
     }
-    return value;
-}
+    if (value1 == VFuture || value2 == VFuture)
+    {
+        return VFuture;
+    }
 
-static vref doMul(VMBranch *branch, const int *ip, vref value1, vref value2)
-{
-    HeapObject ho;
-
-checkType1:
-    HeapGet(value1, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
     {
-        return 0;
+        const char msg[] = "Cannot subtract non-numbers";
+        VMFail(vm, msg, sizeof(msg) - 1);
     }
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value1 = *(vref*)ho.data;
-        goto checkType1;
-    default:
-        goto error;
-    }
-checkType2:
-    HeapGet(value2, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
-    {
-        return 0;
-    }
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value2 = *(vref*)ho.data;
-        goto checkType2;
-    default:
-        goto error;
-    }
-    return VBoxInteger(VUnboxInteger(value1) * VUnboxInteger(value2));
-
-error:
-    {
-        const char msg[] = "Cannot multiply non-numbers";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-    }
-    return VNull;
-}
-
-static bool workMul(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doMul(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
+    return 0;
 }
 
 vref VMul(VM *vm, vref value1, vref value2)
 {
-    vref value = doMul(vm->branch, vm->ip, value1, value2);
-    if (!value)
+    if (VIsInteger(value1) && VIsInteger(value2))
     {
-        return delayBinary(vm, workMul, TYPE_FUTURE_MUL, value1, value2);
+        return VBoxInteger(VUnboxInteger(value1) * VUnboxInteger(value2));
     }
-    return value;
-}
+    if (value1 == VFuture || value2 == VFuture)
+    {
+        return VFuture;
+    }
 
-static vref doDiv(VMBranch *branch, const int *ip, vref value1, vref value2)
-{
-    HeapObject ho;
-
-checkType1:
-    HeapGet(value1, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
     {
-        return 0;
+        const char msg[] = "Cannot multiply non-numbers";
+        VMFail(vm, msg, sizeof(msg) - 1);
     }
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value1 = *(vref*)ho.data;
-        goto checkType1;
-    default:
-        goto error;
-    }
-checkType2:
-    HeapGet(value2, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
-    {
-        return 0;
-    }
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value2 = *(vref*)ho.data;
-        goto checkType2;
-    default:
-        goto error;
-    }
-    assert((VUnboxInteger(value1) / VUnboxInteger(value2)) * VUnboxInteger(value2) ==
-           VUnboxInteger(value1)); /* TODO: fraction */
-    return VBoxInteger(VUnboxInteger(value1) / VUnboxInteger(value2));
-
-error:
-    {
-        const char msg[] = "Cannot divide non-numbers";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-    }
-    return VNull;
-}
-
-static bool workDiv(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doDiv(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
+    return 0;
 }
 
 vref VDiv(VM *vm, vref value1, vref value2)
 {
-    vref value = doDiv(vm->branch, vm->ip, value1, value2);
-    if (!value)
+    if (VIsInteger(value1) && VIsInteger(value2))
     {
-        return delayBinary(vm, workDiv, TYPE_FUTURE_DIV, value1, value2);
+        int i2 = VUnboxInteger(value2);
+        if (!i2)
+        {
+            const char msg[] = "Division by zero";
+            VMFail(vm, msg, sizeof(msg) - 1);
+            return 0;
+        }
+        assert((VUnboxInteger(value1) / i2) * i2 == VUnboxInteger(value1)); /* TODO: fraction */
+        return VBoxInteger(VUnboxInteger(value1) / i2);
     }
-    return value;
-}
+    if (value1 == VFuture || value2 == VFuture)
+    {
+        return VFuture;
+    }
 
-static vref doRem(VMBranch *branch, const int *ip, vref value1, vref value2)
-{
-    HeapObject ho;
-
-checkType1:
-    HeapGet(value1, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
-    {
-        return 0;
-    }
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value1 = *(vref*)ho.data;
-        goto checkType1;
-    default:
-        goto error;
-    }
-checkType2:
-    HeapGet(value2, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
-    {
-        return 0;
-    }
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value2 = *(vref*)ho.data;
-        goto checkType2;
-    default:
-        goto error;
-    }
-    return VBoxInteger(VUnboxInteger(value1) % VUnboxInteger(value2));
-
-error:
     {
         const char msg[] = "Cannot divide non-numbers";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
+        VMFail(vm, msg, sizeof(msg) - 1);
     }
-    return VNull;
-}
-
-static bool workRem(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doRem(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
+    return 0;
 }
 
 vref VRem(VM *vm, vref value1, vref value2)
 {
-    vref value = doRem(vm->branch, vm->ip, value1, value2);
-    if (!value)
+    if (VIsInteger(value1) && VIsInteger(value2))
     {
-        return delayBinary(vm, workRem, TYPE_FUTURE_REM, value1, value2);
+        int i2 = VUnboxInteger(value2);
+        if (!i2)
+        {
+            const char msg[] = "Division by zero";
+            VMFail(vm, msg, sizeof(msg) - 1);
+            return 0;
+        }
+        return VBoxInteger(VUnboxInteger(value1) % i2);
     }
-    return value;
-}
-
-static vref doAnd(vref value1, vref value2)
-{
-    VBool b1 = VGetBool(value1);
-    VBool b2 = VGetBool(value2);
-
-    if (b1 == FALSY || b2 == FALSY)
+    if (value1 == VFuture || value2 == VFuture)
     {
-        return VFalse;
-    }
-    if (b1 == TRUTHY && b2 == TRUTHY)
-    {
-        return VTrue;
+        return VFuture;
     }
 
-    assert(b1 == FUTURE || b2 == FUTURE);
+    {
+        const char msg[] = "Cannot divide non-numbers";
+        VMFail(vm, msg, sizeof(msg) - 1);
+    }
     return 0;
 }
 
-static bool workAnd(Work *work unused, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doAnd(operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
-}
-
-vref VAnd(VM *vm, vref value1, vref value2)
-{
-    vref value = doAnd(value1, value2);
-    if (!value)
-    {
-        return delayBinary(vm, workAnd, TYPE_FUTURE_AND, value1, value2);
-    }
-    return value;
-}
-
-static vref doNot(vref value)
+vref VNot(vref value)
 {
     switch (VGetBool(value))
     {
@@ -1506,254 +927,121 @@ static vref doNot(vref value)
     case FALSY:
         return VTrue;
     case FUTURE:
-        return 0;
+        return VFuture;
     }
     unreachable;
 }
 
-static bool workNot(Work *work unused, vref *values)
-{
-    vref value = *values;
-    const vref *operand = (const vref*)HeapGetObjectData(value);
-    vref result = doNot(*operand);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
-}
-
-vref VNot(VM *vm, vref value)
-{
-    vref result = doNot(value);
-    if (!result)
-    {
-        return delayUnary(vm, workNot, TYPE_FUTURE_NOT, value);
-    }
-    return result;
-}
-
-static vref doNeg(VMBranch *branch, const int *ip, vref value)
-{
-    HeapObject ho;
-
-checkType:
-    HeapGet(value, &ho);
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        return VBoxInteger(-VUnboxInteger(value));
-    case TYPE_VALUE:
-        value = *(vref*)ho.data;
-        goto checkType;
-    case TYPE_FUTURE:
-        return 0;
-    }
-
-    {
-        const char msg[] = "Cannot negate non-number.";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-    }
-    return VNull;
-}
-
-static bool workNeg(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operand = (const vref*)HeapGetObjectData(value);
-    vref result = doNeg(work->branch, work->ip, *operand);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
-}
-
 vref VNeg(VM *vm, vref value)
 {
-    vref result = doNeg(vm->branch, vm->ip, value);
-    if (!result)
+    if (VIsInteger(value))
     {
-        return delayUnary(vm, workNeg, TYPE_FUTURE_NEG, value);
+        return VBoxInteger(-VUnboxInteger(value));
     }
-    return result;
-}
-
-static vref doInv(VMBranch *branch, const int *ip, vref value)
-{
-    HeapObject ho;
-
-checkType:
-    HeapGet(value, &ho);
-    switch ((int)ho.type)
+    if (value == VFuture)
     {
-    case TYPE_INTEGER:
-        return VBoxInteger(~VUnboxInteger(value));
-    case TYPE_VALUE:
-        value = *(vref*)ho.data;
-        goto checkType;
-    case TYPE_FUTURE:
-        return 0;
+        return VFuture;
     }
-
     {
-        const char msg[] = "Cannot invert non-number.";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
+        const char msg[] = "Cannot negate non-number";
+        VMFail(vm, msg, sizeof(msg) - 1);
     }
-    return VNull;
-}
-
-static bool workInv(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operand = (const vref*)HeapGetObjectData(value);
-    vref result = doInv(work->branch, work->ip, *operand);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
+    return 0;
 }
 
 vref VInv(VM *vm, vref value)
 {
-    vref result = doInv(vm->branch, vm->ip, value);
-    if (!result)
+    if (VIsInteger(value))
     {
-        return delayUnary(vm, workInv, TYPE_FUTURE_INV, value);
+        return VBoxInteger(~VUnboxInteger(value));
     }
-    return result;
+    if (value == VFuture)
+    {
+        return VFuture;
+    }
+    {
+        const char msg[] = "Cannot invert non-number.";
+        VMFail(vm, msg, sizeof(msg) - 1);
+    }
+    return 0;
 }
 
-static vref doValidIndex(VMBranch *branch, const int *ip, vref collection, vref index)
+vref VValidIndex(VM *vm, vref collection, vref index)
 {
-    HeapObject hoIndex;
-    HeapObject ho;
+    VType type;
 
-    for (;;)
+    if (!VIsInteger(index))
     {
-        HeapGet(index, &hoIndex);
-        if (hoIndex.type != TYPE_VALUE)
-        {
-            break;
-        }
-        index = *(vref*)hoIndex.data;
+        assert(index == VFuture); /* TODO */
+        return VFuture;
     }
-    if (hoIndex.type & TYPE_FLAG_FUTURE)
-    {
-        return 0;
-    }
-    assert(hoIndex.type == TYPE_INTEGER);
 
-checkCollection:
-    HeapGet(collection, &ho);
-    switch ((int)ho.type)
+    type = HeapGetObjectType(collection);
+    switch ((int)type)
     {
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
         return VUnboxSize(index) < VCollectionSize(collection) ? VTrue : VFalse;
 
-    case TYPE_VALUE:
-        collection = *(vref*)ho.data;
-        goto checkCollection;
+    case TYPE_FUTURE:
+        return VFuture;
 
     default:
-        if (ho.type & TYPE_FLAG_FUTURE)
-        {
-            return 0;
-        }
-        {
-            const char msg[] = "Can't iterate over non-collection type";
-            VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-        }
-        return VNull;
+    {
+        const char msg[] = "Can't iterate over non-collection type";
+        VMFail(vm, msg, sizeof(msg) - 1);
+        return 0;
+    }
     }
     unreachable;
 }
 
-static bool workValidIndex(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doValidIndex(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
-}
-
-vref VValidIndex(VM *vm, vref collection, vref index)
-{
-    vref value = doValidIndex(vm->branch, vm->ip, collection, index);
-    if (!value)
-    {
-        return delayBinary(vm, workValidIndex, TYPE_FUTURE_VALID_INDEX, collection, index);
-    }
-    return value;
-}
-
-static vref doIndexedAccess(VMBranch *branch, const int *ip, vref value1, vref value2)
+vref VIndexedAccess(VM *vm, vref value1, vref value2)
 {
     vref value;
-    HeapObject hoIndex;
-    HeapObject ho;
+    VType indexType = HeapGetObjectType(value2);
+    VType type;
 
-checkType2:
-    HeapGet(value2, &hoIndex);
-    if (hoIndex.type & TYPE_FLAG_FUTURE)
-    {
-        return 0;
-    }
-    switch ((int)hoIndex.type)
+    switch ((int)indexType)
     {
     case TYPE_INTEGER:
     case TYPE_INTEGER_RANGE:
         break;
-    case TYPE_VALUE:
-        value2 = *(vref*)hoIndex.data;
-        goto checkType2;
+    case TYPE_FUTURE:
+        return VFuture;
     default:
     {
         const char msg[] = "Index must be an integer";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-    }
-        return VNull;
-    }
-checkType1:
-    HeapGet(value1, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
-    {
+        VMFail(vm, msg, sizeof(msg) - 1);
         return 0;
     }
-    switch ((int)ho.type)
+    }
+
+    type = HeapGetObjectType(value1);
+    switch ((int)type)
     {
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
-        if (hoIndex.type != TYPE_INTEGER)
+        if (indexType != TYPE_INTEGER)
         {
             /* TODO: Range */
             const char msg[] = "Index must be an integer";
-            VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-            return VNull;
+            VMFail(vm, msg, sizeof(msg) - 1);
+            return 0;
         }
         if (!VCollectionGet(value1, value2, &value))
         {
             const char msg[] = "Array index out of bounds";
-            VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-            return VNull;
+            VMFail(vm, msg, sizeof(msg) - 1);
+            return 0;
         }
         return value;
 
     case TYPE_STRING:
     case TYPE_SUBSTRING:
-        if (hoIndex.type == TYPE_INTEGER_RANGE)
+        if (indexType == TYPE_INTEGER_RANGE)
         {
             size_t size1 = VUnboxSize(HeapRangeLow(value2));
             size_t size2 = VUnboxSize(HeapRangeHigh(value2));
@@ -1762,149 +1050,64 @@ checkType1:
         }
         else
         {
-            assert(hoIndex.type == TYPE_INTEGER);
+            assert(indexType == TYPE_INTEGER);
             return VCreateSubstring(value1, VUnboxSize(value2), 1);
         }
 
-    case TYPE_VALUE:
-        value1 = *(vref*)ho.data;
-        goto checkType1;
+    case TYPE_FUTURE:
+        return VFuture;
 
     default:
     {
         const char msg[] = "Can't do indexed access on non-collection and non-string type";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-        return VNull;
+        VMFail(vm, msg, sizeof(msg) - 1);
+        return 0;
     }
     }
     unreachable;
 }
 
-static bool workIndexedAccess(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doIndexedAccess(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
-}
-
-vref VIndexedAccess(VM *vm, vref value1, vref value2)
-{
-    vref value = doIndexedAccess(vm->branch, vm->ip, value1, value2);
-    if (!value)
-    {
-        return delayBinary(vm, workIndexedAccess, TYPE_FUTURE_INDEXED_ACCESS, value1, value2);
-    }
-    return value;
-}
-
-static vref doRange(VMBranch *branch, const int *ip, vref value1, vref value2)
-{
-    HeapObject ho;
-
-checkType1:
-    HeapGet(value1, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
-    {
-        return 0;
-    }
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value1 = *(vref*)ho.data;
-        goto checkType1;
-    default:
-        goto error;
-    }
-checkType2:
-    HeapGet(value2, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
-    {
-        return 0;
-    }
-    switch ((int)ho.type)
-    {
-    case TYPE_INTEGER:
-        break;
-    case TYPE_VALUE:
-        value2 = *(vref*)ho.data;
-        goto checkType2;
-    default:
-        goto error;
-    }
-    return HeapCreateRange(value1, value2);
-
-error:
-    {
-        const char msg[] = "Range operands must be numbers";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
-    }
-    return VNull;
-}
-
-static bool workRange(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doRange(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
-}
-
 vref VRange(VM *vm, vref value1, vref value2)
 {
-    vref value = doRange(vm->branch, vm->ip, value1, value2);
-    if (!value)
+    if (VIsInteger(value1) && VIsInteger(value2))
     {
-        return delayBinary(vm, workRange, TYPE_FUTURE_RANGE, value1, value2);
+        return HeapCreateRange(value1, value2);
     }
-    return value;
+    if (value1 == VFuture || value2 == VFuture)
+    {
+        return VFuture;
+    }
+
+    {
+        const char msg[] = "Range operands must be numbers";
+        VMFail(vm, msg, sizeof(msg) - 1);
+    }
+    return 0;
 }
 
-static vref doConcat(VMBranch *branch, const int *ip, vref value1, vref value2)
+vref VConcat(VM *vm, vref value1, vref value2)
 {
-    HeapObject ho;
-
-checkType1:
-    HeapGet(value1, &ho);
-    switch ((int)ho.type)
+    VType type = HeapGetObjectType(value1);
+    switch ((int)type)
     {
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
         break;
-    case TYPE_VALUE:
-        value1 = *(vref*)ho.data;
-        goto checkType1;
+    case TYPE_FUTURE:
+        return VFuture;
     default:
         goto error;
     }
-checkType2:
-    HeapGet(value2, &ho);
-    if (ho.type & TYPE_FLAG_FUTURE)
-    {
-        return 0;
-    }
-    switch ((int)ho.type)
+    type = HeapGetObjectType(value2);
+    switch ((int)type)
     {
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
     case TYPE_CONCAT_LIST:
         break;
-    case TYPE_VALUE:
-        value2 = *(vref*)ho.data;
-        goto checkType2;
+    case TYPE_FUTURE:
+        return VFuture;
     default:
         goto error;
     }
@@ -1913,56 +1116,24 @@ checkType2:
 error:
     {
         const char msg[] = "Concat operands must be lists";
-        VMBranchFail(branch, ip, VCreateString(msg, sizeof(msg) - 1));
+        VMFail(vm, msg, sizeof(msg) - 1);
     }
-    return VNull;
+    return 0;
 }
 
-static bool workConcat(Work *work, vref *values)
-{
-    vref value = *values;
-    const vref *operands = (const vref*)HeapGetObjectData(value);
-    vref result = doConcat(work->branch, work->ip, operands[0], operands[1]);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
-}
-
-vref VConcat(VM *vm, vref value1, vref value2)
-{
-    vref value = doConcat(vm->branch, vm->ip, value1, value2);
-    if (!value)
-    {
-        return delayBinary(vm, workConcat, TYPE_FUTURE_CONCAT, value1, value2);
-    }
-    return value;
-}
-
-static vref doConcatString(size_t valueCount, vref *values)
+vref VConcatString(size_t count, vref *values)
 {
     size_t i;
     size_t length = 0;
     vref string;
     char *data;
 
-    for (i = 0; i < valueCount; i++)
+    for (i = 0; i < count; i++)
     {
-        HeapObject ho;
         vref value = values[i];
-        goto l1;
-        while (ho.type == TYPE_VALUE)
+        if (value == VFuture)
         {
-            value = *(vref*)ho.data;
-            values[i] = value;
-    l1:
-            HeapGet(value, &ho);
-            if (ho.type & TYPE_FLAG_FUTURE)
-            {
-                return 0;
-            }
+            return VFuture;
         }
         length += VStringLength(value);
     }
@@ -1971,34 +1142,9 @@ static vref doConcatString(size_t valueCount, vref *values)
         return VEmptyString;
     }
     string = VCreateUninitialisedString(length, &data);
-    for (i = 0; i < valueCount; i++)
+    for (i = 0; i < count; i++)
     {
         data = VWriteString(values[i], data);
     }
     return string;
-}
-
-static bool workConcatString(Work *work unused, vref *values)
-{
-    HeapObject ho;
-    vref value = *values;
-    vref result;
-    HeapGet(value, &ho);
-    result = doConcatString(ho.size / sizeof(vref), (vref*)ho.data);
-    if (result)
-    {
-        HeapSetFutureValue(value, result);
-        return true;
-    }
-    return false;
-}
-
-vref VConcatString(VM *vm, size_t count, vref *values)
-{
-    vref value = doConcatString(count, values);
-    if (!value)
-    {
-        return delay(vm, workConcatString, TYPE_FUTURE_CONCAT_STRING, count, values);
-    }
-    return value;
 }
