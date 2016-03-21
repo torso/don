@@ -1,0 +1,10 @@
+target default
+{
+    if 6 % 3 == 0
+    {
+        if 24 % 5 == 4
+        {
+            echo("PASS")
+        }
+    }
+}

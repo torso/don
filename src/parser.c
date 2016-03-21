@@ -1855,7 +1855,7 @@ static bool parseExpression8(ParseState *state, ExpressionState *estate)
                 return true;
             }
             if (unlikely(!parseBinaryOperationRest(
-                             state, estate, parseExpression9, OP_AND)))
+                             state, estate, parseExpression9, OP_REM)))
             {
                 return false;
             }
