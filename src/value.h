@@ -103,6 +103,10 @@ nonnull bool VIsFile(vref object);
 nonnull vref VPathFromParts(vref path, vref name, vref extension);
 
 
+nonnull vref VCreateFilelist(vref value);
+nonnull vref VCreateFilelistGlob(const char *pattern, size_t length);
+
+
 nonnull vref *VCreateArray(size_t size);
 nonnull vref VFinishArray(vref *array);
 nonnull vref VCreateArrayFromData(const vref *values, size_t size);

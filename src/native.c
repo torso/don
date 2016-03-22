@@ -423,7 +423,7 @@ static vref nativeFilelist(VM *vm)
     {
         return VFuture;
     }
-    return HeapCreateFilelist(value);
+    return VCreateFilelist(value);
 }
 
 typedef struct

@@ -141,7 +141,7 @@ static VM *execute(VM *vm)
             }
             else
             {
-                result = HeapCreateFilelistGlob(VGetString(string), VStringLength(string));
+                result = VCreateFilelistGlob(VGetString(string), VStringLength(string));
             }
             storeValue(vm, vm->bp, *vm->ip++, result);
             break;

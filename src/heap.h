@@ -22,6 +22,11 @@ void HeapDispose(void);
 byte *HeapAlloc(VType type, size_t size);
 nonnull vref HeapFinishAlloc(byte *objectData);
 nonnull vref HeapFinishRealloc(byte *objectData, size_t size);
+nonnull void HeapAllocAbort(byte *objectData);
+void HeapFree(vref value);
+
+vref HeapTop(void); /* TODO: Deprecated */
+vref HeapNext(vref object); /* TODO: Deprecated */
 
 nonnull void HeapGet(vref v, HeapObject *ho);
 nonnull char *HeapDebug(vref object);
@@ -29,10 +34,6 @@ nonnull VType HeapGetObjectType(vref object);
 nonnull size_t HeapGetObjectSize(vref object);
 nonnull const byte *HeapGetObjectData(vref object);
 nonnull void HeapHash(vref object, HashState *hash);
-
-
-nonnull vref HeapCreateFilelist(vref value);
-nonnull vref HeapCreateFilelistGlob(const char *pattern, size_t length);
 
 
 

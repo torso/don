@@ -5,8 +5,6 @@
 #include "common.h"
 #include "bytevector.h"
 #include "debug.h"
-#include "fail.h"
-#include "file.h"
 #include "hash.h"
 #include "heap.h"
 #include "intvector.h"
@@ -62,25 +60,25 @@ vref HeapFinishRealloc(byte *objectData, size_t size)
     return HeapFinishAlloc(objectData);
 }
 
-static void heapAllocAbort(byte *objectData)
+void HeapAllocAbort(byte *objectData)
 {
     assert(HeapPageFree == objectData);
     HeapPageFree -= OBJECT_OVERHEAD;
 }
 
-static void heapFree(vref value)
+void HeapFree(vref value)
 {
     assert(HeapGetObjectData(value) + HeapGetObjectSize(value) == HeapPageFree);
     HeapPageFree -= OBJECT_OVERHEAD + HeapGetObjectSize(value);
 }
 
 
-static vref heapTop(void)
+vref HeapTop(void)
 {
     return refFromSize((size_t)(HeapPageFree - HeapPageBase));
 }
 
-static vref heapNext(vref object)
+vref HeapNext(vref object)
 {
     checkObject(object);
     return refFromSize(
@@ -350,148 +348,6 @@ void HeapHash(vref object, HashState *hash)
         break;
     }
     unreachable;
-}
-
-
-/* TODO: Size limit. */
-static void getAllFlattened(vref list, vref *restrict dst, size_t *size,
-                            bool *flattened)
-{
-    size_t i;
-    size_t size2;
-    const vref *restrict src;
-    VType type;
-
-    type = HeapGetObjectType(list);
-    switch ((int)type)
-    {
-    case TYPE_ARRAY:
-        src = (const vref*)HeapGetObjectData(list);
-        size2 = HeapGetObjectSize(list) / sizeof(vref);
-        for (i = 0; i < size2; i++)
-        {
-            vref v = *src++;
-            assert(v != VFuture);
-            if (VIsCollection(v))
-            {
-                size_t s = 0;
-                *flattened = true;
-                getAllFlattened(v, dst, &s, flattened);
-                *size += s;
-                dst += s;
-            }
-            else
-            {
-                *dst++ = v;
-                (*size)++;
-            }
-        }
-        return;
-
-    case TYPE_INTEGER_RANGE:
-        Fail("TODO: getAllFlattened: TYPE_INTEGER_RANGE\n");
-
-    case TYPE_CONCAT_LIST:
-        src = (const vref*)HeapGetObjectData(list);
-        size2 = HeapGetObjectSize(list) / sizeof(vref);
-        for (i = 0; i < size2; i++)
-        {
-            size_t s = 0;
-            getAllFlattened(*src++, dst, &s, flattened);
-            *size += s;
-            dst += s;
-        }
-        return;
-    }
-    unreachable;
-}
-
-/* TODO: Strip null */
-vref HeapCreateFilelist(vref value)
-{
-    size_t size;
-    size_t i;
-    vref newValue;
-    vref *data;
-    bool converted = false;
-    assert(value != VFuture); /* TODO */
-    for (;;)
-    {
-        VType type = HeapGetObjectType(value);
-        if (!VIsCollectionType(type))
-        {
-            value = VCreatePath(value);
-            return VCreateArrayFromData(&value, 1);
-        }
-        size = VCollectionSize(value);
-        if (!size)
-        {
-            return VEmptyList;
-        }
-        if (size != 1)
-        {
-            break;
-        }
-        VCollectionGet(value, VBoxInteger(0), &value);
-    }
-
-    data = (vref*)HeapAlloc(TYPE_ARRAY, 0);
-    size = 0;
-    getAllFlattened(value, data, &size, &converted);
-    if (!size)
-    {
-        heapAllocAbort((byte*)data);
-        return VEmptyList;
-    }
-    newValue = HeapFinishRealloc((byte*)data, size * sizeof(vref));
-    for (i = 0; i < size; i++)
-    {
-        if (!VIsFile(data[i]))
-        {
-            converted = true;
-            data[i] = VCreatePath(data[i]);
-        }
-    }
-    /* When measured, it was faster to create a new array than to keep a
-       non-array type. */
-    if (!converted && HeapGetObjectType(value) == TYPE_ARRAY)
-    {
-        heapFree(newValue);
-        return value;
-    }
-    return newValue;
-}
-
-static void createPath(const char *path, size_t length, void *userdata)
-{
-    VCreatePath(VCreateString(path, length));
-    (*(size_t*)userdata)++;
-}
-
-vref HeapCreateFilelistGlob(const char *pattern, size_t length)
-{
-    vref object = heapTop();
-    size_t count = 0;
-    vref *array;
-    vref *files;
-
-    FileTraverseGlob(pattern, length, createPath, &count);
-    if (!count)
-    {
-        return VEmptyList;
-    }
-    array = VCreateArray(count); /* TODO: Filelist type */
-    files = array;
-    while (count--)
-    {
-        assert(VIsString(object));
-        object = heapNext(object);
-        assert(VIsFile(object));
-        *files++ = object;
-        object = heapNext(object);
-    }
-    /* TODO: Sort filelist */
-    return VFinishArray(array);
 }
 
 
