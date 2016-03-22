@@ -9,7 +9,6 @@
 #include "file.h"
 #include "hash.h"
 #include "heap.h"
-#include "instruction.h"
 #include "intvector.h"
 #include "math.h"
 #include "parser.h"
