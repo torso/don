@@ -3,7 +3,7 @@
 #include <string.h>
 #include "common.h"
 #include "env.h"
-#include "heap.h"
+#include "value.h"
 
 static const char **env;
 static size_t envCount;

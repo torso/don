@@ -5,7 +5,6 @@
 #include "bytecode.h"
 #include "debug.h"
 #include "fail.h"
-#include "heap.h"
 #include "instruction.h"
 #include "inthashmap.h"
 #include "intvector.h"
@@ -13,6 +12,7 @@
 #include "namespace.h"
 #include "native.h"
 #include "parser.h"
+#include "value.h"
 
 typedef struct
 {

@@ -6,9 +6,9 @@
 #include "bytecode.h"
 #include "debug.h"
 #include "linker.h"
-#include "heap.h"
 #include "instruction.h"
 #include "job.h"
+#include "value.h"
 #include "vm.h"
 
 const int *vmBytecode;

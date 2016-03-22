@@ -3,8 +3,8 @@
 #include <string.h>
 #include "common.h"
 #include "hash.h"
-#include "heap.h"
 #include "stringpool.h"
+#include "value.h"
 
 #define TABLE_SIZE 0
 #define TABLE_DATA_BEGIN 2

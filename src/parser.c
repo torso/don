@@ -7,13 +7,13 @@
 #include "debug.h"
 #include "fail.h"
 #include "file.h"
-#include "heap.h"
 #include "instruction.h"
 #include "intvector.h"
 #include "namespace.h"
 #include "native.h"
 #include "parser.h"
 #include "stringpool.h"
+#include "value.h"
 
 typedef struct
 {

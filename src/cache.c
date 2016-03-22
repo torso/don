@@ -14,9 +14,9 @@
 #include "fail.h"
 #include "file.h"
 #include "hash.h"
-#include "heap.h"
 #include "log.h"
 #include "util.h"
+#include "value.h"
 
 /*
   Must be evenly divisible by 5 for simple base32 encoding.
