@@ -7,10 +7,10 @@
 #include "heap.h"
 #include "interpreter.h"
 #include "instruction.h"
+#include "job.h"
 #include "linker.h"
 #include "main.h"
 #include "native.h"
-#include "work.h"
 #include "vm.h"
 
 static intvector temp;
@@ -564,7 +564,7 @@ static VM *execute(VM *vm)
             nativefunctionref nativeFunction = refFromInt(arg);
             vref value;
             int storeAt;
-            assert(!vm->work);
+            assert(!vm->job);
             vm->base.clonePoints++;
             if (vm->child && vm->base.clonePoints >= vm->child->clonePoints)
             {
@@ -579,13 +579,13 @@ static VM *execute(VM *vm)
             }
             storeAt = *vm->ip++;
             storeValue(vm, vm->bp, storeAt, value);
-            if (vm->work)
+            if (vm->job)
             {
-                vm->work->storeAt = storeAt;
+                vm->job->storeAt = storeAt;
                 vm->idle = true;
 
                 /* TODO: Activate speculative execution */
-                WorkExecute(vm->work);
+                JobExecute(vm->job);
                 /* vm = VMClone(vm, vm->ip); */
             }
             break;
@@ -682,9 +682,9 @@ done:
 
         if (idle)
         {
-            if (masterVM->work)
+            if (masterVM->job)
             {
-                WorkExecute(masterVM->work);
+                JobExecute(masterVM->job);
             }
             else if (masterVM->idle)
             {

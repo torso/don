@@ -15,11 +15,11 @@
 #include "file.h"
 #include "hash.h"
 #include "heap.h"
+#include "job.h"
 #include "log.h"
 #include "native.h"
 #include "pipe.h"
 #include "stringpool.h"
-#include "work.h"
 #include "vm.h"
 
 #define NATIVE_FUNCTION_COUNT 21
@@ -252,7 +252,7 @@ typedef struct
     vref exitcode;
 } ExecReturn;
 
-static vref workExec(Work *work, vref *values)
+static vref jobExec(Job *job, vref *values)
 {
     ExecEnv *env = (ExecEnv*)values;
     ExecReturn execReturn;
@@ -273,7 +273,7 @@ static vref workExec(Work *work, vref *values)
 
     if (env->command == VFuture || env->env == VFuture ||
         env->echoOut == VFuture || env->echoErr == VFuture ||
-        env->fail == VFuture || work->modifiedFiles == VFuture)
+        env->fail == VFuture || job->modifiedFiles == VFuture)
     {
         return 0;
     }
@@ -293,12 +293,12 @@ static vref workExec(Work *work, vref *values)
         executable = FileSearchPath(argv[0], arg0Length, &length, false);
         if (executable)
         {
-            VMFailf(work->vm, "File is not executable: %s", executable);
+            VMFailf(job->vm, "File is not executable: %s", executable);
             free(executable);
         }
         else
         {
-            VMFailf(work->vm, "Command not found: %s", argv[0]);
+            VMFailf(job->vm, "Command not found: %s", argv[0]);
         }
         free(argv);
         return 0;
@@ -323,7 +323,7 @@ static vref workExec(Work *work, vref *values)
         FailOOM();
     }
 
-    for (index = 0; VCollectionGet(work->modifiedFiles, VBoxSize(index++), &value);)
+    for (index = 0; VCollectionGet(job->modifiedFiles, VBoxSize(index++), &value);)
     {
         assert(value != VFuture);
         path = HeapGetPath(value, &length);
@@ -349,7 +349,7 @@ static vref workExec(Work *work, vref *values)
     {
         PipeDispose(&out);
         PipeDispose(&err);
-        VMFailf(work->vm, "Process exited with status %d", WEXITSTATUS(status));
+        VMFailf(job->vm, "Process exited with status %d", WEXITSTATUS(status));
         return 0;
     }
     execReturn.exitcode = VBoxInteger(WEXITSTATUS(status));
@@ -376,8 +376,8 @@ static vref nativeExec(VM *vm)
     access = VMReadValue(vm);
     modify = VMReadValue(vm);
 
-    vm->work = WorkAdd(workExec, vm, (const vref*)&env,
-                       sizeof(ExecEnv) / sizeof(vref), access, modify);
+    vm->job = JobAdd(jobExec, vm, (const vref*)&env,
+                     sizeof(ExecEnv) / sizeof(vref), access, modify);
     return VFuture;
 }
 

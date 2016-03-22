@@ -14,7 +14,6 @@
 #include "math.h"
 #include "parser.h"
 #include "stringpool.h"
-#include "work.h"
 
 #define INITIAL_HEAP_INDEX_SIZE 1
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))

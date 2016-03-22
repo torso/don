@@ -6,7 +6,6 @@
 #include "debug.h"
 #include "heap.h"
 #include "math.h"
-#include "work.h"
 #include "vm.h"
 
 vref VNull;

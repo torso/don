@@ -8,7 +8,7 @@
 #include "linker.h"
 #include "heap.h"
 #include "instruction.h"
-#include "work.h"
+#include "job.h"
 #include "vm.h"
 
 const int *vmBytecode;
@@ -165,9 +165,9 @@ void VMDispose(VMBase *base)
     if (base->fullVM)
     {
         VM *vm = (VM*)base;
-        if (vm->work)
+        if (vm->job)
         {
-            WorkDiscard(vm->work);
+            JobDiscard(vm->job);
         }
         base = vm->child;
         IVDispose(&vm->callStack);
@@ -213,11 +213,11 @@ void VMReplaceChild(VM *vm, VM *child)
         printf("Replace child VM:%p child:%p\n", (void*)vm, (void*)child);
     }
     assert(child->base.parent == &vm->base);
-    if (child->work)
+    if (child->job)
     {
-        vm->work = child->work;
-        vm->work->vm = vm;
-        child->work = null;
+        vm->job = child->job;
+        vm->job->vm = vm;
+        child->job = null;
     }
     vm->child = child->child;
     if (vm->child)

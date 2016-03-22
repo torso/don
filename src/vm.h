@@ -1,5 +1,6 @@
 #include "intvector.h"
 
+struct _Job;
 struct _LinkedProgram;
 struct VMBase;
 
@@ -31,7 +32,7 @@ struct VM
     const int *ip;
     int bp;
     bool idle;
-    Work *work;
+    struct _Job *job;
     VMBase *child;
     vref failMessage;
 };
