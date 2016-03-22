@@ -18,6 +18,8 @@ vref VEmptyList;
 vref VNewline;
 vref VFuture;
 
+static intvector ivtemp;
+
 static vref boxReference(VType type, ref_t value)
 {
     byte *objectData = HeapAlloc(type, sizeof(ref_t));
@@ -64,6 +66,17 @@ static const char *toString(vref object, bool *copy)
     }
     assert(false); /* TODO */
     return null;
+}
+
+
+void VInit(void)
+{
+    IVInit(&ivtemp, 128);
+}
+
+void VDispose(void)
+{
+    IVDispose(&ivtemp);
 }
 
 VBool VGetBool(vref value)
@@ -1430,4 +1443,142 @@ vref VConcatString(size_t count, vref *values)
         data = VWriteString(values[i], data);
     }
     return string;
+}
+
+
+static vref VSplitOnCharacter(vref string, size_t length, char c,
+                                 bool removeEmpty, bool trimLastIfEmpty)
+{
+    intvector substrings;
+    const char *pstring = getString(string);
+    const char *current = pstring;
+    const char *limit = pstring + length;
+    vref value;
+
+    IVInit(&substrings, 64);
+    while (true)
+    {
+        const char *next = (const char*)memchr(current, c, (size_t)(limit - current));
+        if (!next)
+        {
+            break;
+        }
+        if (next != current || !removeEmpty)
+        {
+            IVAdd(&substrings,
+                  intFromRef(VCreateSubstring(string, (size_t)(current - pstring),
+                                              (size_t)(next - current))));
+        }
+        current = next + 1;
+    }
+    if (current != pstring + length || !(removeEmpty || trimLastIfEmpty))
+    {
+        IVAdd(&substrings, intFromRef(VCreateSubstring(string, (size_t)(current - pstring),
+                                                       (size_t)(pstring + length - current))));
+    }
+    value = VCreateArrayFromVector(&substrings);
+    IVDispose(&substrings);
+    return value;
+}
+
+vref VSplit(vref string, vref delimiter, bool removeEmpty, bool trimLastIfEmpty)
+{
+    size_t oldTempSize = IVSize(&ivtemp);
+    size_t length;
+    size_t delimiterCount;
+    size_t offset;
+    size_t lastOffset;
+    vref value;
+    intvector substrings;
+    const char *pstring;
+    const int *delimiterVector;
+    const int *delimiterVectorLimit;
+
+    assert(VIsString(string));
+    length = VStringLength(string);
+    if (!length)
+    {
+        return VEmptyList;
+    }
+    if (VIsCollection(delimiter))
+    {
+        size_t i;
+        delimiterCount = VCollectionSize(delimiter);
+        for (i = 0; i < delimiterCount; i++)
+        {
+            vref s;
+            size_t delimiterLength;
+            VCollectionGet(delimiter, VBoxSize(i), &s);
+            delimiterLength = VStringLength(s);
+            assert(delimiterLength <= INT_MAX);
+            if (!delimiterLength || delimiterLength > length)
+            {
+                /* delimiterCount--; */
+                continue;
+            }
+            IVAdd(&ivtemp, (int)delimiterLength);
+            VWriteString(s, (char*)IVGetAppendPointer(
+                             &ivtemp, (delimiterLength + sizeof(int) - 1) / sizeof(int)));
+        }
+        if (IVSize(&ivtemp) == oldTempSize)
+        {
+            return VCreateArrayFromData(&string, 1);
+        }
+    }
+    else
+    {
+        size_t delimiterLength = VStringLength(delimiter);
+        assert(delimiterLength <= INT_MAX);
+        if (delimiterLength == 1)
+        {
+            char c;
+            VWriteString(delimiter, &c);
+            return VSplitOnCharacter(string, length, c, removeEmpty, trimLastIfEmpty);
+        }
+        if (!delimiterLength || delimiterLength > length)
+        {
+            return VCreateArrayFromData(&string, 1);
+        }
+        IVAdd(&ivtemp, (int)delimiterLength);
+        VWriteString(delimiter, (char*)IVGetAppendPointer(
+                         &ivtemp, (delimiterLength + sizeof(int) - 1) / sizeof(int)));
+    }
+    delimiterVector = IVGetPointer(&ivtemp, oldTempSize);
+    delimiterVectorLimit = delimiterVector + IVSize(&ivtemp) - oldTempSize;
+
+    IVInit(&substrings, 4);
+    pstring = getString(string); /* TODO: Handle concatenated strings */
+    offset = 0;
+    lastOffset = 0;
+continueMatching:
+    while (offset < length)
+    {
+        const int *currentDelimiter = delimiterVector;
+        while (currentDelimiter < delimiterVectorLimit)
+        {
+            size_t delimiterLength = (size_t)*currentDelimiter++;
+            if (!memcmp(pstring + offset, currentDelimiter, delimiterLength))
+            {
+                if (offset != lastOffset || !removeEmpty)
+                {
+                    IVAdd(&substrings,
+                          intFromRef(VCreateSubstring(string, lastOffset, offset - lastOffset)));
+                }
+                offset += delimiterLength;
+                lastOffset = offset;
+                goto continueMatching;
+            }
+            currentDelimiter += (delimiterLength + sizeof(int) - 1) / sizeof(int);
+        }
+        offset++;
+    }
+    if (length != lastOffset || !(removeEmpty || trimLastIfEmpty))
+    {
+        IVAdd(&substrings, intFromRef(VCreateSubstring(string, lastOffset,
+                                                       length - lastOffset)));
+    }
+    value = VCreateArrayFromVector(&substrings);
+    IVDispose(&substrings);
+    IVSetSize(&ivtemp, oldTempSize);
+    return value;
 }

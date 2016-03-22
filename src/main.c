@@ -46,6 +46,7 @@ int main(int argc, const char **argv)
     IVInit(&targets, 4);
     LogInit();
     HeapInit();
+    VInit();
 
     for (i = 1; i < argc; i++)
     {
@@ -233,6 +234,7 @@ void cleanShutdown(int exitcode)
     CacheDispose();
 #ifdef VALGRIND
     IVDispose(&targets);
+    VDispose();
     HeapDispose();
     NamespaceDispose();
     FileDisposeAll();

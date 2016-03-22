@@ -35,7 +35,8 @@ extern vref VNewline;
 extern vref VFuture;
 
 
-bool VWait(vref *value);
+void VInit(void);
+void VDispose(void);
 
 VBool VGetBool(vref value);
 
@@ -143,3 +144,6 @@ vref VIndexedAccess(VM *vm, vref value1, vref value2);
 vref VRange(VM *vm, vref value1, vref value2);
 vref VConcat(VM *vm, vref value1, vref value2);
 vref VConcatString(size_t count, vref *values);
+
+
+vref VSplit(vref string, vref delimiter, bool removeEmpty, bool trimLastIfEmpty);

@@ -34,7 +34,3 @@ nonnull VType HeapGetObjectType(vref object);
 nonnull size_t HeapGetObjectSize(vref object);
 nonnull const byte *HeapGetObjectData(vref object);
 nonnull void HeapHash(vref object, HashState *hash);
-
-
-
-nonnull vref HeapSplit(vref string, vref delimiter, bool removeEmpty, bool trimLastIfEmpty);

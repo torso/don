@@ -513,7 +513,7 @@ static vref nativeLines(VM *vm)
 
     content = VIsFile(value) ? readFile(value, 0) : value;
     assert(VIsString(content));
-    return HeapSplit(content, VNewline, false, VIsTruthy(trimLastIfEmpty));
+    return VSplit(content, VNewline, false, VIsTruthy(trimLastIfEmpty));
 }
 
 static vref nativeMv(VM *vm)
@@ -705,7 +705,7 @@ static vref nativeSplit(VM *vm)
     data = VIsFile(value) ? readFile(value, 0) : value;
     assert(VIsString(data));
     assert(VIsString(delimiter) || VIsCollection(delimiter));
-    return HeapSplit(data, delimiter, VIsTruthy(removeEmpty), false);
+    return VSplit(data, delimiter, VIsTruthy(removeEmpty), false);
 }
 
 static vref nativeWriteFile(VM *vm)
