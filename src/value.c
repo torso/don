@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "common.h"
+#include "bytevector.h"
 #include "debug.h"
 #include "fail.h"
 #include "file.h"
@@ -78,6 +79,104 @@ void VInit(void)
 void VDispose(void)
 {
     IVDispose(&ivtemp);
+}
+
+
+char *VDebug(vref value)
+{
+    HeapObject ho;
+    bytevector buffer;
+    size_t length;
+    const char *type;
+    bool string = true;
+
+    BVInit(&buffer, 64);
+
+    if (VIsInteger(value))
+    {
+        length = BVGetReservedAppendSize(&buffer);
+        snprintf((char*)BVGetAppendPointer(&buffer, length), length,
+                 "[int=%d]", VUnboxInteger(value));
+        BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)));
+        return (char*)BVDisposeContainer(&buffer);
+    }
+
+    length = BVGetReservedAppendSize(&buffer);
+    snprintf((char*)BVGetAppendPointer(&buffer, length), length, "[%u:", value);
+    BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)));
+
+    if (!value)
+    {
+        const char s[] = "invalid]";
+        BVAddData(&buffer, (const byte*)s, sizeof(s));
+        return (char*)BVDisposeContainer(&buffer);
+    }
+    HeapGet(value, &ho);
+    switch (ho.type)
+    {
+    case TYPE_NULL:                  type = "null";           string = false; break;
+    case TYPE_BOOLEAN_TRUE:          type = "true";           string = false; break;
+    case TYPE_BOOLEAN_FALSE:         type = "false";          string = false; break;
+    case TYPE_STRING:                type = "string";                         break;
+    case TYPE_SUBSTRING:             type = "substring";                      break;
+    case TYPE_FILE:                  type = "file";                           break;
+    case TYPE_ARRAY:                 type = "array";                          break;
+    case TYPE_INTEGER_RANGE:         type = "range";                          break;
+    case TYPE_CONCAT_LIST:           type = "concat_list";                    break;
+    case TYPE_FUTURE:                type = "future";                         break;
+
+    case TYPE_INVALID:
+    case TYPE_INTEGER:
+    default:
+        printf("%d type:%d\n", value, ho.type);
+        unreachable;
+    }
+    BVAddData(&buffer, (const byte*)type, strlen(type));
+
+    if (value == VFuture)
+    {
+        size_t i;
+        const vref *data = (const vref*)ho.data;
+        BVAdd(&buffer, ':');
+        for (i = 0; i < ho.size / sizeof(vref); i++)
+        {
+            if (i != 0)
+            {
+                BVAdd(&buffer, ',');
+            }
+            length = BVGetReservedAppendSize(&buffer);
+            if (VIsInteger(data[i]))
+            {
+                snprintf((char*)BVGetAppendPointer(&buffer, length), length,
+                         "int=%d", VUnboxInteger(data[i]));
+            }
+            else
+            {
+                snprintf((char*)BVGetAppendPointer(&buffer, length), length, "%u", data[i]);
+            }
+            BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)));
+        }
+    }
+    else if (string)
+    {
+        BVAdd(&buffer, ':');
+        length = VStringLength(value);
+        if (VIsString(value))
+        {
+            BVAdd(&buffer, '\"');
+        }
+        else if (VIsFile(value))
+        {
+            BVAddData(&buffer, (const byte*)"@\"", 2);
+        }
+        VWriteString(value, (char*)BVGetAppendPointer(&buffer, length));
+        if (VIsString(value) || VIsFile(value))
+        {
+            BVAdd(&buffer, '\"');
+        }
+    }
+    BVAddData(&buffer, (const byte*)"]", 2);
+    return (char*)BVDisposeContainer(&buffer);
 }
 
 void VHash(vref object, HashState *hash)

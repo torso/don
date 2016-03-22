@@ -4,9 +4,9 @@
 #include "common.h"
 #include "bytevector.h"
 #include "debug.h"
-#include "heap.h"
 #include "native.h"
 #include "job.h"
+#include "value.h"
 #include "vm.h"
 
 static void printJob(const char *prefix, const Job *job)
@@ -19,7 +19,7 @@ static void printJob(const char *prefix, const Job *job)
     BVInit(&buffer, job->argumentCount * 16);
     for (i = job->argumentCount, p = (vref*)(job+1); i--; p++)
     {
-        char *value = HeapDebug(*p);
+        char *value = VDebug(*p);
         BVAddData(&buffer, (const byte*)value, strlen(value));
         BVAddData(&buffer, (const byte*)", ", 2);
         free(value);

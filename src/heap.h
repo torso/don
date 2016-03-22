@@ -29,7 +29,6 @@ vref HeapTop(void); /* TODO: Deprecated */
 vref HeapNext(vref object); /* TODO: Deprecated */
 
 nonnull void HeapGet(vref v, HeapObject *ho);
-nonnull char *HeapDebug(vref object);
 nonnull VType HeapGetObjectType(vref object);
 nonnull size_t HeapGetObjectSize(vref object);
 nonnull const byte *HeapGetObjectData(vref object);

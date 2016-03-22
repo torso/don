@@ -4,13 +4,13 @@
 #include "common.h"
 #include "bytecode.h"
 #include "debug.h"
-#include "heap.h"
 #include "interpreter.h"
 #include "instruction.h"
 #include "job.h"
 #include "linker.h"
 #include "main.h"
 #include "native.h"
+#include "value.h"
 #include "vm.h"
 
 static intvector temp;

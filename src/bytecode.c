@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include "common.h"
 #include "bytecode.h"
-#include "heap.h"
 #include "instruction.h"
 #include "namespace.h"
 #include "native.h"
+#include "value.h"
 
 #define MAX(a, b) (a > b ? a : b)
 
@@ -120,7 +120,7 @@ static const int *disassemble(const int *bytecode, const int *base)
 
     case OP_STORE_CONSTANT:
     {
-        char *string = HeapDebug(refFromInt(*bytecode++));
+        char *string = VDebug(refFromInt(*bytecode++));
         printf("store_constant %s -> #%d\n", string, arg);
         free(string);
         break;
