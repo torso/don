@@ -37,11 +37,4 @@ nonnull void HeapHash(vref object, HashState *hash);
 
 
 
-nonnull vref HeapCreateRange(vref lowObject, vref highObject);
-nonnull bool HeapIsRange(vref object);
-nonnull vref HeapRangeLow(vref range);
-nonnull vref HeapRangeHigh(vref range);
-
-
-
 nonnull vref HeapSplit(vref string, vref delimiter, bool removeEmpty, bool trimLastIfEmpty);

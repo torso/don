@@ -8,7 +8,6 @@
 #include "hash.h"
 #include "heap.h"
 #include "intvector.h"
-#include "math.h"
 #include "parser.h"
 #include "stringpool.h"
 
@@ -348,38 +347,6 @@ void HeapHash(vref object, HashState *hash)
         break;
     }
     unreachable;
-}
-
-
-vref HeapCreateRange(vref lowObject, vref highObject)
-{
-    byte *objectData;
-    int *p;
-    int low = VUnboxInteger(lowObject);
-    int high = VUnboxInteger(highObject);
-
-    assert(low <= high); /* TODO: Reverse range */
-    assert(!subOverflow(high, low));
-    objectData = HeapAlloc(TYPE_INTEGER_RANGE, 2 * sizeof(int));
-    p = (int*)objectData;
-    p[0] = low;
-    p[1] = high;
-    return HeapFinishAlloc(objectData);
-}
-
-bool HeapIsRange(vref object)
-{
-    return HeapGetObjectType(object) == TYPE_INTEGER_RANGE;
-}
-
-vref HeapRangeLow(vref range)
-{
-    return VBoxInteger(((int*)HeapGetObjectData(range))[0]);
-}
-
-vref HeapRangeHigh(vref range)
-{
-    return VBoxInteger(((int*)HeapGetObjectData(range))[1]);
 }
 
 

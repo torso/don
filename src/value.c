@@ -957,6 +957,17 @@ bool VCollectionGet(vref object, vref indexObject, vref *restrict value)
 }
 
 
+static vref VRangeLow(vref range)
+{
+    return VBoxInteger(((int*)HeapGetObjectData(range))[0]);
+}
+
+static vref VRangeHigh(vref range)
+{
+    return VBoxInteger(((int*)HeapGetObjectData(range))[1]);
+}
+
+
 vref VEquals(vref value1, vref value2)
 {
     VType type1, type2;
@@ -1304,8 +1315,8 @@ vref VIndexedAccess(VM *vm, vref value1, vref value2)
     case TYPE_SUBSTRING:
         if (indexType == TYPE_INTEGER_RANGE)
         {
-            size_t size1 = VUnboxSize(HeapRangeLow(value2));
-            size_t size2 = VUnboxSize(HeapRangeHigh(value2));
+            size_t size1 = VUnboxSize(VRangeLow(value2));
+            size_t size2 = VUnboxSize(VRangeHigh(value2));
             assert(size2 >= size1); /* TODO: Support inverted ranges. */
             return VCreateSubstring(value1, size1, size2 - size1 + 1);
         }
@@ -1328,13 +1339,24 @@ vref VIndexedAccess(VM *vm, vref value1, vref value2)
     unreachable;
 }
 
-vref VRange(VM *vm, vref value1, vref value2)
+vref VRange(VM *vm, vref lowValue, vref highValue)
 {
-    if (VIsInteger(value1) && VIsInteger(value2))
+    if (VIsInteger(lowValue) && VIsInteger(highValue))
     {
-        return HeapCreateRange(value1, value2);
+        byte *objectData;
+        int *p;
+        int low = VUnboxInteger(lowValue);
+        int high = VUnboxInteger(highValue);
+
+        assert(low <= high); /* TODO: Reverse range */
+        assert(!subOverflow(high, low));
+        objectData = HeapAlloc(TYPE_INTEGER_RANGE, 2 * sizeof(int));
+        p = (int*)objectData;
+        p[0] = low;
+        p[1] = high;
+        return HeapFinishAlloc(objectData);
     }
-    if (value1 == VFuture || value2 == VFuture)
+    if (lowValue == VFuture || highValue == VFuture)
     {
         return VFuture;
     }
