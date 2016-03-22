@@ -38,6 +38,8 @@ extern vref VFuture;
 void VInit(void);
 void VDispose(void);
 
+nonnull void VHash(vref object, HashState *hash);
+
 VBool VGetBool(vref value);
 
 /*

@@ -6,6 +6,7 @@
 #include "debug.h"
 #include "fail.h"
 #include "file.h"
+#include "hash.h"
 #include "heap.h"
 #include "math.h"
 #include "vm.h"
@@ -77,6 +78,76 @@ void VInit(void)
 void VDispose(void)
 {
     IVDispose(&ivtemp);
+}
+
+void VHash(vref object, HashState *hash)
+{
+    byte value;
+    const char *path;
+    size_t pathLength;
+    size_t index;
+    vref item;
+    VType type;
+
+    assert(object != VFuture);
+
+    type = HeapGetObjectType(object);
+    switch (type)
+    {
+    case TYPE_NULL:
+        value = 0;
+        HashUpdate(hash, &value, 1);
+        return;
+
+    case TYPE_BOOLEAN_TRUE:
+        value = TYPE_BOOLEAN_TRUE;
+        HashUpdate(hash, &value, 1);
+        return;
+
+    case TYPE_BOOLEAN_FALSE:
+        value = TYPE_BOOLEAN_FALSE;
+        HashUpdate(hash, &value, 1);
+        return;
+
+    case TYPE_INTEGER:
+        value = TYPE_INTEGER;
+        HashUpdate(hash, &value, 1);
+        /* TODO: Make platform independent. */
+        HashUpdate(hash, (const byte*)&object, sizeof(object));
+        return;
+
+    case TYPE_STRING:
+    case TYPE_SUBSTRING:
+        value = TYPE_STRING;
+        HashUpdate(hash, &value, 1);
+        HashUpdate(hash, (const byte*)getString(object),
+                   VStringLength(object));
+        return;
+
+    case TYPE_FILE:
+        value = TYPE_FILE;
+        HashUpdate(hash, &value, 1);
+        path = VGetPath(object, &pathLength);
+        HashUpdate(hash, (const byte*)path, pathLength);
+        return;
+
+    case TYPE_ARRAY:
+    case TYPE_INTEGER_RANGE:
+    case TYPE_CONCAT_LIST:
+        value = TYPE_ARRAY;
+        HashUpdate(hash, &value, 1);
+        for (index = 0; VCollectionGet(object, VBoxSize(index++), &item);)
+        {
+            /* TODO: Avoid recursion */
+            VHash(item, hash);
+        }
+        return;
+
+    case TYPE_INVALID:
+    case TYPE_FUTURE:
+        break;
+    }
+    unreachable;
 }
 
 VBool VGetBool(vref value)

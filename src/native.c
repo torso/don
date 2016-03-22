@@ -14,12 +14,12 @@
 #include "fail.h"
 #include "file.h"
 #include "hash.h"
-#include "heap.h"
 #include "job.h"
 #include "log.h"
 #include "native.h"
 #include "pipe.h"
 #include "stringpool.h"
+#include "value.h"
 #include "vm.h"
 
 #define NATIVE_FUNCTION_COUNT 21
@@ -452,7 +452,7 @@ static vref nativeGetCache(VM *vm)
         return 0;
     }
     HashInit(&hashState);
-    HeapHash(key, &hashState);
+    VHash(key, &hashState);
     HashFinal(&hashState, hash);
     CacheGet(hash, VIsTruthy(echoCachedOutput),
              &uptodate, &cachePath, &cachePathLength, &value);

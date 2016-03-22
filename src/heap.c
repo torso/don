@@ -5,7 +5,6 @@
 #include "common.h"
 #include "bytevector.h"
 #include "debug.h"
-#include "hash.h"
 #include "heap.h"
 #include "intvector.h"
 #include "parser.h"
@@ -82,27 +81,6 @@ vref HeapNext(vref object)
     return refFromSize(
         *(uint*)(HeapPageBase + sizeFromRef(object) + HEADER_SIZE) +
         sizeFromRef(object) + OBJECT_OVERHEAD);
-}
-
-
-static const char *getString(vref object)
-{
-    const SubString *ss;
-    VType type;
-
-    assert(object != VFuture);
-
-    type = HeapGetObjectType(object);
-    switch ((int)type)
-    {
-    case TYPE_STRING:
-        return (const char*)HeapGetObjectData(object);
-
-    case TYPE_SUBSTRING:
-        ss = (const SubString*)HeapGetObjectData(object);
-        return &getString(ss->string)[ss->offset];
-    }
-    unreachable;
 }
 
 
@@ -274,74 +252,4 @@ const byte *HeapGetObjectData(vref object)
 {
     checkObject(object);
     return HeapPageBase + sizeFromRef(object) + OBJECT_OVERHEAD;
-}
-
-void HeapHash(vref object, HashState *hash)
-{
-    byte value;
-    const char *path;
-    size_t pathLength;
-    size_t index;
-    vref item;
-    VType type;
-
-    assert(object != VFuture);
-
-    type = HeapGetObjectType(object);
-    switch (type)
-    {
-    case TYPE_NULL:
-        value = 0;
-        HashUpdate(hash, &value, 1);
-        return;
-
-    case TYPE_BOOLEAN_TRUE:
-        value = TYPE_BOOLEAN_TRUE;
-        HashUpdate(hash, &value, 1);
-        return;
-
-    case TYPE_BOOLEAN_FALSE:
-        value = TYPE_BOOLEAN_FALSE;
-        HashUpdate(hash, &value, 1);
-        return;
-
-    case TYPE_INTEGER:
-        value = TYPE_INTEGER;
-        HashUpdate(hash, &value, 1);
-        /* TODO: Make platform independent. */
-        HashUpdate(hash, (const byte*)&object, sizeof(object));
-        return;
-
-    case TYPE_STRING:
-    case TYPE_SUBSTRING:
-        value = TYPE_STRING;
-        HashUpdate(hash, &value, 1);
-        HashUpdate(hash, (const byte*)getString(object),
-                   VStringLength(object));
-        return;
-
-    case TYPE_FILE:
-        value = TYPE_FILE;
-        HashUpdate(hash, &value, 1);
-        path = VGetPath(object, &pathLength);
-        HashUpdate(hash, (const byte*)path, pathLength);
-        return;
-
-    case TYPE_ARRAY:
-    case TYPE_INTEGER_RANGE:
-    case TYPE_CONCAT_LIST:
-        value = TYPE_ARRAY;
-        HashUpdate(hash, &value, 1);
-        for (index = 0; VCollectionGet(object, VBoxSize(index++), &item);)
-        {
-            /* TODO: Avoid recursion */
-            HeapHash(item, hash);
-        }
-        return;
-
-    case TYPE_INVALID:
-    case TYPE_FUTURE:
-        break;
-    }
-    unreachable;
 }

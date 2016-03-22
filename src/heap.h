@@ -33,4 +33,3 @@ nonnull char *HeapDebug(vref object);
 nonnull VType HeapGetObjectType(vref object);
 nonnull size_t HeapGetObjectSize(vref object);
 nonnull const byte *HeapGetObjectData(vref object);
-nonnull void HeapHash(vref object, HashState *hash);
