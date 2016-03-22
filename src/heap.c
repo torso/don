@@ -2,9 +2,6 @@
 #include <stdarg.h>
 #include "common.h"
 #include "heap.h"
-#include "intvector.h"
-#include "parser.h"
-#include "stringpool.h"
 
 #define INITIAL_HEAP_INDEX_SIZE 1
 #define PAGE_SIZE ((size_t)(1024 * 1024 * 1024))
@@ -99,8 +96,6 @@ void HeapGet(vref v, HeapObject *ho)
 
 void HeapInit(void)
 {
-    byte *p;
-
     HeapPageIndex = (byte**)malloc(INITIAL_HEAP_INDEX_SIZE * sizeof(*HeapPageIndex));
     HeapPageIndexSize = INITIAL_HEAP_INDEX_SIZE;
     HeapPageIndex[0] = (byte*)malloc(PAGE_SIZE);
@@ -108,17 +103,6 @@ void HeapInit(void)
     HeapPageLimit = HeapPageIndex[0] + PAGE_SIZE;
     HeapPageFree = HeapPageIndex[0] + sizeof(int);
     HeapPageOffset = 0;
-    StringPoolInit();
-    ParserAddKeywords();
-    VNull = HeapFinishAlloc(HeapAlloc(TYPE_NULL, 0));
-    VTrue = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_TRUE, 0));
-    VFalse = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_FALSE, 0));
-    p = HeapAlloc(TYPE_STRING, 1);
-    *p = 0;
-    VEmptyString = HeapFinishAlloc(p);
-    VEmptyList = HeapFinishAlloc(HeapAlloc(TYPE_ARRAY, 0));
-    VNewline = VCreateString("\n", 1);
-    VFuture = HeapFinishAlloc(HeapAlloc(TYPE_FUTURE, 0));
 }
 
 void HeapDispose(void)

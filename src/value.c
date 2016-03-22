@@ -73,7 +73,18 @@ static const char *toString(vref object, bool *copy)
 
 void VInit(void)
 {
+    byte *p;
+
     IVInit(&ivtemp, 128);
+    VNull = HeapFinishAlloc(HeapAlloc(TYPE_NULL, 0));
+    VTrue = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_TRUE, 0));
+    VFalse = HeapFinishAlloc(HeapAlloc(TYPE_BOOLEAN_FALSE, 0));
+    p = HeapAlloc(TYPE_STRING, 1);
+    *p = 0;
+    VEmptyString = HeapFinishAlloc(p);
+    VEmptyList = HeapFinishAlloc(HeapAlloc(TYPE_ARRAY, 0));
+    VNewline = VCreateString("\n", 1);
+    VFuture = HeapFinishAlloc(HeapAlloc(TYPE_FUTURE, 0));
 }
 
 void VDispose(void)

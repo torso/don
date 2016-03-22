@@ -46,6 +46,8 @@ int main(int argc, const char **argv)
     IVInit(&targets, 4);
     LogInit();
     HeapInit();
+    StringPoolInit();
+    ParserAddKeywords(); /* Must add keywords before allocating any other heap objects */
     VInit();
 
     for (i = 1; i < argc; i++)
