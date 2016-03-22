@@ -44,8 +44,3 @@ nonnull vref HeapRangeHigh(vref range);
 
 
 nonnull vref HeapSplit(vref string, vref delimiter, bool removeEmpty, bool trimLastIfEmpty);
-
-
-
-bool HeapIsFutureValue(vref object);
-vref HeapCreateFutureValue(void);
