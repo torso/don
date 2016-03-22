@@ -126,7 +126,7 @@ static vref readFile(vref object, vref valueIfNotExists)
     char *data;
     size_t size;
 
-    path = HeapGetPath(object, &pathLength);
+    path = VGetPath(object, &pathLength);
     if (valueIfNotExists)
     {
         if (!FileTryOpen(&file, path, pathLength))
@@ -205,8 +205,8 @@ static vref nativeCp(VM *vm)
         return 0;
     }
 
-    srcPath = HeapGetPath(src, &srcLength);
-    dstPath = HeapGetPath(dst, &dstLength);
+    srcPath = VGetPath(src, &srcLength);
+    dstPath = VGetPath(dst, &dstLength);
     FileCopy(srcPath, srcLength, dstPath, dstLength);
     return 0;
 }
@@ -326,7 +326,7 @@ static vref jobExec(Job *job, vref *values)
     for (index = 0; VCollectionGet(job->modifiedFiles, VBoxSize(index++), &value);)
     {
         assert(value != VFuture);
-        path = HeapGetPath(value, &length);
+        path = VGetPath(value, &length);
         FileMarkModified(path, length);
     }
 
@@ -397,7 +397,7 @@ static vref nativeFile(VM *vm)
     {
         return VFuture;
     }
-    return HeapPathFromParts(path, name, extension);
+    return VPathFromParts(path, name, extension);
 }
 
 static vref nativeFilename(VM *vm)
@@ -410,7 +410,7 @@ static vref nativeFilename(VM *vm)
     {
         return VFuture;
     }
-    s = HeapGetPath(path, &length);
+    s = VGetPath(path, &length);
     s = FileStripPath(s, &length);
     return VCreateString(s, length);
 }
@@ -456,7 +456,7 @@ static vref nativeGetCache(VM *vm)
     HashFinal(&hashState, hash);
     CacheGet(hash, VIsTruthy(echoCachedOutput),
              &uptodate, &cachePath, &cachePathLength, &value);
-    result.cacheFile = HeapCreatePath(VCreateString(cachePath, cachePathLength));
+    result.cacheFile = VCreatePath(VCreateString(cachePath, cachePathLength));
     free(cachePath);
     result.uptodate = uptodate ? VTrue : VFalse;
     result.data = value;
@@ -505,13 +505,13 @@ static vref nativeLines(VM *vm)
     vref content;
 
     if (value == VFuture || trimLastIfEmpty == VFuture ||
-        (vm->base.parent && HeapIsFile(value))) /* TODO */
+        (vm->base.parent && VIsFile(value))) /* TODO */
     {
         vm->idle = true;
         return 0;
     }
 
-    content = HeapIsFile(value) ? readFile(value, 0) : value;
+    content = VIsFile(value) ? readFile(value, 0) : value;
     assert(VIsString(content));
     return HeapSplit(content, VNewline, false, VIsTruthy(trimLastIfEmpty));
 }
@@ -532,8 +532,8 @@ static vref nativeMv(VM *vm)
         return 0;
     }
 
-    oldPath = HeapGetPath(src, &oldLength);
-    newPath = HeapGetPath(dst, &newLength);
+    oldPath = VGetPath(src, &oldLength);
+    newPath = VGetPath(dst, &newLength);
     FileRename(oldPath, oldLength, newPath, newLength);
     return 0;
 }
@@ -634,7 +634,7 @@ static vref nativeRm(VM *vm)
         return 0;
     }
 
-    path = HeapGetPath(file, &length);
+    path = VGetPath(file, &length);
     FileDelete(path, length);
     return 0;
 }
@@ -656,7 +656,7 @@ static vref nativeSetUptodate(VM *vm)
         return 0;
     }
 
-    path = HeapGetPath(cacheFile, &length);
+    path = VGetPath(cacheFile, &length);
     CacheSetUptodate(path, length, accessedFiles, out, err, data);
     return 0;
 }
@@ -695,14 +695,14 @@ static vref nativeSplit(VM *vm)
     vref data;
 
     if (value == VFuture || delimiter == VFuture ||
-        removeEmpty == VFuture || (vm->base.parent && HeapIsFile(value)))
+        removeEmpty == VFuture || (vm->base.parent && VIsFile(value)))
     {
         /* TODO */
         vm->idle = true;
         return 0;
     }
 
-    data = HeapIsFile(value) ? readFile(value, 0) : value;
+    data = VIsFile(value) ? readFile(value, 0) : value;
     assert(VIsString(data));
     assert(VIsString(delimiter) || VIsCollection(delimiter));
     return HeapSplit(data, delimiter, VIsTruthy(removeEmpty), false);
@@ -727,7 +727,7 @@ static vref nativeWriteFile(VM *vm)
     }
 
     size = VStringLength(data);
-    path = HeapGetPath(file, &pathLength);
+    path = VGetPath(file, &pathLength);
     FileOpenAppend(&f, path, pathLength, true);
     while (size)
     {

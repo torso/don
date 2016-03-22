@@ -515,7 +515,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
         {
             assert(false); /* TODO: Error handling. */
         }
-        assert(HeapIsFile(value));
+        assert(VIsFile(value));
         length = (uint)VStringLength(value);
 
         pathStart = (char*)BVGetAppendPointer(&newEntries, length);

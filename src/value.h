@@ -94,6 +94,15 @@ nonnull char *VWriteSubstring(vref object, size_t offset, size_t length, char *d
 nonnull vref VStringIndexOf(vref text, size_t startOffset, vref substring);
 
 
+/*
+  Creates a path object, if the supplied object isn't one already.
+*/
+nonnull vref VCreatePath(vref path);
+nonnull const char *VGetPath(vref path, size_t *length);
+nonnull bool VIsFile(vref object);
+nonnull vref VPathFromParts(vref path, vref name, vref extension);
+
+
 nonnull vref *VCreateArray(size_t size);
 nonnull vref VFinishArray(vref *array);
 nonnull vref VCreateArrayFromData(const vref *values, size_t size);

@@ -31,14 +31,6 @@ nonnull const byte *HeapGetObjectData(vref object);
 nonnull void HeapHash(vref object, HashState *hash);
 
 
-/*
-  Creates a path object, if the supplied object isn't one already.
-*/
-nonnull vref HeapCreatePath(vref path);
-nonnull const char *HeapGetPath(vref path, size_t *length);
-nonnull bool HeapIsFile(vref object);
-nonnull vref HeapPathFromParts(vref path, vref name, vref extension);
-
 nonnull vref HeapCreateFilelist(vref value);
 nonnull vref HeapCreateFilelistGlob(const char *pattern, size_t length);
 

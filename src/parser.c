@@ -1708,7 +1708,7 @@ static bool parseExpression11(ParseState *state, ExpressionState *estate)
         }
         if (!strchr(VGetString(string), '*'))
         {
-            parsedConstant(estate, HeapCreatePath(string));
+            parsedConstant(estate, VCreatePath(string));
             return true;
         }
         /* TODO: @{} syntax */

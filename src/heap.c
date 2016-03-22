@@ -89,19 +89,6 @@ static vref heapNext(vref object)
 }
 
 
-static vref boxReference(VType type, ref_t value)
-{
-    byte *objectData = HeapAlloc(type, sizeof(ref_t));
-    *(ref_t*)objectData = value;
-    return HeapFinishAlloc(objectData);
-}
-
-static ref_t unboxReference(VType type, vref object)
-{
-    assert(HeapGetObjectType(object) == type);
-    return *(ref_t*)HeapGetObjectData(object);
-}
-
 static const char *getString(vref object)
 {
     const SubString *ss;
@@ -120,21 +107,6 @@ static const char *getString(vref object)
         return &getString(ss->string)[ss->offset];
     }
     unreachable;
-}
-
-static const char *toString(vref object, bool *copy)
-{
-    *copy = false;
-    if (VIsString(object))
-    {
-        return getString(object);
-    }
-    if (HeapIsFile(object))
-    {
-        return getString(unboxReference(TYPE_FILE, object));
-    }
-    assert(false); /* TODO */
-    return null;
 }
 
 
@@ -277,12 +249,12 @@ char *HeapDebug(vref value)
         {
             BVAdd(&buffer, '\"');
         }
-        else if (HeapIsFile(value))
+        else if (VIsFile(value))
         {
             BVAddData(&buffer, (const byte*)"@\"", 2);
         }
         VWriteString(value, (char*)BVGetAppendPointer(&buffer, length));
-        if (VIsString(value) || HeapIsFile(value))
+        if (VIsString(value) || VIsFile(value))
         {
             BVAdd(&buffer, '\"');
         }
@@ -357,7 +329,7 @@ void HeapHash(vref object, HashState *hash)
     case TYPE_FILE:
         value = TYPE_FILE;
         HashUpdate(hash, &value, 1);
-        path = HeapGetPath(object, &pathLength);
+        path = VGetPath(object, &pathLength);
         HashUpdate(hash, (const byte*)path, pathLength);
         return;
 
@@ -378,97 +350,6 @@ void HeapHash(vref object, HashState *hash)
         break;
     }
     unreachable;
-}
-
-
-vref HeapCreatePath(vref path)
-{
-    const char *src;
-    size_t srcLength;
-    char *temp;
-    size_t tempLength;
-
-    if (HeapIsFile(path))
-    {
-        return path;
-    }
-    src = getString(path);
-    srcLength = VStringLength(path);
-    /* TODO: Avoid malloc */
-    temp = FileCreatePath(null, 0, src, srcLength, null, 0, &tempLength);
-    if (tempLength != srcLength && memcmp(src, temp, srcLength))
-    {
-        path = VCreateString(temp, tempLength);
-    }
-    free(temp);
-    return boxReference(TYPE_FILE, path);
-}
-
-const char *HeapGetPath(vref path, size_t *length)
-{
-    vref s = unboxReference(TYPE_FILE, path);
-    *length = VStringLength(s);
-    return getString(s);
-}
-
-bool HeapIsFile(vref object)
-{
-    return HeapGetObjectType(object) == TYPE_FILE;
-}
-
-vref HeapPathFromParts(vref path, vref name, vref extension)
-{
-    const char *pathString = null;
-    const char *nameString;
-    const char *extensionString = null;
-    size_t pathLength = 0;
-    size_t nameLength;
-    size_t extensionLength = 0;
-    bool freePath = false;
-    bool freeName;
-    bool freeExtension = false;
-    char *resultPath;
-    size_t resultPathLength;
-    vref result;
-
-    assert(path != VFuture);
-    assert(name != VFuture);
-    assert(extension != VFuture);
-    assert(path == VNull || VIsString(path) || HeapIsFile(path));
-    assert(VIsString(name) || HeapIsFile(name));
-    assert(extension == VNull || VIsString(extension));
-
-    if (path != VNull)
-    {
-        pathString = toString(path, &freePath);
-        pathLength = VStringLength(path);
-    }
-    nameString = toString(name, &freeName);
-    nameLength = VStringLength(name);
-    if (extension != VNull)
-    {
-        extensionString = toString(extension, &freeExtension);
-        extensionLength = VStringLength(extension);
-    }
-    resultPath = FileCreatePath(pathString, pathLength,
-                                nameString, nameLength,
-                                extensionString, extensionLength,
-                                &resultPathLength);
-    if (freePath)
-    {
-        free((void*)pathString);
-    }
-    if (freeName)
-    {
-        free((void*)nameString);
-    }
-    if (freeExtension)
-    {
-        free((void*)extensionString);
-    }
-    result = HeapCreatePath(VCreateString(resultPath, resultPathLength));
-    free(resultPath);
-    return result;
 }
 
 
@@ -539,7 +420,7 @@ vref HeapCreateFilelist(vref value)
         VType type = HeapGetObjectType(value);
         if (!VIsCollectionType(type))
         {
-            value = HeapCreatePath(value);
+            value = VCreatePath(value);
             return VCreateArrayFromData(&value, 1);
         }
         size = VCollectionSize(value);
@@ -565,10 +446,10 @@ vref HeapCreateFilelist(vref value)
     newValue = HeapFinishRealloc((byte*)data, size * sizeof(vref));
     for (i = 0; i < size; i++)
     {
-        if (!HeapIsFile(data[i]))
+        if (!VIsFile(data[i]))
         {
             converted = true;
-            data[i] = HeapCreatePath(data[i]);
+            data[i] = VCreatePath(data[i]);
         }
     }
     /* When measured, it was faster to create a new array than to keep a
@@ -583,7 +464,7 @@ vref HeapCreateFilelist(vref value)
 
 static void createPath(const char *path, size_t length, void *userdata)
 {
-    HeapCreatePath(VCreateString(path, length));
+    VCreatePath(VCreateString(path, length));
     (*(size_t*)userdata)++;
 }
 
@@ -605,7 +486,7 @@ vref HeapCreateFilelistGlob(const char *pattern, size_t length)
     {
         assert(VIsString(object));
         object = heapNext(object);
-        assert(HeapIsFile(object));
+        assert(VIsFile(object));
         *files++ = object;
         object = heapNext(object);
     }
