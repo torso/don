@@ -545,6 +545,96 @@ vref VStringIndexOf(vref text, size_t startOffset, vref substring)
 }
 
 
+vref VCreatePath(vref path)
+{
+    const char *src;
+    size_t srcLength;
+    char *temp;
+    size_t tempLength;
+
+    if (VIsFile(path))
+    {
+        return path;
+    }
+    src = getString(path);
+    srcLength = VStringLength(path);
+    /* TODO: Avoid malloc */
+    temp = FileCreatePath(null, 0, src, srcLength, null, 0, &tempLength);
+    if (tempLength != srcLength && memcmp(src, temp, srcLength))
+    {
+        path = VCreateString(temp, tempLength);
+    }
+    free(temp);
+    return boxReference(TYPE_FILE, path);
+}
+
+const char *VGetPath(vref path, size_t *length)
+{
+    vref s = unboxReference(TYPE_FILE, path);
+    *length = VStringLength(s);
+    return getString(s);
+}
+
+bool VIsFile(vref object)
+{
+    return HeapGetObjectType(object) == TYPE_FILE;
+}
+
+vref VPathFromParts(vref path, vref name, vref extension)
+{
+    const char *pathString = null;
+    const char *nameString;
+    const char *extensionString = null;
+    size_t pathLength = 0;
+    size_t nameLength;
+    size_t extensionLength = 0;
+    bool freePath = false;
+    bool freeName;
+    bool freeExtension = false;
+    char *resultPath;
+    size_t resultPathLength;
+    vref result;
+
+    assert(path != VFuture);
+    assert(name != VFuture);
+    assert(extension != VFuture);
+    assert(path == VNull || VIsString(path) || VIsFile(path));
+    assert(VIsString(name) || VIsFile(name));
+    assert(extension == VNull || VIsString(extension));
+
+    if (path != VNull)
+    {
+        pathString = toString(path, &freePath);
+        pathLength = VStringLength(path);
+    }
+    nameString = toString(name, &freeName);
+    nameLength = VStringLength(name);
+    if (extension != VNull)
+    {
+        extensionString = toString(extension, &freeExtension);
+        extensionLength = VStringLength(extension);
+    }
+    resultPath = FileCreatePath(pathString, pathLength,
+                                nameString, nameLength,
+                                extensionString, extensionLength,
+                                &resultPathLength);
+    if (freePath)
+    {
+        free((void*)pathString);
+    }
+    if (freeName)
+    {
+        free((void*)nameString);
+    }
+    if (freeExtension)
+    {
+        free((void*)extensionString);
+    }
+    result = VCreatePath(VCreateString(resultPath, resultPathLength));
+    free(resultPath);
+    return result;
+}
+
 
 vref *VCreateArray(size_t size)
 {
@@ -1175,95 +1265,4 @@ vref VConcatString(size_t count, vref *values)
         data = VWriteString(values[i], data);
     }
     return string;
-}
-
-
-vref VCreatePath(vref path)
-{
-    const char *src;
-    size_t srcLength;
-    char *temp;
-    size_t tempLength;
-
-    if (VIsFile(path))
-    {
-        return path;
-    }
-    src = getString(path);
-    srcLength = VStringLength(path);
-    /* TODO: Avoid malloc */
-    temp = FileCreatePath(null, 0, src, srcLength, null, 0, &tempLength);
-    if (tempLength != srcLength && memcmp(src, temp, srcLength))
-    {
-        path = VCreateString(temp, tempLength);
-    }
-    free(temp);
-    return boxReference(TYPE_FILE, path);
-}
-
-const char *VGetPath(vref path, size_t *length)
-{
-    vref s = unboxReference(TYPE_FILE, path);
-    *length = VStringLength(s);
-    return getString(s);
-}
-
-bool VIsFile(vref object)
-{
-    return HeapGetObjectType(object) == TYPE_FILE;
-}
-
-vref VPathFromParts(vref path, vref name, vref extension)
-{
-    const char *pathString = null;
-    const char *nameString;
-    const char *extensionString = null;
-    size_t pathLength = 0;
-    size_t nameLength;
-    size_t extensionLength = 0;
-    bool freePath = false;
-    bool freeName;
-    bool freeExtension = false;
-    char *resultPath;
-    size_t resultPathLength;
-    vref result;
-
-    assert(path != VFuture);
-    assert(name != VFuture);
-    assert(extension != VFuture);
-    assert(path == VNull || VIsString(path) || VIsFile(path));
-    assert(VIsString(name) || VIsFile(name));
-    assert(extension == VNull || VIsString(extension));
-
-    if (path != VNull)
-    {
-        pathString = toString(path, &freePath);
-        pathLength = VStringLength(path);
-    }
-    nameString = toString(name, &freeName);
-    nameLength = VStringLength(name);
-    if (extension != VNull)
-    {
-        extensionString = toString(extension, &freeExtension);
-        extensionLength = VStringLength(extension);
-    }
-    resultPath = FileCreatePath(pathString, pathLength,
-                                nameString, nameLength,
-                                extensionString, extensionLength,
-                                &resultPathLength);
-    if (freePath)
-    {
-        free((void*)pathString);
-    }
-    if (freeName)
-    {
-        free((void*)nameString);
-    }
-    if (freeExtension)
-    {
-        free((void*)extensionString);
-    }
-    result = VCreatePath(VCreateString(resultPath, resultPathLength));
-    free(resultPath);
-    return result;
 }
