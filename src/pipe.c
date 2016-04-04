@@ -27,7 +27,7 @@ int PipeInit(Pipe *p)
     fcntl(fd[0], FD_CLOEXEC);
     fcntl(fd[1], FD_CLOEXEC);
 #endif
-    BVInit(&p->buffer, 256);
+    BVInit(&p->buffer, MIN_READ_BUFFER);
     p->listener = null;
     p->fd = fd[0];
     return fd[1];
