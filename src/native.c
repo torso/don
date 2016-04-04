@@ -354,10 +354,10 @@ static vref jobExec(Job *job, vref *values)
     }
     execReturn.exitcode = VBoxInteger(WEXITSTATUS(status));
     execReturn.outputStd = VCreateString((const char*)BVGetPointer(&out.buffer, 0),
-                                   BVSize(&out.buffer));
+                                         BVSize(&out.buffer));
     PipeDispose(&out);
     execReturn.outputErr = VCreateString((const char*)BVGetPointer(&err.buffer, 0),
-                                   BVSize(&err.buffer));
+                                         BVSize(&err.buffer));
     PipeDispose(&err);
     LogAutoNewline();
     return VCreateArrayFromData((const vref*)&execReturn, 3);
