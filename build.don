@@ -357,6 +357,6 @@ target benchmarkprof
     p = compile(optimize:true)
     rm(@tempcache)
 #    exec(command:[cp -a tempcache2 tempcache])
-    run(command:[time valgrind -q --tool=callgrind --cache-sim=yes --branch-sim=yes --collect-systime=yes $p -f $(@benchmark/build.don) partial])
-    run(command:[time $p -f $(@benchmark/build.don) partial])
+    run(command:[time valgrind -q --tool=callgrind --cache-sim=yes --branch-sim=yes --collect-systime=yes --dump-instr=yes --collect-jumps=yes $p -f benchmark/build.don partial])
+    run(command:[time $p -f benchmark/build.don partial])
 }
