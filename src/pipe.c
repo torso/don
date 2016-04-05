@@ -24,8 +24,8 @@ int PipeInit(Pipe *p)
         FailErrno(false);
     }
 #if !HAVE_PIPE2
-    fcntl(fd[0], FD_CLOEXEC);
-    fcntl(fd[1], FD_CLOEXEC);
+    fcntl(fd[0], F_SETFD, FD_CLOEXEC);
+    fcntl(fd[1], F_SETFD, FD_CLOEXEC);
 #endif
     BVInit(&p->buffer, MIN_READ_BUFFER);
     p->listener = null;
