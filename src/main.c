@@ -18,6 +18,7 @@
 #include "namespace.h"
 #include "native.h"
 #include "parser.h"
+#include "pipe.h"
 #include "stringpool.h"
 
 
@@ -207,6 +208,7 @@ int main(int argc, const char **argv)
     }
     StringPoolDispose();
 
+    PipeInit();
     CacheInit(cacheDirectory, cacheDirectoryLength);
     for (j = 0; j < IVSize(&targets); j++)
     {
@@ -242,6 +244,7 @@ void cleanShutdown(int exitcode)
     FileDisposeAll();
     EnvDispose();
     StringPoolDispose();
+    PipeDisposeAll();
     LogDispose();
 #endif
     exit(exitcode);

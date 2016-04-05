@@ -1,18 +1,198 @@
 #include "config.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <stdarg.h>
+#include <string.h>
 #include <sys/select.h>
 #include <unistd.h>
 #include "common.h"
 #include "bytevector.h"
 #include "fail.h"
 #include "pipe.h"
+#include "value.h"
 
 #define MIN_READ_BUFFER 1024
 
-
-int PipeInit(Pipe *p)
+typedef struct
 {
+    bytevector buffer;
+    int fdRead, fdWrite;
+} Pipe;
+
+static bytevector pipes;
+
+
+static Pipe *getPipe(int fd)
+{
+    Pipe *pipe = (Pipe*)BVGetPointer(&pipes, 0);
+    for (;;)
+    {
+        assert((size_t)((byte*)pipe - BVGetPointer(&pipes, 0)) < BVSize(&pipes));
+        if (pipe->fdRead == fd)
+        {
+            return pipe;
+        }
+        pipe++;
+    }
+}
+
+static void pipeDispose(Pipe *pipe, vref *value)
+{
+    close(pipe->fdRead);
+    if (BVIsInitialized(&pipe->buffer))
+    {
+        if (value)
+        {
+            *value = VCreateString((const char*)BVGetPointer(&pipe->buffer, 0),
+                                   BVSize(&pipe->buffer));
+        }
+        BVDispose(&pipe->buffer);
+    }
+    else if (value)
+    {
+        *value = VEmptyString;
+    }
+}
+
+void PipeInit(void)
+{
+    /* TODO: Check this number. Use number of allowed concurrent jobs? */
+    BVInit(&pipes, 16 * sizeof(Pipe));
+}
+
+void PipeDisposeAll(void)
+{
+    Pipe *pipe = (Pipe*)BVGetPointer(&pipes, 0);
+    Pipe *stop = (Pipe*)((byte*)pipe + BVSize(&pipes));
+    while (pipe < stop)
+    {
+        pipeDispose(pipe++, null);
+    }
+    BVDispose(&pipes);
+}
+
+void PipeProcess(void)
+{
+    fd_set set;
+    int status;
+    Pipe *pipe = (Pipe*)BVGetPointer(&pipes, 0);
+    Pipe *stop = (Pipe*)((byte*)pipe + BVSize(&pipes));
+    FD_ZERO(&set);
+    while (pipe < stop)
+    {
+        FD_SET(pipe->fdRead, &set);
+        pipe++;
+    }
+
+wait:
+    status = select(FD_SETSIZE, &set, null, null, null);
+    if (status < 0)
+    {
+        if (errno == EINTR)
+        {
+            goto wait;
+        }
+        FailErrno(false);
+    }
+
+    pipe = (Pipe*)BVGetPointer(&pipes, 0);
+    while (pipe < stop)
+    {
+        if (FD_ISSET(pipe->fdRead, &set))
+        {
+            size_t oldSize;
+
+            if (!BVIsInitialized(&pipe->buffer))
+            {
+                byte buffer[MIN_READ_BUFFER];
+                ssize_t readSize;
+        readAgain1:
+                readSize = read(pipe->fdRead, buffer, sizeof(buffer));
+                if (readSize > 0)
+                {
+                    BVInit(&pipe->buffer, MIN_READ_BUFFER + (size_t)readSize);
+                    BVAddData(&pipe->buffer, buffer, (size_t)readSize);
+                }
+                else if (readSize < 0)
+                {
+                    if (errno == EINTR)
+                    {
+                        goto readAgain1;
+                    }
+                    FailErrno(false);
+                }
+                else
+                {
+                    goto nextPipe;
+                }
+                oldSize = 0;
+            }
+            else
+            {
+                oldSize = BVSize(&pipe->buffer);
+            }
+
+            for (;;)
+            {
+                size_t prevSize = BVSize(&pipe->buffer);
+                byte *pbuffer = BVGetAppendPointer(&pipe->buffer, MIN_READ_BUFFER);
+                ssize_t readSize;
+        readAgain2:
+                readSize = read(pipe->fdRead, pbuffer,
+                                MIN_READ_BUFFER + BVGetReservedAppendSize(&pipe->buffer));
+                if (readSize > 0)
+                {
+                    BVSetSize(&pipe->buffer, prevSize + (size_t)readSize);
+                }
+                else if (readSize < 0)
+                {
+                    if (errno == EWOULDBLOCK)
+                    {
+                        BVSetSize(&pipe->buffer, prevSize);
+                        break;
+                    }
+                    if (errno == EINTR)
+                    {
+                        goto readAgain2;
+                    }
+                    FailErrno(false);
+                }
+                else
+                {
+                    BVSetSize(&pipe->buffer, prevSize);
+                    break;
+                }
+            }
+
+            if (pipe->fdWrite >= 0)
+            {
+                size_t readSize = BVSize(&pipe->buffer) - oldSize;
+                const byte *pbuffer = BVGetPointer(&pipe->buffer, oldSize);
+                while (readSize)
+                {
+                    ssize_t writeSize = write(pipe->fdWrite, pbuffer, readSize);
+                    if (writeSize < 0)
+                    {
+                        if (errno == EINTR)
+                        {
+                            continue;
+                        }
+                        FailErrno(false);
+                    }
+                    pbuffer += writeSize;
+                    readSize -= (size_t)writeSize;
+                }
+            }
+        }
+nextPipe:
+        pipe++;
+    }
+}
+
+
+int PipeCreate(int *fdWrite)
+{
+    Pipe *pipe = (Pipe*)BVGetAppendPointer(&pipes, sizeof(*pipe));
     int fd[2];
 #if HAVE_PIPE2
     int status = pipe2(fd, O_CLOEXEC);
@@ -23,111 +203,30 @@ int PipeInit(Pipe *p)
     {
         FailErrno(false);
     }
+    memset(pipe, 0, sizeof(*pipe));
+    fcntl(fd[0], F_SETFL, O_NONBLOCK);
 #if !HAVE_PIPE2
     fcntl(fd[0], F_SETFD, FD_CLOEXEC);
     fcntl(fd[1], F_SETFD, FD_CLOEXEC);
 #endif
-    BVInit(&p->buffer, MIN_READ_BUFFER);
-    p->listener = null;
-    p->fd = fd[0];
-    return fd[1];
+    pipe->fdRead = fd[0];
+    pipe->fdWrite = -1;
+    *fdWrite = fd[1];
+    return fd[0];
 }
 
-void PipeDispose(Pipe *p)
+void PipeDispose(int fd, vref *value)
 {
-    if (p->fd)
-    {
-        close(p->fd);
-    }
-    BVDispose(&p->buffer);
+    Pipe *pipe = getPipe(fd);
+    size_t offset = (size_t)((byte*)pipe - BVGetPointer(&pipes, 0));
+    pipeDispose(pipe, value);
+    BVRemoveRange(&pipes, offset, sizeof(Pipe));
 }
 
-
-void PipeAddListener(Pipe *p, PipeListener *listener)
+void PipeConnect(int fdFrom, int fdTo)
 {
-    assert(p);
-    assert(listener);
-    assert(!listener->next);
-    listener->next = p->listener;
-    p->listener = listener;
-    if (listener->output && BVSize(&p->buffer))
-    {
-        listener->output(BVGetPointer(&p->buffer, 0), BVSize(&p->buffer));
-    }
-}
-
-static void pipeConsume(Pipe *p1, Pipe *p2, fd_set *set)
-{
-    PipeListener *listener;
-    byte *data;
-    ssize_t ssize;
-
-    if (p1->fd && FD_ISSET(p1->fd, set))
-    {
-        data = BVGetAppendPointer(&p1->buffer, MIN_READ_BUFFER);
-        ssize = read(p1->fd, data, MIN_READ_BUFFER + BVGetReservedAppendSize(&p1->buffer));
-        if (ssize > 0)
-        {
-            BVSetSize(&p1->buffer, BVSize(&p1->buffer) - MIN_READ_BUFFER + (size_t)ssize);
-            for (listener = p1->listener; listener; listener = listener->next)
-            {
-                if (listener->output)
-                {
-                    listener->output(data, (size_t)ssize);
-                }
-            }
-        }
-        else if (!ssize)
-        {
-            BVSetSize(&p1->buffer, BVSize(&p1->buffer) - MIN_READ_BUFFER);
-            close(p1->fd);
-            p1->fd = 0;
-        }
-        else if (errno != EWOULDBLOCK)
-        {
-            BVSetSize(&p1->buffer, BVSize(&p1->buffer) - MIN_READ_BUFFER);
-            close(p1->fd);
-            if (p2->fd)
-            {
-                close(p2->fd);
-            }
-            FailErrno(false);
-        }
-    }
-}
-
-void PipeConsume2(Pipe *p1, Pipe *p2)
-{
-    fd_set set;
-    int status;
-
-    assert(p1);
-    assert(p2);
-    assert(p1->fd);
-    assert(p2->fd);
-
-    while (p1->fd || p2->fd)
-    {
-        FD_ZERO(&set);
-        if (p1->fd)
-        {
-            FD_SET(p1->fd, &set);
-        }
-        if (p2->fd)
-        {
-            FD_SET(p2->fd, &set);
-        }
-        status = select(FD_SETSIZE, &set, null, null, null);
-        if (status < 0)
-        {
-            if (errno == EINTR)
-            {
-                continue;
-            }
-            FailErrno(false);
-        }
-
-        pipeConsume(p1, p2, &set);
-        pipeConsume(p2, p1, &set);
-    }
+    Pipe *pipe = getPipe(fdFrom);
+    assert(pipe->fdWrite < 0);
+    assert(!BVIsInitialized(&pipe->buffer)); /* TODO: Copy buffered data */
+    pipe->fdWrite = fdTo;
 }

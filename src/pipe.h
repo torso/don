@@ -1,22 +1,14 @@
-#define PIPE_H
+void PipeInit(void);
+void PipeDisposeAll(void);
+void PipeProcess(void);
 
-typedef struct _PipeListener PipeListener;
 
-struct _PipeListener
-{
-    PipeListener *next;
-    void (*output)(const byte*, size_t);
-};
+/* The returned file descriptor may be used when calling other Pipe* functions. It is read by
+   PipeProcess() and mustn't be read by anything else.
 
-typedef struct
-{
-    bytevector buffer;
-    PipeListener *listener;
-    int fd;
-} Pipe;
-
-nonnull int PipeInit(Pipe *p);
-nonnull void PipeDispose(Pipe *p);
-
-nonnull void PipeAddListener(Pipe *p, PipeListener *listener);
-nonnull void PipeConsume2(Pipe *restrict p1, Pipe *restrict p2);
+   The file descriptor returned in fdWrite is for writing and is suitable for giving to a
+   subprocess. It should be closed by the caller.
+ */
+nonnull int PipeCreate(int *fdWrite);
+void PipeDispose(int fd, vref *value);
+void PipeConnect(int fdFrom, int fdTo);

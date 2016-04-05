@@ -265,10 +265,8 @@ static vref jobExec(Job *job, vref *values)
     const char *path;
     pid_t pid;
     int status;
-    int fdOut;
-    int fdErr;
-    Pipe out;
-    Pipe err;
+    int fdOutRead, fdOutWrite;
+    int fdErrRead, fdErrWrite;
     size_t length;
 
     if (env->command == VFuture || env->env == VFuture ||
@@ -304,20 +302,20 @@ static vref jobExec(Job *job, vref *values)
         return 0;
     }
 
-    fdOut = PipeInit(&out);
-    fdErr = PipeInit(&err);
+    fdOutRead = PipeCreate(&fdOutWrite);
+    fdErrRead = PipeCreate(&fdErrWrite);
 
     envp = VCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
 
-    pid = startProcess(executable, argv, envp, fdOut, fdErr);
+    pid = startProcess(executable, argv, envp, fdOutWrite, fdErrWrite);
     free(executable);
     free(argv);
     if (VCollectionSize(env->env))
     {
         free((void*)envp);
     }
-    close(fdOut);
-    close(fdErr);
+    close(fdOutWrite);
+    close(fdErrWrite);
     if (pid < 0)
     {
         FailOOM();
@@ -332,13 +330,13 @@ static vref jobExec(Job *job, vref *values)
 
     if (VIsTruthy(env->echoOut))
     {
-        PipeAddListener(&out, &LogPipeOutListener);
+        PipeConnect(fdOutRead, STDOUT_FILENO);
     }
     if (VIsTruthy(env->echoErr))
     {
-        PipeAddListener(&err, &LogPipeOutListener);
+        PipeConnect(fdErrRead, STDOUT_FILENO);
     }
-    PipeConsume2(&out, &err);
+    PipeProcess();
 
     pid = waitpid(pid, &status, 0);
     if (pid < 0)
@@ -347,18 +345,14 @@ static vref jobExec(Job *job, vref *values)
     }
     if (WEXITSTATUS(status) && VIsTruthy(env->fail))
     {
-        PipeDispose(&out);
-        PipeDispose(&err);
+        PipeDispose(fdOutRead, null);
+        PipeDispose(fdErrRead, null);
         VMFailf(job->vm, "Process exited with status %d", WEXITSTATUS(status));
         return 0;
     }
     execReturn.exitcode = VBoxInteger(WEXITSTATUS(status));
-    execReturn.outputStd = VCreateString((const char*)BVGetPointer(&out.buffer, 0),
-                                         BVSize(&out.buffer));
-    PipeDispose(&out);
-    execReturn.outputErr = VCreateString((const char*)BVGetPointer(&err.buffer, 0),
-                                         BVSize(&err.buffer));
-    PipeDispose(&err);
+    PipeDispose(fdOutRead, &execReturn.outputStd);
+    PipeDispose(fdErrRead, &execReturn.outputErr);
     LogAutoNewline();
     return VCreateArrayFromData((const vref*)&execReturn, 3);
 }

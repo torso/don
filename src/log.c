@@ -19,15 +19,9 @@ typedef struct
     size_t prefixLength;
 } LogPipe;
 
-static nonnull void logPrintRaw(const byte *data, size_t length);
 static void logNewline(void);
 
 static LogPipe out;
-
-PipeListener LogPipeOutListener =
-{
-    null, logPrintRaw
-};
 
 
 static void logWrite(int filedes, const byte *buffer, size_t size)
@@ -142,7 +136,7 @@ static void logPrint(LogPipe *p, const char *text, size_t length)
     processNewData(p, length);
 }
 
-void logPrintRaw(const byte *data, size_t length)
+void LogPrint(const char *data, size_t length)
 {
     logPrint(&out, (const char*)data, length);
 }

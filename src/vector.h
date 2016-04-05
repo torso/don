@@ -21,6 +21,11 @@ static nonnull pure unused size_t VECTOR_FUNC(Size)(const VECTOR_NAME *v)
     return v->size;
 }
 
+static nonnull pure unused bool VECTOR_FUNC(IsInitialized)(const VECTOR_NAME *v)
+{
+    return v->data != null;
+}
+
 nonnull void VECTOR_FUNC(SetSize)(VECTOR_NAME *v, size_t size);
 nonnull void VECTOR_FUNC(Grow)(VECTOR_NAME *v, size_t size);
 nonnull void VECTOR_FUNC(GrowValue)(VECTOR_NAME *v, VECTOR_TYPE value, size_t size);
