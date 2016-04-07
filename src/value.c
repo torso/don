@@ -755,7 +755,7 @@ vref VCreatePath(vref path)
     srcLength = VStringLength(path);
     /* TODO: Avoid malloc */
     temp = FileCreatePath(null, 0, src, srcLength, null, 0, &tempLength);
-    if (tempLength != srcLength && memcmp(src, temp, srcLength))
+    if (tempLength != srcLength || memcmp(src, temp, srcLength))
     {
         path = VCreateString(temp, tempLength);
     }
