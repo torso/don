@@ -42,10 +42,10 @@ target default
     test(@/a, "/b", "", "/b")
     test(@/a, "/b.c", "" ,"/b")
 
-    test(@/, "a", ".e", "/a.e")
-    test(@/, "a.c", ".e", "/a.e")
-    test(@/, "a", ".", "/a")
-    test(@/, "a.c", ".", "/a")
+    test(@/, "a", ".e", "/a..e")
+    test(@/, "a.c", ".e", "/a..e")
+    test(@/, "a", ".", "/a..")
+    test(@/, "a.c", ".", "/a..")
 
     test("/a", "b", null, "/a/b")
 

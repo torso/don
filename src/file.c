@@ -357,11 +357,6 @@ char *FileCreatePath(const char *restrict base, size_t baseLength,
          buffer[*resultLength - 2] != '.' ||
          buffer[*resultLength - 1] != '.'))
     {
-        if (extLength && extension[0] == '.')
-        {
-            extension++;
-            extLength--;
-        }
         for (i = *resultLength;; i--)
         {
             if (buffer[i] == '/')
