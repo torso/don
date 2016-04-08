@@ -106,6 +106,7 @@ static const Entry *getEntry(size_t entry)
 static void disposeIndex(IndexInfo *info)
 {
     free(info->path);
+    VALGRIND_MAKE_MEM_UNDEFINED(info, sizeof(*info));
 }
 
 static void deleteIndex(IndexInfo *info)

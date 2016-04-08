@@ -77,6 +77,7 @@ void VECTOR_FUNC(SetSize)(VECTOR_NAME *v, size_t size)
     if (size < v->allocatedSize)
     {
         v->size = size;
+        VALGRIND_MAKE_MEM_UNDEFINED(v->data + v->size, v->allocatedSize - v->size);
     }
     else
     {
@@ -234,7 +235,9 @@ VECTOR_TYPE VECTOR_FUNC(Peek)(const VECTOR_NAME *v)
 
 VECTOR_TYPE VECTOR_FUNC(Pop)(VECTOR_NAME *v)
 {
+    VECTOR_TYPE value;
     vectorCheckIndex(v, 0);
-    v->size--;
-    return v->data[v->size];
+    value = v->data[--v->size];
+    VALGRIND_MAKE_MEM_UNDEFINED(v->data + v->size, sizeof(VECTOR_TYPE));
+    return value;
 }

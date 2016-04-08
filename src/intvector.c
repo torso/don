@@ -1,5 +1,8 @@
 #include "config.h"
 #include <string.h>
+#ifdef VALGRIND
+#include <valgrind/memcheck.h>
+#endif
 #include "common.h"
 #include "intvector.h"
 

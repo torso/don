@@ -11,6 +11,8 @@
 #ifdef VALGRIND
 #undef NVALGRIND
 #include <valgrind/valgrind.h>
+#else
+#define VALGRIND_MAKE_MEM_UNDEFINED(a, b) ((void)(sizeof(a)+sizeof(b)))
 #endif
 
 typedef unsigned int uint;
