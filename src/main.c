@@ -33,14 +33,12 @@ int main(int argc, const char **argv)
     const char *inputFilename = null;
     const char *env;
     size_t envLength;
-    char *string;
     const char *cacheDirectory;
     size_t cacheDirectoryLength;
     bool cacheDirectoryDotCache;
     namespaceref defaultNamespace;
     vref name;
     bool parseOptions = true;
-    size_t size;
     bool fail;
     ParsedProgram parsed;
     LinkedProgram linked;
@@ -155,21 +153,12 @@ int main(int argc, const char **argv)
     NamespaceInit();
     NativeInit();
 
-    string = FileCreatePath(null, 0,
-                            DATADIR "don.don", strlen(DATADIR "don.don"),
-                            null, 0,
-                            &size);
     ParseInit(&parsed);
-    ParseFile(&parsed, string, size, NamespaceCreate(StringPoolAdd("don")));
-    free(string);
+    ParseFile(&parsed, DATADIR "don.don", sizeof(DATADIR) + 6,
+              NamespaceCreate(StringPoolAdd("don")));
 
-    string = FileCreatePath(null, 0,
-                            inputFilename, strlen(inputFilename),
-                            null, 0,
-                            &size);
     defaultNamespace = NamespaceCreate(0);
-    ParseFile(&parsed, string, size, defaultNamespace);
-    free(string);
+    ParseFile(&parsed, inputFilename, strlen(inputFilename), defaultNamespace);
 
     ParseDispose();
 

@@ -471,7 +471,6 @@ bool FileTryOpen(File *file, const char *path, size_t length)
     assert(file);
     assert(path);
     assert(length);
-    assert(*path == '/');
     assert(!pathIsDirectory(path, length));
 
     fd = open(path, O_CLOEXEC | O_RDONLY);
