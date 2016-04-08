@@ -389,18 +389,18 @@ void CacheGet(const byte *hash, bool echoCachedOutput,
               bool *uptodate, char **path, size_t *pathLength, vref *out)
 {
     const char *p;
-    char filename[CACHE_FILENAME_LENGTH + 1];
     const Entry *entry;
     size_t i;
 
-    UtilBase32(hash, CACHE_DIGEST_SIZE, filename + 1);
-    filename[0] = filename[1];
-    filename[1] = filename[2];
-    filename[2] = '/';
-    *path = FileCreatePath(cacheDir, cacheDirLength,
-                           filename, CACHE_FILENAME_LENGTH + 1,
-                           null, 0,
-                           pathLength);
+    *pathLength = cacheDirLength + CACHE_FILENAME_LENGTH + 1;
+    *path = (char*)malloc(*pathLength + 1);
+    UtilBase32(hash, CACHE_DIGEST_SIZE, *path + cacheDirLength + 1);
+    memcpy(*path, cacheDir, cacheDirLength);
+    (*path)[cacheDirLength + CACHE_FILENAME_LENGTH + 1] = 0;
+    (*path)[cacheDirLength] = (*path)[cacheDirLength + 1];
+    (*path)[cacheDirLength + 1] = (*path)[cacheDirLength + 2];
+    (*path)[cacheDirLength + 2] = '/';
+    assert(strlen(*path) == *pathLength);
     *out = VNull;
 
     for (i = tableIndex(hash);; i = (i + 1) & tableMask)
