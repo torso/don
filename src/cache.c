@@ -39,12 +39,11 @@ typedef struct
 
 typedef struct
 {
-    char *path;
-    size_t pathLength;
     File file;
     FileHeader header;
     const byte *data;
     size_t size;
+    char index;
 } IndexInfo;
 
 typedef struct
@@ -83,6 +82,9 @@ static bytevector removedEntries; /* TODO: Use size_t vector? */
 static TableEntry table[0x10000];
 static size_t tableMask = 0xffff;
 
+/* The first cacheDirLength characters gives the base directory for the cache (.../.cache/don/). It
+   actually ends with .cache/don/index? (+ zero termination) so that setupInfoPath can prepare it
+   for operating on the index files. */
 static char *cacheDir;
 static size_t cacheDirLength;
 static IndexInfo infoRead;
@@ -103,27 +105,40 @@ static const Entry *getEntry(size_t entry)
     return (const Entry*)BVGetPointer(&newEntries, entry - oldEntriesSize);
 }
 
+static void setupInfoPath(const IndexInfo *index, const char **path, size_t *length)
+{
+    cacheDir[cacheDirLength + 5] = index->index;
+    *path = cacheDir;
+    *length = cacheDirLength + 6;
+    assert(*length == strlen(*path));
+}
+
 static void disposeIndex(IndexInfo *info)
 {
-    free(info->path);
     VALGRIND_MAKE_MEM_UNDEFINED(info, sizeof(*info));
 }
 
 static void deleteIndex(IndexInfo *info)
 {
+    const char *path;
+    size_t length;
+    setupInfoPath(info, &path, &length);
     FileMUnmap(&info->file);
     FileClose(&info->file);
-    FileDelete(info->path, info->pathLength);
+    FileDelete(path, length);
     info->header.sequenceNumber = 0;
     info->data = null;
 }
 
 static void createIndex(IndexInfo *info, uint sequenceNumber)
 {
+    const char *path;
+    size_t length;
+    setupInfoPath(info, &path, &length);
     memset(&info->header, 0, sizeof(info->header));
     info->header.sequenceNumber = sequenceNumber;
     info->header.tag = TAG;
-    FileOpenAppend(&info->file, info->path, info->pathLength, true);
+    FileOpenAppend(&info->file, path, length, true);
     FileWrite(&info->file, (const byte*)&info->header, sizeof(info->header));
 }
 
@@ -178,20 +193,13 @@ static void writeIndex(IndexInfo *info, const byte *entries, size_t entriesSize)
     }
 }
 
-static void initIndex(uint slot, IndexInfo *info)
-{
-    char filename[6];
-    memset(info, 0, sizeof(*info));
-    memcpy(filename, "index", 5);
-    filename[5] = (char)('0' + slot);
-    info->path = FileCreatePath(cacheDir, cacheDirLength, filename,
-                                sizeof(filename), null, 0, &info->pathLength);
-}
-
 static bool openIndex(IndexInfo *info)
 {
     FileHeader *header;
-    if (!FileTryOpen(&info->file, info->path, info->pathLength))
+    const char *path;
+    size_t length;
+    setupInfoPath(info, &path, &length);
+    if (!FileTryOpen(&info->file, path, length))
     {
         return false;
     }
@@ -272,22 +280,40 @@ static void rebuildIndex(IndexInfo *src1, IndexInfo *src2, IndexInfo *dst)
     createIndex(&infoWrite, dst->header.sequenceNumber + 1);
 }
 
-void CacheInit(char *cacheDirectory, size_t cacheDirectoryLength)
+void CacheInit(const char *cacheDirectory, size_t cacheDirectoryLength,
+               bool cacheDirectoryDotCache)
 {
-    IndexInfo info1;
-    IndexInfo info2;
-    IndexInfo info3;
+    IndexInfo info1 = {{0}};
+    IndexInfo info2 = {{0}};
+    IndexInfo info3 = {{0}};
+    const char indexPath[] = "/.cache/don/index0";
+    const char *tail = indexPath;
+    size_t tailLength = sizeof(indexPath) - 1;
+    size_t indexPathLength;
 
     BVInit(&newEntries, 1024);
     BVInit(&removedEntries, 1024);
 
-    cacheDir = cacheDirectory;
-    cacheDirLength = cacheDirectoryLength;
-    FileMkdir(cacheDirectory, cacheDirectoryLength);
+    if (!cacheDirectoryDotCache)
+    {
+        tail += 7;
+        tailLength -= 7;
+    }
+    if (cacheDirectoryLength &&
+        cacheDirectory[cacheDirectoryLength-1] == '/')
+    {
+        cacheDirectoryLength--;
+    }
+    indexPathLength = cacheDirectoryLength + tailLength;
+    cacheDirLength = indexPathLength - 6; /* without "index0" */
+    cacheDir = (char*)malloc(indexPathLength + 1);
+    memcpy(cacheDir, cacheDirectory, cacheDirectoryLength);
+    memcpy(cacheDir + cacheDirectoryLength, tail, tailLength + 1);
+    FileMkdir(cacheDir, cacheDirLength);
 
-    initIndex(1, &info1);
-    initIndex(2, &info2);
-    initIndex(3, &info3);
+    info1.index = 1;
+    info2.index = 2;
+    info3.index = 3;
     openIndex(&info1);
     openIndex(&info2);
     openIndex(&info3);
@@ -375,9 +401,12 @@ void CacheDispose(void)
 
     if (infoRead.header.sequenceNumber)
     {
+        const char *path;
+        size_t length;
+        setupInfoPath(&infoRead, &path, &length);
         FileMUnmap(&infoRead.file);
         FileClose(&infoRead.file);
-        FileDelete(infoRead.path, infoRead.pathLength);
+        FileDelete(path, length);
         disposeIndex(&infoRead);
     }
 

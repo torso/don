@@ -21,6 +21,7 @@ fn compile(datadir:@data/, extraflags:[], linkflags:[], optimize:false)
                        -Wpacked-bitfield-compat -Wredundant-decls
                        -Wnested-externs -Wunreachable-code
                        -Wno-error=unreachable-code -Winline -Winvalid-pch
+                       -Wno-missing-field-initializers
                        -Wdisabled-optimization -Wstack-protector -pipe
                        -march=native]::(optimize ? [-O2] : [-DDEBUG -O0])::extraflags)
     return link(ofiles, flags:linkflags, name:'don')

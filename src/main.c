@@ -34,8 +34,9 @@ int main(int argc, const char **argv)
     const char *env;
     size_t envLength;
     char *string;
-    char *cacheDirectory;
+    const char *cacheDirectory;
     size_t cacheDirectoryLength;
+    bool cacheDirectoryDotCache;
     namespaceref defaultNamespace;
     vref name;
     bool parseOptions = true;
@@ -127,10 +128,9 @@ int main(int argc, const char **argv)
     EnvGet("XDG_CACHE_HOME", 14, &env, &envLength);
     if (envLength)
     {
-        string = FileCreatePath(null, 0, env, envLength, null, 0, &envLength);
-        cacheDirectory = FileCreatePath(string, envLength, "don/", 4,
-                                        null, 0, &cacheDirectoryLength);
-        free(string);
+        cacheDirectory = env;
+        cacheDirectoryLength = envLength;
+        cacheDirectoryDotCache = false;
     }
     else
     {
@@ -141,10 +141,9 @@ int main(int argc, const char **argv)
                     "No suitable location for cache directory found.\n");
             return 1;
         }
-        string = FileCreatePath(null, 0, env, envLength, null, 0, &envLength);
-        cacheDirectory = FileCreatePath(string, envLength, ".cache/don/", 11,
-                                        null, 0, &cacheDirectoryLength);
-        free(string);
+        cacheDirectory = env;
+        cacheDirectoryLength = envLength;
+        cacheDirectoryDotCache = true;
     }
 
     if (!IVSize(&targets))
@@ -209,7 +208,7 @@ int main(int argc, const char **argv)
     StringPoolDispose();
 
     PipeInit();
-    CacheInit(cacheDirectory, cacheDirectoryLength);
+    CacheInit(cacheDirectory, cacheDirectoryLength, cacheDirectoryDotCache);
     for (j = 0; j < IVSize(&targets); j++)
     {
         InterpreterExecute(
