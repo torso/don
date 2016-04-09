@@ -1007,28 +1007,6 @@ vref VCreateArrayFromVectorSegment(const intvector *values,
     return VCreateArrayFromData((const vref*)IVGetPointer(values, start), length);
 }
 
-vref VConcatList(vref list1, vref list2)
-{
-    byte *data;
-    vref *subLists;
-
-    assert(VIsCollection(list1));
-    assert(VIsCollection(list2));
-    if (!VCollectionSize(list1))
-    {
-        return list2;
-    }
-    if (!VCollectionSize(list2))
-    {
-        return list1;
-    }
-    data = HeapAlloc(TYPE_CONCAT_LIST, sizeof(vref) * 2);
-    subLists = (vref*)data;
-    subLists[0] = list1;
-    subLists[1] = list2;
-    return HeapFinishAlloc(data);
-}
-
 bool VIsCollectionType(VType type)
 {
     switch ((int)type)
@@ -1564,7 +1542,20 @@ vref VRange(VM *vm, vref lowValue, vref highValue)
 
 vref VConcat(VM *vm, vref value1, vref value2)
 {
-    VType type = HeapGetObjectType(value1);
+    VType type;
+    byte *data;
+    vref *subLists;
+
+    if (value1 == VEmptyList)
+    {
+        return value2;
+    }
+    if (value2 == VEmptyList)
+    {
+        return value1;
+    }
+
+    type = HeapGetObjectType(value1);
     switch ((int)type)
     {
     case TYPE_ARRAY:
@@ -1588,7 +1579,12 @@ vref VConcat(VM *vm, vref value1, vref value2)
     default:
         goto error;
     }
-    return VConcatList(value1, value2);
+
+    data = HeapAlloc(TYPE_CONCAT_LIST, sizeof(vref) * 2);
+    subLists = (vref*)data;
+    subLists[0] = value1;
+    subLists[1] = value2;
+    return HeapFinishAlloc(data);
 
 error:
     {

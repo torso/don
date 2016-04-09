@@ -116,7 +116,6 @@ nonnull vref VFinishArray(vref *array);
 nonnull vref VCreateArrayFromData(const vref *values, size_t size);
 nonnull vref VCreateArrayFromVector(const intvector *values);
 nonnull vref VCreateArrayFromVectorSegment(const intvector *values, size_t start, size_t length);
-nonnull vref VConcatList(vref list1, vref list2);
 pureconst bool VIsCollectionType(VType type);
 nonnull bool VIsCollection(vref object);
 size_t VCollectionSize(vref value);
