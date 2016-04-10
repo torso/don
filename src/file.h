@@ -32,10 +32,8 @@ typedef void (*TraverseCallback)(const char *path, size_t length,
 void FileInit(void);
 void FileDisposeAll(void);
 
-char *FileCreatePath(const char *restrict base, size_t baseLength,
-                     const char *restrict path, size_t length,
-                     const char *restrict extension, size_t extLength,
-                     size_t *resultLength);
+nonnull const char *FileGetCWD(size_t *length);
+nonnull size_t FileCleanPath(char *pathZ, size_t length);
 nonnull char *FileSearchPath(const char *name, size_t length,
                              size_t *resultLength, bool executable);
 nonnull const char *FileStripPath(const char *path, size_t *length);

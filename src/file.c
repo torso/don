@@ -213,107 +213,106 @@ void FileDisposeAll(void)
 }
 
 
-/* TODO: Handle backslashes */
-static size_t cleanFilename(char *filename, size_t length)
+const char *FileGetCWD(size_t *length)
 {
-    char *write = filename;
-    const char *read = filename;
-    const char *found = filename;
+    *length = cwdLength;
+    return cwd;
+}
+
+/* TODO: Handle backslashes */
+size_t FileCleanPath(char *path, size_t length)
+{
+    char *write = path + 1;
+    const char *read = path + 1;
+    const char *found = path + 1;
 
     assert(length);
+    assert(*path == '/');
 
     for (;;)
     {
-        size_t l = (size_t)(filename + length - found);
+        int skip;
+        const char *lastFound = found;
+        size_t l = (size_t)(path + length - found);
         found = (char*)memchr((const void*)found, '/', l);
         if (!found)
         {
-            l = (size_t)(filename + length - read);
+            l = (size_t)(path + length - read);
             memmove(write, read, l + 1);
-            length = (size_t)(write + l - filename);
-            goto done;
-        }
-        found++;
-        for (;;)
-        {
-            int skip;
-            if (*found == '/')
+            length = (size_t)(write + l - path);
+
+            if (path[length - 1] == '.')
             {
-                /* Strip // */
-                skip = 1;
+                if (length >= 2 && path[length - 2] == '/')
+                {
+                    /* /. at end of path */
+                    length--;
+                    path[length] = 0;
+                }
+                else if (length == 3 && path[length - 2] == '.' && path[length - 3] == '/')
+                {
+                    /* path == /.. -> / */
+                    length -= 2;
+                    path[length] = 0;
+                }
             }
-            else if (*found == '.')
+            else if (length >= 4 && path[length - 4] == '/' && path[length - 3] == '.' &&
+                     path[length - 2] == '.' && path[length - 1] == '/')
             {
-                if (found[1] == '/')
-                {
-                    /* Strip /./ */
-                    skip = 2;
-                }
-                else if (!found[1])
-                {
-                    /* Strip /. */
-                    l = (size_t)(found - read);
-                    memmove(write, read, l);
-                    write += l;
-                    *write = 0;
-                    length = (size_t)(write - filename);
-                    goto done;
-                }
-                else if (found[1] == '.' && found[2] == '/' && !found[3])
-                {
-                    /* Strip /../ -> /.. or -> / at start of path*/
-                    l = (size_t)(found - read);
-                    memmove(write, read, l);
-                    write += l;
-                    if (write != filename + 1)
-                    {
-                        *write++ = '.';
-                        *write++ = '.';
-                    }
-                    *write = 0;
-                    length = (size_t)(write - filename);
-                    goto done;
-                }
-                else if (found[1] == '.' && (found[2] == '/' || !found[2]) &&
-                         write == filename + 1 && found == read)
-                {
-                    /* Strip /../ -> / at start of path */
-                    skip = 2;
-                }
-                else
-                {
-                    break;
-                }
+                /* /../ -> /.. */
+                length--;
+                path[length] = 0;
+            }
+            return length;
+        }
+        if (found - lastFound > 2)
+        {
+            found++;
+            continue;
+        }
+        if (found == lastFound)
+        {
+            /* // */
+            skip = 1;
+        }
+        else if (found == lastFound + 1)
+        {
+            if (*lastFound == '.')
+            {
+                /* /./ */
+                skip = 2;
             }
             else
             {
-                break;
+                found++;
+                continue;
             }
-            l = (size_t)(found - read);
-            memmove(write, read, l);
-            write += l;
-            read = found + skip;
-            found = read;
         }
+        else if (read == lastFound && write == path + 1 && *lastFound == '.' && lastFound[1] == '.')
+        {
+            /* /../ at beginning of path */
+            skip = 3;
+        }
+        else
+        {
+            found++;
+            continue;
+        }
+        found++;
+        l = (size_t)(found - read - skip);
+        memmove(write, read, l);
+        write += l;
+        read = found;
     }
-
-done:
-    if (length >= 4 && filename[length - 4] == '/' && filename[length - 3] == '.' && filename[length - 2] == '.' && filename[length - 1] == '/')
-    {
-        filename[--length] = 0;
-    }
-    return length;
 }
 
-char *FileCreatePath(const char *restrict base, size_t baseLength,
-                     const char *restrict path, size_t length,
-                     const char *restrict extension, size_t extLength,
-                     size_t *resultLength)
+static char *FileCreatePath(const char *restrict base, size_t baseLength,
+                            const char *restrict path, size_t length,
+                            size_t *resultLength)
 {
     const char *restrict base2 = null;
     size_t base2Length = 0;
     char *restrict buffer;
-    size_t i;
 
     assert(!base || (baseLength && *base == '/'));
     assert(path);
@@ -335,51 +334,13 @@ char *FileCreatePath(const char *restrict base, size_t baseLength,
         base2Length = cwdLength;
     }
 
-    buffer = (char*)malloc(base2Length + baseLength + length + extLength + 3);
+    buffer = (char*)malloc(base2Length + baseLength + length + 2);
     memcpy(buffer, base2, base2Length);
     memcpy(buffer + base2Length, base, baseLength);
     buffer[base2Length + baseLength] = '/';
     memcpy(&buffer[base2Length + baseLength + 1], path, length);
     buffer[base2Length + baseLength + length + 1] = 0;
-    *resultLength = cleanFilename(buffer, base2Length + baseLength + length + 1);
-
-    if (extension &&
-        buffer[*resultLength - 1] != '/' &&
-        (*resultLength < 3 ||
-         buffer[*resultLength - 3] != '/' ||
-         buffer[*resultLength - 2] != '.' ||
-         buffer[*resultLength - 1] != '.'))
-    {
-        for (i = *resultLength;; i--)
-        {
-            if (buffer[i] == '/')
-            {
-                if (extLength)
-                {
-                    buffer[*resultLength] = '.';
-                    memcpy(buffer + *resultLength + 1, extension, extLength);
-                    *resultLength += extLength + 1;
-                    buffer[*resultLength] = 0;
-                }
-                break;
-            }
-            if (buffer[i] == '.')
-            {
-                if (extLength)
-                {
-                    memcpy(buffer + i + 1, extension, extLength);
-                    buffer[i + extLength + 1] = 0;
-                    *resultLength = i + 1 + extLength;
-                }
-                else
-                {
-                    buffer[i] = 0;
-                    *resultLength = i;
-                }
-                break;
-            }
-        }
-    }
+    *resultLength = FileCleanPath(buffer, base2Length + baseLength + length + 1);
     return buffer;
 }
 
@@ -397,13 +358,13 @@ char *FileSearchPath(const char *name, size_t length, size_t *resultLength,
     if (*name == '/')
     {
         return !executable || FileIsExecutable(name, length) ?
-            FileCreatePath(null, 0, name, length, null, 0, resultLength) : null;
+            FileCreatePath(null, 0, name, length, resultLength) : null;
     }
     for (stop = path + pathLength; path < stop; path = p + 1)
     {
         for (p = path; p < stop && *p != ':'; p++);
         candidate = FileCreatePath(path, (size_t)(p - path), name, length,
-                                   null, 0, resultLength);
+                                   resultLength);
         if (executable ? FileIsExecutable(candidate, *resultLength) :
             feIsFile(feEntry(candidate, *resultLength)))
         {

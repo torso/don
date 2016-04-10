@@ -42,18 +42,20 @@ vref HeapFinishAlloc(byte *objectData)
 
 vref HeapFinishRealloc(byte *objectData, size_t size)
 {
+    uint oldSize = *(uint*)(objectData - OBJECT_OVERHEAD);
     assert(size);
     assert(size <= UINT_MAX - 1);
-    assert(HeapPageFree == objectData);
+    assert(HeapPageFree == objectData + oldSize);
     *(uint*)(objectData - OBJECT_OVERHEAD) = (uint)size;
-    HeapPageFree += size;
+    HeapPageFree += size - oldSize;
     return HeapFinishAlloc(objectData);
 }
 
 void HeapAllocAbort(byte *objectData)
 {
-    assert(HeapPageFree == objectData);
-    HeapPageFree -= OBJECT_OVERHEAD;
+    uint oldSize = *(uint*)(objectData - OBJECT_OVERHEAD);
+    assert(HeapPageFree == objectData + oldSize);
+    HeapPageFree = objectData - OBJECT_OVERHEAD;
 }
 
 void HeapFree(vref value)

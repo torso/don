@@ -10,6 +10,7 @@
 #include "hash.h"
 #include "heap.h"
 #include "math.h"
+#include "std.h"
 #include "vm.h"
 
 vref VNull;
@@ -51,23 +52,11 @@ static const char *getString(vref object)
     case TYPE_SUBSTRING:
         ss = (const SubString*)HeapGetObjectData(object);
         return &getString(ss->string)[ss->offset];
-    }
-    unreachable;
-}
 
-static const char *toString(vref object, bool *copy)
-{
-    *copy = false;
-    if (VIsString(object))
-    {
-        return getString(object);
-    }
-    if (VIsFile(object))
-    {
+    case TYPE_FILE:
         return getString(unboxReference(TYPE_FILE, object));
     }
-    assert(false); /* TODO */
-    return null;
+    unreachable;
 }
 
 
@@ -744,8 +733,9 @@ vref VCreatePath(vref path)
 {
     const char *src;
     size_t srcLength;
-    char *temp;
-    size_t tempLength;
+    byte *data;
+    size_t pathLength, cleanedLength;
+    bool forceAlloc;
 
     if (VIsFile(path))
     {
@@ -753,13 +743,35 @@ vref VCreatePath(vref path)
     }
     src = getString(path);
     srcLength = VStringLength(path);
-    /* TODO: Avoid malloc */
-    temp = FileCreatePath(null, 0, src, srcLength, null, 0, &tempLength);
-    if (tempLength != srcLength || memcmp(src, temp, srcLength))
+    pathLength = srcLength;
+    if (src[0] == '/')
     {
-        path = VCreateString(temp, tempLength);
+        data = HeapAlloc(TYPE_STRING, pathLength + 1);
+        memcpy(data, src, srcLength);
+        data[srcLength] = 0;
+        forceAlloc = HeapGetObjectType(path) != TYPE_STRING;
     }
-    free(temp);
+    else
+    {
+        size_t cwdLength;
+        const char *cwd = FileGetCWD(&cwdLength);
+        data = HeapAlloc(TYPE_STRING, cwdLength + pathLength + 1);
+        memcpy(data, cwd, cwdLength);
+        memcpy(data + cwdLength, src, srcLength);
+        pathLength = cwdLength + pathLength;
+        forceAlloc = true;
+    }
+    data[pathLength] = 0;
+    cleanedLength = FileCleanPath((char*)data, pathLength);
+    if (forceAlloc || cleanedLength != pathLength)
+    {
+        assert(data[cleanedLength] == 0);
+        path = HeapFinishRealloc(data, cleanedLength + 1);
+    }
+    else
+    {
+        HeapAllocAbort(data);
+    }
     return boxReference(TYPE_FILE, path);
 }
 
@@ -783,18 +795,16 @@ bool VIsFile(vref object)
 
 vref VPathFromParts(vref path, vref name, vref extension)
 {
+    const char *cwd = null;
     const char *pathString = null;
     const char *nameString;
     const char *extensionString = null;
+    size_t cwdLength = 0;
     size_t pathLength = 0;
     size_t nameLength;
     size_t extensionLength = 0;
-    bool freePath = false;
-    bool freeName;
-    bool freeExtension = false;
     char *resultPath;
     size_t resultPathLength;
-    vref result;
 
     assert(path != VFuture);
     assert(name != VFuture);
@@ -803,37 +813,62 @@ vref VPathFromParts(vref path, vref name, vref extension)
     assert(VIsString(name) || VIsFile(name));
     assert(extension == VNull || VIsString(extension));
 
-    if (path != VNull)
-    {
-        pathString = toString(path, &freePath);
-        pathLength = VStringLength(path);
-    }
-    nameString = toString(name, &freeName);
+    nameString = getString(name);
     nameLength = VStringLength(name);
     if (extension != VNull)
     {
-        extensionString = toString(extension, &freeExtension);
+        extensionString = getString(extension);
         extensionLength = VStringLength(extension);
     }
-    resultPath = FileCreatePath(pathString, pathLength,
-                                nameString, nameLength,
-                                extensionString, extensionLength,
-                                &resultPathLength);
-    if (freePath)
+    if (*nameString != '/')
     {
-        free((void*)pathString);
+        if (path != VNull)
+        {
+            pathString = getString(path);
+            pathLength = VStringLength(path);
+        }
+        if (!pathLength || *pathString != '/')
+        {
+            cwd = FileGetCWD(&cwdLength);
+        }
     }
-    if (freeName)
+    resultPathLength = cwdLength + pathLength + 1 + nameLength;
+    resultPath = (char*)HeapAlloc(TYPE_STRING, resultPathLength +
+                                  extensionLength + 2); /* space for . and \0 */
+    memcpy(resultPath, cwd, cwdLength);
+    memcpy(resultPath + cwdLength, pathString, pathLength);
+    resultPath[cwdLength + pathLength] = '/';
+    memcpy(resultPath + cwdLength + pathLength + 1, nameString, nameLength);
+    if (extensionString)
     {
-        free((void*)nameString);
+        char *slashPos = (char*)memrchr(resultPath, '/', resultPathLength);
+        if (slashPos != resultPath + resultPathLength - 1)
+        {
+            char *periodPos = (char*)memrchr(resultPath, '.', resultPathLength);
+            if (periodPos && periodPos > slashPos)
+            {
+                if (extensionLength)
+                {
+                    memcpy(periodPos + 1, extensionString, extensionLength);
+                    resultPathLength = (size_t)(periodPos + 1 + extensionLength - resultPath);
+                }
+                else
+                {
+                    resultPathLength = (size_t)(periodPos - resultPath);
+                }
+            }
+            else if (extensionLength)
+            {
+                resultPath[cwdLength + pathLength + 1 + nameLength] = '.';
+                memcpy(resultPath + cwdLength + pathLength + 1 + nameLength + 1, extensionString, extensionLength);
+                resultPathLength += 1 + extensionLength;
+            }
+        }
     }
-    if (freeExtension)
-    {
-        free((void*)extensionString);
-    }
-    result = VCreatePath(VCreateString(resultPath, resultPathLength));
-    free(resultPath);
-    return result;
+    resultPath[resultPathLength] = 0;
+    resultPathLength = FileCleanPath(resultPath, resultPathLength);
+    assert(!resultPath[resultPathLength]);
+    return boxReference(TYPE_FILE, HeapFinishRealloc((byte*)resultPath, resultPathLength + 1));
 }
 
 
