@@ -415,29 +415,30 @@ void CacheDispose(void)
     free(cacheDir);
 }
 
-void CacheGet(const byte *hash, bool echoCachedOutput,
-              bool *uptodate, char **path, size_t *pathLength, vref *out)
+void CacheGet(const byte *hash, bool echoCachedOutput, bool *uptodate, vref *path, vref *out)
 {
     const char *p;
     const Entry *entry;
     size_t i;
+    char *data;
+    size_t pathLength;
 
-    *pathLength = cacheDirLength + CACHE_FILENAME_LENGTH + 1;
-    *path = (char*)malloc(*pathLength + 1);
-    UtilBase32(hash, CACHE_DIGEST_SIZE, *path + cacheDirLength + 1);
-    memcpy(*path, cacheDir, cacheDirLength);
-    (*path)[cacheDirLength + CACHE_FILENAME_LENGTH + 1] = 0;
-    (*path)[cacheDirLength] = (*path)[cacheDirLength + 1];
-    (*path)[cacheDirLength + 1] = (*path)[cacheDirLength + 2];
-    (*path)[cacheDirLength + 2] = '/';
-    assert(strlen(*path) == *pathLength);
+    pathLength = cacheDirLength + CACHE_FILENAME_LENGTH + 1;
+    *path = VCreatePathUnchecked(VCreateUninitialisedString(pathLength, &data));
+    UtilBase32(hash, CACHE_DIGEST_SIZE, data + cacheDirLength + 1);
+    memcpy(data, cacheDir, cacheDirLength);
+    data[cacheDirLength + CACHE_FILENAME_LENGTH + 1] = 0;
+    data[cacheDirLength] = data[cacheDirLength + 1];
+    data[cacheDirLength + 1] = data[cacheDirLength + 2];
+    data[cacheDirLength + 2] = '/';
+    assert(strlen(data) == pathLength);
     *out = VNull;
 
     for (i = tableIndex(hash);; i = (i + 1) & tableMask)
     {
         if (!table[i].entry)
         {
-            FileMkdir(*path, *pathLength);
+            FileMkdir(data, pathLength);
             *uptodate = false;
             return;
         }

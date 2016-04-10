@@ -431,8 +431,6 @@ static vref nativeGetCache(VM *vm)
 {
     vref key = VMReadValue(vm);
     vref echoCachedOutput = VMReadValue(vm);
-    char *cachePath;
-    size_t cachePathLength;
     HashState hashState;
     byte hash[DIGEST_SIZE];
     bool uptodate;
@@ -448,10 +446,7 @@ static vref nativeGetCache(VM *vm)
     HashInit(&hashState);
     VHash(key, &hashState);
     HashFinal(&hashState, hash);
-    CacheGet(hash, VIsTruthy(echoCachedOutput),
-             &uptodate, &cachePath, &cachePathLength, &value);
-    result.cacheFile = VCreatePath(VCreateString(cachePath, cachePathLength));
-    free(cachePath);
+    CacheGet(hash, VIsTruthy(echoCachedOutput), &uptodate, &result.cacheFile, &value);
     result.uptodate = uptodate ? VTrue : VFalse;
     result.data = value;
     return VCreateArrayFromData((vref*)&result, 3);

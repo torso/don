@@ -102,6 +102,7 @@ nonnull vref VStringIndexOf(vref text, size_t startOffset, vref substring);
   Creates a path object, if the supplied object isn't one already.
 */
 nonnull vref VCreatePath(vref path);
+nonnull vref VCreatePathUnchecked(vref path);
 nonnull const char *VGetPath(vref path, size_t *length);
 nonnull bool VIsFile(vref object);
 nonnull vref VPathFromParts(vref path, vref name, vref extension);

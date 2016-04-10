@@ -763,6 +763,12 @@ vref VCreatePath(vref path)
     return boxReference(TYPE_FILE, path);
 }
 
+vref VCreatePathUnchecked(vref path)
+{
+    assert(HeapGetObjectType(path) == TYPE_STRING);
+    return boxReference(TYPE_FILE, path);
+}
+
 const char *VGetPath(vref path, size_t *length)
 {
     vref s = unboxReference(TYPE_FILE, path);
