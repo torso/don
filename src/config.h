@@ -11,9 +11,10 @@
 #ifndef LITTLE_ENDIAN
 #define LITTLE_ENDIAN
 #endif
-#define HAVE_POSIX_SPAWN 1
+#define HAVE_MEMRCHR 1
 #define HAVE_OPENAT 1
 #define HAVE_PIPE2 1
+#define HAVE_POSIX_SPAWN 1
 #define HAVE_VFORK 1
 
 #if HAVE_VFORK

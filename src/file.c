@@ -15,6 +15,7 @@
 #include "file.h"
 #include "glob.h"
 #include "hash.h"
+#include "std.h"
 
 struct _FileEntry
 {
@@ -47,20 +48,12 @@ static bool pathIsDirectory(const char *path, size_t length)
     return path[length] == '/';
 }
 
+/* TODO: This will not work at the top level */
 static size_t parentPathLength(const char *path, size_t length)
 {
     assert(length > 1);
     assert(*path == '/');
-    length--;
-    if (path[length] == '/')
-    {
-        length--;
-    }
-    while (path[length] != '/')
-    {
-        length--;
-    }
-    return length + 1;
+    return (size_t)((const char*)memrchr(path, '/', length - 1) - path + 1);
 }
 
 
