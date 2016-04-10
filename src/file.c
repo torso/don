@@ -355,7 +355,7 @@ char *FileSearchPath(const char *name, size_t length, size_t *resultLength,
 
     assert(name);
     assert(length);
-    if (*name == '/')
+    if (memchr(name, '/', length))
     {
         return !executable || FileIsExecutable(name, length) ?
             FileCreatePath(null, 0, name, length, resultLength) : null;
