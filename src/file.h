@@ -61,7 +61,7 @@ nonnull void FileWrite(File *file, const byte *buffer, size_t size);
 
 nonnull bool FileIsExecutable(const char *path, size_t length);
 nonnull void FileDelete(const char *path, size_t length);
-nonnull bool FileMkdir(const char *path, size_t length);
+nonnull bool FileMkdirMutable(char *pathZ, size_t length);
 nonnull void FileCopy(const char *srcPath, size_t srcLength,
                       const char *dstPath, size_t dstLength);
 nonnull void FileRename(const char *oldPath, size_t oldLength,

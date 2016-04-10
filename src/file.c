@@ -674,11 +674,11 @@ void FileDelete(const char *path, size_t length)
     free(pathZ);
 }
 
-bool FileMkdir(const char *path, size_t length)
+bool FileMkdirMutable(char *pathZ, size_t length)
 {
-    uint index = feIndex(path, length);
-    char *pathZ;
-    if (feIsEntry(index, path, length))
+    uint index = feIndex(pathZ, length);
+    assert(strlen(pathZ) == length);
+    if (feIsEntry(index, pathZ, length))
     {
         FileEntry *fe = table + index;
         if (feExists(fe))
@@ -690,20 +690,21 @@ bool FileMkdir(const char *path, size_t length)
             FailIOErrno("Cannot create directory", fe->path, EEXIST);
         }
     }
-    /* TODO: Avoid malloc and copy */
-    pathZ = dupPath(path, length);
     FileMarkModified(pathZ, length);
     if (!mkdir(pathZ, S_IRWXU | S_IRWXG | S_IRWXO))
     {
-        free(pathZ);
         return true;
     }
     if (errno == ENOENT && length > 1)
     {
-        FileMkdir(path, parentPathLength(path, length));
+        size_t length2 = parentPathLength(pathZ, length);
+        char old = pathZ[length2];
+        assert(pathZ[length2-1] == '/');
+        pathZ[length2] = 0;
+        FileMkdirMutable(pathZ, length2);
+        pathZ[length2] = old;
         if (!mkdir(pathZ, S_IRWXU | S_IRWXG | S_IRWXO))
         {
-            free(pathZ);
             return true;
         }
     }
@@ -711,7 +712,6 @@ bool FileMkdir(const char *path, size_t length)
     {
         FailIO("Error creating directory", pathZ);
     }
-    free(pathZ);
     return false;
 }
 

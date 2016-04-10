@@ -286,7 +286,7 @@ void CacheInit(const char *cacheDirectory, size_t cacheDirectoryLength,
     IndexInfo info1 = {{0}};
     IndexInfo info2 = {{0}};
     IndexInfo info3 = {{0}};
-    const char indexPath[] = "/.cache/don/index0";
+    const char indexPath[] = "/.cache/don/\0ndex0"; /* \0 needed for mkdir */
     const char *tail = indexPath;
     size_t tailLength = sizeof(indexPath) - 1;
     size_t indexPathLength;
@@ -309,7 +309,8 @@ void CacheInit(const char *cacheDirectory, size_t cacheDirectoryLength,
     cacheDir = (char*)malloc(indexPathLength + 1);
     memcpy(cacheDir, cacheDirectory, cacheDirectoryLength);
     memcpy(cacheDir + cacheDirectoryLength, tail, tailLength + 1);
-    FileMkdir(cacheDir, cacheDirLength);
+    FileMkdirMutable(cacheDir, cacheDirLength);
+    cacheDir[cacheDirLength] = 'i';
 
     info1.index = 1;
     info2.index = 2;
@@ -438,7 +439,7 @@ void CacheGet(const byte *hash, bool echoCachedOutput, bool *uptodate, vref *pat
     {
         if (!table[i].entry)
         {
-            FileMkdir(data, pathLength);
+            FileMkdirMutable(data, pathLength);
             *uptodate = false;
             return;
         }
