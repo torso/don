@@ -3,7 +3,7 @@
 target test1
 {
     cache = getCache("test", 0)
-    setUptodate(cache, output:list("PASS", ""))
+    setUptodate(cache, output:"PASS")
     getCache("test", 0)
 }
 

@@ -632,7 +632,6 @@ static vref nativeSetUptodate(VM *vm)
 {
     vref cacheFile = VMReadValue(vm);
     vref out = VMReadValue(vm);
-    vref err = VMReadValue(vm);
     vref data = VMReadValue(vm);
     vref accessedFiles = VMReadValue(vm);
     const char *path;
@@ -646,7 +645,7 @@ static vref nativeSetUptodate(VM *vm)
     }
 
     path = VGetPath(cacheFile, &length);
-    CacheSetUptodate(path, length, accessedFiles, out, err, data);
+    CacheSetUptodate(path, length, accessedFiles, out, data);
     return 0;
 }
 
@@ -760,7 +759,7 @@ void NativeInit(void)
     addFunctionInfo("readFile",    nativeReadFile,    2, 1);
     addFunctionInfo("replace",     nativeReplace,     3, 2);
     addFunctionInfo("rm",          nativeRm,          1, 0);
-    addFunctionInfo("setUptodate", nativeSetUptodate, 5, 0);
+    addFunctionInfo("setUptodate", nativeSetUptodate, 4, 0);
     addFunctionInfo("size",        nativeSize,        1, 1);
     addFunctionInfo("split",       nativeSplit,       3, 1);
     addFunctionInfo("writeFile",   nativeWriteFile,   2, 0);

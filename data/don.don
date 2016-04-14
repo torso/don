@@ -127,9 +127,9 @@ fn rm(filename)
     native.rm(filename)
 }
 
-fn setUptodate(cacheFile, output:list('', ''), data:'', accessedFiles:[])
+fn setUptodate(cacheFile, output:'', data:'', accessedFiles:[])
 {
-    native.setUptodate(cacheFile, output[0], output[1], data, filelist(accessedFiles))
+    native.setUptodate(cacheFile, output, data, filelist(accessedFiles))
 }
 
 fn sign(n)
@@ -202,7 +202,7 @@ fn cc(files..., flags:[], include:[], sysinclude:[])
                 depend = replace(depend, "\\\n", '')
                 depend = split(depend, delimiter:' ', removeEmpty:true)
                 rm(dependFile)
-                setUptodate(cache, out, accessedFiles:filelist(depend))
+                setUptodate(cache, "$(out[0])$(out[1])", accessedFiles:filelist(depend))
             }
         }
         result = result::list(ofile)
@@ -231,7 +231,7 @@ fn link(files..., flags:[], libs:[], name:'a.out')
     if !uptodate
     {
         out exitcode = exec('cc', '-o', program, files, flags, libargs, modify:program)
-        setUptodate(cache, out, accessedFiles:files)
+        setUptodate(cache, "$(out[0])$(out[1])", accessedFiles:files)
     }
     return program
 }

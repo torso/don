@@ -58,13 +58,11 @@ typedef struct
     byte hash[CACHE_DIGEST_SIZE];
     uint dependencyCount;
     uint outLength;
-    uint errLength;
     uint dataLength;
     Dependency dependencies[1]; /* dependencyCount number of entries */
     /* paths for dependencies */
     /* data[dataLength] */
     /* out[outLength] */
-    /* err[errLength] */
 } Entry;
 
 typedef struct
@@ -472,11 +470,6 @@ void CacheGet(const byte *hash, bool echoCachedOutput, bool *uptodate, vref *pat
         if (entry->outLength)
         {
             LogPrintAutoNewline(p, entry->outLength);
-            p += entry->outLength;
-        }
-        if (entry->errLength)
-        {
-            LogPrintAutoNewline(p, entry->errLength);
         }
     }
 }
@@ -492,7 +485,7 @@ static void appendString(vref value)
 }
 
 void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
-                      vref out, vref err, vref data)
+                      vref output, vref data)
 {
     Entry *entry;
     uint dependencyCount = (uint)VCollectionSize(dependencies);
@@ -536,8 +529,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
     memcpy(entry->hash, hash, CACHE_DIGEST_SIZE);
     entry->dependencyCount = dependencyCount;
     entry->dataLength = (uint)VStringLength(data);
-    entry->outLength = (uint)VStringLength(out);
-    entry->errLength = (uint)VStringLength(err);
+    entry->outLength = (uint)VStringLength(output);
     for (i = 0; i < dependencyCount; i++)
     {
         vref value;
@@ -563,8 +555,7 @@ void CacheSetUptodate(const char *path, size_t pathLength, vref dependencies,
                sizeof(FileStatus));
     }
     appendString(data);
-    appendString(out);
-    appendString(err);
+    appendString(output);
     /* TODO: Add padding for alignment */
     entry = (Entry*)BVGetPointer(&newEntries, entryStart);
     entry->size = BVSize(&newEntries) - entryStart;
