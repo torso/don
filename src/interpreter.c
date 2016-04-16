@@ -586,6 +586,10 @@ static VM *execute(VM *vm)
 
                 /* TODO: Activate speculative execution */
                 JobExecute(vm->job);
+                if (vm->failMessage)
+                {
+                    return vm;
+                }
                 /* vm = VMClone(vm, vm->ip); */
             }
             break;
