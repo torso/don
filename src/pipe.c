@@ -22,23 +22,18 @@ typedef struct
 static bytevector pipes;
 
 
-static Pipe *getPipe(int fd)
+static Pipe *getPipe(int handle)
 {
-    Pipe *pipe = (Pipe*)BVGetPointer(&pipes, 0);
-    for (;;)
-    {
-        assert((size_t)((byte*)pipe - BVGetPointer(&pipes, 0)) < BVSize(&pipes));
-        if (pipe->fdRead == fd)
-        {
-            return pipe;
-        }
-        pipe++;
-    }
+    return (Pipe*)BVGetPointer(&pipes, (size_t)handle * sizeof(Pipe));
 }
 
 static void pipeDispose(Pipe *pipe, vref *value)
 {
-    close(pipe->fdRead);
+    if (pipe->fdRead >= 0)
+    {
+        close(pipe->fdRead);
+        pipe->fdRead = -1;
+    }
     if (BVIsInitialized(&pipe->buffer))
     {
         if (value)
@@ -80,7 +75,10 @@ void PipeProcess(void)
     FD_ZERO(&set);
     while (pipe < stop)
     {
-        FD_SET(pipe->fdRead, &set);
+        if (pipe->fdRead >= 0)
+        {
+            FD_SET(pipe->fdRead, &set);
+        }
         pipe++;
     }
 
@@ -98,7 +96,7 @@ wait:
     pipe = (Pipe*)BVGetPointer(&pipes, 0);
     while (pipe < stop)
     {
-        if (FD_ISSET(pipe->fdRead, &set))
+        if (pipe->fdRead >= 0 && FD_ISSET(pipe->fdRead, &set))
         {
             size_t oldSize;
 
@@ -192,12 +190,27 @@ nextPipe:
 
 int PipeCreate(int *fdWrite)
 {
-    Pipe *pipe = (Pipe*)BVGetAppendPointer(&pipes, sizeof(*pipe));
     int fd[2];
+    int status;
+    Pipe *pipe = (Pipe*)BVGetPointer(&pipes, 0);
+    Pipe *stop = (Pipe*)((byte*)pipe + BVSize(&pipes));
+    int index = 0;
+    for (;; pipe++, index++)
+    {
+        if (pipe == stop)
+        {
+            pipe = (Pipe*)BVGetAppendPointer(&pipes, sizeof(*pipe));
+            break;
+        }
+        if (pipe->fdRead < 0)
+        {
+            break;
+        }
+    }
 #if HAVE_PIPE2
-    int status = pipe2(fd, O_CLOEXEC);
+    status = pipe2(fd, O_CLOEXEC);
 #else
-    int status = pipe(fd);
+    status = pipe(fd);
 #endif
     if (status)
     {
@@ -212,20 +225,17 @@ int PipeCreate(int *fdWrite)
     pipe->fdRead = fd[0];
     pipe->fdWrite = -1;
     *fdWrite = fd[1];
-    return fd[0];
+    return index;
 }
 
-void PipeDispose(int fd, vref *value)
+void PipeDispose(int handle, vref *value)
 {
-    Pipe *pipe = getPipe(fd);
-    size_t offset = (size_t)((byte*)pipe - BVGetPointer(&pipes, 0));
-    pipeDispose(pipe, value);
-    BVRemoveRange(&pipes, offset, sizeof(Pipe));
+    pipeDispose(getPipe(handle), value);
 }
 
-void PipeConnect(int fdFrom, int fdTo)
+void PipeConnect(int handle, int fdTo)
 {
-    Pipe *pipe = getPipe(fdFrom);
+    Pipe *pipe = getPipe(handle);
     assert(pipe->fdWrite < 0);
     assert(!BVIsInitialized(&pipe->buffer)); /* TODO: Copy buffered data */
     pipe->fdWrite = fdTo;

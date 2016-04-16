@@ -265,8 +265,8 @@ static vref jobExec(Job *job, vref *values)
     const char *path;
     pid_t pid;
     int status;
-    int fdOutRead, fdOutWrite;
-    int fdErrRead, fdErrWrite;
+    int pipeOut, fdOutWrite;
+    int pipeErr, fdErrWrite;
     size_t length;
 
     if (env->command == VFuture || env->env == VFuture ||
@@ -302,8 +302,8 @@ static vref jobExec(Job *job, vref *values)
         return 0;
     }
 
-    fdOutRead = PipeCreate(&fdOutWrite);
-    fdErrRead = PipeCreate(&fdErrWrite);
+    pipeOut = PipeCreate(&fdOutWrite);
+    pipeErr = PipeCreate(&fdErrWrite);
 
     envp = VCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
 
@@ -330,11 +330,11 @@ static vref jobExec(Job *job, vref *values)
 
     if (VIsTruthy(env->echoOut))
     {
-        PipeConnect(fdOutRead, STDOUT_FILENO);
+        PipeConnect(pipeOut, STDOUT_FILENO);
     }
     if (VIsTruthy(env->echoErr))
     {
-        PipeConnect(fdErrRead, STDOUT_FILENO);
+        PipeConnect(pipeErr, STDOUT_FILENO);
     }
     PipeProcess();
 
@@ -345,14 +345,14 @@ static vref jobExec(Job *job, vref *values)
     }
     if (WEXITSTATUS(status) && VIsTruthy(env->fail))
     {
-        PipeDispose(fdOutRead, null);
-        PipeDispose(fdErrRead, null);
+        PipeDispose(pipeOut, null);
+        PipeDispose(pipeErr, null);
         VMFailf(job->vm, "Process exited with status %d", WEXITSTATUS(status));
         return 0;
     }
     execReturn.exitcode = VBoxInteger(WEXITSTATUS(status));
-    PipeDispose(fdOutRead, &execReturn.outputStd);
-    PipeDispose(fdErrRead, &execReturn.outputErr);
+    PipeDispose(pipeOut, &execReturn.outputStd);
+    PipeDispose(pipeErr, &execReturn.outputErr);
     LogAutoNewline();
     return VCreateArrayFromData((const vref*)&execReturn, 3);
 }
