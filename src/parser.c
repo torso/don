@@ -2384,6 +2384,8 @@ static void parseBlock(ParseState *state)
                         parseBlock(state);
                         if (skipBlockWhitespace(state))
                         {
+                            placeJumpTargetHere(state, conditionTarget);
+                            placeJumpTargetHere(state, afterIfTarget);
                             return;
                         }
                         if (!peekReadKeywordElse(state))

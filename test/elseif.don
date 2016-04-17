@@ -1,23 +1,39 @@
+value = 0
+
 fn test(a, b)
 {
+    value = 3
     if a
     {
-        return 1
+        value = 1
     }
-    else if b
+    else if b || false
     {
-        return 2
-    }
-    else
-    {
-        return 3
+        value = 2
     }
 }
 
 target default
 {
-    if test(true, true) == 1 && test(true, false) == 1 && test(false, true) == 2 && test(false, false) == 3
+    test(true, true)
+    if value != 1
     {
-        echo("PASS")
+        echo("FAIL1")
     }
+    test(true, false)
+    if value != 1
+    {
+        echo("FAIL2")
+    }
+    test(false, true)
+    if value != 2
+    {
+        echo("FAIL3")
+    }
+    test(false, false)
+    if value != 3
+    {
+        echo("FAIL4")
+    }
+    echo("PASS")
 }
