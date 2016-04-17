@@ -1181,6 +1181,14 @@ static vref VRangeHigh(vref range)
 }
 
 
+static vref VStringEquals(vref value1, vref value2)
+{
+    size_t size1 = VStringLength(value1);
+    size_t size2 = VStringLength(value2);
+    return size1 == size2 &&
+        !memcmp(getString(value1), getString(value2), size1) ? VTrue : VFalse;
+}
+
 vref VEquals(vref value1, vref value2)
 {
     VType type1, type2;
@@ -1210,15 +1218,16 @@ vref VEquals(vref value1, vref value2)
         {
             return VFalse;
         }
-        {
-            size_t size1 = VStringLength(value1);
-            size_t size2 = VStringLength(value2);
-            return size1 == size2 &&
-                !memcmp(getString(value1), getString(value2), size1) ? VTrue : VFalse;
-        }
+        return VStringEquals(value1, value2);
 
     case TYPE_FILE:
-        return VFalse;
+        if (type2 != TYPE_FILE)
+        {
+            return VFalse;
+        }
+        value1 = unboxReference(TYPE_FILE, value1);
+        value2 = unboxReference(TYPE_FILE, value2);
+        return VStringEquals(value1, value2);
 
     case TYPE_ARRAY:
     case TYPE_INTEGER_RANGE:
