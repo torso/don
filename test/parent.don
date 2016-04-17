@@ -1,0 +1,10 @@
+target default
+{
+    if parent(@/path/file.ext) == @/path/ &&
+       parent(@/path/dir/file) == @/path/dir/ &&
+       parent(@/path/dir/) == @/path/ &&
+       parent(@/) == @/
+    {
+        echo("PASS")
+    }
+}

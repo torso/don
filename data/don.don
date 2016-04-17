@@ -107,6 +107,11 @@ fn mv(src, dst)
     native.mv(src, dst)
 }
 
+fn parent(path)
+{
+    return native.parent(path)
+}
+
 fn pid()
 {
     return native.pid()

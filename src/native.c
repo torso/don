@@ -18,6 +18,7 @@
 #include "log.h"
 #include "native.h"
 #include "pipe.h"
+#include "std.h"
 #include "stringpool.h"
 #include "value.h"
 #include "vm.h"
@@ -565,6 +566,33 @@ static vref nativeMv(VM *vm)
     return 0;
 }
 
+static vref nativeParent(VM *vm)
+{
+    vref path = VMReadValue(vm);
+    const char *s, *slash;
+    size_t length;
+
+    if (path == VFuture)
+    {
+        return VFuture;
+    }
+    s = VGetPath(path, &length);
+    if (length == 1)
+    {
+        assert(*s == '/');
+        return path;
+    }
+
+    assert(length);
+    if (s[length-1] == '/')
+    {
+        length--;
+    }
+    slash = (const char*)memrchr(s, '/', length - 1);
+    assert(slash);
+    return VCreatePathUnchecked(VCreateString(s, (size_t)(slash - s + 1)));
+}
+
 static vref nativePid(VM *vm unused)
 {
     return VBoxInteger(getpid());
@@ -794,6 +822,7 @@ void NativeInit(void)
     addFunctionInfo("indexOf",     nativeIndexOf,     2, 1);
     addFunctionInfo("lines",       nativeLines,       2, 1);
     addFunctionInfo("mv",          nativeMv,          2, 0);
+    addFunctionInfo("parent",      nativeParent,      1, 1);
     addFunctionInfo("pid",         nativePid,         0, 1);
     addFunctionInfo("readFile",    nativeReadFile,    2, 1);
     addFunctionInfo("replace",     nativeReplace,     3, 2);
