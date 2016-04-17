@@ -95,7 +95,7 @@ void PipeProcess(void)
 
 wait:
     status = select(FD_SETSIZE, &readSet, &writeSet, null, null);
-    if (status < 0)
+    if (unlikely(status < 0))
     {
         if (errno == EINTR)
         {
@@ -207,7 +207,7 @@ wait:
                 }
                 else if (readSize < 0)
                 {
-                    if (errno == EWOULDBLOCK)
+                    if (likely(errno == EWOULDBLOCK))
                     {
                         BVSetSize(&pipe->buffer, prevSize);
                         break;
@@ -238,7 +238,7 @@ wait:
                 while (readSize)
                 {
                     ssize_t writeSize = write(pipe->fdSourceOrSink, pbuffer, readSize);
-                    if (writeSize < 0)
+                    if (unlikely(writeSize < 0))
                     {
                         if (errno == EINTR)
                         {
@@ -278,7 +278,7 @@ static Pipe *pipeCreate(int *pfd, bool read)
 #else
     status = pipe(fd);
 #endif
-    if (status)
+    if (unlikely(status))
     {
         FailErrno(false);
     }

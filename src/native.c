@@ -167,7 +167,7 @@ static int startProcess(const char *executable, char *const argv[],
     posix_spawn_file_actions_adddup2(&psfa, fdErr, STDERR_FILENO);
     status = posix_spawn(&pid, executable, &psfa, null, argv, (char*const*)envp);
     posix_spawn_file_actions_destroy(&psfa);
-    if (status)
+    if (unlikely(status))
     {
         FailErrno(false);
     }
@@ -178,18 +178,18 @@ static int startProcess(const char *executable, char *const argv[],
         if (fdIn != STDIN_FILENO)
         {
             status = dup2(fdIn, STDIN_FILENO);
-            if (status == -1)
+            if (unlikely(status == -1))
             {
                 FailErrno(true);
             }
         }
         status = dup2(fdOut, STDOUT_FILENO);
-        if (status == -1)
+        if (unlikely(status == -1))
         {
             FailErrno(true);
         }
         status = dup2(fdErr, STDERR_FILENO);
-        if (status == -1)
+        if (unlikely(status == -1))
         {
             FailErrno(true);
         }
@@ -301,7 +301,7 @@ static vref jobExec(Job *job, vref *values)
 
     arg0Length = strlen(argv[0]);
     executable = FileSearchPath(argv[0], arg0Length, &length, true);
-    if (!executable)
+    if (unlikely(!executable))
     {
         executable = FileSearchPath(argv[0], arg0Length, &length, false);
         if (executable)
@@ -346,7 +346,7 @@ static vref jobExec(Job *job, vref *values)
     }
     close(fdOutWrite);
     close(fdErrWrite);
-    if (pid < 0)
+    if (unlikely(pid < 0))
     {
         FailOOM();
     }
@@ -373,7 +373,7 @@ static vref jobExec(Job *job, vref *values)
     while (PipeIsOpen(pipeOut) || PipeIsOpen(pipeErr));
 
     pid = waitpid(pid, &status, 0);
-    if (pid < 0)
+    if (unlikely(pid < 0))
     {
         FailErrno(false);
     }
@@ -381,7 +381,7 @@ static vref jobExec(Job *job, vref *values)
     {
         PipeDispose(pipeIn, null);
     }
-    if (WEXITSTATUS(status) && VIsTruthy(env->fail))
+    if (unlikely(WEXITSTATUS(status)) && VIsTruthy(env->fail))
     {
         PipeDispose(pipeOut, null);
         PipeDispose(pipeErr, null);

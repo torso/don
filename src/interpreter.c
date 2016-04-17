@@ -588,7 +588,7 @@ static VM *execute(VM *vm)
 
                 /* TODO: Activate speculative execution */
                 JobExecute(vm->job);
-                if (vm->failMessage)
+                if (unlikely(vm->failMessage))
                 {
                     return vm;
                 }
