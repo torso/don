@@ -173,6 +173,7 @@ fn write(filename, data)
     native.writeFile(file(filename), data)
 }
 
+_cpp_prog = null # TODO: make private
 fn cc(files..., flags:[], include:[], sysinclude:[])
 {
     result = []
@@ -181,13 +182,42 @@ fn cc(files..., flags:[], include:[], sysinclude:[])
                env('GCC_EXEC_PREFIX'), env('COMPILER_PATH'), env('LIBRARY_PATH'),
                env('CPATH'), env('C_INCLUDE_PATH'), env('CPLUS_INCLUDE_PATH'),
                env('OBJC_INCLUDE_PATH'))
+    includeFlags = []
     for i in include
     {
-        flags = flags::list('-iquote', i)
+        includeFlags = includeFlags::list('-iquote', i)
     }
     for i in sysinclude
     {
-        flags = flags::list('-isystem', i)
+        includeFlags = includeFlags::list('-isystem', i)
+    }
+    flags = flags::includeFlags
+    if (_cpp_prog == null)
+    {
+        _cpp_prog = exec('cc', '-print-prog-name=cc1plus', echo:false, modify:[])[0]
+        _cpp_prog = file(_cpp_prog[0..size(_cpp_prog)-2])
+    }
+    output = lines(exec(_cpp_prog, '-v', includeFlags, stdin:'',
+                   echo:false, echoStderr:false, modify:[])[1])
+    copy = false
+    includes = []
+    for line in output
+    {
+        if startsWith(line, '#include')
+        {
+            copy = true
+        }
+        else if copy
+        {
+            if line[0] != ' '
+            {
+                copy = false
+            }
+            else
+            {
+                includes = includes::list(file(line[1..size(line)-1]))
+            }
+        }
     }
     for f in filelist(files)
     {
@@ -196,7 +226,10 @@ fn cc(files..., flags:[], include:[], sysinclude:[])
         if !uptodate
         {
             dependFile = file(cache, filename(f), 'd')
-            out exitcode = exec('cc', '-c', '-MT', '', '-MD', '-MF', dependFile, '-o', ofile, flags, f, fail:false, modify:list(dependFile, ofile))
+            out exitcode = exec('cc', '-c', '-MT', '', '-MD', '-MF', dependFile,
+                                '-o', ofile, flags, f, fail:false,
+                                access:list(parent(f))::includes,
+                                modify:list(dependFile, ofile))
             if exitcode
             {
                 failed = true

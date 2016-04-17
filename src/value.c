@@ -431,6 +431,7 @@ size_t VStringLength(vref value)
     case TYPE_FUTURE:
         break;
     }
+    fprintf(stderr, "VStringLength type:%d\n", ho.type);
     unreachable;
 }
 
