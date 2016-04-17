@@ -1025,6 +1025,11 @@ vref VFinishArray(vref *array)
     return HeapFinishAlloc((byte*)array);
 }
 
+void VAbortArray(vref *array)
+{
+    HeapAllocAbort((byte*)array);
+}
+
 vref VCreateArrayFromData(const vref *values, size_t size)
 {
     byte *data;

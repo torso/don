@@ -120,16 +120,27 @@ static VM *execute(VM *vm)
 
         case OP_LIST:
         {
+            vref result;
             vref *array;
             vref *write;
             assert(arg);
             array = VCreateArray((size_t)arg);
             for (write = array; arg--; write++)
             {
-                *write = loadValue(vm, vm->bp, *vm->ip++);
+                vref value = loadValue(vm, vm->bp, *vm->ip++);
+                if (value == VFuture)
+                {
+                    vm->ip += arg;
+                    VAbortArray(array);
+                    result = VFuture;
+                    goto storeList;
+                }
+                *write = value;
                 assert(HeapGetObjectType(*write) != TYPE_FUTURE);
             }
-            storeValue(vm, vm->bp, *vm->ip++, VFinishArray(array));
+            result = VFinishArray(array);
+    storeList:
+            storeValue(vm, vm->bp, *vm->ip++, result);
             break;
         }
 
