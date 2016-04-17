@@ -22,7 +22,7 @@
 #include "value.h"
 #include "vm.h"
 
-#define NATIVE_FUNCTION_COUNT 21
+#define NATIVE_FUNCTION_COUNT 22
 
 typedef vref (*invoke)(VM*);
 
@@ -771,6 +771,7 @@ static vref nativeWriteFile(VM *vm)
 static void addFunctionInfo(const char *name, invoke function,
                             uint parameterCount, uint returnValueCount)
 {
+    assert(initFunctionIndex < NATIVE_FUNCTION_COUNT);
     assert(parameterCount + returnValueCount <= NATIVE_MAX_VALUES);
     functionInfo[initFunctionIndex].name = StringPoolAdd(name);
     functionInfo[initFunctionIndex].function = function;
@@ -801,6 +802,7 @@ void NativeInit(void)
     addFunctionInfo("size",        nativeSize,        1, 1);
     addFunctionInfo("split",       nativeSplit,       3, 1);
     addFunctionInfo("writeFile",   nativeWriteFile,   2, 0);
+    assert(initFunctionIndex == NATIVE_FUNCTION_COUNT);
 }
 
 vref NativeInvoke(VM *vm, nativefunctionref function)
