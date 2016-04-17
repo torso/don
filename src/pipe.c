@@ -162,6 +162,10 @@ wait:
                 {
                     BVInit(&pipe->buffer, MIN_READ_BUFFER + (size_t)readSize);
                     BVAddData(&pipe->buffer, buffer, (size_t)readSize);
+                    if (readSize != sizeof(buffer))
+                    {
+                        goto readComplete;
+                    }
                 }
                 else if (unlikely(readSize < 0))
                 {
@@ -188,13 +192,18 @@ wait:
                 size_t prevSize = BVSize(&pipe->buffer);
                 byte *pbuffer = BVGetAppendPointer(&pipe->buffer, MIN_READ_BUFFER);
                 ssize_t readSize;
+                size_t requestedSize;
         readAgain2:
-                readSize = read(pipe->fd, pbuffer,
-                                MIN_READ_BUFFER + BVGetReservedAppendSize(&pipe->buffer));
+                requestedSize = MIN_READ_BUFFER + BVGetReservedAppendSize(&pipe->buffer);
+                readSize = read(pipe->fd, pbuffer, requestedSize);
                 if (readSize > 0)
                 {
                     first = false;
                     BVSetSize(&pipe->buffer, prevSize + (size_t)readSize);
+                    if (requestedSize != (size_t)readSize)
+                    {
+                        break;
+                    }
                 }
                 else if (readSize < 0)
                 {
@@ -221,6 +230,7 @@ wait:
                 }
             }
 
+    readComplete:
             if (pipe->fdSourceOrSink >= 0)
             {
                 size_t readSize = BVSize(&pipe->buffer) - oldSize;
