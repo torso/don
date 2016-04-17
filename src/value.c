@@ -97,13 +97,13 @@ char *VDebug(vref value)
         length = BVGetReservedAppendSize(&buffer);
         snprintf((char*)BVGetAppendPointer(&buffer, length), length,
                  "[int=%d]", VUnboxInteger(value));
-        BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)));
+        BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)) + 1);
         return (char*)BVDisposeContainer(&buffer);
     }
 
     length = BVGetReservedAppendSize(&buffer);
     snprintf((char*)BVGetAppendPointer(&buffer, length), length, "[%u:", value);
-    BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)));
+    BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)) + 1);
 
     if (!value)
     {
@@ -154,7 +154,7 @@ char *VDebug(vref value)
             {
                 snprintf((char*)BVGetAppendPointer(&buffer, length), length, "%u", data[i]);
             }
-            BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)));
+            BVSetSize(&buffer, strlen((const char*)BVGetPointer(&buffer, 0)) + 1);
         }
     }
     else if (string)
