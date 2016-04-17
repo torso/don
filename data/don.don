@@ -23,9 +23,10 @@ fn env(name)
     return native.getEnv(name)
 }
 
-fn exec(command..., env:[], fail:true, echo:true, echoStderr:true, access:@/, modify:@/)
+fn exec(command..., stdin:0, env:[], fail:true, echo:true, echoStderr:true, access:@/, modify:@/)
 {
-    result = native.exec(command, env, echo, echoStderr, fail, filelist(access), filelist(modify))
+    result = native.exec(command, stdin, env, echo, echoStderr, fail,
+                         filelist(access), filelist(modify))
     stdout = result[0]
     stderr = result[1]
     exitcode = result[2]

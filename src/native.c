@@ -151,13 +151,17 @@ static vref readFile(vref object, vref valueIfNotExists)
 }
 
 static int startProcess(const char *executable, char *const argv[],
-                        const char *const envp[], int fdOut, int fdErr)
+                        const char *const envp[], int fdIn, int fdOut, int fdErr)
 {
     pid_t pid;
     int status;
 #if USE_POSIX_SPAWN
     posix_spawn_file_actions_t psfa;
     posix_spawn_file_actions_init(&psfa);
+    if (fdIn != STDIN_FILENO)
+    {
+        posix_spawn_file_actions_adddup2(&psfa, fdIn, STDIN_FILENO);
+    }
     posix_spawn_file_actions_adddup2(&psfa, fdOut, STDOUT_FILENO);
     posix_spawn_file_actions_adddup2(&psfa, fdErr, STDERR_FILENO);
     status = posix_spawn(&pid, executable, &psfa, null, argv, (char*const*)envp);
@@ -170,6 +174,14 @@ static int startProcess(const char *executable, char *const argv[],
     pid = VFORK();
     if (!pid)
     {
+        if (fdIn != STDIN_FILENO)
+        {
+            status = dup2(fdIn, STDIN_FILENO);
+            if (status == -1)
+            {
+                FailErrno(true);
+            }
+        }
         status = dup2(fdOut, STDOUT_FILENO);
         if (status == -1)
         {
@@ -239,6 +251,7 @@ static vref nativeEcho(VM *vm)
 typedef struct
 {
     vref command;
+    vref stdin;
     vref env;
     vref echoOut;
     vref echoErr;
@@ -265,11 +278,12 @@ static vref jobExec(Job *job, vref *values)
     const char *path;
     pid_t pid;
     int status;
+    int pipeIn = -1, fdInRead = STDIN_FILENO;
     int pipeOut, fdOutWrite;
     int pipeErr, fdErrWrite;
     size_t length;
 
-    if (env->command == VFuture || env->env == VFuture ||
+    if (env->command == VFuture || env->stdin == VFuture || env->env == VFuture ||
         env->echoOut == VFuture || env->echoErr == VFuture ||
         env->fail == VFuture || job->modifiedFiles == VFuture)
     {
@@ -302,17 +316,32 @@ static vref jobExec(Job *job, vref *values)
         return 0;
     }
 
-    pipeOut = PipeCreate(&fdOutWrite);
-    pipeErr = PipeCreate(&fdErrWrite);
+    if (!VIsInteger(env->stdin))
+    {
+        bytevector *buffer;
+        length = VStringLength(env->stdin);
+        pipeIn = PipeCreateRead(&fdInRead, &buffer, length);
+        VWriteString(env->stdin, (char*)BVGetAppendPointer(buffer, length));
+    }
+    else
+    {
+        assert(env->stdin == VBoxInteger(0));
+    }
+    pipeOut = PipeCreateWrite(&fdOutWrite);
+    pipeErr = PipeCreateWrite(&fdErrWrite);
 
     envp = VCollectionSize(env->env) ? EnvCreateCopy(env->env) : EnvGetEnv();
 
-    pid = startProcess(executable, argv, envp, fdOutWrite, fdErrWrite);
+    pid = startProcess(executable, argv, envp, fdInRead, fdOutWrite, fdErrWrite);
     free(executable);
     free(argv);
     if (VCollectionSize(env->env))
     {
         free((void*)envp);
+    }
+    if (pipeIn >= 0)
+    {
+        close(fdInRead);
     }
     close(fdOutWrite);
     close(fdErrWrite);
@@ -336,12 +365,20 @@ static vref jobExec(Job *job, vref *values)
     {
         PipeConnect(pipeErr, STDOUT_FILENO);
     }
-    PipeProcess();
+    do
+    {
+        PipeProcess();
+    }
+    while (PipeIsOpen(pipeOut) || PipeIsOpen(pipeErr));
 
     pid = waitpid(pid, &status, 0);
     if (pid < 0)
     {
         FailErrno(false);
+    }
+    if (pipeIn >= 0)
+    {
+        PipeDispose(pipeIn, null);
     }
     if (WEXITSTATUS(status) && VIsTruthy(env->fail))
     {
@@ -363,6 +400,7 @@ static vref nativeExec(VM *vm)
     vref access, modify;
 
     env.command = VMReadValue(vm);
+    env.stdin = VMReadValue(vm);
     env.env = VMReadValue(vm);
     env.echoOut = VMReadValue(vm);
     env.echoErr = VMReadValue(vm);
@@ -745,7 +783,7 @@ void NativeInit(void)
 {
     addFunctionInfo("cp",          nativeCp,          2, 0);
     addFunctionInfo("echo",        nativeEcho,        2, 0);
-    addFunctionInfo("exec",        nativeExec,        7, 3);
+    addFunctionInfo("exec",        nativeExec,        8, 3);
     addFunctionInfo("fail",        nativeFail,        1, 0);
     addFunctionInfo("file",        nativeFile,        3, 1);
     addFunctionInfo("filename",    nativeFilename,    1, 1);

@@ -1,0 +1,4 @@
+target default
+{
+    exec('cat', stdin:"PASS\n")
+}
